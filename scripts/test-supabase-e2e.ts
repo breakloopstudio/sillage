@@ -69,10 +69,17 @@ async function main(): Promise<void> {
       userId = created.id;
     }
 
-    // Login comme le ferait l'app (signInWithPassword)
-    const { data: loginData, error: loginErr } = await user.auth.signInWithPassword({ email: TEST_EMAIL, password: TEST_PASSWORD });
-    check('signInWithPassword', !loginErr && !!loginData.session, loginErr?.message);
-    if (!userId && loginData.user) userId = loginData.user.id;
+    // Login comme le ferait l'app (signInWithPassword) — retente avec backoff :
+    // gotrue rate-limit les sign-in par IP (runs rapprochés, CI sur IP « chaude »).
+    // En usage normal (1 run) la boucle fait 1 itération → aucun ralentissement.
+    type SignInRes = Awaited<ReturnType<typeof user.auth.signInWithPassword>>;
+    let loginRes: SignInRes = await user.auth.signInWithPassword({ email: TEST_EMAIL, password: TEST_PASSWORD });
+    for (let attempt = 1; attempt < 4 && (loginRes.error || !loginRes.data.session); attempt++) {
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+      loginRes = await user.auth.signInWithPassword({ email: TEST_EMAIL, password: TEST_PASSWORD });
+    }
+    check('signInWithPassword', !loginRes.error && !!loginRes.data.session, loginRes.error?.message ?? '');
+    if (!userId && loginRes.data.user) userId = loginRes.data.user.id;
     check('user id récupéré', userId.length > 0, userId);
   }
 
@@ -98,20 +105,35 @@ async function main(): Promise<void> {
   {
     // Utiliser le client `user` (session active) — le token est automatiquement
     // passé à la websocket realtime (pas besoin de setAuth manuel sur un client séparé)
+    // Le canal realtime cloud peut rater le 1er événement juste après SUBSCRIBED
+    // (cold-start). On rend le test déterministe : timeout généreux + rejeu d'un
+    // INSERT (parfum_id différent => nouvel événement, pas un UPDATE) à +5s.
     const eventReceived = new Promise<boolean>((resolve) => {
-      const timeout = setTimeout(() => resolve(false), 20000);
-      user.channel('e2e-favoris')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'favoris', filter: `user_id=eq.${userId}` }, () => {
-          clearTimeout(timeout);
-          resolve(true);
-        })
+      let done = false;
+      let retryTimer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (v: boolean) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (retryTimer) clearTimeout(retryTimer);
+        resolve(v);
+      };
+      const timer = setTimeout(() => finish(false), 30000);
+      user.channel(`e2e-favoris-${Date.now()}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'favoris', filter: `user_id=eq.${userId}` }, () => finish(true))
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
-            // Insérer APRÈS subscription confirmée
             await user.from('favoris').upsert({
               user_id: userId, parfum_id: 'chanel_no5', nom: 'N°5', marque: 'Chanel',
               added_at: new Date().toISOString(),
             } as never);
+            retryTimer = setTimeout(() => {
+              if (done) return;
+              void user.from('favoris').upsert({
+                user_id: userId, parfum_id: 'chanel_allure', nom: 'Allure', marque: 'Chanel',
+                added_at: new Date().toISOString(),
+              } as never);
+            }, 5000);
           }
         });
     });
