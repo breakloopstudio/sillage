@@ -5,7 +5,16 @@
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { supabase } from '../supabase';
+
+// projectId Expo (injecté par `eas init` dans app.json → extra.eas.projectId).
+// Requis pour générer un token push fiable sur un build natif / dev client.
+function getProjectId(): string | undefined {
+  const extra = Constants.expoConfig?.extra as Record<string, unknown> | undefined;
+  const eas = extra?.eas as Record<string, unknown> | undefined;
+  return typeof eas?.projectId === 'string' ? eas.projectId : undefined;
+}
 
 export async function requestFcmPermission(): Promise<boolean> {
   try {
@@ -16,7 +25,10 @@ export async function requestFcmPermission(): Promise<boolean> {
 
 export async function getFcmToken(): Promise<string | null> {
   try {
-    const { data } = await Notifications.getExpoPushTokenAsync();
+    const projectId = getProjectId();
+    const { data } = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
     return data;
   } catch { return null; }
 }
