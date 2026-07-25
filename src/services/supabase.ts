@@ -1,0 +1,127 @@
+// src/services/supabase.ts — Noyau Supabase : client + adaptateur realtime
+// Remplace firebase.ts et fournit l'équivalent d'`onSnapshot` (subscribeUserTable).
+// Cf. MIGRATION_SUPABASE.md §4.
+
+import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { env } from '../config/env';
+
+const useLocal = env.USE_SUPABASE_LOCAL;
+const url = useLocal ? env.SUPABASE_LOCAL_URL : env.SUPABASE_URL;
+const anonKey = useLocal ? env.SUPABASE_LOCAL_ANON_KEY : env.SUPABASE_ANON_KEY;
+const hasConfig = url.length > 0 && anonKey.length > 0;
+
+// Placeholder pour ne pas crasher si le .env est absent (Expo Go, tests) —
+// le client n'est jamais utilisé tant que isSupabaseReady() est false.
+export const supabase: SupabaseClient = createClient(
+  hasConfig ? url : 'https://placeholder.supabase.co',
+  hasConfig ? anonKey : 'placeholder-anon-key',
+  {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false, // mobile : pas de parsing d'URL web
+    },
+    realtime: {
+      heartbeatIntervalMs: 15000,
+    },
+  },
+);
+
+export function isSupabaseReady(): boolean {
+  return env.USE_SUPABASE && hasConfig;
+}
+
+// La RLS filtre les flux realtime via le JWT — il faut le tenir à jour
+// sur la websocket à chaque changement de session (login, refresh, logout).
+supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.realtime.setAuth(session?.access_token ?? null);
+});
+
+// ─── Adaptateur realtime (remplacement d'onSnapshot) ────────────────────────
+//
+// onSnapshot(Firestore) émet un SNAPSHOT COMPLET à chaque changement ;
+// postgres_changes(Supabase) n'émet que des ÉVÉNEMENTS de mutation.
+// Cet adaptateur maintient un cache clé→item (fetch initial + deltas)
+// et réémet une copie triée à chaque changement — signature identique.
+
+export interface SubscribeUserTableOptions<T> {
+  /** Table publique (ex: 'favoris', 'wardrobe') */
+  table: string;
+  /** UUID Supabase du user (auth.uid()) */
+  userId: string;
+  /** Tri du fetch initial (le tri final est reappliqué via `sort` si fourni) */
+  order?: { column: string; ascending?: boolean };
+  /** snake_case row → modèle TS */
+  mapRow: (row: Record<string, unknown>) => T;
+  /** Clé primaire extraite d'une ligne brute (pour appliquer les deltas) */
+  keyOf: (row: Record<string, unknown>) => string;
+  /** Tri final du tableau émis (optionnel) */
+  sort?: (a: T, b: T) => number;
+  /** Callback type onSnapshot : tableau complet à chaque changement */
+  cb: (items: T[]) => void;
+  /** Erreurs fetch initial ou canal (logguées aussi en console.warn) */
+  onError?: (message: string) => void;
+}
+
+export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () => void {
+  const { table, userId, order, mapRow, keyOf, sort, cb, onError } = opts;
+  const items = new Map<string, T>();
+  let cancelled = false;
+
+  const emit = (): void => {
+    const arr = [...items.values()];
+    if (sort) arr.sort(sort);
+    cb(arr);
+  };
+
+  // 1. Fetch initial (parité avec le snapshot initial d'onSnapshot)
+  void (async () => {
+    let q = supabase.from(table).select('*').eq('user_id', userId);
+    if (order) q = q.order(order.column, { ascending: order.ascending ?? true });
+    const { data, error } = await q;
+    if (cancelled) return;
+    if (error) {
+      console.warn(`[supabase] ${table} fetch error:`, error.message);
+      onError?.(error.message);
+      cb([]);
+      return;
+    }
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+      items.set(keyOf(row), mapRow(row));
+    }
+    emit();
+  })();
+
+  // 2. Canal realtime — INSERT/UPDATE/DELETE appliqués au cache
+  const channel = supabase
+    .channel(`user:${table}:${userId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table, filter: `user_id=eq.${userId}` },
+      (payload) => {
+        if (cancelled) return;
+        if (payload.eventType === 'DELETE') {
+          items.delete(keyOf(payload.old as Record<string, unknown>));
+        } else {
+          const row = payload.new as Record<string, unknown>;
+          items.set(keyOf(row), mapRow(row));
+        }
+        emit();
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.warn(`[supabase] ${table} channel error`);
+        onError?.(`Canal temps réel ${table} en échec.`);
+      }
+    });
+
+  // 3. Cleanup — même contrat que l'unsubscribe d'onSnapshot
+  return () => {
+    cancelled = true;
+    void supabase.removeChannel(channel);
+  };
+}

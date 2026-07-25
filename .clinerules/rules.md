@@ -2,7 +2,7 @@
 
 ## §1 — Vue d'ensemble
 
-Projet React Native (Expo 57, RN 0.86), ~30 écrans, design « Luxe malin ». Architecture file-based routing via Expo Router.
+Projet React Native (Expo 57, RN 0.86), ~30 écrans, design « Luxe malin ». Architecture file-based routing via Expo Router. **Backend : Supabase** (Postgres + Auth + Storage + Realtime + Edge Functions) depuis la migration de juillet 2026 (cf. `MIGRATION_SUPABASE.md`). Le code Firebase a été retiré.
 
 ---
 
@@ -11,43 +11,60 @@ Projet React Native (Expo 57, RN 0.86), ~30 écrans, design « Luxe malin ». Ar
 ```
 app/
 ├── _layout.tsx               # Root : ThemeProvider → GestureHandlerRootView → AuthProvider → AuthGuard → ErrorBoundary
-├── index.tsx                 # Splash → redirection (onboarding ou tabs)
+├── index.tsx                 # Splash → redirection tabs
 ├── (tabs)/
-│   ├── _layout.tsx           # Stack wrapper (pages empilées sur le pager)
-│   ├── index.tsx             # TabPager PagerView 4 pages + DockBar + barre de recherche persistante
-│   ├── favorites.tsx         # Page Favoris — moodboard olfactif, grille 2 colonnes, filtres famille, tri, ActionSheet
-│   ├── history.tsx           # Journal olfactif — historique des scans groupé par période, cartes avec dots statut, prix, répétitions
-│   ├── collection.tsx        # Page Parfumerie (grid, étagères, SOTD, quick-edit) — fichier garde le nom collection pour rétrocompatibilité expo-router
-│   ├── scan.tsx              # Scanner overlay (FAB dans le DockBar → push)
-│   └── search.tsx            # Overlay recherche plein écran (barre persistante → push)
+│   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom + SearchChrome + NavigationChromeProvider
+│   ├── index.tsx             # Catalogue (hôte CatalogPage)
+│   ├── selection.tsx         # Sélection segmentée Favoris/Carnet (param ?segment=carnet)
+│   ├── collection.tsx        # Parfumerie
+│   └── profile.tsx           # Profil (identité, stats, SOTD, navigation rapide, déconnexion)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
-├── catalog/[id].tsx          # Fiche détail v7 (DetailHero, CollapsingHeader, StickyBottomBar, pyramide v5, prix unique, « Quand le porter », « Dans le même esprit »)
-├── wardrobe/[parfumId].tsx    # Fiche personnelle (notes, notes, SOTD, étagères)
+├── catalog/[id].tsx          # Fiche détail v7 (DetailHero, CollapsingHeader, StickyBottomBar, pyramide v7, prix unique, signature nez, « Quand le porter », « Dans le même esprit »)
+├── wardrobe/[parfumId].tsx   # Fiche personnelle (notes, rating, SOTD, étagères)
+├── perfumer/[name].tsx       # Créations d'un nez (signature dorée de la fiche détail, grille densité partagée)
 ├── settings.tsx              # Paramètres (notifications, devise, apparence, soutien, légal, compte)
+├── scan.tsx                  # Scan (slide_from_bottom)
+├── search.tsx                # Recherche (fade)
+├── history.tsx               # Historique des scans (route racine, poussée depuis Profil)
+├── scentlist.tsx             # Redirection /scentlist → /(tabs)/selection?segment=carnet (deep links ; JAMAIS dans (tabs)/ — cf. §5)
 ├── legal.tsx                 # Mentions légales
 ├── privacy.tsx               # Politique de confidentialité
-├── onboarding.tsx            # 3 slides swipe + AsyncStorage
+├── privacy-center.tsx        # Centre de confidentialité
+├── delete-account.tsx        # Suppression de compte
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (12)        # Firebase, Firestore, GPT-4o, user-data, wardrobe, theme-storage, haptics…
-├── hooks/        (12)        # useAuth, useScanReducer, useCatalog, useFavoris, useCollection, useWishlist, useScans, useWardrobe, useShelves, useSotd, useNetwork, useDensityPreference
+├── services/     (14)        # supabase, firestore, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, wardrobe, scentlist, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
+├── hooks/        (17)        # useAuth, useCatalog, useCollection, useDensityPreference, useFavoris, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useScentList, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWardrobe, useWeather
 ├── contexts/     (1)         # AuthContext (ThemeContext est dans src/theme/)
-├── components/   (13)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, ProfileAvatar, NoteDetailPopup, ActionSheet, ImageViewerPopup
+├── components/   (13)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet
 ├── features/
-│   ├── scan/     (8)         # ScanScreen + 7 sous-états
-│   ├── catalog/  (9)         # CatalogPage, OlfactoryPyramid v5, DetailHero, CollapsingHeader, StickyBottomBar, BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
-│   ├── wardrobe/ (9)         # WardrobeAddSheet, WardrobeCard, WardrobeGrid, WardrobeQuickSheet, SOTDCard, SOTDPicker, FilterBar, StarRating, ShelfManager
-│   └── navigation/ (1)      # DockBar (barre flottante 5 positions + FAB, verre depoli via expo-blur, pulse ring, show/hide au scroll)
-├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx (useTheme + SystemUI/NavigationBar theming)
-├── config/       (3)         # Firebase config, env (variables publiques), index
-├── models/       (8)         # Parfum, WardrobeItem, Shelf, SotdEntry, UserFavori, UserScan, UserCollectionItem, UserWishlistItem + interfaces de scan
-└── utils/        (5)         # Error translator, translate-note, note-descriptions, normalize, ownership (labels, helpers)
+│   ├── auth/                 # Helpers écrans auth
+│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero, CollapsingHeader, StickyBottomBar, BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
+│   ├── favorites/            # FavoritesContent (onglet Sélection, segment Favoris)
+│   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs — l'avatar utilisateur vit ici, pas de ProfileAvatar) + NavigationChromeContext
+│   ├── profile/              # Contenu onglet Profil
+│   ├── runner/               # Flacon Runner (easter egg, cf. §17)
+│   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
+│   ├── scentlist/            # ScentListContent, ScentCard, ScentListEntry, TrySheet (onglet Sélection, segment Carnet)
+│   ├── search/     (2)       # SearchChrome (barre recherche + voix, masquée sur /profile) + VoiceOverlay
+│   └── wardrobe/             # WardrobeAddSheet, WardrobeCard, WardrobeGrid, WardrobeQuickSheet, SOTDCard, SOTDPicker, FilterBar, StarRating, ShelfManager
+├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
+├── config/       (2)         # env, index (firebase.config supprimé — migration Supabase)
+├── models/       (8)         # Parfum (+searchText), WardrobeItem (+Shelf, SotdEntry), UserFavori, UserScan, UserScentItem (+ScentVerdict), UserCollectionItem, ScanResult, index
+└── utils/        (10)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring
+
+supabase/                     # Backend Supabase (versionné)
+├── migrations/   (0001→0009) # extensions, types, tables, index (trgm/FTS), RLS+publication, fonctions SQL (RPC), cron pg_cron
+├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account + _shared/
+├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
+└── smoke-test.sql            # Tests SQL rejouables
 ```
 
-> **Note v6.7** : Parfumerie (ex « Garde-robe ») — icône `flask`. Favoris en grille (filtres famille, tri, ActionSheet). Historique groupé par période (Aujourd'hui/Hier/Cette semaine...), scans sauvegardés dans tous les états (no-result, error). `ActionSheet` bottom sheet custom. Dénormalisation `bestPrice`/`referencePrice`/`annee` dans UserFavori/UserScan. Back gesture edge-pan (40px strip gauche) sur fiche détail catalog. SOTDPicker ancré au-dessus de la carte (position absolute, sans Reanimated). `ImageViewerPopup` : tap sur la photo du parfum → popup plein écran. Recherche en grille 2 colonnes (`compact`). Images en `contain` (pas de crop). Parfums similaires triés par popularité + shuffle journalier. Recherche par préfixes (scoring `startsWith` + bonus `reviewCount`).
+> **Note v6.7** : Parfumerie (ex « Garde-robe ») — icône `flask`. Favoris en grille (filtres multi-facettes via FilterSheet, tri, ActionSheet pour le menu contextuel). Historique groupé par période (Aujourd'hui/Hier/Cette semaine...), scans sauvegardés dans tous les états (no-result, error). `ActionSheet` bottom sheet custom. Dénormalisation `bestPrice`/`referencePrice`/`annee` dans UserFavori/UserScan. Back gesture edge-pan (40px strip gauche) sur fiche détail catalog. SOTDPicker ancré au-dessus de la carte (position absolute, sans Reanimated). `ImageViewerPopup` : tap sur la photo du parfum → popup plein écran. Recherche en grille 2 colonnes (`compact`). Images en `contain` (pas de crop). Parfums similaires triés par popularité + shuffle journalier. Recherche par préfixes (scoring `startsWith` + bonus `reviewCount`).
 
 ---
 
@@ -70,7 +87,16 @@ src/
 
 ## §5 — Navigation
 
-- Expo Router file-based
+- Expo Router file-based, **TopTabs + custom tabBar** (DockBar en verre dépoli)
+- Navigation : swipe horizontal natif entre les 4 onglets (TopTabs = material-top-tabs vendored, react-native-tab-view + pager-view 8.0.2)
+- IA : 4 onglets — Catalogue | Sélection (Favoris/Carnet segmentés) | Parfumerie | Profil — + FAB central Scan
+- **Règle d'or (v6.23)** : aucun fichier-route utilitaire (redirect, stub, shim) dans `app/(tabs)/` — expo-router auto-enregistre tout fichier du groupe comme écran du TopTabs, donc comme page swipeable du pager. Les redirects vivent à la racine `app/` (Stack, non swipeable)
+- Scan/Recherche : routes racine (`slide_from_bottom` / `fade`), pas des onglets
+- Historique : route racine, poussée depuis Profil
+- Perfumer : route racine, poussée depuis la signature nez de la fiche détail (slide_from_right)
+- `NavigationChromeContext` pour le hide-on-scroll du dock — chaque écran actif écrit `reportScroll(y)`, le layout réagit sans conflit de gestes
+- Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs, masqué sur l'onglet Profil
+- Swipe-back : natif (React Navigation), pas de geste custom → **0 conflit de swipe**
 - `router.push()` pour navigation avant, `router.back()` / `router.dismissTo()` pour retour
 - `setPendingParfum()` / `consumePendingParfum()` pour le pont inter-écrans scan → détail
 
@@ -78,17 +104,20 @@ src/
 
 ## §6 — Authentification
 
-- Firebase Auth (email + Google Sign-In)
+- **Supabase Auth** (email + Google Sign-In via `signInWithIdToken`)
 - Auth optionnelle — l'app fonctionne sans compte, aucune redirection forcée vers `/auth/login`
-- `AuthContext` fournit `user`, `authReady`, `isAuthenticated`, `isAdmin`, `login`, `register`, `logout`
+- `useAuth` retourne un `AppUser` (`uid` = UUID Supabase, `email`, `displayName`, `photoURL`, `providers`) — type commun aux écrans
+- `AuthContext` fournit `user: AppUser | null`, `authReady`, `isAuthenticated`, `isAdmin`, `login`, `register`, `loginWithGoogle`, `logout`
+- `isAdmin` = présence dans la table `admins` (`auth.uid()`)
 - `AuthGuard` bloque uniquement l'accès aux routes `/auth/*` si déjà connecté (`isAuthenticated && inAuth → /(tabs)`)
-- Les écrans protégés (admin, actions favoris/collection/wishlist) ont leurs propres vérifications inline
+- Sécurité données : **Row Level Security** sur toutes les tables user (`auth.uid() = user_id`) ; catalogue `parfums` en lecture publique
+- Les écrans protégés (admin, actions favoris/wardrobe) ont leurs propres vérifications inline
 
 ---
 
 ## §7 — Scan
 
-- Flux : Idle → Camera → Burst (3 photos) → GPT-4o Vision → `searchParfumFromScan()` (wrapper scan-spécifique avec bonus nom/marque structurés) → Résultats
+- Flux : Idle → Camera → Burst (3 photos) → GPT-4o Vision (Edge Function `analyze-perfume-image`) → `searchParfumFromScan()` (wrapper scan-spécifique avec bonus nom/marque structurés) → Résultats
 - `searchParfumFromScan` score : +50 nom exact, +25 nom partiel, +15 marque exacte, +8 marque partielle (écrase le scoring catalogue pour garantir le match exact en tête)
 - `ScanResults` affiche les résultats dans l'ordre de pertinence (pas de tri par prix)
 - Import galerie : même pipeline, sans permission caméra
@@ -99,11 +128,11 @@ src/
 
 ## §8 — Catalogue
 
-- Recherche 100% Firestore (searchParfumsCached, ~25K parfums seed, cache Map + prefix cache, debounce 150ms)
+- Recherche via **RPC Postgres `search_parfums`** (tsvector + pg_trgm, ~25K parfums), cache LRU + prefix cache client, debounce 150ms
 - Navigation par famille olfactive (chips horizontaux)
 - Tri : pertinence / prix croissant / prix décroissant
-- Dédoublonnage automatique par `marque+nom` normalisé (élimine les doublons Firestore)
-- Suggestions personnalisées (si connecté) ou populaires (fallback)
+- Dédoublonnage automatique par `marque+nom` normalisé (côté RPC + sécurité client)
+- Suggestions personnalisées (RPC `personalized_suggestions` si connecté) ou populaires (fallback)
 
 ---
 
@@ -121,7 +150,7 @@ src/
 | `surface2` | `#F3F1ED` | `#1D1728` | Fond secondaire |
 | `border` | `#E8E4DE` | `#2A2238` | Bordures |
 | `text` | `#1A1520` | `#EDE8F5` | Texte principal |
-| `textMuted` | `#8B8580` | `#988EA8` | Texte secondaire |
+| `textMuted` | `#6E6963` | `#988EA8` | Texte secondaire |
 | `primary` | `#6C3ED9` | `#8B6CF6` | Violet |
 | `secondary` | `#C8945A` | `#D4A960` | Doré |
 | `deal` | `#0D9488` | `#2DD4BF` | Teal (bonne affaire) |
@@ -154,25 +183,27 @@ src/
 - Pas de `StyleSheet.create()` au niveau module pour les styles dépendant du thème
 - `StyleSheet.hairlineWidth` est autorisé (valeur statique)
 - `useCallback` obligatoire sur tous les handlers passés en props à des enfants (évite les re-renders cascade)
-- Appels async Firestore protégés par `try/catch` + `console.warn` (couche service) ou `.catch(() => {})` (écrans)
+- Appels async Supabase protégés par `try/catch` + `console.warn` (couche service) ou `.catch(() => {})` (écrans)
 
 ---
 
-## §11 — Firebase
+## §11 — Backend Supabase
 
-- Auth, Firestore, Storage, Cloud Functions, FCM
-- `src/services/firebase.ts` initialise l'app
-- `src/services/firestore.ts` — upsert intelligent, `merge: true`, pas de read préalable
-- Règles Firestore dans `firestore.rules`
+- Auth, Postgres (RLS), Storage, Realtime (`postgres_changes`), Edge Functions (Deno)
+- `src/services/supabase.ts` — client `@supabase/supabase-js` (AsyncStorage, `react-native-url-polyfill`) + `subscribeUserTable()` (adaptateur realtime : fetch initial + deltas INSERT/UPDATE/DELETE → même contrat qu'`onSnapshot`) + `isSupabaseReady()`
+- Chaque service public (`firestore.ts`, `user-data.ts`, …) = `export * from './impl/<x>.supabase'` ; l'implémentation vit dans `src/services/impl/`
+- Schéma/RLS/fonctions SQL dans `supabase/migrations/` ; Edge Functions dans `supabase/functions/`
+- Secrets via `supabase secrets set` (Vault) — **jamais** en dur dans `config.toml` (références `env(...)` uniquement)
 
 ---
 
 ## §12 — Catalogue de données
 
-- Catalogue 100% autonome : ~25 100 parfums importés dans Firestore via `scripts/import-firestore.ts`
-- `src/utils/normalize.ts` — `normalize()`, `normalizeId()`, `buildSearchKeywords()` pour le cache Firestore
-- Règles Firestore : `parfums` en lecture publique, écriture réservée aux admins (vérification `admins/{uid}`)
-- Images hébergées sur Firebase Storage : `parfums/{parfumId}/primary.webp`
+- Catalogue 100% autonome : ~25 100 parfums dans la table Postgres `parfums` (migrés depuis Firestore via `scripts/export-firestore.ts` + `scripts/import-supabase.ts`)
+- Recherche plein texte : colonnes générées `search_text` (index GIN `pg_trgm`) + `search_vector` (tsvector, config `french_unaccent`) — `searchKeywords` n'est plus stocké
+- `src/utils/normalize.ts` — `normalize()`, `STOP_WORDS` (tokenisation client du prefix cache) ; `buildSearchKeywords()`/`generateTrigrams()` conservés pour les tests
+- RLS : `parfums` en lecture publique, écriture réservée aux admins (table `admins`)
+- Images hébergées sur **Supabase Storage** (bucket public `parfum-images`) : `parfums/{parfumId}_{ts}_{name}` ; migration via `scripts/migrate-storage.ts`
 - `source: 'seed'` — distingue les données importées des données saisies manuellement (`'manual'`)
 - Pas d'API externe pour les données de catalogue
 
@@ -180,10 +211,10 @@ src/
 
 ## §13 — Tests
 
-- Suite de tests automatisée : Jest 29 + `jest-expo` + mock Firestore in-memory
-- 185 tests, 14 suites, ~8s : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
+- 216 tests, 17 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
-- Les mocks Firebase sont dans `__mocks__/@react-native-firebase/`
+- Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
 - Build debug : `npx expo run:android`
 - Build release : `.\build_release.bat`
@@ -192,7 +223,7 @@ src/
 
 ## §14 — Recherche vocale
 
-- **Architecture dual-mode** : STT on-device (`expo-speech-recognition`) + fallback OpenAI Whisper-1 (Cloud Function `transcribeVoice`)
+- **Architecture dual-mode** : STT on-device (`expo-speech-recognition`) + fallback OpenAI Whisper-1 (Edge Function `transcribe-voice`)
 - **Trigger** : long-press 400ms sur la barre de recherche (TabPager) ou bouton micro (écran `/search`)
 - **Enregistrement parallèle** : `expo-audio` enregistre en continu pendant que le STT tourne — l'audio brut est disponible pour le fallback
 - **VoiceOverlay** : panneau overlay 5 phases (listening/searching/results/empty/error), intégré dans la page Catalogue
@@ -205,14 +236,14 @@ src/
 ## §15 — Météo & Scoring
 
 - **API** : Open-Meteo (gratuit, sans clé, `GET /v1/forecast`)
-- **Localisation** : `expo-location` — `getLastKnownPositionAsync` (rapide) → `getCurrentPositionAsync` (fallback avec timeout 5s) → ville stockée (geocoding)
+- **Localisation** : `expo-location` — GPS uniquement (`getLastKnownPositionAsync` rapide → `getCurrentPositionAsync` fallback), pas de fallback ville (supprimé v6.18)
 - **Cache** : 30 min en mémoire, keyé par `lat.toFixed(2),lon.toFixed(2)`, déduplication des appels parallèles
 - **Scoring client** : `weather-scoring.ts` — 12 familles olfactives × 31 codes WMO × saisons × jour/nuit × signature × sotdCount
-- **Widget** : `WeatherWidget` pastille `primarySoft` avec icône + température + label + "Parfait pour X" si SOTD
+- **Widget** : bannière unifiée météo + SOTD (`SOTDCard`, v6.20 — `WeatherWidget.tsx` supprimé) : segment météo (icône + température), segment SOTD (image + nom·marque + badge score)
 - **Tri météo** : option "Météo" dans la `FilterBar`, tri par `scoreWardrobeItemForWeather()` décroissant
 - **SOTD suggéré** : `SOTDPicker` pré-trié par score météo, badge `85%` coloré (deal/fair/textMuted)
-- **Notification push** : Cloud Function `sendWeatherNotifications` (cron 7h Europe/Paris) → fetch Open-Meteo → scoring serveur → FCM push
-- **Persistance coordonnées** : `saveWeatherCoords(uid, lat, lon)` écrit dans `users/{uid}/settings/preferences`
+- **Notification push** : Edge Function `send-weather-notifications` (cron pg_cron 7h Paris via double schedule UTC + idempotence) → fetch Open-Meteo → scoring serveur → Expo Push
+- **Persistance coordonnées** : `saveWeatherCoords(uid, lat, lon)` écrit dans `user_settings`
 - **Toggle settings** : "Suggestions météo" → `weatherNotifs` bool
 - **Dépendance** : `expo-location`
 
@@ -222,7 +253,8 @@ src/
 
 - **WebP migration** : `scripts/migrate-webp.ts` — batch conversion JPEG/PNG → WebP (`sharp` quality 82), upload Storage, 8 parallèles, resumable
 - **Background removal** : `scripts/migrate-bgremoval.ts` — `@imgly/background-removal-node` (MODNet), sous-processus Node.js isolé dans `scripts/bgremoval/`
-- **Commandes** : `npm run migrate-webp`, `npm run migrate-bg`
+- **Migration storage Supabase** : `scripts/migrate-storage.ts` — Firebase Storage → bucket `parfum-images`, 8 parallèles, resumable, réécriture `image_url`
+- **Commandes** : `npm run migrate-webp`, `npm run migrate-bg`, `npm run migrate-storage`
 - **Dépendances dev** : `sharp`, `tsx`
 
 ---
@@ -261,10 +293,12 @@ src/features/runner/
 
 ## §18 — Environnement
 
-- Windows 11, PowerShell 5.1
+- Windows 11, PowerShell 5.1 (ExecutionPolicy restreinte → `cmd /c` pour npm/supabase)
 - ANDROID_HOME = `C:\Users\Pierre-Louis\AppData\Local\Android\Sdk`
 - Émulateur AVD : `Pixel_7_Pro`
-- Variables d'environnement dans `.env` et `functions/.env`
+- Variables d'environnement dans `.env` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_USE_SUPABASE`, `SUPABASE_SERVICE_ROLE_KEY`, clés Google) — **jamais committées**
+- Secrets Edge Functions via `supabase secrets set` (`OPENAI_API_KEY`, `CRON_SERVICE_ROLE_KEY`)
+- Supabase CLI : `npm i -g supabase` ; instance locale `supabase start` (Docker Desktop requis), Studio http://127.0.0.1:54323
 
 ---
 
@@ -277,7 +311,7 @@ src/features/runner/
 - ✅ Auth optionnelle (app fonctionne sans login)
 - ✅ EUR uniquement en V1
 - ✅ 3 boutons distincts sur fiche détail
-- ⏸️ Onboarding désactivé (route contournée, index → tabs directement)
+- ✅ Onboarding supprimé (fichier effacé, index → tabs directement)
 - ✅ 0 `fontWeight` — tout en `fontFamily`
 - ✅ `allowFontScaling={false}` sur badges/chips, `maxFontSizeMultiplier={1.3}` sur descriptions
 - ✅ Cibles tactiles ≥ 44 px (ou `hitSlop` explicite)

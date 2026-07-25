@@ -27,15 +27,11 @@ const FAMILIES: FamilyDef[] = [
 
 interface Props {
   onFamilyTap: (query: string) => void;
-  onHorizontalScrollActive?: (active: boolean) => void;
 }
 
-export default function FamilyAmbianceCards({ onFamilyTap, onHorizontalScrollActive }: Props) {
+export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
-
-  const handleBeginDrag = useCallback(() => onHorizontalScrollActive?.(true), [onHorizontalScrollActive]);
-  const handleEndDrag = useCallback(() => onHorizontalScrollActive?.(false), [onHorizontalScrollActive]);
 
   return (
     <View style={s.container}>
@@ -47,9 +43,6 @@ export default function FamilyAmbianceCards({ onFamilyTap, onHorizontalScrollAct
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.scrollContent}
-        onScrollBeginDrag={handleBeginDrag}
-        onScrollEndDrag={handleEndDrag}
-        onMomentumScrollEnd={handleEndDrag}
       >
         {FAMILIES.map(f => {
           const bg = theme.colors[f.bgKey] ?? theme.colors.surface2;

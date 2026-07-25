@@ -1,13 +1,16 @@
 // app/settings.tsx — Page de paramètres
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Switch, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Switch, Pressable, StyleSheet, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { getUserSettings, updateUserSetting } from '../src/services/user-data';
-import { requestFcmPermission, deleteFcmToken } from '../src/services/fcm';
+import { requestFcmPermission, deleteFcmToken } from '../src/services/push';
+import { APP_SHARE_MESSAGE } from '../src/config/legal';
+import { hapticsLight } from '../src/services/haptics';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { useVoicePreference } from '../src/hooks/useVoicePreference';
 import type { ThemeMode } from '../src/services/theme-storage';
@@ -48,6 +51,11 @@ export default function SettingsPage() {
     setMode(m);
   }, [setMode]);
 
+  const handleShareApp = useCallback(async () => {
+    hapticsLight();
+    try { await Share.share({ message: APP_SHARE_MESSAGE }); } catch { /* annulation */ }
+  }, []);
+
   useEffect(() => {
     if (user?.uid) {
       getUserSettings(user.uid).then(s => {
@@ -82,7 +90,7 @@ export default function SettingsPage() {
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityLabel="Retour">
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
           </Pressable>
           <Text style={s.title}>Paramètres</Text>
@@ -129,15 +137,17 @@ export default function SettingsPage() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Prix</Text>
 
-          <View style={s.row}>
+            <View style={s.row}>
             <View style={s.rowLeft}>
               <Ionicons name="cash-outline" size={20} color={theme.colors.text} />
               <View>
                 <Text style={s.rowLabel}>Devise</Text>
-                <Text style={s.rowDesc}>EUR — Euro (multi-devise en V2)</Text>
+                <Text style={s.rowDesc}>Euro — multi-devise en V2</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+            <View style={s.currencyChip}>
+              <Text style={s.currencyChipText} allowFontScaling={false}>EUR</Text>
+            </View>
           </View>
         </View>
 
@@ -188,7 +198,7 @@ export default function SettingsPage() {
             </View>
           </Pressable>
 
-          <Pressable style={s.row} onPress={() => Alert.alert('Supprimer le compte', 'Cette action est irréversible. Toutes tes données seront effacées.', [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive' }])}>
+          <Pressable style={s.row} onPress={() => router.push('/delete-account')}>
             <View style={s.rowLeft}>
               <Ionicons name="trash-outline" size={20} color={theme.colors.overpriced} />
               <Text style={[s.rowLabel, { color: theme.colors.overpriced }]}>Supprimer le compte</Text>
@@ -200,19 +210,26 @@ export default function SettingsPage() {
           <Text style={s.sectionTitle}>Soutenir</Text>
 
           <View style={s.donateCard}>
-            <Ionicons name="heart" size={28} color={theme.colors.favorite} />
+            <Ionicons name="share-social-outline" size={28} color={theme.colors.primary} />
             <Text style={s.donateText}>
-              Si l'app te plaît, tu peux contribuer à son développement. C'est optionnel et infiniment apprécié.
+              Si l'app te plaît, partage-la autour de toi. C'est le meilleur soutien.
             </Text>
-            <Pressable style={s.donateBtn} onPress={() => {}}>
-              <Text style={s.donateBtnText}>Faire un don</Text>
+            <Pressable style={s.shareBtn} onPress={handleShareApp}>
+              <Text style={s.shareBtnText}>Partager l'app</Text>
             </Pressable>
-            <Text style={s.donateSoon}>Bientôt disponible</Text>
           </View>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Légal</Text>
+
+          <Pressable style={s.row} onPress={() => router.push('/privacy-center')}>
+            <View style={s.rowLeft}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.text} />
+              <Text style={s.rowLabel}>Confidentialité & données</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+          </Pressable>
 
           <Pressable style={s.row} onPress={() => router.push('/legal')}>
             <View style={s.rowLeft}>
@@ -232,7 +249,7 @@ export default function SettingsPage() {
         </View>
 
         <Pressable onPress={handleVersionTap}>
-          <Text style={s.version}>ParfumScan v1.0.0</Text>
+          <Text style={s.version}>ParfumScan v{Constants.expoConfig?.version ?? '1.0.0'}{Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : ''}</Text>
         </Pressable>
       </ScrollView>
       {showRunner && (
@@ -247,7 +264,7 @@ export default function SettingsPage() {
 function getStyles(t: Theme) {
   return {
     container: { flex: 1, backgroundColor: t.colors.background },
-    scroll: { paddingBottom: 40 },
+    scroll: { paddingBottom: 88 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
     backBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text },
@@ -260,9 +277,10 @@ function getStyles(t: Theme) {
     version: { textAlign: 'center', fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted, marginTop: 16 },
     donateCard: { backgroundColor: t.colors.surface, borderRadius: t.radius.card, padding: 20, alignItems: 'center', gap: 12 },
     donateText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, textAlign: 'center', lineHeight: 20 },
-    donateBtn: { backgroundColor: t.colors.favoriteSoft, paddingHorizontal: 24, paddingVertical: 12, borderRadius: t.radius.base, opacity: 0.5 },
-    donateBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: t.colors.favorite },
-    donateSoon: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted },
+    shareBtn: { backgroundColor: t.colors.primarySoft, paddingHorizontal: 24, paddingVertical: 12, borderRadius: t.radius.base },
+    shareBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: t.colors.primaryInk },
+    currencyChip: { backgroundColor: t.colors.surface2, borderRadius: t.radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+    currencyChipText: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: t.colors.textMuted },
     segmentedControl: { flexDirection: 'row', backgroundColor: t.colors.surface2, borderRadius: t.radius.base, padding: 4 },
     segment: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: t.radius.sm },
     segmentActive: { backgroundColor: t.colors.primarySoft },

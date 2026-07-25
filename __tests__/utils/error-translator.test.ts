@@ -23,6 +23,12 @@ describe('translateFirebaseError', () => {
 
     err.code = 'auth/too-many-requests';
     expect(translateFirebaseError(err)).toBe('Trop de tentatives. Réessayez plus tard.');
+
+    err.code = 'auth/requires-recent-login';
+    expect(translateFirebaseError(err)).toBe('Par sécurité, reconnectez-vous avant cette action.');
+
+    err.code = 'auth/user-mismatch';
+    expect(translateFirebaseError(err)).toBe("Les identifiants ne correspondent pas à ce compte.");
   });
 
   it('translates known Firestore error codes', () => {
@@ -44,6 +50,37 @@ describe('translateFirebaseError', () => {
 
     err.code = 'unauthenticated';
     expect(translateFirebaseError(err)).toBe('Connexion requise. Veuillez vous reconnecter.');
+
+    err.code = 'failed-precondition';
+    expect(translateFirebaseError(err)).toBe('Action impossible pour le moment. Réessayez.');
+
+    err.code = 'resource-exhausted';
+    expect(translateFirebaseError(err)).toBe('Trop de requêtes. Réessayez plus tard.');
+  });
+
+  it('handles prefixed error codes (functions/, firestore/, auth/)', () => {
+    const err = new Error('ignored') as Error & { code: string };
+
+    err.code = 'functions/failed-precondition';
+    expect(translateFirebaseError(err)).toBe('Action impossible pour le moment. Réessayez.');
+
+    err.code = 'functions/resource-exhausted';
+    expect(translateFirebaseError(err)).toBe('Trop de requêtes. Réessayez plus tard.');
+
+    err.code = 'functions/unauthenticated';
+    expect(translateFirebaseError(err)).toBe('Connexion requise. Veuillez vous reconnecter.');
+
+    err.code = 'firestore/permission-denied';
+    expect(translateFirebaseError(err)).toBe('Permission refusée.');
+
+    err.code = 'auth/user-not-found';
+    expect(translateFirebaseError(err)).toBe('Aucun compte trouvé avec cet email.');
+  });
+
+  it('returns empty string for auth/cancelled', () => {
+    const err = new Error('ignored') as Error & { code: string };
+    err.code = 'auth/cancelled';
+    expect(translateFirebaseError(err)).toBe('');
   });
 
   it('falls back to generic message if code is unknown', () => {

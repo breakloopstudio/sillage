@@ -6,19 +6,13 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import Button from './Button';
 
-type Variant = 'collection' | 'wishlist' | 'favoris' | 'historique' | 'wardrobe';
+type Variant = 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist';
 
 const CONFIG = {
   collection: {
     icon: 'flask-outline',
     title: 'Ta collection est vide',
     desc: 'Ajoute les parfums que tu possèdes pour constituer ton inventaire personnel.',
-    cta: 'Explorer le catalogue',
-  },
-  wishlist: {
-    icon: 'bookmark-outline',
-    title: 'Ta liste d\'envies est vide',
-    desc: 'Ajoute les parfums que tu aimerais t\'offrir ou te faire offrir. Active une alerte prix pour être prévenu quand le tarif baisse.',
     cta: 'Explorer le catalogue',
   },
   favoris: {
@@ -37,6 +31,12 @@ const CONFIG = {
     icon: 'flask-outline',
     title: 'Votre parfumerie est vide',
     desc: 'Ajoutez vos premiers flacons pour constituer votre collection personnelle.',
+    cta: 'Explorer le catalogue',
+  },
+  scentlist: {
+    icon: 'eyedrop-outline',
+    title: 'Ton carnet d\'essais est vide',
+    desc: 'Sauvegarde les parfums que tu veux sentir, puis note tes impressions après l\'essai. En boutique, c\'est ton meilleur allié.',
     cta: 'Explorer le catalogue',
   },
 } as const satisfies Record<Variant, { icon: string; title: string; desc: string; cta: string }>;

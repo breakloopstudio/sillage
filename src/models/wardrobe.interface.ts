@@ -13,6 +13,10 @@ export interface WardrobeItem {
   sizeMl: number | null;
   sotdCount: number;
   isSignature: boolean;
+  longevity?: string | null;          // dénormalisé — filtre Tenue
+  sillage?: string | null;            // dénormalisé — filtre Sillage
+  seasonScores?: { spring?: number; summer?: number; fall?: number; winter?: number } | null; // dénormalisé, nettoyé — filtre Saison
+  allNotes?: string[] | null;         // dénormalisé (tête+cœur+fond dédupliqués, lowercase) — recherche par note
   addedAt: Date;
   updatedAt: Date;
 }

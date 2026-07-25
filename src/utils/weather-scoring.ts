@@ -1,4 +1,5 @@
 // src/utils/weather-scoring.ts — Score de compatibilité parfum × météo
+// ⚠️ Doublon de functions/src/weather-scoring.ts — toute modification doit être reportée dans l'autre fichier
 
 import type { WardrobeItem } from '../models/wardrobe.interface';
 import type { WeatherData } from '../services/weather';

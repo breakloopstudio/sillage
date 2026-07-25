@@ -2,15 +2,19 @@
 
 ## §1 — Service Layer
 
-### `src/services/firebase.ts`
+### `src/services/supabase.ts`
 ```ts
-// Initialise Firebase
-export function isFirebaseReady(): boolean;
+// Client Supabase + adaptateur realtime (remplace firebase.ts + onSnapshot)
+export const supabase: SupabaseClient;
+export function isSupabaseReady(): boolean;
+export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () => void;
+// fetch initial (SELECT) + canal postgres_changes (INSERT/UPDATE/DELETE) → cb(items) triés
+// Même contrat qu'onSnapshot. setAuth realtime synchro via onAuthStateChange.
 ```
 
 ### `src/services/firestore.ts`
 ```ts
-// CRUD Firestore — catalogue 100% autonome
+// Catalogue — impl Supabase (RPC search_parfums / PostgREST). Signatures inchangées.
 export function onParfums(cb: (p: Parfum[]) => void): () => void;
 export function getParfumById(id: string): Promise<Parfum | undefined>;
 export function updateParfum(id: string, data: Partial<Parfum>): Promise<void>;
@@ -32,6 +36,12 @@ export function getSimilarParfums(mainAccords: string[], excludeId: string, limi
 // Scoring par nombre d'accords partagés (array-contains-any) + orderBy popularityScore, shuffle journalier (Lehmer RNG), ParfumCard compact dans UI, cache TTL 24h via similarIdsCachedAt
 ```
 
+```ts
+export function getParfumsByPerfumer(name: string): Promise<Parfum[]>;
+// where('perfumers','array-contains',name) + orderBy popularityScore DESC, limit 50
+// Index composite requis : perfumers CONTAINS + popularityScore DESC (firestore.indexes.json)
+```
+
 ### `src/utils/normalize.ts`
 ```ts
 // Utilitaires de normalisation des chaînes
@@ -44,10 +54,12 @@ export function buildSearchKeywords(marque: string, nom: string, familleOlactive
 
 ### `src/services/user-data.ts`
 ```ts
-// Firestore — données utilisateur (favoris, collection, wishlist, scans, settings)
-// Doc IDs = parfumId (déterministes, pas de doublons possibles)
+// Supabase — données utilisateur (favoris, collection, scans, settings)
+// PK = (user_id, parfum_id) déterministe → upsert ON CONFLICT
 export function onFavoris(uid: string, cb: (f: UserFavori[]) => void): () => void;
-export function addFavori(uid: string, parfumId: string, nom?: string, marque?: string, imageUrl?: string, familleOlactive?: string, bestPrice?: number, referencePrice?: number, annee?: number): Promise<string>;
+export function addFavori(uid: string, parfum: Parfum): Promise<string>;
+// Prend un objet Parfum complet — dénormalise tous les champs d'affichage ET de filtrage
+// (longevity, sillage, seasonScores, notes) dans le document favori
 export function removeFavori(uid: string, parfumId: string): Promise<void>;
 export function isParfumFavori(uid: string, parfumId: string): Promise<{ isFavori: boolean; favoriId: string | null }>;
 export function onCollection(uid: string, cb: (items: UserCollectionItem[]) => void): () => void;
@@ -67,13 +79,15 @@ export function setPriceAlert(uid: string, parfumId: string, active: boolean, cu
 export function moveToCollection(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null): Promise<void>;
 export function moveToWishlist(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null, familleOlactive?: string | null): Promise<void>;
 export function moveFavori(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null, familleOlactive?: string | null): Promise<void>;
+// Best-effort : fetch le parfum pour inclure les champs de filtrage (longevity, sillage...)
 ```
 
 ### `src/services/wardrobe.ts`
 ```ts
 // Wardrobe — collection unifiée (ownership states + metadata)
 export function onWardrobe(uid: string, cb: (items: WardrobeItem[]) => void): () => void;
-export async function addToWardrobe(uid: string, parfumId: string, ownership: 'have' | 'want' | 'had' | 'sample' | 'decant', nom?: string, marque?: string, imageUrl?: string, familleOlactive?: string, sizeMl?: number | null): Promise<void>;
+export async function addToWardrobe(uid: string, parfumId: string, ownership: 'have' | 'want' | 'had' | 'sample' | 'decant', nom?: string, marque?: string, imageUrl?: string, familleOlactive?: string, sizeMl?: number | null, parfum?: Parfum): Promise<void>;
+// parfum optionnel — si fourni, évite un fetch Supabase pour peupler les champs de filtrage
 export async function updateWardrobeItem(uid: string, parfumId: string, data: Partial<Pick<WardrobeItem, 'ownership' | 'rating' | 'notes' | 'shelfIds' | 'sizeMl' | 'isSignature'>>): Promise<void>;
 export async function removeFromWardrobe(uid: string, parfumId: string): Promise<void>;
 export async function isInWardrobe(uid: string, parfumId: string): Promise<WardrobeItem | null>;
@@ -99,38 +113,67 @@ export function setThemeMode(mode: ThemeMode): Promise<void>;
 
 ### `src/services/openai-vision.ts`
 ```ts
-// Analyse d'image via GPT-4o Vision (Cloud Function)
+// Analyse d'image via GPT-4o Vision (Edge Function `analyze-perfume-image`)
 export function analyzeImage(base64: string): Promise<ScanResult>;
 export function analyzeMultipleImages(imagesBase64: string[]): Promise<ScanResult>;
 ```
 
 ### `src/services/storage.ts`
 ```ts
-// Firebase Storage — upload d'images parfum
-export function uploadParfumImage(parfumId: string, localUri: string): Promise<string>;
+// Supabase Storage (bucket public `parfum-images`) — upload d'images parfum
+export function uploadParfumImage(parfumId: string, localUri: string, filename?: string): Promise<string>;
 ```
 
-### `src/services/fcm.ts`
+### `src/services/push.ts`
 ```ts
-// Firebase Cloud Messaging — notifications push
+// Expo Push Notifications — notifications push (remplace fcm.ts ; tokens en table push_tokens)
 export function requestFcmPermission(): Promise<boolean>;
 export function deleteFcmToken(): Promise<void>;
+export function createNotificationChannels(): Promise<void>;
+export function startFcmRegistration(uid: string): () => void;
 ```
 
 ### `src/services/voice-search.ts`
 ```ts
-// Cloud Function transcribeVoice (OpenAI Whisper-1) — fallback vocal
+// Edge Function `transcribe-voice` (OpenAI Whisper-1) — fallback vocal
 export function transcribeVoice(audioBase64: string, mimeType: string): Promise<string>;
+```
+
+### `src/services/scentlist.ts`
+```ts
+// Carnet d'essais (parfums à sentir / sentis) — table scentlist
+export function onScentList(uid: string, cb: (items: UserScentItem[]) => void): () => void;
+export function addToScentList(uid: string, parfum: Parfum): Promise<void>;
+export function updateScentItem(uid: string, parfumId: string,
+  data: Partial<Pick<UserScentItem, 'verdict' | 'rating' | 'notes' | 'status' | 'triedAt'>>): Promise<void>;
+export function markScentTried(uid: string, parfumId: string,
+  data: { verdict: ScentVerdict | null; rating: number | null; notes: string | null }): Promise<void>;
+export function removeFromScentList(uid: string, parfumId: string): Promise<void>;
+export function isInScentList(uid: string, parfumId: string): Promise<UserScentItem | null>;
+export function moveScentToWardrobe(uid: string, item: UserScentItem,
+  ownership: WardrobeItem['ownership'], sizeMl?: number | null): Promise<void>;
+```
+
+### `src/services/account.ts`
+```ts
+// Compte — Supabase : deleteAccount = Edge Function `delete-user-account` (CASCADE),
+// exportAccountData = RPC `export_user_data`, le reste en PostgREST.
+export function deleteAccount(): Promise<void>;
+export function reauthenticate(password?: string): Promise<void>;
+export function exportAccountData(): Promise<string>;
+export function shareAccountData(): Promise<void>;
+export function getAccountDataSummary(uid: string): Promise<AccountDataSummary>;
+export function deleteAllScans(uid: string): Promise<number>;
+export function deleteAllFcmTokens(uid: string): Promise<void>;   // purge push_tokens
+export function deleteAllPriceAlerts(uid: string): Promise<number>;
+export function clearWeatherCoords(uid: string): Promise<void>;
 ```
 
 ### `src/services/weather.ts`
 ```ts
-// Open-Meteo API (gratuit, sans clé) + cache 30 min localisé
+// Open-Meteo API (gratuit, sans clé) + cache 30 min — GPS uniquement (pas de fallback ville, v6.18)
 export interface WeatherData { temperature: number; weatherCode: number; isDay: boolean; dailyMax: number; dailyMin: number; dailyWeatherCode: number; fetchedAt: number; }
 export function fetchWeather(lat: number, lon: number): Promise<WeatherData | null>;
-export function getStoredCity(): Promise<string | null>;
-export function setStoredCity(city: string): Promise<void>;
-export function clearWeatherCache(): void;
 ```
 
 ### `src/services/haptics.ts`
@@ -168,13 +211,13 @@ export function useTheme(): ThemeContextValue;
 ### `useAuthContext()` — `src/contexts/AuthContext.tsx`
 ```ts
 interface AuthContextValue {
-  user: User | null;
+  user: AppUser | null;   // { uid, email, displayName, photoURL, providers } — commun Firebase/Supabase
   authReady: boolean;
   isAdmin: boolean;
   isAuthenticated: boolean;
-  register(email: string, password: string): Promise<UserCredential>;
-  login(email: string, password: string): Promise<UserCredential>;
-  loginWithGoogle(): Promise<UserCredential>;
+  register(email: string, password: string): Promise<{ user: AppUser }>;
+  login(email: string, password: string): Promise<{ user: AppUser }>;
+  loginWithGoogle(): Promise<{ user: AppUser }>;
   logout(): Promise<void>;
 }
 ```
@@ -183,7 +226,7 @@ interface AuthContextValue {
 ```ts
 // Hook Firestore temps réel pour les favoris
 export function useFavoris(uid: string | null): {
-  favoris: UserFavori[];
+  items: FilterableItem[];
   loading: boolean;
   removeFavori: (id: string) => Promise<void>;
 };
@@ -253,6 +296,22 @@ export function useSotd(uid: string | null): {
 };
 ```
 
+### `useScentList(uid)` — `src/hooks/useScentList.ts`
+```ts
+// Carnet d'essais temps réel
+export function useScentList(uid: string | null): {
+  items: UserScentItem[];
+  toTry: UserScentItem[];
+  tried: UserScentItem[];
+  loading: boolean;
+  add: (parfum: Parfum) => Promise<void>;
+  update: (parfumId: string, data: Partial<Pick<UserScentItem, 'verdict' | 'rating' | 'notes' | 'status' | 'triedAt'>>) => Promise<void>;
+  markTried: (parfumId: string, data: { verdict: ScentVerdict | null; rating: number | null; notes: string | null }) => Promise<void>;
+  remove: (parfumId: string) => Promise<void>;
+  moveToWardrobe: (item: UserScentItem, ownership: WardrobeItem['ownership'], sizeMl?: number | null) => Promise<void>;
+};
+```
+
 ### `useDensityPreference()` — `src/hooks/useDensityPreference.ts`
 ```ts
 // Persistance AsyncStorage du mode d'affichage grille — partage catalogue + recherche
@@ -278,7 +337,7 @@ export function useVoiceSearch(): {
 
 ### `useWeather(enabled?: boolean)` — `src/hooks/useWeather.ts`
 ```ts
-// Météo actuelle via expo-location (GPS + fallback ville) → Open-Meteo
+// Météo actuelle via expo-location (GPS uniquement, pas de fallback ville — v6.18) → Open-Meteo
 export function useWeather(enabled?: boolean): {
   weather: WeatherData | null;
   loading: boolean;
@@ -347,6 +406,7 @@ interface Parfum {
   notesCoeur: string[];
   notesFond: string[];
   imageUrl?: string;
+  perfumers?: string[];      // nez — signature dorée sous le badgeRow de la fiche détail
   // ...
 }
 ```
@@ -388,6 +448,10 @@ interface UserFavori {
   bestPrice?: number;       // dénormalisé — badge promo
   referencePrice?: number;   // dénormalisé — calcul remise
   annee?: number;            // dénormalisé — chip année
+  longevity?: string | null;          // dénormalisé — filtre Tenue
+  sillage?: string | null;            // dénormalisé — filtre Sillage
+  seasonScores?: { spring?: number; summer?: number; fall?: number; winter?: number } | null; // dénormalisé, nettoyé — filtre Saison
+  notes?: string[] | null;            // dénormalisé (tête+cœur+fond dédupliqués) — recherche par note
   addedAt: Date;
 }
 ```
@@ -426,6 +490,10 @@ interface WardrobeItem {
   sizeMl: number | null;
   sotdCount: number;
   isSignature: boolean;
+  longevity?: string | null;          // dénormalisé — filtre Tenue
+  sillage?: string | null;            // dénormalisé — filtre Sillage
+  seasonScores?: { spring?: number; summer?: number; fall?: number; winter?: number } | null; // dénormalisé — filtre Saison
+  allNotes?: string[] | null;         // dénormalisé (tête+cœur+fond dédupliqués) — recherche par note
   addedAt: Date;
   updatedAt: Date;
 }
@@ -444,6 +512,29 @@ interface SotdEntry {
   nom: string;
   marque: string;
   imageUrl: string | null;
+}
+```
+
+### `src/models/user-scent.interface.ts`
+```ts
+type ScentVerdict = 'love' | 'like' | 'meh' | 'dislike';
+
+interface UserScentItem {
+  id: string;
+  parfumId: string;
+  nom: string | null;
+  marque: string | null;
+  imageUrl: string | null;
+  familleOlactive: string | null;
+  status: 'to_try' | 'tried';
+  verdict: ScentVerdict | null;
+  rating: number | null;
+  notes: string | null;
+  triedAt: Date | null;
+  bestPrice?: number;
+  referencePrice?: number;
+  addedAt: Date;
+  updatedAt: Date;
 }
 ```
 
@@ -467,8 +558,8 @@ export function translateNote(note: string): string;
 
 ### `src/utils/error-translator.ts`
 ```ts
-export function translateFirebaseError(e: unknown): string;
-// Traduit les erreurs Firebase en messages FR
+export function translateSupabaseError(e: unknown): string;
+// Traduit les erreurs Supabase (codes gotrue + PostgREST/SQLSTATE) en messages FR
 ```
 
 ### `src/utils/note-descriptions.ts`
@@ -476,6 +567,34 @@ export function translateFirebaseError(e: unknown): string;
 // Descriptions détaillées des notes olfactives (FR)
 export const NOTE_DESCRIPTIONS: Record<string, string>;
 export function getNoteDescription(note: string): string | null;
+```
+
+### `src/utils/season.ts`
+```ts
+// Constantes et helpers saisonniers (importable par l'app et les scripts tsx)
+export type SeasonKey = 'spring' | 'summer' | 'fall' | 'winter';
+export const SEASON_ORDER: SeasonKey[];
+export const SEASON_META: Record<SeasonKey, { label: string; icon: string; token, tokenSoft }>;
+export function normalizeSeasonKey(name: string): SeasonKey | null;
+export const SEASON_MATCH_THRESHOLD = 50;
+export function seasonScoresFromRanking(ranking): Partial<Record<SeasonKey, number>> | null;
+```
+
+### `src/utils/favori-filters.ts`
+```ts
+// Types, prédicats et helpers purs pour les filtres favoris
+export type LongevityBucket = 'weak' | 'moderate' | 'long' | 'eternal';
+export type SillageFilterId = 'intimate' | 'moderate' | 'powerful';
+export function longevityBucket(v): LongevityBucket | null;
+export function sillageBucket(v): SillageBucket | null;
+export const LONGEVITY_OPTIONS: { bucket, label }[];
+export const SILLAGE_OPTIONS: { id, label, buckets }[];
+export interface FavoritesFilters { families, seasons, longevity, sillage };
+export const EMPTY_FAVORI_FILTERS: FavoritesFilters;
+export function countActiveFilters(f): number;
+export function matchesFavoriFilters(fav, f): boolean;
+export function favoriMatchesSearch(fav, q): boolean;
+export function buildFavoriFilterFields(p): { longevity, sillage, seasonScores, notes };
 ```
 
 ---
@@ -512,18 +631,18 @@ interface Props {
 
 ### `EmptyState` — `src/components/EmptyState.tsx`
 
-État vide 4 variantes : `collection | wishlist | favoris | historique`.
+État vide 5 variantes : `collection | favoris | historique | wardrobe | scentlist`.
 
 ```ts
 interface Props {
-  variant: 'collection' | 'wishlist' | 'favoris' | 'historique';
+  variant: 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist';
   onAction?: () => void;
 }
 ```
 
 ### `ImageViewerPopup` — `src/components/ImageViewerPopup.tsx`
 
-Popup plein écran pour afficher la photo du parfum en grand.
+Popup lightbox plein écran pour afficher la photo du parfum en grand. Fond sombre invariant (light + dark), image maximisée en `contain`, bouton close ancré safe-area top-right, tap backdrop pour fermer.
 
 ```ts
 interface Props {
@@ -568,30 +687,6 @@ interface Props {
 }
 ```
 
-### `DockBar` — `src/features/navigation/DockBar.tsx`
-
-Barre de navigation flottante 5 positions (Catalogue, Favoris, Scan, Historique, Parfumerie) + FAB central.
-
-```ts
-interface Props {
-  activeIndex: number;                    // 0=Catalogue, 1=Favoris, 3=Historique, 4=Collection (2=FAB)
-  pageWidth: SharedValue<number>;        // Largeur écran partagée pour le calcul de position
-  dockTranslateY: SharedValue<number>;   // Drive le show/hide au scroll (0 visible / +120 caché)
-  onTabPress: (index: number) => void;   // Callback changement d'onglet (haptics attendu par le parent)
-}
-```
-
-**Caractéristiques** :
-- Verre dépoli : `BlurView` (expo-blur, intensity 24) + overlay semi-transparent `rgba(background, 0.88)`
-- Indicateur doré animé : `withSpring({ damping: 22, stiffness: 280, mass: 0.7 })` via `useAnimatedReaction`
-- Pulse ring : halo violet autour du FAB, `withRepeat(withTiming(1.18, 2500ms), -1, true)`, opacity inversée
-- Show/hide au scroll : `useAnimatedReaction` sur `scrollY` → cache si `y > prev && y > 60`, montre si `y < prev`
-- Dimensions : 64px hauteur, 24px borderRadius, 88% largeur (max 380px), FAB 56×56
-- Dark mode : `BlurView tint` suit `resolvedMode`, overlay couleur dynamique via `t.colors.background`
-- Haptics intégrés sur le FAB, délégués au parent pour les onglets
-
-**Dépendances** : `expo-blur`, `react-native-reanimated`, `@react-native-vector-icons/ionicons`, `react-native-safe-area-context`
-
 ### `ParfumCard` — `src/components/ParfumCard.tsx`
 
 Carte parfum 4 modes — point d'entree unique pour l'affichage catalogue, recherche, favoris, historique, wardrove.
@@ -624,6 +719,23 @@ interface Props {
 ```
 
 **Structure** : capsules marques → « Pour vous » (rangee) → « Meilleures affaires » (rangee) → « Explorer par famille » (ambiance cards) → « Icones intemporelles » (rangee, repliee) → grille « Tous les parfums » avec controles densite + filtre.
+
+### `FilterSheet` — `src/components/FilterSheet.tsx`
+
+Bottom sheet multi-facettes (Famille, Saison, Tenue, Sillage) partagé entre Favoris et Parfumerie.
+Chips multi-sélection avec compteurs, application live, saisons colorées via tokens dédiés.
+
+```ts
+interface Props {
+  visible: boolean;
+  items: FilterableItem[];
+  filters: FavoritesFilters;
+  resultCount: number;
+  onFiltersChange: (next: FavoritesFilters) => void;
+  onReset: () => void;
+  onClose: () => void;
+}
+```
 
 ### `BrandCapsules` — `src/features/catalog/BrandCapsules.tsx`
 
@@ -659,7 +771,6 @@ interface Props {
 ```ts
 interface Props {
   onFamilyTap: (query: string) => void;
-  onHorizontalScrollActive?: (active: boolean) => void;
 }
 ```
 
@@ -675,11 +786,17 @@ interface Props {
 }
 ```
 
-### `TabPager` — `app/(tabs)/index.tsx`
+### `NavigationChromeContext` — `src/features/navigation/NavigationChromeContext.tsx`
 
-Pager horizontal 4 pages (Catalogue / Favoris / Historique / Parfumerie) avec `GestureDetector` + Reanimated. Gesture config : `activeOffsetX([-30, 30])`, `failOffsetY([-15, 15])`, spring animation (damping 25, stiffness 250). 4 pages rendues en `flexDirection: 'row'`, translatées via `translateX` animé. DockBar hide/show au scroll vertical, barre de recherche persistante `BlurView`.
+Contexte React partagé par les onglets du navigateur `TopTabs`. Fournit `reportScroll(y)` (écrit dans `scrollY` SharedValue), `resetDock()` (réaffiche le dock après un changement d'onglet — swipe ou tap), et `dockTranslateY` (SharedValue animée : 0 = visible, 120 = caché). La logique de hide-on-scroll est centralisée ici (`useAnimatedReaction` sur `scrollY` → `withTiming` sur `dockTranslateY`). Chaque écran d'onglet appelle `reportScroll` depuis son `onScroll`. Un seul écran visible à la fois → zéro conflit d'écriture.
 
-**Anti-conflit swipe** : le pan du pager est désactivé (`.enabled(false)`) pendant qu'une rangée horizontale interne est draguée — sinon le scroller natif (touch slop ~8px) et le pan RNGH (activation 30px) se déclenchent ensemble. Chaque rangée horizontale (BrandCapsules, CatalogRow, FamilyAmbianceCards, FilterBar pills) appelle `onHorizontalScrollActive(true|false)` sur `onScrollBeginDrag` / `onScrollEndDrag` / `onMomentumScrollEnd`, remonté au pager via CatalogPage / CollectionPage → `rowScrollActive` state. Le pager est aussi désactivé quand un sheet est ouvert (`sheetOpen`) ou l'overlay vocal visible. Garde-fou : `goTo()` reset le flag (rangée démontée pendant un drag).
+### `DockBar` — `src/features/navigation/DockBar.tsx` — custom tabBar TopTabs
+
+Barre flottante 4 onglets + FAB Scan central, verre dépoli (BlurView). Fonctionne comme `tabBar` custom du navigateur `TopTabs` (`expo-router/js-top-tabs`). Reçoit `{ state, navigation, position }` (MaterialTopTabBarProps vendorisés). L'indicateur doré est piloté en continu via `position` (RN Animated.Value ponté vers `indicatorLeft` SharedValue) ; le spring sur `state.index` sert de fallback. La géométrie de l'indicateur est exportée via `getIndicatorLeft(screenWidth, tabVisualIndex)` et `getIndicatorLeftAtProgress(screenWidth, progress)` (fonctions pures, testables). Le FAB central (`router.push('/scan')`) est rendu entre le 2e et 3e onglet. L'onglet Profil affiche l'avatar utilisateur si connecté. Hide-on-scroll via `dockTranslateY` du `NavigationChromeContext`. Accessibilité : chaque onglet a `accessibilityRole="tab"` + `accessibilityLabel`.
+
+### `SearchChrome` — `src/features/search/SearchChrome.tsx`
+
+Chrome partagé rendu dans le layout des tabs (`(tabs)/_layout.tsx`). Contient la barre de recherche persistante (BlurView), le FAB micro, le `VoiceOverlay`, et toute la logique de recherche vocale (STT on-device + fallback Whisper). Auto-masqué sur l'onglet Profil (`usePathname() === '/profile'`).
 
 ---
 
@@ -687,110 +804,46 @@ Pager horizontal 4 pages (Catalogue / Favoris / Historique / Parfumerie) avec `G
 
 ### Vue d'ensemble
 
-La recherche est 100 % Firestore, sans API externe. Chaque parfum (~25 100 documents dans `parfums/{id}`) possède un champ `searchKeywords: string[]` pré-calculé à l'import. L'utilisateur tape → debounce 150ms → requête Firestore → scoring local → top 50 résultats.
+La recherche est 100 % Postgres via la RPC `search_parfums`, sans API externe. Chaque parfum (~25 100 lignes dans `parfums`) porte deux colonnes **générées** : `search_text` (texte normalisé, index GIN `pg_trgm`) et `search_vector` (tsvector, config `french_unaccent` = `unaccent` + dictionnaire `simple`, sans stemming). L'utilisateur tape → debounce 150ms → RPC → top 50. Le client ajoute un cache LRU + prefix cache. `searchKeywords` n'est plus stocké.
 
-### Couche 1 — Indexation (`buildSearchKeywords`, `src/utils/normalize.ts`)
+### Couche 1 — Indexation (colonnes générées, migration 0003)
 
-Pour un parfum donné (marque, nom, famille olfactive), la fonction génère un tableau de tokens :
+`search_text = norm_txt(marque || ' ' || nom)` (lowercase + `unaccent` + remplacement des non-alnum par espace). `search_vector = to_tsvector('french_unaccent', marque+nom+famille+notes)`. Index : `gin(search_text gin_trgm_ops)` (préfixe + typo) + `gin(search_vector)` (FTS). `norm_txt`/`immutable_unaccent` vivent dans `supabase/migrations/0001`.
 
-| Étape | Description | Exemple pour "Jean Paul Gaultier" / "Le Mâle" |
-|---|---|---|
-| **Normalisation** | NFD → strip accents → lowercase → `[^a-z0-9]` → `_` | `jean_paul_gaultier`, `le_male` |
-| **Stop words** | 38 mots vides FR/EN filtrés (`de`, `la`, `le`, `eau`, `the`, `of`…) | `le` est exclu |
-| **Mots complets** | Chaque mot non-stop ajouté tel quel | `jean`, `paul`, `gaultier`, `male` |
-| **Préfixes (≥3)** | Tous les préfixes de chaque mot | `jea`, `jean`, `pau`, `paul`, `gau`, `gaul`, `gault`… |
-| **Trigrammes (~)** | Trigrammes $-padded pour fuzzy matching | `~$je`, `~jea`, `~ean`, `~an$`, `~$pa`, `~pau`… |
-| **Token marque** | Marque normalisée complète | `jean_paul_gaultier` |
-| **Token nom** | Nom normalisé complet | `le_male` |
-| **Token combiné** | `marque_nom` pour l'exact match | `jean_paul_gaultier_le_male` |
-| **Famille olfactive** | Mots de la famille ajoutés avec trigrammes | `oriental`, `floral`, `~$or`, `~ori`… |
+### Couche 2 — Tokenisation de la requête (client, pour le prefix cache)
 
-Total : ~20–50 tokens par parfum selon la longueur des noms.
+Même logique qu'historiquement : lowercase → split espaces → `normalize` + split `_` → filtre `STOP_WORDS` + min 2 chars → max 4 tokens triés par longueur desc (`src/utils/normalize.ts`).
 
-### Couche 2 — Tokenisation de la requête (`searchParfumsCached`)
+### Couche 3 — RPC `search_parfums(q, max_results)` (scoring serveur)
 
-```
-"Guerlain L'Homme Idéal Parfum"
-  → lowercased: "guerlain l'homme idéal parfum"
-  → split whitespace: ["guerlain", "l'homme", "idéal", "parfum"]
-  → normalize chaque token + split sur _ + filtre stop words + min 2 chars
-  → searchTokens: ["guerlain", "homme", "ideal", "parfum"]
-```
+La RPC fait tout le scoring côté Postgres :
 
-### Couche 3 — Requêtes Firestore (dual mode)
+- **Candidats** : `search_text %> token` (word-similarity trgm, joint sur chaque token) ∪ `search_vector @@ tsquery`.
+- **matchScore** = Σ `word_similarity(token, search_text)` par token (≈ ancien `token.len / bestKeyword.len`).
+- **exactMatch** = +10 si ≥ 2 tokens ET `search_text` contient la query normalisée.
+- **popBonus** = `ln(greatest(review_count, rating_count, popularity_score) + 1) / 2`.
+- **Fuzzy** : si < 5 résultats, `similarity(search_text, q) > 0.25` (Jaccard trgm natif — remplace l'ancien fallback `$`-padded côté client).
+- **Dédup** : `DISTINCT ON (norm_txt(marque), norm_txt(nom))` + `ORDER BY score DESC, pop DESC LIMIT max_results`.
 
-| Mode | Condition | Requête | Limite |
-|---|---|---|---|
-| **Mono-token** | `searchTokens.length === 1` | `where('searchKeywords', 'array-contains', token)` + `orderBy('reviewCount', 'desc')` | 100 docs |
-| **Multi-token** | `searchTokens.length ≥ 2` | N queries `array-contains` en parallèle, déduplication par ID | 300 docs/token |
+### Couche 4 — Caches client (`src/services/impl/catalog.supabase.ts`)
 
-Index composite requis : `searchKeywords ARRAY-CONTAINS` + `reviewCount DESC` + `__name__ DESC`.
-
-### Couche 4 — Scoring local (`_scoreDocs`)
-
-Chaque document candidat reçoit un score composite :
-
-```
-matchScore  = Σ (token.length / bestKeyword.length)  pour chaque token
-              ex: token "jea" → keyword "jean" → 3/4 = 0.75
-              ex: token "homme" → keyword "homme" → 5/5 = 1.0
-
-exactMatch  = 10 si multi-token ET la query normalisée complète est dans searchKeywords
-
-popBonus    = log(max(reviewCount, ratingCount, popularityScore) + 1) / 2
-
-score       = matchScore + exactMatch + popBonus
-```
-
-Règle importante : le scoring ignore les trigrammes (tokens préfixés `~`) — ils ne sont utilisés que par le fuzzy fallback.
-
-### Couche 5 — Tri
-
-Score de pertinence **toujours** primaire, popularité en tiebreaker (quel que soit le nombre de tokens).
-
-```
-.sort((a, b) => {
-  const diff = b._score - a._score;
-  if (Math.abs(diff) < 0.001) return b._pop - a._pop;  // tiebreaker
-  return diff;
-})
-```
-
-Top 50 résultats retournés.
-
-### Couche 6 — Caches
-
-#### Cache exact (LRU, max 200 entrées)
-`Map<string, Parfum[]>` — chaque requête exacte est cachée. Éviction LRU : l'entrée la plus ancienne est supprimée quand la limite est atteinte.
+#### Cache exact (LRU, 200 entrées, TTL 10 min)
+`peekSearchCache()` / `clearSearchCache()` exposés (rate limiter, mutations admin).
 
 #### Prefix cache
-Si la query est une extension d'une query déjà en cache (ex: `"jean paul"` → `"jean paul gau"`), les résultats cachés sont re-scorés localement avec les nouveaux tokens — aucun appel Firestore.
+Si une query plus courte est en cache (et **même nombre de mots**), re-score local sur `search_text` avec la formule matchScore/exactMatch/popBonus identique ; fallthrough RPC si < 5 résultats re-scorés.
 
-**Garde-fou** : le prefix cache est désactivé quand la nouvelle query a **plus de mots** que la query cachée. Ex : cache `"l'homme"` (1 mot) → query `"l'homme idéal parfum"` (3 mots) → pas de prefix cache → Firestore direct. Cela évite qu'un cache mono-token masque des résultats qui nécessitent les tokens supplémentaires.
+#### Recherches récentes (AsyncStorage)
+Les 5 dernières recherches persistent dans `@parfumscan/recent-searches`.
 
-#### Cache des recherches récentes (AsyncStorage)
-Les 5 dernières recherches sont persistées dans `@parfumscan/recent-searches` et survivent aux redémarrages de l'app.
-
-### Couche 7 — Fuzzy fallback (trigrammes)
-
-Déclenché quand la recherche primaire retourne **< 5 résultats** :
-
-1. Générer les trigrammes $-padded de chaque mot de la query
-2. Requête Firestore : `array-contains-any` avec les trigrammes préfixés `~` (max 30), `orderBy reviewCount DESC`, limit 200
-3. Pour chaque doc candidat, calculer le **score de Jaccard** entre les trigrammes de la query et les trigrammes du doc
-4. Garder les docs avec Jaccard > 0.25, triés par score décroissant, top 10
-5. Ajouter aux résultats primaires (hors doublons)
-
-**Exemple** : query `"chanell"` (typo) → trigrammes `$ch, cha, han, ane, nel, ell, ll$` → matche `"Chanel"` (trigrammes `$ch, cha, han, ane, nel, el$`) → Jaccard = 5/8 = 0.625 → trouvé.
-
-### Couche 8 — Debounce et anti-race (`useCatalog`)
+### Couche 5 — Debounce et anti-race (`useCatalog`)
 
 | Mécanisme | Détail |
 |---|---|
 | **Debounce** | 150ms avant d'appeler `searchParfumsCached` |
 | **Seuil** | Query < 3 caractères → pas de requête |
-| **Anti-race** | `requestIdRef` incrémenté à chaque nouvelle frappe ; seuls les résultats du dernier ID sont appliqués |
-| **Unmount safety** | `mountedRef` empêche `setState` après démontage du composant |
+| **Anti-race** | `requestIdRef` incrémenté à chaque frappe ; seuls les résultats du dernier ID sont appliqués |
+| **Unmount safety** | `mountedRef` empêche `setState` après démontage |
 
 ### Flux complet (catalogue)
 
@@ -800,42 +853,33 @@ Frappe utilisateur
     → searchParfumsCached(query)
       → Cache exact (LRU) ? return
       → Tokenisation + filtrage stop words
-      → Prefix cache (si même nombre de mots) ? re-score local → return
-      → Firestore : array-contains (mono/multi token)
-      → Scoring local (matchScore + exactMatch + popBonus)
-      → Tri (pertinence primaire, popularité tiebreaker)
-      → < 5 résultats ? Fuzzy fallback trigrammes (Jaccard)
-      → Dédoublonnage par marque+nom normalisé (garde le 1er = meilleur score)
+      → Prefix cache (si même nombre de mots) ? re-score local → return si ≥ 5
+      → RPC search_parfums (scoring + fuzzy + dédup + limit 50)
+      → Dédoublonnage sécurité marque+nom
       → Cache (LRU) + return top 50
     → setParfums(results)
 ```
 
-### Couche 9 — Dédoublonnage marque+nom (`_dedupByMarqueNom`)
+### Dédoublonnage marque+nom (`dedupByMarqueNom`, `impl/search-shared.ts`)
 
-Après scoring et tri, les résultats sont filtrés par clé `normalize(marque) + '_' + normalize(nom)` pour éliminer les documents Firestore en doublon (même parfum importé plusieurs fois avec des IDs différents). Le premier résultat (meilleur score) est conservé.
+Filtre par clé `normalize(marque) + '_' + normalize(nom)`, garde le 1er (meilleur score). Appliqué côté RPC (`DISTINCT ON`) + sécurité client (sortie de `searchParfumsCached`/`searchParfumFromScan`/prefix cache).
 
-Appliqué dans 3 points :
-- Fin de `searchParfumsCached` (catalogue + scan)
-- Après re-scoring du prefix cache
-- En sortie de `searchParfumFromScan` (sécurité)
+### `searchParfumFromScan` — Recherche optimisée scan (client, inchangé)
 
-### `searchParfumFromScan` — Recherche optimisée scan
-
-Le scan GPT-4o Vision fournit la marque et le nom de façon **structurée** (champs séparés), contrairement à la recherche catalogue (texte libre). `searchParfumFromScan` exploite cette structure :
+Le scan GPT-4o Vision fournit marque + nom structurés. `searchParfumFromScan` appelle `searchParfumsCached([marque, nom])` puis rescore côté client :
 
 ```
-searchParfumFromScan(marque, nom)
-  → Construit query = [marque, nom].join(' ')
-  → searchParfumsCached(query)     // scoring catalogue (matchScore + exactMatch + popBonus)
-  → Rescoring scan-spécifique :
-      Bonus nom exact      = +50   (doc.nom normalisé === gptNom normalisé)
-      Bonus nom partiel    = +25   (l'un contient l'autre)
-      Bonus marque exacte  = +15   (doc.marque normalisée === gptMarque normalisée)
-      Bonus marque partiel = +8    (l'un contient l'autre)
-  → Tri par bonus scan décroissant, tiebreaker bestPrice croissant
-  → Dédoublonnage marque+nom
-  → Return
+Bonus nom exact      = +50   (doc.nom normalisé === gptNom normalisé)
+Bonus nom partiel    = +25   (l'un contient l'autre)
+Bonus marque exacte  = +15   (doc.marque normalisée === gptMarque normalisée)
+Bonus marque partiel = +8    (l'un contient l'autre)
+→ Tri par bonus desc, tiebreaker bestPrice asc → dédup marque+nom
 ```
 
-**Pourquoi** : contrairement au catalogue (exploration), le scan est de l'**identification** — l'utilisateur sait déjà quel parfum il scanne. Le bonus +50 garantit que le match de nom exact écrase systématiquement les variants/flankers plus populaires.
-```
+**Pourquoi** : le scan est de l'**identification** (l'utilisateur sait quel parfum il scanne) — le +50 garantit que le match de nom exact écrase les variants/flankers plus populaires.
+
+### Autres requêtes catalogue
+
+- `getSimilarParfums` → RPC `similar_parfums` (cardinalité de l'intersection `main_accords` × 10 + popularité/100, shuffle journalier via `setseed(hashtext(current_date))`).
+- `getPersonalizedSuggestions` → RPC `personalized_suggestions` (scores famille × 3 + marque × 2 + popularité/20 calculés en SQL sur favoris+scans, exclus déjà vus).
+- `getParfumsByPerfumer` → PostgREST `.contains('perfumers', [name])` + `order('popularity_score')` (index GIN `perfumers`).

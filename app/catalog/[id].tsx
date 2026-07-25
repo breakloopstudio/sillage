@@ -1,26 +1,29 @@
 ﻿// app/catalog/[id].tsx — Fiche détail parfum v7 : hero épuré, prix unique, storytelling olfactif
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet, useWindowDimensions, Platform, Share } from 'react-native';
 import type { NativeSyntheticEvent, NativeScrollEvent, LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { getParfumById, updateParfum, getSimilarParfums } from '../../src/services/firestore';
 import { isParfumFavori, addFavori, removeFavori } from '../../src/services/user-data';
+import { isInScentList, addToScentList, markScentTried, updateScentItem, removeFromScentList, moveScentToWardrobe } from '../../src/services/scentlist';
 import { consumePendingParfum, setPendingParfum } from '../../src/services/catalog-bridge';
 import { isInWardrobe, addToWardrobe } from '../../src/services/wardrobe';
+import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import type { Parfum } from '../../src/models';
+import type { UserScentItem } from '../../src/models/user-scent.interface';
 import { translateNote } from '../../src/utils/translate-note';
 import OlfactoryPyramid from '../../src/features/catalog/OlfactoryPyramid';
 import PriceDisplay from '../../src/components/PriceDisplay';
 import Button from '../../src/components/Button';
 import AlertPriceToggle from '../../src/components/AlertPriceToggle';
 import WardrobeAddSheet from '../../src/features/wardrobe/WardrobeAddSheet';
+import TrySheet from '../../src/features/scentlist/TrySheet';
 import NoteDetailPopup from '../../src/components/NoteDetailPopup';
 import ImageViewerPopup from '../../src/components/ImageViewerPopup';
 import ParfumCard from '../../src/components/ParfumCard';
@@ -28,27 +31,7 @@ import DetailHero from '../../src/features/catalog/DetailHero';
 import CollapsingHeader from '../../src/features/catalog/CollapsingHeader';
 import StickyBottomBar from '../../src/features/catalog/StickyBottomBar';
 
-// ─── Mappings FR ─────────────────────────────────────────────
-
-type SeasonKey = 'spring' | 'summer' | 'fall' | 'winter';
-
-const SEASON_ORDER: SeasonKey[] = ['spring', 'summer', 'fall', 'winter'];
-
-// Couleurs = tokens saisonniers dédiés du thème (dark-mode safe)
-const SEASON_META: Record<SeasonKey, { label: string; icon: string; token: 'seasonSpring' | 'seasonSummer' | 'seasonFall' | 'seasonWinter' }> = {
-  spring: { label: 'Printemps', icon: 'flower-outline', token: 'seasonSpring' },
-  summer: { label: 'Été',       icon: 'sunny',          token: 'seasonSummer' },
-  fall:   { label: 'Automne',   icon: 'leaf',           token: 'seasonFall' },
-  winter: { label: 'Hiver',     icon: 'snow',           token: 'seasonWinter' },
-};
-
-// Normalise une entrée brute de seasonRanking → clé saison connue, sinon null.
-// Filtre les valeurs parasites ("day", "night", …) qui ne sont PAS des saisons.
-function normalizeSeasonKey(name: string): SeasonKey | null {
-  const k = name.toLowerCase().trim();
-  if (k === 'autumn') return 'fall';
-  return (SEASON_ORDER as string[]).includes(k) ? (k as SeasonKey) : null;
-}
+import { SEASON_ORDER, SEASON_META, normalizeSeasonKey, type SeasonKey } from '../../src/utils/season';
 
 const OCCASION_META: Record<string, { label: string; icon: string }> = {
   casual:       { label: 'Jour',        icon: 'sunny' },
@@ -186,40 +169,18 @@ export default function CatalogDetailPage() {
   const { theme: t } = useTheme();
   const s = useMemo(() => getStyles(t), [t]);
 
-  const translateX = useSharedValue(0);
-
-  const SWIPE_SPRING = { damping: 28, stiffness: 300, mass: 0.8 };
-  const MIN_SWIPE_THRESHOLD = 50;
-  const SWIPE_THRESHOLD_RATIO = 0.5;
-
-  const edgePanGesture = Gesture.Pan()
-    .activeOffsetX([20, Infinity])
-    .failOffsetY([-15, 15])
-    .onUpdate((e) => {
-      translateX.value = Math.max(0, e.translationX * 0.85);
-    })
-    .onEnd((e) => {
-      const threshold = Math.max((windowWidth || 400) * SWIPE_THRESHOLD_RATIO, MIN_SWIPE_THRESHOLD);
-      if (e.translationX > threshold || e.velocityX > 500) {
-        runOnJS(router.back)();
-      } else {
-        translateX.value = withSpring(0, SWIPE_SPRING);
-      }
-    });
-
-  const swipeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
   const { user, isAuthenticated } = useAuthContext();
   const [parfum, setParfum] = useState<Parfum | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFav, setIsFav] = useState(false);
   const [favoriId, setFavoriId] = useState<string | null>(null);
   const [wardrobeItem, setWardrobeItem] = useState<import('../../src/models/wardrobe.interface').WardrobeItem | null>(null);
+  const [scentItem, setScentItem] = useState<UserScentItem | null>(null);
   const [showWardrobeSheet, setShowWardrobeSheet] = useState(false);
+  const [showTrySheet, setShowTrySheet] = useState(false);
+  const [trySheetSaving, setTrySheetSaving] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
-  const [selectedNote, setSelectedNote] = useState<string | null>(null);
+  const [selectedNote, setSelectedNote] = useState<{ name: string; layer: 'top' | 'heart' | 'base' | null } | null>(null);
   const [pending] = useState<Parfum | null>(() => consumePendingParfum());
   const [imgFailed, setImgFailed] = useState(false);
   const [similars, setSimilars] = useState<Parfum[]>([]);
@@ -274,11 +235,12 @@ export default function CatalogDetailPage() {
 
     return () => { loadingRef.current = false; };
   }, [id]);
-  // Statut favori + wardrobe
+  // Statut favori + wardrobe + scentlist
   useEffect(() => {
     if (user?.uid && id) {
       isParfumFavori(user.uid, id).then(r => { setIsFav(r.isFavori); setFavoriId(r.favoriId); }).catch(() => {});
       isInWardrobe(user.uid, id).then(item => { setWardrobeItem(item); }).catch(() => {});
+      isInScentList(user.uid, id).then(item => { setScentItem(item); }).catch(() => {});
     }
   }, [user?.uid, id]);
 
@@ -344,7 +306,7 @@ export default function CatalogDetailPage() {
     } else {
       setIsFav(true);
       setFavoriId(id);
-      addFavori(user.uid, id, parfum.nom, parfum.marque, parfum.imageUrl, parfum.familleOlactive, parfum.bestPrice, parfum.referencePrice, parfum.annee)
+      addFavori(user.uid, parfum)
         .catch((e) => { console.warn('[fav] Failed:', (e as Error)?.message); setIsFav(false); setFavoriId(null); });
     }
   }, [isAuthenticated, user?.uid, id, parfum, isFav, favoriId, router]);
@@ -352,7 +314,7 @@ export default function CatalogDetailPage() {
   const handleWardrobeAdd = useCallback(async (ownership: import('../../src/models/wardrobe.interface').WardrobeItem['ownership'], sizeMl?: number | null): Promise<void> => {
     if (!isAuthenticated) { router.push('/auth/login'); throw new Error('Non authentifié'); }
     if (!user?.uid || !id || !parfum) throw new Error('Données manquantes');
-    await addToWardrobe(user.uid, id, ownership, parfum.nom, parfum.marque, parfum.imageUrl, parfum.familleOlactive, sizeMl ?? null);
+    await addToWardrobe(user.uid, id, ownership, parfum.nom, parfum.marque, parfum.imageUrl, parfum.familleOlactive, sizeMl ?? null, parfum);
     setWardrobeItem({
       parfumId: id, ownership, nom: parfum.nom, marque: parfum.marque,
       imageUrl: parfum.imageUrl ?? null, familleOlactive: parfum.familleOlactive ?? null,
@@ -368,12 +330,92 @@ export default function CatalogDetailPage() {
     setShowWardrobeSheet(true);
   }, [isAuthenticated, wardrobeItem, id, router]);
 
+  const handleScentPress = useCallback(() => {
+    if (!isAuthenticated) { router.push('/auth/login'); return; }
+    if (scentItem) { setShowTrySheet(true); return; }
+    if (!user?.uid || !id || !parfum) return;
+    const p = parfum;
+    setScentItem({
+      id: p.id,
+      parfumId: p.id,
+      nom: p.nom,
+      marque: p.marque,
+      imageUrl: p.imageUrl ?? null,
+      familleOlactive: p.familleOlactive ?? null,
+      status: 'to_try',
+      verdict: null,
+      rating: null,
+      notes: null,
+      triedAt: null,
+      bestPrice: p.bestPrice,
+      referencePrice: p.referencePrice,
+      addedAt: new Date(),
+      updatedAt: new Date(),
+    });
+    addToScentList(user.uid, p).catch((e) => {
+      console.warn('[scent] add failed:', (e as Error)?.message);
+      setScentItem(null);
+    });
+  }, [isAuthenticated, scentItem, user?.uid, id, parfum, router]);
+
+  const handleTrySheetSave = useCallback(async (data: import('../../src/features/scentlist/TrySheet').TrySheetSaveData) => {
+    if (!user?.uid || !id) return;
+    setTrySheetSaving(true);
+    try {
+      if (scentItem?.status === 'tried') {
+        await updateScentItem(user.uid, id, {
+          verdict: data.verdict,
+          rating: data.rating,
+          notes: data.notes,
+        });
+        setScentItem(prev => prev ? { ...prev, verdict: data.verdict, rating: data.rating, notes: data.notes } : null);
+      } else {
+        await markScentTried(user.uid, id, data);
+        setScentItem(prev => prev ? { ...prev, status: 'tried', verdict: data.verdict, rating: data.rating, notes: data.notes, triedAt: new Date() } : null);
+      }
+      if (data.addToWardrobe) {
+        const item = scentItem;
+        if (item) {
+          await moveScentToWardrobe(user.uid, { ...item, rating: data.rating, notes: data.notes }, 'sample');
+          setScentItem(null);
+          const w = await isInWardrobe(user.uid, id).catch(() => null);
+          if (w) setWardrobeItem(w);
+        }
+      }
+    } catch (e: unknown) {
+      console.warn('[scent] save failed:', (e as Error)?.message ?? String(e));
+    } finally {
+      setTrySheetSaving(false);
+      setShowTrySheet(false);
+    }
+  }, [user?.uid, id, scentItem]);
+
+  const handleTrySheetRemove = useCallback(async () => {
+    if (!user?.uid || !id) return;
+    try {
+      await removeFromScentList(user.uid, id);
+      setScentItem(null);
+      setShowTrySheet(false);
+    } catch (e: unknown) {
+      console.warn('[scent] remove failed:', (e as Error)?.message ?? String(e));
+    }
+  }, [user?.uid, id]);
+
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollY.value = e.nativeEvent.contentOffset.y;
   }, []);
 
   const handleImageError = useCallback(() => setImgFailed(true), []);
   const handleImagePress = useCallback(() => setShowImageViewer(true), []);
+  const handleShare = useCallback(async () => {
+    if (!parfum) return;
+    hapticsLight();
+    try {
+      await Share.share({
+        message: `Découvre ${parfum.marque} – ${parfum.nom} sur ParfumScan\nparfumscan://catalog/${parfum.id}`,
+      });
+    } catch { /* annulation utilisateur */ }
+  }, [parfum]);
   const handlePurchasePress = useCallback(() => {
     if (parfum?.purchaseUrl) Linking.openURL(parfum.purchaseUrl);
   }, [parfum?.purchaseUrl]);
@@ -413,7 +455,7 @@ export default function CatalogDetailPage() {
       <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:t.colors.textMuted}}>Parfum introuvable.</Text></View>
     ) : (
       <View style={{flex:1,backgroundColor:t.colors.background}}>
-        <CollapsingHeader scrollY={scrollY} brand={parfum.marque} name={parfum.nom} />
+          <CollapsingHeader scrollY={scrollY} brand={parfum.marque} name={parfum.nom} rightAction={{ icon: 'share-social-outline', onPress: handleShare, accessibilityLabel: 'Partager ce parfum' }} />
         <ScrollView
           style={{flex:1}}
           contentContainerStyle={{paddingTop:insets.top+70}}
@@ -427,6 +469,7 @@ export default function CatalogDetailPage() {
             imgFailed={imgFailed}
             onImageError={handleImageError}
             onImagePress={handleImagePress}
+            onShare={handleShare}
           />
 
           <View style={s.contentWrap}>
@@ -455,6 +498,31 @@ export default function CatalogDetailPage() {
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: parfum.source === 'seed' || parfum.source === 'manual' ? t.colors.primary : t.colors.overpriced, alignSelf: 'center' }} />
               )}
             </View>
+
+            {/* ─── La signature (nez) ─── */}
+            {parfum.perfumers && parfum.perfumers.filter(Boolean).length > 0 ? (
+              <View style={s.signatureBlock}>
+                <Text style={s.signatureLabel}>Le nez</Text>
+                <View style={s.noseRow}>
+                  {[...new Set(parfum.perfumers.filter(Boolean))].map(name => (
+                    <Pressable
+                      key={name}
+                      style={({ pressed }) => [s.noseChip, pressed && { opacity: 0.7 }]}
+                      hitSlop={{ top: 5, bottom: 5 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Voir les créations de ${name}`}
+                      onPress={() => {
+                        hapticsLight();
+                        router.push(`/perfumer/${encodeURIComponent(name)}`);
+                      }}
+                    >
+                      <Ionicons name="finger-print-outline" size={12} color={t.colors.secondaryInk} />
+                      <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
 
             {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) ─── */}
             {topSeasonKey || topOccasions.length > 0 ? (
@@ -518,7 +586,7 @@ export default function CatalogDetailPage() {
               topNotes={parfum.notesTete}
               heartNotes={parfum.notesCoeur}
               baseNotes={parfum.notesFond}
-              onNotePress={setSelectedNote}
+              onNotePress={(note, layer) => setSelectedNote({ name: note, layer: layer ?? null })}
             />
 
             {/* ─── Accords principaux ─── */}
@@ -623,14 +691,29 @@ export default function CatalogDetailPage() {
           referencePrice={parfum.referencePrice}
           isFav={isFav}
           wardrobeItem={wardrobeItem}
+          inScentList={scentItem !== null}
           purchaseUrl={parfum.purchaseUrl}
           onToggleFav={toggleFav}
           onWardrobePress={handleWardrobePress}
+          onScentPress={handleScentPress}
           onPurchasePress={() => {
             if (parfum.purchaseUrl) Linking.openURL(parfum.purchaseUrl);
           }}
         />
       </View>
+      )}
+      {parfum && (
+        <TrySheet
+          visible={showTrySheet}
+          parfumName={parfum.nom}
+          parfumBrand={parfum.marque}
+          parfumImageUrl={heroUrl}
+          existingItem={scentItem}
+          saving={trySheetSaving}
+          onClose={() => setShowTrySheet(false)}
+          onSave={handleTrySheetSave}
+          onRemove={scentItem?.status === 'tried' ? handleTrySheetRemove : undefined}
+        />
       )}
       <WardrobeAddSheet
         visible={showWardrobeSheet}
@@ -642,13 +725,15 @@ export default function CatalogDetailPage() {
       />
       <NoteDetailPopup
         visible={selectedNote !== null}
-        noteName={selectedNote ?? ''}
+        noteName={selectedNote?.name ?? ''}
+        layer={selectedNote?.layer ?? null}
         onClose={() => setSelectedNote(null)}
       />
       <ImageViewerPopup
         visible={showImageViewer}
         imageUrl={heroUrl ?? ''}
         brand={parfum?.marque ?? ''}
+        name={parfum?.nom ?? ''}
         onClose={() => setShowImageViewer(false)}
       />
     </>
@@ -657,21 +742,7 @@ export default function CatalogDetailPage() {
   if (Platform.OS === 'android') {
     return (
       <View style={{ flex: 1, backgroundColor: t.colors.background }}>
-        <Animated.View style={[{ flex: 1 }, swipeStyle]}>
-          {content}
-        </Animated.View>
-        <GestureDetector gesture={edgePanGesture}>
-          <Animated.View
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: insets.top + 60,
-              bottom: 0,
-              width: 40,
-              zIndex: 10,
-            }}
-          />
-        </GestureDetector>
+        {content}
       </View>
     );
   }
@@ -723,6 +794,12 @@ function getStyles(t: Theme) {
   occasionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   occasionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: t.colors.surface2 },
   occasionChipText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
+  // ─── La signature (nez) ───
+  signatureBlock: { marginTop: 4, marginBottom: 6, gap: 5 },
+  signatureLabel: { fontSize: 10, fontFamily: 'Inter_400Regular', color: t.colors.textMuted, textTransform: 'uppercase', letterSpacing: 1.5 },
+  noseRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  noseChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.secondarySoft },
+  noseChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.secondaryInk },
   // ─── Accords ───
   statBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 3 },
   statLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: t.colors.text, width: 96 },

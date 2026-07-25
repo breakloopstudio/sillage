@@ -13,7 +13,7 @@ interface Props {
   onScroll?: (y: number) => void;
 }
 
-const CARD_HEIGHT = 210;
+const CARD_HEIGHT = 212;
 
 export default function WardrobeGrid({ items, loading, onItemPress, onScroll }: Props) {
   const { theme, resolvedMode } = useTheme();
@@ -70,7 +70,7 @@ function getStyles(_t: Theme) {
     },
     content: {
       paddingHorizontal: 16,
-      paddingBottom: 40,
+      paddingBottom: 88,
     },
   } as const;
 }

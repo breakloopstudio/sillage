@@ -1,0 +1,497 @@
+// app/profile.tsx — Page Profil (date d'application v6.21)
+
+import { useState, useMemo, useCallback } from 'react';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useAuthContext } from '../../src/contexts/AuthContext';
+import { useTheme, type Theme } from '../../src/theme/ThemeContext';
+import { useSotd } from '../../src/hooks/useSotd';
+import { useProfileStats } from '../../src/hooks/useProfileStats';
+import { OWNERSHIP_LABELS } from '../../src/utils/ownership';
+import type { WardrobeItem } from '../../src/models/wardrobe.interface';
+import Button from '../../src/components/Button';
+
+const NAV_ROWS = [
+  { key: 'favoris', icon: 'heart-outline', label: 'Favoris', route: '/(tabs)/selection', params: { segment: 'favoris' } },
+  { key: 'wardrobe', icon: 'flask-outline', label: 'Parfumerie', route: '/(tabs)/collection' },
+  { key: 'scans', icon: 'time-outline', label: 'Historique', route: '/history' },
+  { key: 'scentlist', icon: 'book-outline', label: "Carnet d'essais", route: '/(tabs)/selection', params: { segment: 'carnet' } },
+] as const;
+
+const OWNERSHIP_KEYS: WardrobeItem['ownership'][] = ['have', 'want', 'had', 'sample', 'decant'];
+
+export default function ProfilePage() {
+  const { theme } = useTheme();
+  const s = useMemo(() => getStyles(theme), [theme]);
+  const { user, authReady, isAuthenticated, logout } = useAuthContext();
+  const router = useRouter();
+  const uid = user?.uid ?? null;
+
+  const { favorisCount, wardrobeItems: items, scansCount, loading: dataLoading } = useProfileStats(uid);
+  const { sotd } = useSotd(uid);
+
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const ownershipCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of items) {
+      counts[item.ownership] = (counts[item.ownership] ?? 0) + 1;
+    }
+    return counts;
+  }, [items]);
+
+  const navCounts = useMemo(() => ({
+    favoris: favorisCount ?? 0,
+    wardrobe: items.length,
+    scans: scansCount ?? 0,
+  }), [favorisCount, items.length, scansCount]);
+
+  const ownershipColorMap = useMemo(() => ({
+    have: { bg: theme.colors.primarySoft, color: theme.colors.primaryInk },
+    want: { bg: theme.colors.secondarySoft, color: theme.colors.secondaryInk },
+    had: { bg: theme.colors.surface2, color: theme.colors.textMuted },
+    sample: { bg: theme.colors.dealSoft, color: theme.colors.dealInk },
+    decant: { bg: theme.colors.dealSoft, color: theme.colors.deal },
+  } as const), [theme]);
+
+  const handleLogout = useCallback(() => {
+    logout().catch(() => {});
+    router.replace('/auth/login');
+  }, [logout, router]);
+
+  const handleSotdPress = useCallback(() => {
+    if (sotd) router.push(`/wardrobe/${sotd.parfumId}`);
+  }, [sotd, router]);
+
+  if (!authReady) {
+    return (
+      <View style={s.spinnerFull}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} style={s.container}>
+        <View style={s.header}>
+          <View style={s.headerSpacer} />
+          <Text style={s.title}>Profil</Text>
+          <View style={s.headerSpacer} />
+        </View>
+        <View style={s.gateWrap}>
+          <Ionicons name="person-outline" size={64} color={theme.colors.textMuted} />
+          <Text style={s.gateTitle}>Connectez-vous</Text>
+          <Text style={s.gateDesc} maxFontSizeMultiplier={1.3}>
+            Crée un compte pour suivre tes favoris, ta parfumerie et tes scans.
+          </Text>
+          <Button onPress={() => router.push('/auth/login')}>Se connecter</Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const displayName = user.displayName ?? user.email?.split('@')[0] ?? 'Parfumeur';
+  const email = user.email ?? '';
+
+  return (
+    <SafeAreaView edges={['top', 'bottom']} style={s.container}>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        <View style={s.header}>
+          <View style={s.headerSpacer} />
+          <Text style={s.title}>Profil</Text>
+          <Pressable
+            onPress={() => router.push('/settings')}
+            hitSlop={4}
+            style={s.settingsBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Ouvrir les paramètres"
+          >
+            <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
+          </Pressable>
+        </View>
+
+        <View style={s.identityWrap}>
+          {user.photoURL && !imgFailed ? (
+            <Image
+              source={{ uri: user.photoURL }}
+              style={s.avatar}
+              contentFit="cover"
+              transition={200}
+              onError={() => setImgFailed(true)}
+            />
+          ) : (
+            <View style={s.avatarPlaceholder}>
+              <Text allowFontScaling={false} style={s.avatarInitial}>
+                {email.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <Text style={s.displayName}>{displayName}</Text>
+          {email.length > 0 && <Text style={s.email}>{email}</Text>}
+        </View>
+
+        <View style={s.statsCard}>
+          <View style={s.statsRow}>
+            <View style={s.statCol}>
+              <Text allowFontScaling={false} style={s.statNum}>
+                {dataLoading || favorisCount === null ? '—' : favorisCount}
+              </Text>
+              <Text allowFontScaling={false} style={s.statLabel}>FAVORIS</Text>
+            </View>
+            <View style={s.statSep} />
+            <View style={s.statCol}>
+              <Text allowFontScaling={false} style={s.statNum}>
+                {dataLoading ? '—' : items.length}
+              </Text>
+              <Text allowFontScaling={false} style={s.statLabel}>PARFUMERIE</Text>
+            </View>
+            <View style={s.statSep} />
+            <View style={s.statCol}>
+              <Text allowFontScaling={false} style={s.statNum}>
+                {dataLoading ? '—' : scansCount}
+              </Text>
+              <Text allowFontScaling={false} style={s.statLabel}>SCANS</Text>
+            </View>
+          </View>
+
+          {items.length > 0 && (
+            <>
+              <View style={s.statDivider} />
+              <View style={s.ownershipWrap}>
+                {OWNERSHIP_KEYS.map(key => {
+                  const count = ownershipCounts[key];
+                  if (!count) return null;
+                  const colors = ownershipColorMap[key];
+                  return (
+                    <View key={key} style={[s.ownershipChip, { backgroundColor: colors.bg }]}>
+                      <Text allowFontScaling={false} style={[s.ownershipChipText, { color: colors.color }]}>
+                        {OWNERSHIP_LABELS[key]}{'\u00A0'}·{'\u00A0'}{count}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
+        </View>
+
+        {sotd ? (
+          <Pressable style={s.sotdCard} onPress={handleSotdPress}>
+            <View style={s.sotdImgWrap}>
+              {sotd.imageUrl ? (
+                <Image source={{ uri: sotd.imageUrl }} style={s.sotdImg} contentFit="contain" transition={200} />
+              ) : (
+                <Ionicons name="flask-outline" size={22} color={theme.colors.textMuted} />
+              )}
+            </View>
+            <View style={s.sotdBody}>
+              <Text allowFontScaling={false} style={s.sotdLabel}>PARFUM DU JOUR</Text>
+              <Text style={s.sotdName} numberOfLines={1} ellipsizeMode="tail">
+                {sotd.nom}{'\u00A0'}·{'\u00A0'}{sotd.marque}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+          </Pressable>
+        ) : items.length > 0 ? (
+          <Pressable style={s.sotdCard} onPress={() => router.push('/(tabs)/collection')}>
+            <View style={s.sotdImgWrap}>
+              <Ionicons name="sunny-outline" size={22} color={theme.colors.secondary} />
+            </View>
+            <View style={s.sotdBody}>
+              <Text allowFontScaling={false} style={[s.sotdLabel, { color: theme.colors.secondary }]}>
+                PARFUM DU JOUR
+              </Text>
+              <Text style={s.sotdCta}>Choisis ton parfum du jour</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+          </Pressable>
+        ) : null}
+
+        <Text style={s.sectionTitle}>EXPLORER</Text>
+
+        <View style={s.navCard}>
+          {NAV_ROWS.map((row, i) => {
+            const count = navCounts[row.key as keyof typeof navCounts];
+            const isLast = i === NAV_ROWS.length - 1;
+            return (
+              <Pressable
+                key={row.key}
+                style={[s.navRow, !isLast && s.navRowBorder]}
+                onPress={() => {
+                  if ('params' in row) {
+                    router.push({ pathname: row.route, params: row.params });
+                  } else {
+                    router.push(row.route);
+                  }
+                }}
+              >
+                <View style={s.navIconWrap}>
+                  <Ionicons name={row.icon} size={18} color={theme.colors.primaryInk} />
+                </View>
+                <Text style={s.navLabel}>{row.label}</Text>
+                {count !== undefined && (
+                  <Text allowFontScaling={false} style={s.navCount}>
+                    {dataLoading ? '—' : count}
+                  </Text>
+                )}
+                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable style={s.logoutRow} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={theme.colors.overpriced} />
+          <Text style={s.logoutText}>Déconnexion</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function getStyles(t: Theme) {
+  return {
+    container: { flex: 1, backgroundColor: t.colors.background },
+    scroll: { paddingBottom: 88 },
+    spinnerFull: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: t.colors.background,
+    },
+
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      marginBottom: 8,
+    },
+    backBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
+    headerSpacer: { width: 32 },
+    title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text },
+    settingsBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.colors.surface2,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    identityWrap: { alignItems: 'center', paddingTop: 8, paddingBottom: 20 },
+    avatar: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: t.colors.surface2,
+    },
+    avatarPlaceholder: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: t.colors.primarySoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    avatarInitial: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 34,
+      color: t.colors.primaryInk,
+    },
+    displayName: {
+      fontFamily: 'PlayfairDisplay_700Bold',
+      fontSize: 22,
+      color: t.colors.text,
+      marginTop: 12,
+    },
+    email: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      color: t.colors.textMuted,
+      marginTop: 2,
+    },
+
+    statsCard: {
+      backgroundColor: t.colors.surface,
+      borderRadius: t.radius.card,
+      marginHorizontal: 16,
+      ...t.shadow.card,
+    },
+    statsRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20 },
+    statCol: { flex: 1, alignItems: 'center' },
+    statNum: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 24,
+      color: t.colors.text,
+    },
+    statLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 10,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      color: t.colors.textMuted,
+      marginTop: 2,
+    },
+    statSep: {
+      width: StyleSheet.hairlineWidth,
+      alignSelf: 'stretch',
+      backgroundColor: t.colors.border,
+      marginVertical: 4,
+    },
+    statDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: t.colors.border,
+      marginHorizontal: 12,
+    },
+    ownershipWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      padding: 12,
+    },
+    ownershipChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+    },
+    ownershipChipText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+    },
+
+    sotdCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: t.colors.surface,
+      borderRadius: t.radius.card,
+      marginHorizontal: 16,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      gap: 12,
+      ...t.shadow.card,
+    },
+    sotdImgWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      backgroundColor: t.colors.surface2,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    sotdImg: { width: 44, height: 44, borderRadius: 8 },
+    sotdBody: { flex: 1 },
+    sotdLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 10,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      color: t.colors.secondary,
+      marginBottom: 2,
+    },
+    sotdName: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      color: t.colors.text,
+    },
+    sotdCta: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      color: t.colors.textMuted,
+    },
+
+    sectionTitle: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      textTransform: 'uppercase',
+      letterSpacing: 1.5,
+      color: t.colors.textMuted,
+      marginHorizontal: 16,
+      marginTop: 24,
+      marginBottom: 8,
+    },
+
+    navCard: {
+      backgroundColor: t.colors.surface,
+      borderRadius: t.radius.card,
+      marginHorizontal: 16,
+      ...t.shadow.card,
+    },
+    navRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      gap: 12,
+    },
+    navRowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.colors.border,
+    },
+    navIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.colors.primarySoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    navLabel: {
+      flex: 1,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      color: t.colors.text,
+    },
+    navCount: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 14,
+      color: t.colors.textMuted,
+    },
+
+    logoutRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginHorizontal: 16,
+      marginTop: 32,
+      paddingVertical: 14,
+      borderWidth: 1.5,
+      borderColor: t.colors.overpriced,
+      borderRadius: t.radius.base,
+    },
+    logoutText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      color: t.colors.overpriced,
+    },
+
+    gateWrap: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 32,
+      gap: 16,
+    },
+    gateTitle: {
+      fontFamily: 'PlayfairDisplay_700Bold',
+      fontSize: 22,
+      color: t.colors.text,
+    },
+    gateDesc: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      color: t.colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 21,
+    },
+  } as const;
+}

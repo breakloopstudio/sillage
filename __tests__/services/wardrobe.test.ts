@@ -1,169 +1,149 @@
-import { __resetStore, setDoc, deleteDoc, getDoc, getDocs, writeBatch, doc } from '@react-native-firebase/firestore';
+// __tests__/services/wardrobe.test.ts
+// Tests wardrobe/shelves/SOTD (impl Supabase)
+
+import { supabase } from '../../src/services/supabase';
 import {
   addToWardrobe, updateWardrobeItem, removeFromWardrobe, isInWardrobe,
-  createShelf, updateShelf, deleteShelf, setSotd, getTodaySotd,
+  createShelf, deleteShelf, getTodaySotd, setSotd,
 } from '../../src/services/wardrobe';
 
-beforeEach(() => {
-  __resetStore();
-  jest.clearAllMocks();
-});
+const mockFrom = supabase.from as jest.Mock;
+const mockRpc = supabase.rpc as jest.Mock;
+
+function chainMock(resolved: unknown = { data: null, error: null }) {
+  const chain: Record<string, jest.Mock> = {};
+  const methods = ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'neq', 'in', 'order', 'limit', 'maybeSingle', 'single'];
+  for (const m of methods) {
+    chain[m] = jest.fn().mockImplementation(() => {
+      if (m === 'maybeSingle' || m === 'single') return Promise.resolve(resolved);
+      return chain;
+    });
+  }
+  chain.then = (resolve: (v: unknown) => void) => resolve(resolved);
+  return chain;
+}
+
+beforeEach(() => { jest.clearAllMocks(); });
 
 describe('addToWardrobe', () => {
-  it('creates a wardrobe item with setDoc merge: true', async () => {
+  it('upserts wardrobe item with ownership and defaults', async () => {
+    const chain = chainMock();
+    mockFrom.mockReturnValue(chain);
     await addToWardrobe('uid1', 'parfum_1', 'have', 'Sauvage', 'Dior', 'img.jpg', 'aromatic');
-
-    expect(setDoc).toHaveBeenCalled();
-    const args = (setDoc as jest.Mock).mock.calls[0];
-    expect(args[0].path).toBe('users/uid1/wardrobe/parfum_1');
-    expect(args[1].ownership).toBe('have');
-    expect(args[1].nom).toBe('Sauvage');
-    expect(args[1].sotdCount).toBe(0);
-    expect(args[1].isSignature).toBe(false);
-    expect(args[2]).toEqual({ merge: true });
-  });
-
-  it('defaults null values', async () => {
-    await addToWardrobe('uid1', 'parfum_2', 'want');
-    const args = (setDoc as jest.Mock).mock.calls[0];
-    expect(args[1].nom).toBeNull();
-    expect(args[1].imageUrl).toBeNull();
-    expect(args[1].rating).toBeNull();
-  });
-
-  it('handles sizeMl', async () => {
-    await addToWardrobe('uid1', 'parfum_3', 'have', undefined, undefined, undefined, undefined, 50);
-    const args = (setDoc as jest.Mock).mock.calls[0];
-    expect(args[1].sizeMl).toBe(50);
+    expect(mockFrom).toHaveBeenCalledWith('wardrobe');
+    expect(chain.upsert).toHaveBeenCalled();
+    const arg = chain.upsert.mock.calls[0][0];
+    expect(arg.user_id).toBe('uid1');
+    expect(arg.parfum_id).toBe('parfum_1');
+    expect(arg.ownership).toBe('have');
+    expect(arg.nom).toBe('Sauvage');
+    expect(arg.rating).toBeNull();
+    expect(arg.shelf_ids).toEqual([]);
+    expect(arg.sotd_count).toBe(0);
   });
 });
 
 describe('updateWardrobeItem', () => {
-  it('updates with merge: true', async () => {
-    await updateWardrobeItem('uid1', 'parfum_1', { rating: 4.5, notes: 'Superbe' });
-    expect(setDoc).toHaveBeenCalled();
-    const args = (setDoc as jest.Mock).mock.calls[0];
-    expect(args[0].path).toBe('users/uid1/wardrobe/parfum_1');
-    expect(args[1].rating).toBe(4.5);
-    expect(args[1].notes).toBe('Superbe');
-    expect(args[1].updatedAt).toBeInstanceOf(Date);
-    expect(args[2]).toEqual({ merge: true });
+  it('updates only provided fields + updated_at', async () => {
+    const chain = chainMock();
+    mockFrom.mockReturnValue(chain);
+    await updateWardrobeItem('uid1', 'parfum_1', { rating: 4, notes: 'Top' });
+    expect(chain.update).toHaveBeenCalled();
+    const arg = chain.update.mock.calls[0][0];
+    expect(arg.rating).toBe(4);
+    expect(arg.notes).toBe('Top');
+    expect(arg.updated_at).toBeDefined();
+    expect(arg.ownership).toBeUndefined();
   });
 });
 
 describe('removeFromWardrobe', () => {
-  it('deletes the wardrobe document', async () => {
+  it('deletes by user_id + parfum_id', async () => {
+    const chain = chainMock();
+    mockFrom.mockReturnValue(chain);
     await removeFromWardrobe('uid1', 'parfum_1');
-    expect(deleteDoc).toHaveBeenCalled();
-    expect((deleteDoc as jest.Mock).mock.calls[0][0].path).toBe('users/uid1/wardrobe/parfum_1');
+    expect(chain.delete).toHaveBeenCalled();
+    expect(chain.eq).toHaveBeenCalledWith('parfum_id', 'parfum_1');
   });
 });
 
 describe('isInWardrobe', () => {
-  it('returns null when item does not exist', async () => {
-    const result = await isInWardrobe('uid1', 'parfum_1');
-    expect(result).toBeNull();
+  it('returns mapped WardrobeItem when found', async () => {
+    const chain = chainMock({
+      data: { parfum_id: 'p1', nom: 'Test', marque: 'M', ownership: 'have', rating: 3, sotd_count: 2, is_signature: true, shelf_ids: ['s1'], added_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' },
+      error: null,
+    });
+    mockFrom.mockReturnValue(chain);
+    const item = await isInWardrobe('uid1', 'p1');
+    expect(item).not.toBeNull();
+    expect(item!.parfumId).toBe('p1');
+    expect(item!.rating).toBe(3);
+    expect(item!.sotdCount).toBe(2);
+    expect(item!.isSignature).toBe(true);
+    expect(item!.shelfIds).toEqual(['s1']);
   });
 
-  it('returns wardrobe item when it exists', async () => {
-    await addToWardrobe('uid1', 'parfum_1', 'have', 'Sauvage', 'Dior');
-    const result = await isInWardrobe('uid1', 'parfum_1');
-    expect(result).not.toBeNull();
-    expect(result!.nom).toBe('Sauvage');
-    expect(result!.ownership).toBe('have');
+  it('returns null when not found', async () => {
+    const chain = chainMock({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+    expect(await isInWardrobe('uid1', 'nope')).toBeNull();
   });
 });
 
 describe('createShelf', () => {
-  it('creates a shelf with order 0 when no shelves exist', async () => {
-    const id = await createShelf('uid1', 'Été', 'sunny-outline', '#FF0000');
-    expect(setDoc).toHaveBeenCalled();
-    // find the setDoc call with order 0 (last call after getDocs)
-    const allCalls = (setDoc as jest.Mock).mock.calls;
-    const createCall = allCalls[allCalls.length - 1];
-    expect(createCall[1].name).toBe('Été');
-    expect(createCall[1].icon).toBe('sunny-outline');
-    expect(createCall[1].color).toBe('#FF0000');
-    expect(createCall[1].order).toBe(0);
-    expect(typeof id).toBe('string');
-  });
+  it('inserts shelf with incremented order', async () => {
+    // Premier appel : select max order → [{order: 2}]
+    const selectChain = chainMock();
+    selectChain.order.mockReturnValue(selectChain);
+    selectChain.limit.mockResolvedValue({ data: [{ order: 2 }], error: null });
+    // Deuxième appel : insert
+    const insertChain = chainMock();
+    insertChain.select.mockReturnValue(insertChain);
+    insertChain.single.mockResolvedValue({ data: { id: 'shelf-uuid' }, error: null });
 
-  it('increments order based on highest existing shelf', async () => {
-    // First shelf gets order 0
-    await createShelf('uid1', 'First');
-    // Second shelf should get order 1
-    await createShelf('uid1', 'Second');
-    // The second call's setDoc should have order 1
-    const setDocCalls = (setDoc as jest.Mock).mock.calls;
-    const lastSetDoc = setDocCalls[setDocCalls.length - 1];
-    expect(lastSetDoc[1].order).toBe(1);
-  });
-});
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      return callCount === 1 ? selectChain : insertChain;
+    });
 
-describe('updateShelf', () => {
-  it('merges partial data', async () => {
-    await updateShelf('uid1', 'shelf_1', { name: 'Renamed' });
-    expect(setDoc).toHaveBeenCalled();
-    const args = (setDoc as jest.Mock).mock.calls[0];
-    expect(args[0].path).toBe('users/uid1/shelves/shelf_1');
-    expect(args[1]).toEqual({ name: 'Renamed' });
-    expect(args[2]).toEqual({ merge: true });
+    const id = await createShelf('uid1', 'Été', 'sun', '#FFD700');
+    expect(id).toBe('shelf-uuid');
+    expect(insertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      user_id: 'uid1', name: 'Été', icon: 'sun', color: '#FFD700', order: 3,
+    }));
   });
 });
 
 describe('deleteShelf', () => {
-  it('deletes shelf and removes from wardrobe items', async () => {
-    // Create a shelf and a wardrobe item with that shelf
-    const shelfId = await createShelf('uid1', 'Summer');
-    await addToWardrobe('uid1', 'parfum_1', 'have');
-    await updateWardrobeItem('uid1', 'parfum_1', { shelfIds: [shelfId] });
-
-    await deleteShelf('uid1', shelfId);
-
-    // Batch should have committed (delete + update)
-    expect(writeBatch).toHaveBeenCalled();
-  });
-});
-
-describe('setSotd', () => {
-  it('creates SOTD entry and increments sotdCount', async () => {
-    await addToWardrobe('uid1', 'parfum_1', 'have', 'Sauvage', 'Dior');
-
-    await setSotd('uid1', 'parfum_1', 'Sauvage', 'Dior', 'img.jpg');
-
-    // Should have used batch
-    expect(writeBatch).toHaveBeenCalled();
-    const batch = (writeBatch as jest.Mock).mock.results[0].value;
-    expect(batch.set).toHaveBeenCalledTimes(2); // SOTD + wardrobe update
-    expect(batch.commit).toHaveBeenCalled();
-  });
-
-  it('works even if wardrobe item does not exist (uses merge: true)', async () => {
-    await setSotd('uid1', 'parfum_new', 'New Frag', 'New Brand');
-    expect(writeBatch).toHaveBeenCalled();
-    const batch = (writeBatch as jest.Mock).mock.results[0].value;
-    expect(batch.set).toHaveBeenCalledTimes(2);
-    expect(batch.commit).toHaveBeenCalled();
+  it('calls RPC delete_shelf', async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    await deleteShelf('uid1', 'shelf-1');
+    expect(mockRpc).toHaveBeenCalledWith('delete_shelf', { p_shelf_id: 'shelf-1' });
   });
 });
 
 describe('getTodaySotd', () => {
-  it('returns null when no SOTD for today', async () => {
-    const result = await getTodaySotd('uid1');
-    expect(result).toBeNull();
+  it('returns SotdEntry when found', async () => {
+    const chain = chainMock({ data: { parfum_id: 'p1', nom: 'Sauvage', marque: 'Dior', image_url: 'img.jpg' }, error: null });
+    mockFrom.mockReturnValue(chain);
+    const sotd = await getTodaySotd('uid1');
+    expect(sotd).toEqual({ parfumId: 'p1', nom: 'Sauvage', marque: 'Dior', imageUrl: 'img.jpg' });
   });
 
-  it('returns SOTD when it exists', async () => {
-    const today = new Date();
-    const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    await setDoc(
-      { path: `users/uid1/sotd/${key}` } as any,
-      { parfumId: 'p1', nom: 'Sauvage', marque: 'Dior', imageUrl: 'img.jpg' }
-    );
+  it('returns null when no SOTD today', async () => {
+    const chain = chainMock({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+    expect(await getTodaySotd('uid1')).toBeNull();
+  });
+});
 
-    const result = await getTodaySotd('uid1');
-    expect(result).not.toBeNull();
-    expect(result!.parfumId).toBe('p1');
-    expect(result!.nom).toBe('Sauvage');
+describe('setSotd', () => {
+  it('calls RPC set_sotd', async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    await setSotd('uid1', 'p1', 'Sauvage', 'Dior', 'img.jpg');
+    expect(mockRpc).toHaveBeenCalledWith('set_sotd', {
+      p_parfum_id: 'p1', p_nom: 'Sauvage', p_marque: 'Dior', p_image_url: 'img.jpg',
+    });
   });
 });

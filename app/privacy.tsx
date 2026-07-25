@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
+import { LEGAL_EMAIL, LEGAL_COMPANY_NAME } from '../src/config/legal';
 
 export default function PrivacyPage() {
   const { theme } = useTheme();
@@ -15,7 +16,7 @@ export default function PrivacyPage() {
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityLabel="Retour">
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
           </Pressable>
           <Text style={s.title}>Politique de confidentialité</Text>
@@ -24,20 +25,20 @@ export default function PrivacyPage() {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>1. Responsable de traitement</Text>
-          <Text style={s.body}>
-            Le responsable du traitement des données personnelles est la société Breakloop Studio, éditrice de l'application ParfumScan, dont les coordonnées figurent dans les mentions légales.
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
+            Le responsable du traitement des données personnelles est {LEGAL_COMPANY_NAME}, éditrice de l'application ParfumScan, joignable à l'adresse {LEGAL_EMAIL}. Les coordonnées complètes figurent dans les mentions légales.
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>2. Données collectées</Text>
           <Text style={s.subtitle}>2.1 Création de compte</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Lors de la création d'un compte (optionnelle), nous collectons votre adresse email et un mot de passe.{'\n\n'}
             Si vous utilisez la connexion Google, nous recevons votre nom, adresse email et photo de profil associés à votre compte Google.
           </Text>
           <Text style={s.subtitle}>2.2 Utilisation de l'application</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Dans le cadre de l'utilisation des fonctionnalités, nous stockons :{'\n'}
             {'\u2022'} Vos parfums favoris{'\n'}
             {'\u2022'} Votre collection et wishlist{'\n'}
@@ -47,24 +48,24 @@ export default function PrivacyPage() {
             {'\u2022'} Vos préférences (notifications, alertes prix)
           </Text>
           <Text style={s.subtitle}>2.3 Scan de flacons</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Lorsque vous scannez un flacon, la photo est transmise à OpenAI (GPT-4o Vision) pour identifier le parfum. Seule l'image du flacon est envoyée — aucune autre donnée personnelle. La photo n'est pas conservée par OpenAI après traitement.
           </Text>
           <Text style={s.subtitle}>2.4 Notifications push</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Si vous activez les notifications, un token FCM (Firebase Cloud Messaging) est stocké pour vous envoyer des alertes de prix. Vous pouvez désactiver cette fonction à tout moment dans les paramètres.
           </Text>
           <Text style={s.subtitle}>2.5 Données locales</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Votre préférence de thème (clair/sombre/système) est stockée localement sur votre appareil via AsyncStorage. Aucune autre donnée n'est conservée localement.
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>3. Bases légales du traitement</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Les traitements reposent sur les bases légales suivantes :{'\n'}
-            {'\u2022'} <Text style={s.bold}>Consentement</Text> : création de compte, connexion Google, scan caméra, notifications push{'\n'}
+            {'\u2022'} <Text style={s.bold}>Consentement</Text> : création de compte, connexion Google, scan caméra, notifications push, suggestions météo (coordonnées géographiques approximatives){'\n'}
             {'\u2022'} <Text style={s.bold}>Exécution du contrat</Text> : sauvegarde de vos favoris, collection, wishlist, parfumerie{'\n'}
             {'\u2022'} <Text style={s.bold}>Intérêt légitime</Text> : préférence de thème (stockage local uniquement)
           </Text>
@@ -73,29 +74,29 @@ export default function PrivacyPage() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>4. Destinataires des données</Text>
           <Text style={s.subtitle}>4.1 Services Firebase (Google)</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Firebase Auth, Firestore, Cloud Functions, Cloud Storage et Cloud Messaging sont utilisés pour l'authentification, le stockage et les notifications. Ces services sont fournis par Google LLC (États-Unis). Les serveurs Firestore et Cloud Functions sont configurés dans la région europe-west1 (Belgique).{'\n\n'}
             Google est certifié sous le Data Privacy Framework (successeur du Privacy Shield) et applique des clauses contractuelles types pour les transferts hors UE.
           </Text>
           <Text style={s.subtitle}>4.2 OpenAI (GPT-4o Vision)</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Les photos de flacons sont transmises à OpenAI pour analyse visuelle. OpenAI ne reçoit aucune donnée d'identification personnelle. Les images envoyées ne sont pas utilisées pour entraîner les modèles d'OpenAI et sont supprimées après traitement.{'\n\n'}
             La clé API OpenAI est exclusivement stockée côté serveur (Cloud Functions) et n'est jamais exposée au client.
           </Text>
           <Text style={s.subtitle}>4.3 Catalogue de parfums</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Les données des parfums (marque, nom, notes olfactives, prix) sont hébergées dans notre base de données interne (Firestore). Aucune donnée personnelle n'est transmise à un service tiers pour les recherches de parfums.{"\n\n"}
             Les recherches sont effectuées localement dans notre catalogue de 21 000+ parfums.
           </Text>
           <Text style={s.subtitle}>4.4 Google Sign-In</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Si vous choisissez la connexion Google, un token d'authentification OAuth standard est échangé avec les serveurs Google.
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>5. Transferts hors Union Européenne</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Les services Firebase et OpenAI sont hébergés par des sociétés américaines. Ces transferts sont encadrés par :{'\n'}
             {'\u2022'} Le Data Privacy Framework (DPF) pour Google{'\n'}
             {'\u2022'} Les clauses contractuelles types (CCT) de la Commission européenne{'\n'}
@@ -105,7 +106,7 @@ export default function PrivacyPage() {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>6. Durée de conservation</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             {'\u2022'} Données du compte : jusqu'à la suppression du compte{'\n'}
             {'\u2022'} Favoris, collection, wishlist, parfumerie : jusqu'à suppression manuelle ou suppression du compte{'\n'}
             {'\u2022'} Historique des scans : jusqu'à suppression manuelle ou suppression du compte{'\n'}
@@ -117,7 +118,7 @@ export default function PrivacyPage() {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>7. Vos droits (RGPD)</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Conformément au Règlement Général sur la Protection des Données (RGPD), vous disposez des droits suivants :{'\n'}
             {'\u2022'} <Text style={s.bold}>Droit d'accès</Text> : obtenir une copie de vos données{'\n'}
             {'\u2022'} <Text style={s.bold}>Droit de rectification</Text> : corriger des données inexactes{'\n'}
@@ -126,14 +127,17 @@ export default function PrivacyPage() {
             {'\u2022'} <Text style={s.bold}>Droit d'opposition</Text> : vous opposer à certains traitements{'\n'}
             {'\u2022'} <Text style={s.bold}>Droit de limitation</Text> : restreindre temporairement le traitement{'\n'}
             {'\u2022'} <Text style={s.bold}>Droit de retrait du consentement</Text> : à tout moment, sans justificatif{'\n\n'}
-            Pour exercer ces droits, contactez-nous à l'adresse email indiquée dans les mentions légales.{'\n\n'}
+            Pour exercer ces droits, vous pouvez utiliser les fonctionnalités intégrées à l'application :{'\n'}
+            {'\u2022'} Paramètres → Confidentialité & données → Exporter mes données{'\n'}
+            {'\u2022'} Paramètres → Confidentialité & données → Supprimer mon compte{'\n\n'}
+            Vous pouvez également nous contacter à l'adresse {LEGAL_EMAIL}.{'\n\n'}
             Vous disposez également du droit d'introduire une réclamation auprès de la CNIL (cnil.fr).
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>8. Sécurité</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Nous mettons en œuvre les mesures techniques suivantes :{'\n'}
             {'\u2022'} Authentification sécurisée via Firebase Auth{'\n'}
             {'\u2022'} Règles Firestore restreignant l'accès aux données de chaque utilisateur{'\n'}
@@ -144,21 +148,21 @@ export default function PrivacyPage() {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>9. Cookies et stockage local</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             L'application mobile ParfumScan n'utilise pas de cookies. Le seul stockage local sur l'appareil concerne la préférence de thème (clair/sombre/système) via AsyncStorage.
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>10. Mineurs</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             L'application n'est pas destinée aux personnes de moins de 15 ans. Si vous êtes parent et pensez que votre enfant nous a fourni des données personnelles, contactez-nous pour leur suppression.
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>11. Modifications</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Cette politique peut être modifiée pour refléter des évolutions légales ou fonctionnelles. En cas de modification substantielle, les utilisateurs en seront informés lors de leur prochaine utilisation de l'application.
           </Text>
         </View>

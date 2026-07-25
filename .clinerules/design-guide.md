@@ -1,8 +1,23 @@
 # Guide de design — ParfumScan
 
 **Direction** : « Luxe malin »  
-**Version** : 1.2 — Juillet 2026 (tokens saisonniers, italique éditorial, barre flottante, polices chargées)  
+**Version** : 1.5 — Juillet 2026 (accessibilité profonde, sheets unifiés, formatage données, motion signature, densité, haptique, adaptive)  
 **Cible** : iOS + Android (React Native 0.86 / Expo SDK 57)
+
+---
+
+## 0. Quick reference — les 10 règles qui couvrent 90 % des cas
+
+1. Couleurs : `t.colors.*` via `useTheme()`, jamais d'hex en dur (exceptions §2.3). Paire soft/ink obligatoire sur fond teinté (§2.2).
+2. Typo : `fontFamily` uniquement, jamais `fontWeight` ; toute `fontFamily` existe dans le `useFonts` de `app/_layout.tsx`.
+3. Styles : `getStyles(t)` + `useMemo` ; `StyleSheet.create` réservé au statique pur.
+4. Transparences : paliers §2.5 via `alpha()`, dark lumineux ÷2, structure inchangé.
+5. Touch : cibles ≥ 44 px ou `hitSlop` explicite.
+6. Motion : 1 boucle infinie max/écran (inventaire §7.5) ; Reduced Motion respecté (§6.7).
+7. Haptique : mapping §2.6 — light = sélection, success = achèvement, error = destructif.
+8. Données : `formatPrice()` pour tout montant, jamais `toFixed` (§3.7).
+9. Un seul accent par écran (primary OU secondary) ; italique éditorial ≤ 2 lignes, non adjacentes (§3.2).
+10. Accessibilité : badges/chips `allowFontScaling={false}`, textes longs `maxFontSizeMultiplier={1.3}`, dataviz vocalisée (§6.8).
 
 ---
 
@@ -87,6 +102,10 @@ Certaines couleurs ne changent jamais entre light et dark mode. Elles peuvent ê
 | `#FFFFFF` | Texte sur bouton coloré, icône FAB, texte sur chip note | Blanc pur — même rendu dans les deux thèmes |
 | `#1F1A2E` | Texte sur badge doré (`secondary`/`reward`) | Contraste optimal sur doré, inchangé entre thèmes |
 | `rgba(0,0,0,0.4)` | Overlay de fond (ActionSheet, modale) | Overlay semi-transparent indépendant du thème |
+| `rgba(11,7,18,0.96)` | Fond lightbox (`ImageViewerPopup`) | `#0B0712` (violet-noir on-brand) — sombre dans les deux thèmes, ne doit jamais varier (§8.4 : pas de noir pur) |
+| `rgba(255,255,255,0.12)` | Fond du bouton close sur lightbox | Verre dépoli sur fond sombre, invariant — bouton non intrusif, lisible dans les deux thèmes |
+| `rgba(255,255,255,0.22)` | Bordure du bouton close sur lightbox | Même logique verre dépoli, hairlineWidth |
+| `rgba(237,232,245,0.75)` | Texte secondaire sur lightbox (brand) | `text` dark `#EDE8F5` atténué à 75 %, lisible sur `#0B0712` dans les deux thèmes |
 
 Toute autre couleur hardcodée est une violation. Utiliser `t.colors.*`.
 
@@ -98,6 +117,41 @@ Toute autre couleur hardcodée est une violation. Utiliser `t.colors.*`.
 - ❌ `textMuted` sur fond `primarySoft` — utiliser `primaryInk`
 - ❌ `favorite` pour autre chose que le cœur favori
 - ❌ Du violet et du doré côte à côte comme couleurs d'action
+
+### 2.5 Échelle d'opacité sémantique
+
+Toute transparence appliquée à une couleur du thème (via `alpha()`, `stopOpacity` ou `opacity`) utilise un palier de l'échelle — jamais de valeur arbitraire.
+
+| Palier | Light | Dark (effets lumineux) | Usage |
+|---|---|---|---|
+| `ghost` | 8 % | 4 % | Textures subliminales (gravure §4.12), motifs |
+| `hint` | 16 % | 8 % | Voiles légers, hairlines colorées, lueurs d'ambiance |
+| `veil` | 24 % | 12 % | Halos de strate, bordures de pétale, bordures teintées de popup |
+| `dim` | 40 % | 25 % | Couche inactive, contenu estompé au profit d'un actif |
+| `scrim` | `rgba(0,0,0,0.4)` invariant (§2.3) | idem | Backdrops (popup, sheet, lightbox) |
+
+Règles :
+
+- **Effets lumineux** (halo, voile, glow — lumière projetée sur le fond) : en dark mode, le palier est **divisé par deux**. Une lumière claire sur fond sombre paraît deux fois plus intense ; sans cette division, un halo devient un disque visible. C'est la règle qui gouverne §4.14.
+- **Éléments structurels** (bordures, hairlines, séparateurs) : même palier dans les deux thèmes ; si illisible en dark, monter d'un cran — jamais descendre.
+- **Tolérance ±4 points** pour les valeurs existantes déjà calées visuellement : elles sont grand-père ; les aligner au palier le plus proche lors de la prochaine retouche du composant.
+- **Effets composites** (gradient × opacité d'élément animée) : le palier s'apprécie sur l'opacité effective résultante à l'état stable.
+- Helper obligatoire : `alpha(hex, palier)` — pas de `rgba()` manuel hors §2.3. Cible : `src/utils/alpha.ts` avec paliers nommés + division dark automatique ; état actuel : helper brut `alpha(hex, ratio)` dans `src/features/catalog/pyramid/geometry.ts` (sans paliers ni règle dark) — migration = chantier code ; en attendant, appliquer les paliers à la main.
+
+### 2.6 Langage haptique
+
+Trois intensités, trois sens — jamais d'haptique hors de ce mapping :
+
+| Fonction | Sens | Exemples |
+|---|---|---|
+| `hapticsLight()` | **Sélection** | changement d'onglet, chip, segment, toggle, lettre du BrandSheet |
+| `hapticsSuccess()` | **Achèvement** | ajout favori/parfumerie/carnet, SOTD choisi, scan identifié |
+| `hapticsError()` | **Destructif / échec** | suppression, échec scan, action impossible |
+
+Règles :
+- 1 haptique max par geste ; jamais sur scroll, drag continu, ou événement automatique — que du user-initié
+- Le FAB Scan n'a pas d'haptique à l'ouverture caméra — réservé à la capture
+- `expo-haptics` respecte le mode silencieux natif — ne pas ajouter de garde manuelle
 
 ---
 
@@ -122,15 +176,18 @@ fontWeight: '600'
 | Rôle | Police | Taille | Exemple |
 |---|---|---|---|
 | Titre de page (h1) | `PlayfairDisplay_700Bold` | 28–34 | "Cadre le flacon" |
-| Ligne éditoriale | `PlayfairDisplay_700Bold_Italic` | 15 | Accroche contextuelle en voix lookbook — fiche détail (« Hiver · Soirée »). **Unique usage de l'italique dans l'app** : une ligne max par écran, jamais pour un titre, un label ou du corps. |
+| Ligne éditoriale | `PlayfairDisplay_700Bold_Italic` | 15 | Accroche contextuelle en voix lookbook — fiche détail (« Hiver · Soirée »). **Italique réservé aux lignes éditoriales** : max 2 par écran, de voix distinctes (factuelle « Hiver · Soirée » vs aphoristique « L'éclat, le cœur, puis la trace »), jamais adjacentes (au moins une section d'écart), jamais pour un titre, un label ou du corps. |
+| Label signature | `PlayfairDisplay_600SemiBold` | 15–16 | Nom d'une strate interactive (« Tête », « Cœur », « Fond ») sur une planche annotée (§4.12). Unique usage de Playfair hors titres : jamais sur du corps, un seul type d'élément interactif par section peut l'utiliser. |
 | Titre de section (h2) | `PlayfairDisplay_600SemiBold` | 18–20 | "Ta collection", "Pyramide olfactive" |
 | Titre de carte (h3) | `PlayfairDisplay_600SemiBold` | 18 | Nom du parfum |
 | Marque (overline) | `Inter_400Regular` | 10–12 | Texte uppercase + `letterSpacing: 1–1.5` |
 | Corps (body) | `Inter_400Regular` | 14–15 | Texte courant, descriptions |
 | Corps emphatique | `Inter_500Medium` | 14 | Sous-titres, labels de champ |
 | UI label | `Inter_600SemiBold` | 14–16 | Labels de bouton, onglets, titres de liste |
-| Prix (grand) | `Inter_700Bold` | 32–42 | Prix affiché en gros |
-| Prix (normal) | `Inter_800ExtraBold` | 18 | Prix dans carte (zone deal) |
+| Prix (hero fiche) | `Inter_700Bold` | 32–42 | Prix principal fiche détail |
+| Prix (barre d'action) | `Inter_800ExtraBold` | 20 | Barre flottante §4.11 |
+| Prix (carte) | `Inter_800ExtraBold` | 15–16 | ParfumCard comfortable / list |
+| Prix (compact) | `Inter_700Bold` | 13–14 | ParfumCard compact / compactPlus |
 | Badge / chip | `Inter_500Medium` | 11–13 | Famille olfactive, année, notes |
 | Caption | `Inter_400Regular` | 11–13 | Texte d'aide, info secondaire |
 | Placeholder | `Inter_400Regular` | 12 | "Rechercher un parfum..." |
@@ -146,8 +203,56 @@ fontWeight: '600'
 ### 3.4 Letter spacing
 
 - Marque (overline) : `letterSpacing: 1.5` (12px) ou `1` (10px compact)
-- Étiquette "Tête/Cœur/Fond" : `letterSpacing: 1`
+- Étiquette "Tête/Cœur/Fond" : `letterSpacing: 1` — sauf en label signature (§3.2) où Playfair se passe de letterSpacing
 - Aucun autre letterSpacing dans l'app
+
+### 3.5 Chiffres tabulaires
+
+`fontVariant: ['tabular-nums']` (Inter) obligatoire sur toute donnée chiffrée alignée ou juxtaposée : prix (existant) et **fenêtres temporelles** (« 0 – 15 min », « 15 min – 2 h »). Évite le jitter des chiffres proportionnels dans les annotations et les comparateurs. Ne jamais appliquer sur Playfair (ses chiffres elzeviriens sont voulus).
+
+### 3.6 Copy — voix éditoriale
+
+La voix « Luxe malin » est celle d'un expert chaleureux : précis, sensoriel, jamais commercial.
+
+**Registre**
+
+- Tutoiement systématique.
+- Phrase case (majuscule à la première lettre uniquement) — jamais de Title Case.
+- Boutons à l'infinitif (« Scanner un flacon »), titres de section nominaux (« Comparer les marchands »).
+- Jamais de point d'exclamation. Jamais de ton promotionnel dans le copy courant (« promo », « pas cher », « offre exceptionnelle ») — le badge -X % parle de lui-même.
+
+**Ponctuation maison**
+
+- Plages et durées : tiret cadratin `–` (U+2013) — « 0 – 15 min ».
+- Énumérations inline : séparateur `·` — « Hiver · Soirée ».
+- Suspension : caractère unique `…`, jamais trois points.
+- Deux-points : espace insécable avant (« Perceptible : 15 min – 2 h »).
+
+**Lignes éditoriales (§3.2)**
+
+- Maximum 6 mots. Métaphore **sensorielle** obligatoire : tactile (« La peau s'en souvient »), lumineuse (« L'éclat des premières minutes »), temporelle (« Le parfum, heure par heure »).
+- Métaphores interdites : mécaniques, sportives, scatologiques ou corporelles ambiguës, et tout ce qui évoque une tâche ou une saleté (« trace »).
+- Vocabulaire privilégié : sillage, empreinte, cœur, éclat, tenue, flacon, accord, note, peau.
+- Vocabulaire interdit dans le copy utilisateur : produit, item, article, référence, SKU, trace, tâche.
+
+**États vides & erreurs**
+
+- Factuel puis bienveillant : constat d'abord, action ensuite (« Aucune note de cœur renseignée », jamais « Pas de notes :( »).
+- Jamais d'émoticônes dans les messages système.
+
+### 3.7 Formatage des données
+
+Toute donnée chiffrée ou datée affichée passe par un helper de formatage — jamais de concaténation manuelle.
+
+**Prix** : `formatPrice(value, { decimals = 2 })` obligatoire pour tout montant (wrapper `Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })`). Rendu : « 89,99 € » (virgule décimale, espace fine insécable avant €), milliers groupés « 1 299 € ». **`toFixed` est interdit** sur un montant affiché (point décimal anglais). Prix rond en carte : « 89 € » (`decimals = 0`).
+
+**Volumes** : « 100 ml » — espace fine insécable entre valeur et unité.
+
+**Pourcentages** : signe moins typographique `−` (U+2212) + espace fine insécable avant % — badge « −23 % », jamais « -23% ».
+
+**Dates** : relatives sous 7 j (« aujourd'hui », « hier », « il y a 3 j »), absolues au-delà (« 12 juil. 2026 »). Jamais de format ISO affiché.
+
+**Chiffres alignés** : `tabular-nums` (§3.5) reste obligatoire dès que des valeurs sont juxtaposées.
 
 ---
 
@@ -278,7 +383,7 @@ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10
 
 ### 4.5 Empty State (`EmptyState`)
 
-4 variantes : `collection | wishlist | favoris | historique`.
+5 variantes : `collection | favoris | historique | wardrobe | scentlist`.
 
 ```
         ┌──────┐
@@ -304,11 +409,13 @@ flexDirection: 'row', justifyContent: 'space-between'
 // HitSlop: 12 sur l'action
 ```
 
-### 4.7 Loading Skeleton
+### 4.7 Loading
 
-Pas de skeleton screen. L'app utilise des animations contextuelles :
+Pas de skeleton screen. L'app utilise des chargements contextuels :
 - **Scan loading** : particules flottantes + halo rotatif + texte cyclique
-- **Chargement page** : spinner natif (`ActivityIndicator`) dans les boutons, pas de placeholder de contenu
+- **Boutons** : `ActivityIndicator` à la place de l'icône, même couleur que le texte
+- **Images parfum** : placeholder pleine couleur — cible : couleur dominante du flacon stockée à l'import ; fallback actuel : couleur de marque déterministe (§4.1). Jamais de gris générique
+- **Premier chargement catalogue** : `AppLoader` brandé, borne 1.5 s max avant contenu
 
 ### 4.8 Champ texte (`TextInput`)
 
@@ -338,6 +445,68 @@ Pastille 28×28 (`tintSoft`) + Ionicons 14px (`tint`) + titre PlayfairDisplay_60
 
 Barre persistante de bas d'écran (fiche détail) : carte `surface` flottante (`borderRadius: card`, `shadow.elevated`, marges 12px latérales, `paddingBottom: insets.bottom + 12`) — même langage que le DockBar, jamais de barre pleine largeur avec `borderTop`. Apparition en slide-in (`translateY 60→0` + fade) quand la section de référence sort de l'écran. Contenu : prix compact Inter_800ExtraBold 20px + actions 44px + CTA primary.
 
+### 4.12 Planche annotée (dataviz « carnet de nez »)
+
+Figure géométrique centrale (triangle, jauge, courbe) flanquée de deux colonnes d'annotations : labels sérifiés à gauche (label signature §3.2), métadonnées chiffrées à droite (`Inter_400Regular` 10–11, `textMuted`, `tabular-nums` §3.5, hairline 12 px `border` en préfixe). Séparation des strates par **gaps réels** (inset de 3 px vers le centroïde), jamais par stroke. Remplissage en `LinearGradient` diagonal (`x1=0 y1=0 x2=1 y2=1`) couleur → couleur assombrie 12 % (éclaircie 8 % en dark). **Texture gravure** optionnelle : `Pattern` SVG de hairlines diagonales à 4–6 % d'opacité par-dessus les strates — effet planche d'herbier, doit rester subliminal (si on la remarque au premier regard, elle est trop forte). Chaque rangée (label + figure + annotation) forme une cible tactile unique ≥ 64 px avec `accessibilityRole="button"` et un label explicite.
+
+### 4.13 Pétale de note
+
+Évolution du chip note : fond `layerSoft`, bordure 1 px `layerColor` à 35 % (helper `alpha()`), texte `Inter_500Medium` 13 `layerInk`, emoji de catégorie 13 px en préfixe. `paddingHorizontal: 12`, `paddingVertical: 8`, `borderRadius: 20`. Pressé : `scale: 0.95`, `opacity: 0.8`. Entrée staggered `FadeInDown.delay(i * 55)`. Remplace le chip note pleine couleur (§4.3) sur toute nouvelle UI ; l'ancien chip reste toléré sur les surfaces existantes non refondues.
+
+### 4.14 Voile ambiant & halo de strate
+
+Nappe lumineuse `RadialGradient` (couleur de strate → transparent, centre `alpha` 0.10–0.14) en position absolue **derrière** une section signature, débordant du padding latéral (bleed pleine largeur, `pointerEvents="none"`). Opacité plafonnée : 0.5 light / 0.35 dark. Changement de teinte par crossfade de deux couches superposées — jamais d'animation de `<Stop>`. N'enfreint pas la règle « `background` jamais sur carte » : le voile est un éclairage du fond de page, pas un fond de conteneur. Maximum **un** voile par écran.
+
+### 4.15 Iconographie (Ionicons)
+
+Une seule famille : `@react-native-vector-icons/ionicons`. Quatre tailles, un style.
+
+| Taille | Contexte |
+|---|---|
+| 14 | Pastilles de titre de section (§4.9), chips |
+| 16 | Inline avec texte 13–14 (durées, métadonnées) |
+| 20 | Boutons, rows de liste, onglets |
+| 32 | Empty states (cercle 72 × 72) |
+
+- **Outline partout** (suffixe `-outline`), deux exceptions filled : cœur favori actif, étoiles de rating.
+- Couleur : `textMuted` par défaut ; `xxxInk` dans une pastille `xxxSoft` ; `#FFFFFF` (§2.3) sur bouton ou FAB plein. `primary` seul uniquement si l'icône EST l'action.
+- Cohérence sémantique : `time-outline` = temporalité, `flask` = parfumerie, `layers-outline` = structure olfactive, `color-filter-outline` = accords. Ne pas introduire une seconde métaphore pour un concept déjà pourvu.
+- Aucun emoji en remplacement d'une icône UI (les emojis de catégories olfactives restent confinés aux pétales §4.13 et au popup note).
+
+### 4.16 Bottom sheet (unifié)
+
+Spec commune à toutes les sheets (ActionSheet, FilterSheet, TrySheet, BrandSheet, WardrobeAddSheet, WardrobeQuickSheet, SOTDPicker). Deux types, une anatomie partagée.
+
+**Anatomie commune**
+- Backdrop : palier `scrim` (§2.5), tap = fermer
+- Container : `surface`, `borderTopLeftRadius` / `borderTopRightRadius` : 24 — la sheet est un niveau d'élévation au-dessus des cartes, radius distinct du `card` (16)
+- Handle : barre 36×4 `textMuted` au palier `dim`, centrée, `marginTop: 8` — content sheet uniquement
+- `paddingBottom: insets.bottom + 12` ; hauteur max 85 % de la fenêtre
+- Back Android = fermer
+
+**Action sheet** (menu d'actions) : rows 44 px (icône 20 + label `Inter_500Medium` 15), destructive en `overpriced`, auto-dismiss après action, pas de footer. Implémentation canonique : `src/components/ActionSheet.tsx`.
+
+**Content sheet** (formulaire, liste, filtres) : header (titre `PlayfairDisplay_600SemiBold` 18 + méta optionnelle), contenu scrollable borné, footer sticky avec `borderTopWidth: hairlineWidth` + CTA primary pleine largeur (label au résultat : « Voir les 12 parfums »). Pas d'auto-dismiss.
+
+**Motion** : entrée `withTiming(250, Easing.out(Easing.cubic))` (translateY pleine hauteur → 0) + fade backdrop ; sortie 200 ms `Easing.in`. Spring uniquement si drag-to-dismiss gestuel (non requis en v1).
+
+**État actuel** : les 7 sheets existantes dérivent de ces deux types ; les écarts (handle, radius, motion) sont grand-père — aligner à la prochaine retouche de chaque sheet, sans big bang.
+
+### 4.17 Densité d'affichage
+
+Trois densités de carte — `comfortable` (défaut), `compactPlus`, `list` — partagées par toutes les grilles 2 colonnes de `ParfumCard` (catalogue, recherche, favoris).
+
+- **Contrôle** : toggle d'icônes dans le header de grille (cycle comfortable → compactPlus → list), icônes 20 px `textMuted`, actif `primary`
+- **Persistance** : `useDensityPreference` (AsyncStorage) — une seule préférence pour toutes les grilles, pas de réglage par écran
+- **Interdiction** : changer de densité ne déclenche ni fetch ni re-tri (gridKey stable hors thème)
+- Les rangées éditoriales horizontales (`compact`) ne sont pas soumises à la densité
+
+### 4.18 Retour d'action (feedback)
+
+Politique : **pas de toast**. Le feedback d'une action réussie = haptique (§2.6) + mutation visuelle immédiate de la source (cœur rempli, badge ownership, compteur incrémenté). C'est un choix de marque — la retenue fait partie du luxe.
+
+Si une confirmation cross-écran devient indispensable (action non visible à l'écran résultat) : bannière unique ancrée au-dessus du DockBar, même langage qu'`OfflineBanner` (hairline `border`, `surface`, slide-down 250 ms, auto-dismiss 2.5 s, icône 16 `deal`). Une seule bannière à la fois ; jamais sur l'écran source de l'action.
+
 ---
 
 ### 5.1 Grille de spacing
@@ -352,7 +521,6 @@ xl   = 24  → padding CTA, espace après titre, espacement entre sections majeu
 3xl  = 48  → rare — espacement global
 ```
 
-> Supprimé de la grille : `lg` (20) et l'ancien `xl` → `24` est le nouveau `xl`. Cohérent avec l'échelle Tailwind 4-8-12-16-24-32-48.
 
 ### 5.2 Marges entre sections
 
@@ -395,7 +563,6 @@ card  = 16 → cartes parfum, PriceDisplay, pyramide NotesWrap
 full  = 9999 → cercles (icône, halo, scan FAB)
 ```
 
-> `lg` (20) et `xl` (24) retirés — non utilisés.
 
 ### 5.5 Bordures
 
@@ -452,7 +619,7 @@ Cas spécifiques :
 - **Scan idle** : `paddingTop: insets.top + 16`, tip à `bottom: 24 + insets.bottom`
 - **Scan camera** : plein écran, pas de padding
 - **Fiche détail** : `SafeAreaView` avec `edges={['top']}`, scroll gère le bas
-- **Auth / Onboarding** : `SafeAreaView` complet
+- **Auth** : `SafeAreaView` complet
 - **Écrans à scroll** : `SafeAreaView` avec `edges={['bottom']}` uniquement (le header est dans le scroll)
 
 ### 6.4 Barre de navigation Android
@@ -495,6 +662,27 @@ Les utilisateurs peuvent activer « Texte plus grand » dans les réglages du t�
 - Texte normal : ratio ≥ 4.5:1
 - Texte large (≥18px bold ou ≥24px) : ratio ≥ 3:1
 - Vérifiés : `text`/`background` ~15:1 ✓, `textMuted`/`surface` ~4.8:1 ✓
+- Light : `textMuted` (`#6E6963`) sur `surface` ≈ 5.4:1 ✓, sur `background` ≈ 5.0:1 ✓
+
+### 6.7 Reduced Motion (obligatoire)
+
+Le réglage système « Réduire les animations » est respecté partout :
+
+- **Boucles infinies** : coupées (pulse ring DockBar, halo + particules ScanLoading, particule pyramidale §7.5, speed lines runner)
+- **Animations d'entrée** : remplacées par un crossfade simple (opacity uniquement, 150 ms)
+- **Springs** : remplacés par `withTiming(0)`
+- **Gestes** : inchangés (le mouvement suit le doigt — ce n'est pas une animation)
+- **Runner** : shake et flash de mort désactivés
+
+Une seule source de vérité : `useReducedMotion()` (fourni par Reanimated) via un hook maison canonique — jamais de lecture ad hoc par composant.
+
+### 6.8 Dataviz & information couleur-seule
+
+- Toute barre, jauge ou pastille dataviz porte un `accessibilityLabel` verbalisant la valeur relative — ex. colonnes de saison (§4.10, sans chiffres à l'écran) : « Été : 4 sur 5 »
+- Information couleur-seule (price dots deal/fair/overpriced en compact/compactPlus) : toujours doublée d'un texte adjacent ou d'un label a11y énonçant le verdict (« bonne affaire », « prix correct », « trop cher »)
+- Contraste non-texte ≥ 3:1 entre fill et track des dataviz (barres saisonnières vs `surface2`) — re-mesurer à la première modification de ces tokens
+- Icônes décoratives : `accessible={false}` (ou `importantForAccessibility="no-hide-descendants"` sur le parent)
+- Cartes : pattern « label composé » — un seul `accessibilityLabel` de phrase (nom, marque, prix, verdict) plutôt que des enfants vocalisés séparément. Canonique : `ParfumCard`
 
 ---
 
@@ -509,7 +697,7 @@ Les utilisateurs peuvent activer « Texte plus grand » dans les réglages du t�
 | Entrée séquentielle (pyramide) | `withDelay` + `withTiming` | `delay: i * 150ms`, `duration: 200ms` |
 | Respiration (halo scan) | `withRepeat` + `withTiming` | `duration: 2000ms`, `Easing.inOut(Easing.ease)` |
 | Changement de thème | `LayoutAnimation.configureNext` | `LayoutAnimation.Presets.easeInEaseOut` |
-| Swipe onboarding | `PanGesture` → `withSpring` | Snapping naturel |
+| Swipe inter-onglets (TopTabs) | natif (pager-view) | Indicateur doré continu via `position` |
 | Gesture sheet (catalogue) | `Gesture.Pan()` → `withSpring` | `damping: 20, stiffness: 200` |
 | Slide down (OfflineBanner) | `withSpring` | Entrée/sortie fluide |
 
@@ -547,7 +735,7 @@ Transition thème                 → 300ms (LayoutAnimation)
 ### 7.4 Easing pour les gestures
 
 ```tsx
-// Swipe horizontal (onboarding)
+// Swipe horizontal (pager onglets)
 withSpring(offset, { damping: 50, stiffness: 300 })
 
 // Snap après drag
@@ -563,6 +751,30 @@ withRepeat(
   true  // reverse (aller-retour)
 )
 ```
+
+### 7.5 Budget d'animations ambiantes
+
+Maximum **une boucle infinie** visible par écran (ex. la particule de sillage de la pyramide). Toute autre animation d'attention doit être **bornée** : `withRepeat(anim, count, true)` avec `count ≤ 4`, déclenchée par une interaction (sélection, apparition), puis stabilisée. Toute boucle infinie conserve son `cancelAnimation` au cleanup (§7.3). Si deux boucles semblent nécessaires, la plus discrète devient bornée — jamais deux sources de mouvement perpétuel dans le même champ visuel.
+
+Inventaire sanctionné des boucles infinies (exhaustif) : pulse ring DockBar, halo + particules ScanLoading, particule de sillage pyramide, speed lines runner. Toute nouvelle boucle en remplace une existante.
+
+### 7.6 Transitions de navigation & shared element
+
+**Transitions canoniques** (expo-router, déjà en place) :
+
+| Contexte | Animation |
+|---|---|
+| Navigation avant (fiche, settings, légal…) | `slide_from_right` |
+| Recherche | `fade` |
+| Scan | `slide_from_bottom` |
+| Onglets | swipe natif pager — indicateur piloté par `position` |
+
+**Shared element signature — flacon** : à l'ouverture d'une fiche depuis une `ParfumCard`, l'image du flacon continue visuellement vers le `DetailHero` (translation + scale + crossfade du fond carte → hero, ~300 ms `Easing.out(Easing.cubic)` ; le contenu de la fiche entre en stagger après 60 % de progression).
+
+Règles :
+- **Un seul** shared element dans l'app — c'est la signature, pas un pattern généraliste
+- Fallback automatique : slide simple si Reduced Motion (§6.7) ou si la mesure de la carte source échoue
+- L'image partagée devient le hero du `CollapsingHeader` — pas de double rendu pendant la transition
 
 ---
 
@@ -581,7 +793,7 @@ Tous les tokens changent — voir `theme.ts` pour le mapping complet. Résumé d
 | `secondary` | `#C8945A` | `#D4A960` | Doré plus lumineux |
 | `deal` | `#0D9488` | `#2DD4BF` | Teal plus vibrant |
 | `text` | `#1A1520` | `#EDE8F5` | Blanc cassé chaud |
-| `textMuted` | `#8B8580` | `#988EA8` | Gris à sous-ton violet |
+| `textMuted` | `#6E6963` | `#988EA8` | Gris à sous-ton violet |
 
 **Règle** : les couleurs soft/ink suivent leur couleur parente. Les couleurs sémantiques s'éclaircissent en dark mode.
 
@@ -617,6 +829,25 @@ En dark mode, les ombres noires sont invisibles. Tous les `shadow` tokens sont r
 - **Persistance** : choix `system | light | dark` dans AsyncStorage (`@parfumscan/theme`).
 - **Pas de flash** : le `ThemeProvider` bloque le rendu (`{ready ? children : null}`) tant que la préférence n'est pas chargée.
 - **StatusBar** : suit automatiquement le mode résolu.
+
+### 8.6 Compensation optique (dark)
+
+- **Graisse** : sur fond sombre, le corps long (descriptions, listes) descend d'un cran de graisse (500 → 400) — Inter paraît plus gras en inverse vidéo ; display et titres inchangés
+- **Élévation mesurée** : `background` → `surface` → `surface2` = 3 marches de luminance (ΔL* ≤ 5 % entre marches, jamais de noir pur §8.4) — toute nouvelle surface dark se mesure, ne s'estime pas
+- **Conteneur image flacon** : hairline `border` permanente sur le conteneur (WebP détourés §16 pipeline projet — flacon clair sur surface claire, flacon sombre sur surface sombre = invisible sans ring)
+
+---
+
+## 9. Adaptive & grands écrans
+
+L'app est mobile-first portrait ; les grands écrans sont servis par adaptation, pas par refonte :
+
+- **Orientation** : portrait uniquement, partout (politique verrouillée — le scan l'exige)
+- **Largeur max contenu texte** : 480 px centré (légal, privacy, settings, auth)
+- **Grilles** : 2 col < 600 dp, 3 col ≥ 600 dp, 4 col ≥ 900 dp
+- **Sheets** (§4.16) : ≥ 600 dp → carte centrée max 560 px, radius 24 complet (plus de bottom sheet)
+- **DockBar** : max-width 380 (déjà) — inchangé
+- **Breakpoints** : sur `useWindowDimensions().width` — jamais de détection d'appareil
 
 ---
 
@@ -671,7 +902,12 @@ function getStyles(t: Theme) {
 
 ### A.3 ThemeProvider vs AuthProvider
 
-`ThemeProvider` wrap `AuthProvider` → le thème est disponible **sans authentification**. Les écrans de login, register et onboarding bénéficient du dark mode.
+`ThemeProvider` wrap `AuthProvider` → le thème est disponible **sans authentification**. Les écrans de login et register bénéficient du dark mode.
+
+### A.4 Tokens dépréciés
+
+- `spacing.lg` (20), ancien `spacing.xl` (devenu 24), `radius.lg` (20), `radius.xl` (24) — supprimés, ne pas réintroduire
+- `violetInk` — doublon exact de `primaryInk` (mêmes valeurs light/dark) ; consommé par 3 composants (ParfumCard, ScanClarify, FamilyAmbianceCards) : migrer vers `primaryInk` à la prochaine retouche de ces fichiers, puis retirer l'alias
 
 ---
 
@@ -683,6 +919,12 @@ function getStyles(t: Theme) {
 - [ ] Aucun `fontWeight` → tout en `fontFamily`
 - [ ] Toute `fontFamily` utilisée existe dans le `useFonts` de `app/_layout.tsx`
 - [ ] Données saisonnières → tokens `seasonXxx`, jamais `deal`/`fair`/`secondary`
+- [ ] Dataviz luxe → pattern planche annotée §4.12 (gaps par inset, labels sérifiés, `tabular-nums`)
+- [ ] Italique éditorial → max 2 lignes/écran, voix distinctes, non adjacentes (§3.2)
+- [ ] Boucles infinies → 1 max/écran, autres bornées ≤ 4 répétitions (§7.5)
+- [ ] Transparences → paliers §2.5 (`alpha()` + palier, dark lumineux ÷2, structure inchangé)
+- [ ] Icônes → tailles §4.15 (14/16/20/32), outline, couleur selon contexte
+- [ ] Copy → tutoiement, cadratin `–`, `·`, pas de « ! », ligne éditoriale ≤ 6 mots à métaphore sensorielle
 - [ ] Couleurs via tokens (`t.colors.xxx`), jamais en dur (sauf §2.3)
 - [ ] Ombres via `t.shadow.xxx`, jamais en dur
 - [ ] Radius via `t.radius.xxx`
@@ -692,6 +934,11 @@ function getStyles(t: Theme) {
 - [ ] Textes longs : `maxFontSizeMultiplier={1.3}`, badges/chips : `allowFontScaling={false}`
 - [ ] Handlers passés aux enfants wrappés dans `useCallback`
 - [ ] Appels async protégés par `try/catch` ou `.catch(() => {})`
+- [ ] Montants via `formatPrice()` — jamais `toFixed` (§3.7)
+- [ ] Haptique selon mapping §2.6
+- [ ] Boucles et ambiances coupées en Reduced Motion (§6.7)
+- [ ] Dataviz couleur-seule vocalisée (§6.8)
+- [ ] Bottom sheet conforme §4.16 (backdrop scrim, radius top 24, dismiss)
 
 ### Révision design
 - [ ] Pas de violet ET doré comme couleurs d'action sur le même écran
@@ -702,3 +949,35 @@ function getStyles(t: Theme) {
 - [ ] Dark mode : les ombres sont-elles visibles ? (sinon → bordures)
 - [ ] Dark mode : contrastes texte/fond ≥ 4.5:1
 - [ ] Testé avec texte agrandi (réglages → accessibilité → texte plus grand)
+- [ ] Testé avec Reduced Motion activé (réglages → accessibilité)
+- [ ] Dark mode : graisse du corps long compensée (§8.6)
+
+---
+
+## Annexe C — Composants ↔ patterns
+
+Implémentations canoniques à imiter (ne pas réinventer) :
+
+| Composant | Fichier | Patterns appliqués |
+|---|---|---|
+| `ParfumCard` | `src/components/ParfumCard.tsx` | §4.1, §4.4, §6.8 (label composé) |
+| `Button` | `src/components/Button.tsx` | §4.2 |
+| `EmptyState` | `src/components/EmptyState.tsx` | §4.5 |
+| `SectionHeader` | `src/components/SectionHeader.tsx` | §4.6 |
+| `PriceDisplay` | `src/components/PriceDisplay.tsx` | §4.4, §3.7 (cible) |
+| `ActionSheet` | `src/components/ActionSheet.tsx` | §4.16 action sheet |
+| `FilterSheet` | `src/components/FilterSheet.tsx` | §4.16 content sheet |
+| `DockBar` | `src/features/navigation/DockBar.tsx` | §4.11 langage flottant, §7.5 (pulse) |
+| `StickyBottomBar` | `src/features/catalog/StickyBottomBar.tsx` | §4.11 |
+| `OlfactoryPyramid` | `src/features/catalog/` | §4.12, §4.13, §4.14, §7.5 (particule) |
+| `DetailHero` | `src/features/catalog/DetailHero.tsx` | §7.6 shared element (cible) |
+| `OfflineBanner` | `src/components/OfflineBanner.tsx` | §4.18 bannière |
+| `ScanLoading` | `src/features/scan/ScanLoading.tsx` | §7.5 (halo + particules) |
+
+---
+
+## Changelog
+
+- **1.5** (juillet 2026) : §0 quick reference ; §2.6 haptique ; §3.7 formatage données (`formatPrice`) ; §4.16 sheets unifiés ; §4.17 densité ; §4.18 feedback ; §6.7 Reduced Motion ; §6.8 dataviz a11y ; §7.6 shared element ; §8.6 dark optique ; §9 adaptive ; §A.4 tokens dépréciés ; Annexe C. Corrections datées : EmptyState 5 variantes, `textMuted` light `#6E6963`, mentions onboarding supprimées, échelle prix §3.2, §4.7 assoupli.
+- **1.4** (juillet 2026) : échelle d'opacité §2.5, copy & voix §3.6, iconographie §4.15.
+- **1.3 et avant** : voir l'historique git.

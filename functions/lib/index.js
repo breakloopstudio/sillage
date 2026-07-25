@@ -36,12 +36,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendWeatherNotifications = exports.transcribeVoice = exports.analyzePerfumeImage = exports.sendNotification = exports.checkPriceAlerts = void 0;
+exports.exportUserData = exports.deleteUserAccount = exports.sendWeatherNotifications = exports.transcribeVoice = exports.analyzePerfumeImage = exports.sendNotification = exports.checkPriceAlerts = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const openai_1 = __importDefault(require("openai"));
 const weather_scoring_1 = require("./weather-scoring");
+const price_drop_1 = require("./logic/price-drop");
+const geo_1 = require("./logic/geo");
+const fcm_utils_1 = require("./fcm-utils");
+const rate_limit_1 = require("./rate-limit");
 admin.initializeApp();
 const db = admin.firestore();
 /**
@@ -49,121 +53,154 @@ const db = admin.firestore();
  * Scheduled every 6 hours — checks all active price alerts for drops.
  * Utilise uniquement les données Firestore (bestPrice) — plus de dépendance à l'API Fragella.
  */
-exports.checkPriceAlerts = (0, scheduler_1.onSchedule)('every 6 hours', async () => {
-    const usersSnap = await db.collection('users').get();
+exports.checkPriceAlerts = (0, scheduler_1.onSchedule)({
+    schedule: 'every 6 hours',
+    region: 'europe-west1',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+}, async () => {
+    const now = new Date();
+    const runId = (0, price_drop_1.priceAlertRunId)(now);
     let alertsChecked = 0;
     let notificationsSent = 0;
-    for (const userDoc of usersSnap.docs) {
-        const uid = userDoc.id;
-        // Check user settings: must have priceAlerts + pushNotifs enabled
-        let settings = {};
-        try {
-            const settingsDoc = await db.doc(`users/${uid}/settings/preferences`).get();
-            settings = settingsDoc.data() ?? {};
-        }
-        catch {
-            continue;
-        }
-        if (settings.priceAlerts !== true || settings.pushNotifs !== true)
-            continue;
-        // Get user's active price alerts
-        let alertsSnap;
-        try {
-            alertsSnap = await db.collection(`users/${uid}/priceAlerts`).get();
-        }
-        catch {
-            continue;
-        }
+    let totalPurged = 0;
+    const ALERTS_PAGE = 500;
+    let lastAlertDoc = null;
+    while (true) {
+        let q = db.collectionGroup('priceAlerts').orderBy('__name__').limit(ALERTS_PAGE);
+        if (lastAlertDoc)
+            q = q.startAfter(lastAlertDoc);
+        const alertsSnap = await q.get();
         if (alertsSnap.empty)
-            continue;
-        // Get user's FCM tokens
-        let tokens = [];
-        try {
-            const tokensSnap = await db.collection(`users/${uid}/fcmTokens`).get();
-            tokens = tokensSnap.docs.map(d => d.data().token).filter(Boolean);
+            break;
+        // Deduplicate parfumIds — one read per unique parfum
+        const parfumIds = new Set();
+        const alerts = [];
+        for (const d of alertsSnap.docs) {
+            const data = d.data();
+            const pid = data.parfumId;
+            if (!pid)
+                continue;
+            const uid = d.ref.path.split('/')[1]; // users/{uid}/priceAlerts/{docId}
+            parfumIds.add(pid);
+            alerts.push({ uid, doc: d, data });
         }
-        catch {
-            continue;
+        // Fetch parfums in chunks of 30
+        const parfumCache = new Map();
+        const idsArray = Array.from(parfumIds);
+        const CHUNK = 30;
+        for (let i = 0; i < idsArray.length; i += CHUNK) {
+            const chunk = idsArray.slice(i, i + CHUNK);
+            try {
+                const refs = chunk.map(id => db.doc(`parfums/${id}`));
+                const docs = await db.getAll(...refs);
+                for (const d of docs) {
+                    if (!d.exists)
+                        continue;
+                    const p = d.data();
+                    parfumCache.set(d.id, {
+                        bestPrice: typeof p.bestPrice === 'number' ? p.bestPrice : null,
+                        nom: p.nom ?? '',
+                        marque: p.marque ?? '',
+                    });
+                }
+            }
+            catch (err) {
+                console.warn('[checkPriceAlerts] getAll chunk failed:', err?.message ?? String(err));
+            }
         }
-        if (tokens.length === 0)
-            continue;
-        for (const alertDoc of alertsSnap.docs) {
-            const alert = alertDoc.data();
-            const parfumId = alert.parfumId;
-            const lastPrice = typeof alert.lastPrice === 'number' ? alert.lastPrice : null;
-            if (!parfumId)
+        // Group triggered alerts by uid
+        const triggeredByUid = new Map();
+        for (const alert of alerts) {
+            const pid = alert.data.parfumId;
+            const lastPrice = typeof alert.data.lastPrice === 'number' ? alert.data.lastPrice : null;
+            const parfum = parfumCache.get(pid);
+            if (!parfum)
                 continue;
             alertsChecked++;
-            // Get parfum from Firestore
-            let currentPrice = null;
-            let parfumNom = '';
-            let parfumMarque = '';
-            try {
-                const parfumDoc = await db.doc(`parfums/${parfumId}`).get();
-                if (parfumDoc.exists) {
-                    const p = parfumDoc.data();
-                    currentPrice = typeof p.bestPrice === 'number' ? p.bestPrice : null;
-                    parfumNom = p.nom ?? '';
-                    parfumMarque = p.marque ?? '';
+            const result = (0, price_drop_1.evaluatePriceDrop)(lastPrice, parfum.bestPrice);
+            if (!result.triggered) {
+                // Update lastPrice even if no drop
+                try {
+                    await alert.doc.ref.set({ lastPrice: parfum.bestPrice, lastChecked: now.toISOString() }, { merge: true });
                 }
-            }
-            catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                console.warn(`[checkPriceAlerts] Failed to fetch parfum ${parfumId}:`, msg);
+                catch { /* best effort */ }
                 continue;
             }
-            // Compare prices and trigger notification if drop detected
-            if (lastPrice !== null && currentPrice !== null && currentPrice > 0) {
-                const dropPct = (lastPrice - currentPrice) / lastPrice;
-                const dropAbs = lastPrice - currentPrice;
-                const significantDrop = dropPct >= 0.10 || dropAbs >= 5;
-                if (significantDrop) {
-                    const displayName = parfumMarque && parfumNom
-                        ? `${parfumMarque} ${parfumNom}`
-                        : parfumId;
-                    const message = {
-                        tokens,
-                        notification: {
-                            title: '💰 Baisse de prix !',
-                            body: `${displayName} est passé à ${currentPrice.toFixed(0)} € (-${Math.round(dropPct * 100)}%)`,
-                        },
-                        data: {
-                            type: 'price_alert',
-                            parfumId,
-                            newPrice: String(currentPrice),
-                        },
-                        android: {
-                            notification: {
-                                channelId: 'price_alerts',
-                                priority: 'high',
-                            },
-                        },
-                    };
-                    try {
-                        const response = await admin.messaging().sendEachForMulticast(message);
-                        notificationsSent += response.successCount;
-                        console.log(`[checkPriceAlerts] Sent to ${uid}: ${displayName} ${lastPrice.toFixed(0)}€ → ${currentPrice.toFixed(0)}€`);
-                    }
-                    catch (err) {
-                        const msg = err instanceof Error ? err.message : String(err);
-                        console.warn(`[checkPriceAlerts] Failed to notify ${uid}:`, msg);
-                    }
-                }
+            const displayName = parfum.marque && parfum.nom ? `${parfum.marque} ${parfum.nom}` : pid;
+            let arr = triggeredByUid.get(alert.uid);
+            if (!arr) {
+                arr = [];
+                triggeredByUid.set(alert.uid, arr);
             }
-            // Update lastPrice and lastChecked on the alert doc
-            try {
-                await alertDoc.ref.set({
-                    lastPrice: currentPrice,
-                    lastChecked: new Date().toISOString(),
-                }, { merge: true });
-            }
-            catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                console.warn(`[checkPriceAlerts] Failed to update alert doc:`, msg);
-            }
+            arr.push({
+                alertDoc: alert.doc,
+                displayName,
+                parfumId: pid,
+                currentPrice: parfum.bestPrice,
+                dropPct: result.dropPct,
+            });
         }
+        // Process triggered users in chunks of 20
+        const triggeredUids = Array.from(triggeredByUid.entries());
+        const USER_CHUNK = 20;
+        for (let i = 0; i < triggeredUids.length; i += USER_CHUNK) {
+            const chunk = triggeredUids.slice(i, i + USER_CHUNK);
+            await Promise.allSettled(chunk.map(async ([uid, items]) => {
+                try {
+                    // Idempotence marker
+                    const markerRef = db.doc(`users/${uid}/usage/${runId}`);
+                    const markerDoc = await markerRef.get();
+                    if (markerDoc.exists)
+                        return;
+                    // Settings check
+                    const settingsDoc = await db.doc(`users/${uid}/settings/preferences`).get();
+                    const settings = settingsDoc.data() ?? {};
+                    if (settings.priceAlerts !== true || settings.pushNotifs === false)
+                        return;
+                    // Tokens
+                    const tokensSnap = await db.collection(`users/${uid}/fcmTokens`).get();
+                    const tokens = tokensSnap.docs.map(d => d.data().token).filter(Boolean);
+                    if (tokens.length === 0)
+                        return;
+                    // Send one notification per triggered parfum
+                    for (const item of items) {
+                        const message = {
+                            tokens,
+                            notification: {
+                                title: '💰 Baisse de prix !',
+                                body: `${item.displayName} est passé à ${item.currentPrice.toFixed(0)} € (-${Math.round(item.dropPct * 100)}%)`,
+                            },
+                            data: { type: 'price_alert', parfumId: item.parfumId, newPrice: String(item.currentPrice) },
+                            android: { notification: { channelId: 'price_alerts', priority: 'high' } },
+                        };
+                        try {
+                            const response = await admin.messaging().sendEachForMulticast(message);
+                            notificationsSent += response.successCount;
+                            const purged = await (0, fcm_utils_1.purgeDeadTokensForUser)(db, uid, tokens, response.responses);
+                            totalPurged += purged;
+                        }
+                        catch (err) {
+                            console.warn(`[checkPriceAlerts] Failed to notify ${uid}:`, err?.message ?? String(err));
+                        }
+                    }
+                    // Write idempotence marker
+                    await markerRef.set({ runId, sent: items.length, at: now.toISOString() });
+                    // Update alert docs
+                    const batch = db.batch();
+                    for (const item of items) {
+                        batch.set(item.alertDoc.ref, { lastPrice: item.currentPrice, lastChecked: now.toISOString() }, { merge: true });
+                    }
+                    await batch.commit().catch(() => { });
+                }
+                catch { /* user-level failure is isolated */ }
+            }));
+        }
+        lastAlertDoc = alertsSnap.docs[alertsSnap.docs.length - 1];
+        if (alertsSnap.size < ALERTS_PAGE)
+            break;
     }
-    console.log(`[checkPriceAlerts] Done — ${alertsChecked} alerts checked, ${notificationsSent} notifications sent`);
+    console.log(`[checkPriceAlerts] Done — ${alertsChecked} alerts checked, ${notificationsSent} sent, ${totalPurged} tokens purged`);
 });
 /**
  * Cloud Function : sendNotification
@@ -204,17 +241,24 @@ exports.sendNotification = functions.https.onCall({ region: 'europe-west1' }, as
         if (!request.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'Authentification requise pour envoyer à tous les utilisateurs.');
         }
-        const usersSnapshot = await admin.firestore().collection('users').get();
-        for (const userDoc of usersSnapshot.docs) {
-            const tokensSnapshot = await admin
-                .firestore()
-                .collection(`users/${userDoc.id}/fcmTokens`)
-                .get();
-            tokensSnapshot.forEach((doc) => {
-                const t = doc.data().token;
+        // collectionGroup paginé pour éviter de charger tous les users
+        const TOKENS_PAGE = 500;
+        let lastTokenDoc = null;
+        while (true) {
+            let q0 = admin.firestore().collectionGroup('fcmTokens').orderBy('__name__').limit(TOKENS_PAGE);
+            if (lastTokenDoc)
+                q0 = q0.startAfter(lastTokenDoc);
+            const snap = await q0.get();
+            if (snap.empty)
+                break;
+            for (const d of snap.docs) {
+                const t = d.data().token;
                 if (t)
                     tokens.push(t);
-            });
+            }
+            lastTokenDoc = snap.docs[snap.docs.length - 1];
+            if (snap.size < TOKENS_PAGE)
+                break;
         }
     }
     if (tokens.length === 0) {
@@ -269,6 +313,7 @@ exports.analyzePerfumeImage = functions.https.onCall({ region: 'europe-west1', t
     if (!request.auth?.uid) {
         throw new functions.https.HttpsError('unauthenticated', 'Connexion requise pour analyser une image.');
     }
+    await (0, rate_limit_1.checkAndIncrementQuota)(db, request.auth.uid, 'scan', rate_limit_1.MAX_SCANS_PER_DAY);
     const isBurst = Array.isArray(imagesBase64) && imagesBase64.length > 0;
     const hasSingle = typeof imageBase64 === 'string' && imageBase64.length > 0;
     if (!isBurst && !hasSingle) {
@@ -394,6 +439,7 @@ exports.transcribeVoice = functions.https.onCall({ region: 'europe-west1' }, asy
     if (!request.auth?.uid) {
         throw new functions.https.HttpsError('unauthenticated', 'Authentification requise pour la transcription vocale.');
     }
+    await (0, rate_limit_1.checkAndIncrementQuota)(db, request.auth.uid, 'voice', rate_limit_1.MAX_VOICE_PER_DAY);
     const { audioBase64, mimeType } = request.data;
     if (typeof audioBase64 !== 'string' || audioBase64.length === 0) {
         throw new functions.https.HttpsError('invalid-argument', 'Le paramètre "audioBase64" est requis.');
@@ -439,110 +485,121 @@ exports.sendWeatherNotifications = (0, scheduler_1.onSchedule)({
     schedule: '0 7 * * *',
     timeZone: 'Europe/Paris',
     region: 'europe-west1',
+    timeoutSeconds: 540,
+    memory: '512MiB',
 }, async () => {
-    const usersSnap = await db.collection('users').get();
+    const now = new Date();
+    const runId = (0, geo_1.weatherRunId)(now);
     let processed = 0;
     let sent = 0;
-    for (const userDoc of usersSnap.docs) {
-        const uid = userDoc.id;
-        let settings = {};
-        try {
-            const settingsDoc = await db.doc(`users/${uid}/settings/preferences`).get();
-            settings = settingsDoc.data() ?? {};
+    let locations = 0;
+    let totalPurged = 0;
+    const SETTINGS_PAGE = 500;
+    let lastDoc = null;
+    // Cache: coordKey → meteo (1 fetch per location)
+    const weatherCache = new Map();
+    while (true) {
+        let q = db.collectionGroup('settings').where('weatherNotifs', '==', true).orderBy('__name__').limit(SETTINGS_PAGE);
+        if (lastDoc)
+            q = q.startAfter(lastDoc);
+        const snap = await q.get();
+        if (snap.empty)
+            break;
+        const eligible = [];
+        for (const d of snap.docs) {
+            const data = d.data();
+            if (data.pushNotifs === false)
+                continue;
+            if (typeof data.weatherLat !== 'number' || typeof data.weatherLon !== 'number')
+                continue;
+            const uid = d.ref.path.split('/')[1];
+            eligible.push({ uid, lat: data.weatherLat, lon: data.weatherLon });
         }
-        catch {
-            continue;
+        // Fetch weather per unique location
+        for (const u of eligible) {
+            const key = (0, geo_1.coordsKey)(u.lat, u.lon);
+            if (!weatherCache.has(key)) {
+                try {
+                    const w = await (0, weather_scoring_1.fetchWeatherForServer)(u.lat, u.lon);
+                    if (w) {
+                        weatherCache.set(key, w);
+                        locations++;
+                    }
+                }
+                catch (err) {
+                    console.warn('[sendWeatherNotifications] weather fetch failed for', key, err?.message ?? String(err));
+                }
+            }
         }
-        if (settings.pushNotifs !== true || settings.weatherNotifs !== true)
-            continue;
-        if (typeof settings.weatherLat !== 'number' || typeof settings.weatherLon !== 'number')
-            continue;
-        const weather = await (0, weather_scoring_1.fetchWeatherForServer)(settings.weatherLat, settings.weatherLon);
-        if (!weather)
-            continue;
-        let wardrobeItems = [];
-        try {
-            const wardrobeSnap = await db.collection(`users/${uid}/wardrobe`).get();
-            wardrobeItems = wardrobeSnap.docs
-                .map(d => ({ parfumId: d.id, ...d.data() }))
-                .filter(i => i.ownership === 'have');
+        // Process in chunks of 20
+        const USER_CHUNK = 20;
+        for (let i = 0; i < eligible.length; i += USER_CHUNK) {
+            const chunk = eligible.slice(i, i + USER_CHUNK);
+            await Promise.allSettled(chunk.map(async ({ uid, lat, lon }) => {
+                try {
+                    // Idempotence marker
+                    const markerRef = db.doc(`users/${uid}/usage/${runId}`);
+                    const markerDoc = await markerRef.get();
+                    if (markerDoc.exists)
+                        return;
+                    const weather = weatherCache.get((0, geo_1.coordsKey)(lat, lon));
+                    if (!weather)
+                        return;
+                    // Wardrobe
+                    const wardrobeSnap = await db.collection(`users/${uid}/wardrobe`).get();
+                    const wardrobeItems = wardrobeSnap.docs
+                        .map(d => ({ parfumId: d.id, ...d.data() }))
+                        .filter(i => i.ownership === 'have');
+                    if (wardrobeItems.length === 0)
+                        return;
+                    const scored = wardrobeItems
+                        .map(item => ({ item, score: (0, weather_scoring_1.scoreItemForWeather)(item, weather) }))
+                        .sort((a, b) => b.score - a.score);
+                    const top = scored[0];
+                    if (!top || top.score < 30)
+                        return;
+                    // Tokens
+                    const tokensSnap = await db.collection(`users/${uid}/fcmTokens`).get();
+                    const tokens = tokensSnap.docs.map(d => d.data().token).filter(Boolean);
+                    if (tokens.length === 0)
+                        return;
+                    const wmo = (0, weather_scoring_1.getWmoMeta)(weather.weatherCode);
+                    const icon = weather.isDay ? wmo.icon : (NIGHT_ICON[wmo.icon] ?? wmo.icon);
+                    const emoji = (0, weather_scoring_1.weatherEmoji)(icon);
+                    const title = `${emoji} ${Math.round(weather.temperature)}°C`;
+                    const body = `Aujourd'hui : ${top.item.nom ?? '?'} de ${top.item.marque ?? '?'} (${top.score}% compatible)`;
+                    const message = {
+                        tokens,
+                        notification: { title, body },
+                        data: { type: 'weather-suggestion', parfumId: top.item.parfumId },
+                        android: { notification: { channelId: 'weather_suggestions', priority: 'high' } },
+                    };
+                    try {
+                        const response = await admin.messaging().sendEachForMulticast(message);
+                        sent += response.successCount;
+                        const purged = await (0, fcm_utils_1.purgeDeadTokensForUser)(db, uid, tokens, response.responses);
+                        totalPurged += purged;
+                    }
+                    catch (err) {
+                        console.warn(`[sendWeatherNotifications] Failed to notify ${uid}:`, err?.message ?? String(err));
+                    }
+                    processed++;
+                    await markerRef.set({ runId, at: now.toISOString() });
+                }
+                catch { /* user-level failure is isolated */ }
+            }));
         }
-        catch {
-            continue;
-        }
-        if (wardrobeItems.length === 0)
-            continue;
-        const scored = wardrobeItems
-            .map(item => ({ item, score: (0, weather_scoring_1.scoreItemForWeather)(item, weather) }))
-            .sort((a, b) => b.score - a.score);
-        const top = scored[0];
-        if (!top || top.score < 30)
-            continue;
-        processed++;
-        let tokens = [];
-        try {
-            const tokensSnap = await db.collection(`users/${uid}/fcmTokens`).get();
-            tokens = tokensSnap.docs.map(d => d.data().token).filter(Boolean);
-        }
-        catch {
-            continue;
-        }
-        if (tokens.length === 0)
-            continue;
-        const wmo = WMO_META[weather.weatherCode] ?? WMO_META[1];
-        const icon = weather.isDay ? wmo.icon : (NIGHT_ICON[wmo.icon] ?? wmo.icon);
-        const emoji = (0, weather_scoring_1.weatherEmoji)(icon);
-        const title = `${emoji} ${Math.round(weather.temperature)}°C`;
-        const body = `Aujourd'hui : ${top.item.nom ?? '?'} de ${top.item.marque ?? '?'} (${top.score}% compatible)`;
-        const message = {
-            tokens,
-            notification: { title, body },
-            data: { type: 'weather-suggestion', parfumId: top.item.parfumId },
-            android: { notification: { channelId: 'weather_suggestions', priority: 'high' } },
-        };
-        try {
-            const response = await admin.messaging().sendEachForMulticast(message);
-            sent += response.successCount;
-        }
-        catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.warn(`[sendWeatherNotifications] Failed to notify ${uid}:`, msg);
-        }
+        lastDoc = snap.docs[snap.docs.length - 1];
+        if (snap.size < SETTINGS_PAGE)
+            break;
     }
-    console.log(`[sendWeatherNotifications] Done — ${processed} users processed, ${sent} notifications sent`);
+    console.log(`[sendWeatherNotifications] Done — ${processed} processed, ${sent} sent, ${locations} locations, ${totalPurged} purged`);
 });
+var account_1 = require("./account");
+Object.defineProperty(exports, "deleteUserAccount", { enumerable: true, get: function () { return account_1.deleteUserAccount; } });
+Object.defineProperty(exports, "exportUserData", { enumerable: true, get: function () { return account_1.exportUserData; } });
 const NIGHT_ICON = {
     sunny: 'moon',
     'partly-sunny': 'cloudy-night',
-};
-const WMO_META = {
-    0: { label: 'Ensoleillé', icon: 'sunny', seasonBoost: {} },
-    1: { label: 'Clair', icon: 'partly-sunny', seasonBoost: {} },
-    2: { label: 'Nuageux', icon: 'cloudy', seasonBoost: {} },
-    3: { label: 'Couvert', icon: 'cloudy', seasonBoost: {} },
-    45: { label: 'Brouillard', icon: 'cloudy', seasonBoost: {} },
-    48: { label: 'Brouillard', icon: 'cloudy', seasonBoost: {} },
-    51: { label: 'Bruine', icon: 'rainy-outline', seasonBoost: {} },
-    53: { label: 'Bruine', icon: 'rainy-outline', seasonBoost: {} },
-    55: { label: 'Bruine', icon: 'rainy-outline', seasonBoost: {} },
-    56: { label: 'Verglas', icon: 'snow', seasonBoost: {} },
-    57: { label: 'Verglas', icon: 'snow', seasonBoost: {} },
-    61: { label: 'Pluie', icon: 'rainy', seasonBoost: {} },
-    63: { label: 'Pluie', icon: 'rainy', seasonBoost: {} },
-    65: { label: 'Pluie forte', icon: 'rainy', seasonBoost: {} },
-    66: { label: 'Verglas', icon: 'snow', seasonBoost: {} },
-    67: { label: 'Verglas', icon: 'snow', seasonBoost: {} },
-    71: { label: 'Neige', icon: 'snow', seasonBoost: {} },
-    73: { label: 'Neige', icon: 'snow', seasonBoost: {} },
-    75: { label: 'Neige forte', icon: 'snow', seasonBoost: {} },
-    77: { label: 'Neige', icon: 'snow', seasonBoost: {} },
-    80: { label: 'Averses', icon: 'rainy-outline', seasonBoost: {} },
-    81: { label: 'Averses', icon: 'rainy-outline', seasonBoost: {} },
-    82: { label: 'Averses', icon: 'thunderstorm-outline', seasonBoost: {} },
-    85: { label: 'Neige', icon: 'snow', seasonBoost: {} },
-    86: { label: 'Neige', icon: 'snow', seasonBoost: {} },
-    95: { label: 'Orage', icon: 'thunderstorm', seasonBoost: {} },
-    96: { label: 'Orage', icon: 'thunderstorm', seasonBoost: {} },
-    99: { label: 'Orage', icon: 'thunderstorm', seasonBoost: {} },
 };
 //# sourceMappingURL=index.js.map

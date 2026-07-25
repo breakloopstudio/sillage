@@ -1,47 +1,71 @@
-// src/features/navigation/DockBar.tsx — Barre flottante 5 positions + FAB
-// Indicateur dore, verre depoli (BlurView), pulse ring FAB, show/hide au scroll
-
 import { useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
+interface BottomTabBarProps {
+  state: { index: number; routes: Array<{ key: string; name: string }> };
+  navigation: { navigate: (name: string) => void };
+}
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  useAnimatedReaction,
+  withRepeat,
   withTiming,
   withSpring,
-  withRepeat,
   Easing,
   cancelAnimation,
-  type SharedValue,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
+import { useAuthContext } from '../../contexts/AuthContext';
+import { useNavigationChrome } from './NavigationChromeContext';
 
 const FAB_SPACE = 64;
 const INDICATOR_W = 28;
 const PULSE_MIN = 1;
 const PULSE_MAX = 1.18;
 
-interface Props {
-  activeIndex: number;
-  pageWidth: SharedValue<number>;
-  dockTranslateY: SharedValue<number>;
-  onTabPress: (index: number) => void;
+export function getIndicatorLeft(screenWidth: number, tabVisualIndex: number): number {
+  const barW = Math.min(screenWidth * 0.88, 380);
+  const tabArea = barW - FAB_SPACE;
+  const tabW = tabArea / 4;
+  const fabOffset = tabVisualIndex >= 2 ? FAB_SPACE : 0;
+  return tabW * tabVisualIndex + tabW / 2 - INDICATOR_W / 2 + fabOffset;
 }
 
-export default function DockBar({ activeIndex, pageWidth, dockTranslateY, onTabPress }: Props) {
+export function getIndicatorLeftAtProgress(screenWidth: number, progress: number): number {
+  const p = Math.min(3, Math.max(0, progress));
+  const i = Math.min(2, Math.floor(p));
+  const f = p - i;
+  const a = getIndicatorLeft(screenWidth, i);
+  const b = getIndicatorLeft(screenWidth, i + 1);
+  return a + (b - a) * f;
+}
+
+const TAB_MAP = {
+  index:       { iconActive: 'book',   iconInactive: 'book-outline',   label: 'Catalogue' },
+  selection:   { iconActive: 'bookmark', iconInactive: 'bookmark-outline', label: 'Sélection' },
+  collection:  { iconActive: 'flask',  iconInactive: 'flask-outline',  label: 'Parfumerie' },
+  profile:     { iconActive: 'person', iconInactive: 'person-outline', label: 'Profil' },
+} as const;
+
+export default function DockBar({ state, navigation }: BottomTabBarProps) {
   const { theme, resolvedMode } = useTheme();
   const m = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuthContext();
+  const { dockTranslateY } = useNavigationChrome();
+  const { width: windowWidth } = useWindowDimensions();
 
   const pulseScale = useSharedValue(PULSE_MIN);
-  const indicatorLeft = useSharedValue(0);
+  const indicatorLeft = useSharedValue(
+    getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
+  );
 
   useEffect(() => {
     pulseScale.value = withRepeat(
@@ -52,33 +76,12 @@ export default function DockBar({ activeIndex, pageWidth, dockTranslateY, onTabP
     return () => cancelAnimation(pulseScale);
   }, []);
 
-  const getBarWidth = (sw: number) => {
-    'worklet';
-    return Math.min(sw * 0.88, 380);
-  };
-
-  const getIndicatorLeft = (sw: number, tabIdx: number) => {
-    'worklet';
-    const barW = getBarWidth(sw);
-    const tabArea = barW - FAB_SPACE;
-    const tabW = tabArea / 4;
-    const fabOffset = tabIdx >= 2 ? FAB_SPACE : 0;
-    return tabW * tabIdx + tabW / 2 - INDICATOR_W / 2 + fabOffset;
-  };
-
-  useAnimatedReaction(
-    () => activeIndex,
-    (current, prev) => {
-      const w = pageWidth.value;
-      const tabIdx = current < 2 ? current : current - 1;
-      const target = getIndicatorLeft(w, tabIdx);
-      if (prev === null || prev === current) {
-        indicatorLeft.value = target;
-      } else {
-        indicatorLeft.value = withSpring(target, { damping: 22, stiffness: 280, mass: 0.7 });
-      }
-    },
-  );
+  useEffect(() => {
+    indicatorLeft.value = withSpring(
+      getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
+      { damping: 22, stiffness: 280, mass: 0.7 },
+    );
+  }, [state.index, windowWidth]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: indicatorLeft.value }],
@@ -93,22 +96,56 @@ export default function DockBar({ activeIndex, pageWidth, dockTranslateY, onTabP
     opacity: 2 - pulseScale.value,
   }));
 
-  const handlePress = (index: number) => {
-    if (index === 2) {
-      hapticsLight();
-      router.push('/(tabs)/scan');
-    } else {
-      onTabPress(index);
-    }
+  const handleFabPress = () => {
+    hapticsLight();
+    router.push('/scan');
   };
 
-  const tabs = [
-    { index: 0, iconActive: 'book', iconInactive: 'book-outline', label: 'Catalogue' },
-    { index: 1, iconActive: 'heart', iconInactive: 'heart-outline', label: 'Favoris' },
-    { index: 2, iconActive: 'camera', iconInactive: 'camera-outline', label: 'Scan', isFab: true },
-    { index: 3, iconActive: 'time', iconInactive: 'time-outline', label: 'Historique' },
-    { index: 4, iconActive: 'flask', iconInactive: 'flask-outline', label: 'Parfumerie' },
-  ] as const;
+  const renderTab = (routeKey: string, routeName: string, index: number) => {
+    const cfg = TAB_MAP[routeName as keyof typeof TAB_MAP];
+    if (!cfg) return null;
+    const isActive = state.index === index;
+
+    if (routeKey === 'profile' && user?.photoURL) {
+      return (
+        <Pressable
+          key={routeKey}
+          style={s.tab}
+          onPress={() => navigation.navigate(routeName)}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: isActive }}
+          accessibilityLabel={cfg.label}
+        >
+          <Image
+            source={{ uri: user.photoURL }}
+            style={[
+              s.avatarIcon,
+              isActive && { borderColor: theme.colors.primary, borderWidth: 2 },
+            ]}
+          />
+          <Text style={[m.label, isActive && m.labelOn]}>{cfg.label}</Text>
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable
+        key={routeKey}
+        style={s.tab}
+        onPress={() => { hapticsLight(); navigation.navigate(routeName); }}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: isActive }}
+        accessibilityLabel={cfg.label}
+      >
+        <Ionicons
+          name={isActive ? cfg.iconActive : cfg.iconInactive}
+          size={22}
+          color={isActive ? theme.colors.primary : theme.colors.textMuted}
+        />
+        <Text style={[m.label, isActive && m.labelOn]}>{cfg.label}</Text>
+      </Pressable>
+    );
+  };
 
   return (
     <Animated.View style={[s.wrapper, { paddingBottom: 8 + insets.bottom }, dockStyle]} pointerEvents="box-none">
@@ -121,35 +158,32 @@ export default function DockBar({ activeIndex, pageWidth, dockTranslateY, onTabP
         <View style={[s.overlay, m.overlay]} />
         <Animated.View style={[s.indicator, m.indicator, { left: 0 }, indicatorStyle]} />
 
-        {tabs.map(tab => {
-          if ('isFab' in tab) {
-            return (
-              <View key={tab.index} style={s.fabSlot}>
-                <View style={s.fabOuter}>
-                  <Animated.View style={[s.pulseRing, m.pulseRing, pulseRingStyle]} />
-                  <Pressable
-                    style={[s.fab, m.fab, m.fabShadow]}
-                    onPress={() => handlePress(tab.index)}
-                  >
-                    <Ionicons name="camera" size={24} color={textOn(theme.colors.primary)} />
-                  </Pressable>
-                </View>
-              </View>
-            );
-          }
+        {/* Tab 0 */}
+        {state.routes[0] && renderTab(state.routes[0].key, state.routes[0].name, 0)}
 
-          const isActive = activeIndex === tab.index;
-          return (
-            <Pressable key={tab.index} style={s.tab} onPress={() => handlePress(tab.index)} hitSlop={4}>
-              <Ionicons
-                name={isActive ? tab.iconActive : tab.iconInactive}
-                size={22}
-                color={isActive ? theme.colors.primary : theme.colors.textMuted}
-              />
-              <Text style={[m.label, isActive && m.labelOn]}>{tab.label}</Text>
+        {/* Tab 1 */}
+        {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
+
+        {/* FAB central */}
+        <View style={s.fabSlot}>
+          <View style={s.fabOuter}>
+            <Animated.View style={[s.pulseRing, m.pulseRing, pulseRingStyle]} />
+            <Pressable
+              style={[s.fab, m.fab, m.fabShadow]}
+              onPress={handleFabPress}
+              accessibilityRole="button"
+              accessibilityLabel="Scanner un parfum"
+            >
+              <Ionicons name="camera" size={24} color={textOn(theme.colors.primary)} />
             </Pressable>
-          );
-        })}
+          </View>
+        </View>
+
+        {/* Tab 2 */}
+        {state.routes[2] && renderTab(state.routes[2].key, state.routes[2].name, 2)}
+
+        {/* Tab 3 */}
+        {state.routes[3] && renderTab(state.routes[3].key, state.routes[3].name, 3)}
       </View>
     </Animated.View>
   );
@@ -195,6 +229,13 @@ const s = StyleSheet.create({
     gap: 3,
     paddingTop: 6,
     zIndex: 2,
+  },
+  avatarIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderColor: 'transparent',
+    borderWidth: 0,
   },
   fabSlot: {
     flex: 0,

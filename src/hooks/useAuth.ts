@@ -1,24 +1,45 @@
-// src/hooks/useAuth.ts
-// Hook d'authentification
+// src/hooks/useAuth.ts — Hook d'authentification Supabase
+// Expose AppUser (uid/email/displayName/photoURL/providers) — compatible
+// avec tous les écrans (profile, settings, delete-account, etc.).
 
 import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
-import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, signInWithCredential, GoogleAuthProvider } from '@react-native-firebase/auth';
-import type { User } from '@react-native-firebase/auth';
-import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { isFirebaseReady } from '../services/firebase';
-import { translateFirebaseError } from '../utils/error-translator';
+import { supabase, isSupabaseReady } from '../services/supabase';
+import { translateSupabaseError } from '../utils/error-translator';
+
+// ─── Type commun ─────────────────────────────────────────────────────────────
+
+export interface AppUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  /** Liste des providers ('email', 'google') */
+  providers?: readonly string[];
+}
 
 const AUTH_TIMEOUT_MS = 3000;
 
+function suUserToAppUser(u: { id: string; email?: string | null; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }): AppUser {
+  return {
+    uid: u.id,
+    email: (u.email as string) ?? null,
+    displayName: (u.user_metadata?.full_name as string) ?? (u.email as string | null),
+    photoURL: (u.user_metadata?.avatar_url as string) ?? null,
+    providers: (u.app_metadata?.providers as string[] | undefined),
+  };
+}
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (!isFirebaseReady()) {
+    if (!isSupabaseReady()) {
       const t = setTimeout(() => setAuthReady(true), 100);
       return () => clearTimeout(t);
     }
@@ -27,13 +48,17 @@ export function useAuth() {
     const markReady = () => { if (!resolved) { resolved = true; setAuthReady(true); } };
     const timeout = setTimeout(markReady, AUTH_TIMEOUT_MS);
 
-    const a = getAuth();
-    const unsubscribe = onAuthStateChanged(a, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
+    const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const su = session?.user ?? null;
+      setUser(su ? suUserToAppUser(su) : null);
+      if (su) {
         try {
-          const adminSnap = await getDoc(doc(getFirestore(), 'admins', firebaseUser.uid));
-          setIsAdmin(adminSnap.exists());
+          const { data: adm } = await supabase
+            .from('admins')
+            .select('user_id')
+            .eq('user_id', su.id)
+            .maybeSingle();
+          setIsAdmin(adm !== null);
         } catch { setIsAdmin(false); }
       } else {
         setIsAdmin(false);
@@ -41,18 +66,30 @@ export function useAuth() {
       markReady();
     });
 
-    return () => { clearTimeout(timeout); unsubscribe(); };
+    return () => { clearTimeout(timeout); data?.subscription.unsubscribe(); };
   }, []);
 
-  const register = useCallback(async (_email: string, _password: string) => {
-    try { return await createUserWithEmailAndPassword(getAuth(), _email, _password); }
-    catch (e: unknown) { throw new Error(translateFirebaseError(e)); }
+  // ── register ────────────────────────────────────────────────────────────────
+
+  const register = useCallback(async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      return { user: data.user ? suUserToAppUser(data.user as never) : null } as { user: AppUser };
+    } catch (e) { throw new Error(translateSupabaseError(e)); }
   }, []);
 
-  const login = useCallback(async (_email: string, _password: string) => {
-    try { return await signInWithEmailAndPassword(getAuth(), _email, _password); }
-    catch (e: unknown) { throw new Error(translateFirebaseError(e)); }
+  // ── login ───────────────────────────────────────────────────────────────────
+
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return { user: data.user ? suUserToAppUser(data.user as never) : null } as { user: AppUser };
+    } catch (e) { throw new Error(translateSupabaseError(e)); }
   }, []);
+
+  // ── loginWithGoogle ─────────────────────────────────────────────────────────
 
   const loginWithGoogle = useCallback(async () => {
     try {
@@ -65,22 +102,32 @@ export function useAuth() {
       }
       const idToken = signInResult.data?.idToken;
       if (!idToken) throw new Error('Google Sign-In annulé.');
-      const googleCredential = GoogleAuthProvider.credential(idToken);
-      return await signInWithCredential(getAuth(), googleCredential);
+
+      const { data, error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+      if (error) throw error;
+      return { user: data.user ? suUserToAppUser(data.user as never) : null } as { user: AppUser };
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') throw e;
-      throw new Error(translateFirebaseError(e));
+      throw new Error(translateSupabaseError(e));
     }
   }, []);
 
+  // ── logout ──────────────────────────────────────────────────────────────────
+
   const logout = useCallback(async () => {
-    await signOut(getAuth()).catch((e) => console.warn('[auth] signOut failed:', (e as Error)?.message ?? String(e)));
+    await supabase.auth.signOut().catch((e: unknown) => console.warn('[auth] signOut failed:', (e as Error)?.message ?? String(e)));
     try { await GoogleSignin.signOut(); } catch (e: unknown) { console.warn('[auth] GoogleSignin.signOut failed:', (e as Error)?.message ?? String(e)); }
   }, []);
 
   return {
-    user, authReady, isAdmin, isAuthenticated: user !== null,
-    register, login, loginWithGoogle, logout,
+    user,
+    authReady,
+    isAdmin,
+    isAuthenticated: user !== null,
+    register,
+    login,
+    loginWithGoogle,
+    logout,
   };
 }

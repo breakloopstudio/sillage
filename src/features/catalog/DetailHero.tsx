@@ -20,9 +20,10 @@ interface Props {
   imgFailed: boolean;
   onImageError: () => void;
   onImagePress: () => void;
+  onShare?: () => void;
 }
 
-export default function DetailHero({ imageUrl, brand, imgFailed, onImageError, onImagePress }: Props) {
+export default function DetailHero({ imageUrl, brand, imgFailed, onImageError, onImagePress, onShare }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
 
@@ -47,9 +48,16 @@ export default function DetailHero({ imageUrl, brand, imgFailed, onImageError, o
       )}
 
       {hasImage ? (
-        <Pressable onPress={onImagePress} style={s.expandBtn} hitSlop={8} accessibilityLabel="Agrandir l'image">
-          <Ionicons name="expand-outline" size={16} color={theme.colors.textMuted} />
-        </Pressable>
+        <View style={s.topActions}>
+          <Pressable onPress={onImagePress} style={s.actionBtn} hitSlop={8} accessibilityLabel="Agrandir l'image">
+            <Ionicons name="expand-outline" size={16} color={theme.colors.textMuted} />
+          </Pressable>
+          {onShare ? (
+            <Pressable onPress={onShare} style={s.actionBtn} hitSlop={8} accessibilityLabel="Partager ce parfum">
+              <Ionicons name="share-social-outline" size={16} color={theme.colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -68,10 +76,14 @@ function getStyles(t: Theme) {
     image: { width: '100%', height: 340, backgroundColor: t.colors.surface },
     placeholder: { width: '100%', height: 340, justifyContent: 'center' as const, alignItems: 'center' as const },
     placeholderText: { fontSize: 72, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
-    expandBtn: {
+    topActions: {
       position: 'absolute' as const,
       bottom: 12,
       right: 12,
+      flexDirection: 'row' as const,
+      gap: 8,
+    },
+    actionBtn: {
       width: 32,
       height: 32,
       borderRadius: 16,

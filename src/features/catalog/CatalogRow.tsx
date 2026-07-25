@@ -13,7 +13,6 @@ interface Props {
   onAction?: () => void;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
-  onHorizontalScrollActive?: (active: boolean) => void;
   children: React.ReactNode;
 }
 
@@ -24,20 +23,11 @@ export default function CatalogRow({
   onAction,
   collapsible = true,
   defaultCollapsed = false,
-  onHorizontalScrollActive,
   children,
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
-
-  const handleScrollBeginDrag = useCallback(() => {
-    onHorizontalScrollActive?.(true);
-  }, [onHorizontalScrollActive]);
-
-  const handleScrollEndDrag = useCallback(() => {
-    onHorizontalScrollActive?.(false);
-  }, [onHorizontalScrollActive]);
 
   return (
     <View style={s.container}>
@@ -86,9 +76,6 @@ export default function CatalogRow({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.scrollContent}
           style={s.scrollView}
-          onScrollBeginDrag={handleScrollBeginDrag}
-          onScrollEndDrag={handleScrollEndDrag}
-          onMomentumScrollEnd={handleScrollEndDrag}
         >
           {children}
         </ScrollView>

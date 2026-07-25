@@ -26,8 +26,7 @@
         ],
         "UIBackgroundModes": [
           "remote-notification"
-        ],
-        "FirebaseMessagingAutoInitEnabled": false
+        ]
       }
     },
     "android": {
@@ -83,7 +82,14 @@
           "speechRecognitionPermission": "Autoriser ParfumScan à utiliser la reconnaissance vocale."
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ]
     ]
   }
 }

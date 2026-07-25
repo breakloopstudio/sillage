@@ -1,165 +1,129 @@
 // __tests__/services/firestore-search.test.ts
-// Tests critiques pour searchParfumsCached, searchParfumFromScan, generateQueryTrigrams
+// Tests searchParfumsCached + searchParfumFromScan (impl Supabase RPC)
 
-import { generateTrigrams } from '../../src/utils/normalize';
+import { supabase } from '../../src/services/supabase';
+import { searchParfumsCached, searchParfumFromScan, SearchError, clearSearchCache, peekSearchCache } from '../../src/services/firestore';
 
-// ─── mocks Firestore ───────────────────────────────────
+const mockRpc = supabase.rpc as jest.Mock;
 
-const mockGetDocs = jest.fn();
-const mockFirestoreReady = { value: true };
-
-jest.mock('@react-native-firebase/firestore', () => ({
-  getFirestore: () => ({}),
-  collection: (...args: unknown[]) => args,
-  query: (...args: unknown[]) => args,
-  where: (...args: unknown[]) => args,
-  orderBy: (...args: unknown[]) => args,
-  limit: (...args: unknown[]) => args,
-  getDocs: (...args: unknown[]) => {
-    if (!mockFirestoreReady.value) {
-      return Promise.reject(new Error('Network error'));
-    }
-    return mockGetDocs(...args);
-  },
-  getDoc: jest.fn(),
-  doc: (...args: unknown[]) => args,
-  addDoc: jest.fn(),
-  setDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  writeBatch: jest.fn(),
-  onSnapshot: jest.fn(),
-}));
-
-import { searchParfumsCached, searchParfumFromScan, SearchError, clearSearchCache } from '../../src/services/firestore';
-
-// ─── Helpers ────────────────────────────────────────────
-
-function snap(docs: Array<{ id: string; data: () => Record<string, unknown> }>) {
-  return { empty: docs.length === 0, docs };
-}
-
-function d(id: string, overrides: Record<string, unknown> = {}) {
+function row(id: string, overrides: Record<string, unknown> = {}) {
   return {
     id,
-    data: () => ({
-      nom: overrides.nom ?? 'Parfum Test',
-      marque: overrides.marque ?? 'Marque Test',
-      reviewCount: overrides.reviewCount ?? 100,
-      ratingCount: overrides.ratingCount ?? 200,
-      popularityScore: overrides.popularityScore ?? 150,
-      searchKeywords: overrides.searchKeywords ?? [`${id}_keyword`],
-      ...overrides,
-    }),
+    nom: overrides.nom ?? 'Parfum Test',
+    marque: overrides.marque ?? 'Marque Test',
+    review_count: overrides.review_count ?? 100,
+    rating_count: overrides.rating_count ?? 200,
+    popularity_score: overrides.popularity_score ?? 150,
+    search_text: overrides.search_text ?? `${(overrides.marque ?? 'marque test').toLowerCase()} ${(overrides.nom ?? 'parfum test').toLowerCase()}`,
+    best_price: overrides.best_price ?? null,
+    ...overrides,
   };
 }
 
 beforeEach(() => {
-  mockGetDocs.mockReset();
-  mockFirestoreReady.value = true;
+  mockRpc.mockReset();
   clearSearchCache();
 });
 
-// ─── Tests ─────────────────────────────────────────────
-
 describe('searchParfumsCached', () => {
-  it('throws SearchError on network failure (mono-token)', async () => {
-    mockFirestoreReady.value = false;
-    await expect(searchParfumsCached('chanel')).rejects.toThrow(SearchError);
+  it('returns [] for queries < 2 chars', async () => {
+    expect(await searchParfumsCached('a')).toEqual([]);
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  it('throws SearchError when all multi-token queries fail', async () => {
-    mockFirestoreReady.value = false;
-    await expect(searchParfumsCached('chanel chance')).rejects.toThrow(SearchError);
-    await expect(searchParfumsCached('chanel chance')).rejects.toThrow(/Toutes les requêtes/i);
-  });
-
-  it('returns results on successful mono-token search', async () => {
-    mockGetDocs.mockResolvedValue(snap([
-      d('p1', { nom: 'Chance', marque: 'Chanel', searchKeywords: ['chanel', 'chance', 'chanel_chance'] }),
-    ]));
+  it('calls RPC search_parfums with correct args', async () => {
+    mockRpc.mockResolvedValue({ data: [row('p1', { nom: 'Chance', marque: 'Chanel' })], error: null });
     const results = await searchParfumsCached('chanel');
-    expect(results.length).toBeGreaterThan(0);
+    expect(mockRpc).toHaveBeenCalledWith('search_parfums', { q: 'chanel', max_results: 50 });
+    expect(results).toHaveLength(1);
     expect(results[0].nom).toBe('Chance');
     expect(results[0].marque).toBe('Chanel');
   });
 
-  it('returns empty array for short query (< 2 chars)', async () => {
-    const results = await searchParfumsCached('c');
-    expect(results).toEqual([]);
+  it('throws SearchError on RPC error', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'Network error' } });
+    await expect(searchParfumsCached('chanel')).rejects.toThrow(SearchError);
   });
 
-  it('returns empty array for stop-word-only query', async () => {
-    const results = await searchParfumsCached('de la');
-    expect(results).toEqual([]);
+  it('deduplicates by marque+nom', async () => {
+    mockRpc.mockResolvedValue({
+      data: [
+        row('p1', { nom: 'Sauvage', marque: 'Dior', popularity_score: 200 }),
+        row('p2', { nom: 'Sauvage', marque: 'Dior', popularity_score: 100 }),
+      ],
+      error: null,
+    });
+    const results = await searchParfumsCached('dior sauvage');
+    expect(results).toHaveLength(1);
   });
 
-  it('uses prefix cache for single-word refinement', async () => {
-    // First query populates the cache with enough results (≥5 to satisfy prefix threshold)
-    mockGetDocs.mockResolvedValueOnce(snap([
-      d('p1', { nom: 'Allure', marque: 'Chanel', reviewCount: 1000, searchKeywords: ['chanel', 'allure', 'cha', 'chan', 'chane', 'chane_1', 'chanel_allure'] }),
-      d('p2', { nom: 'Chance', marque: 'Chanel', reviewCount: 800, searchKeywords: ['chanel', 'chance', 'cha', 'chan', 'chane', 'chane_2', 'chanel_chance'] }),
-      d('p3', { nom: 'Coco', marque: 'Chanel', reviewCount: 700, searchKeywords: ['chanel', 'coco', 'cha', 'chan', 'chane', 'chane_3', 'chanel_coco'] }),
-      d('p4', { nom: 'No 5', marque: 'Chanel', reviewCount: 900, searchKeywords: ['chanel', 'no', 'cha', 'chan', 'chane', 'chane_4', 'chanel_no_5'] }),
-      d('p5', { nom: 'Egoiste', marque: 'Chanel', reviewCount: 600, searchKeywords: ['chanel', 'egoiste', 'cha', 'chan', 'chane', 'chane_5', 'chanel_egoiste'] }),
-      d('p6', { nom: 'Bleu', marque: 'Chanel', reviewCount: 500, searchKeywords: ['chanel', 'bleu', 'cha', 'chan', 'chane', 'chane_6', 'chanel_bleu'] }),
-    ]));
-    await searchParfumsCached('chan');
+  it('caches results (second call does not hit RPC)', async () => {
+    mockRpc.mockResolvedValue({ data: [row('p1')], error: null });
+    await searchParfumsCached('test');
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    await searchParfumsCached('test');
+    expect(mockRpc).toHaveBeenCalledTimes(1); // cached
+  });
 
-    // Second query: same prefix → should hit cache (no Firestore call if ≥5 results)
-    mockGetDocs.mockClear();
-    mockGetDocs.mockResolvedValue(snap([]));
+  it('peekSearchCache returns cached results without RPC', async () => {
+    mockRpc.mockResolvedValue({ data: [row('p1')], error: null });
+    await searchParfumsCached('cached_query');
+    const peeked = peekSearchCache('cached_query');
+    expect(peeked).toHaveLength(1);
+  });
 
-    const results = await searchParfumsCached('chane');
-    expect(results.length).toBeGreaterThan(0);
-    expect(mockGetDocs).not.toHaveBeenCalled();
+  it('clearSearchCache forces new RPC call', async () => {
+    mockRpc.mockResolvedValue({ data: [row('p1')], error: null });
+    await searchParfumsCached('test');
+    clearSearchCache();
+    await searchParfumsCached('test');
+    expect(mockRpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('maps snake_case rows to camelCase Parfum', async () => {
+    mockRpc.mockResolvedValue({
+      data: [row('p1', {
+        nom: 'N°5', marque: 'Chanel', best_price: 89.99,
+        notes_tete: ['Aldehydes'], notes_coeur: ['Jasmine'], notes_fond: ['Sandalwood'],
+        image_url: 'https://img.webp', famille_olfactive: 'Floral',
+      })],
+      error: null,
+    });
+    const [p] = await searchParfumsCached('chanel');
+    expect(p.bestPrice).toBe(89.99);
+    expect(p.notesTete).toEqual(['Aldehydes']);
+    expect(p.imageUrl).toBe('https://img.webp');
+    expect(p.familleOlactive).toBe('Floral');
   });
 });
 
 describe('searchParfumFromScan', () => {
-  it('returns a copy (does not mutate cached objects)', async () => {
-    const kw = ['bleu_de_chanel', 'bleu', 'chanel', 'chanel_bleu_de_chanel'];
-    mockGetDocs.mockResolvedValue(snap([
-      d('p1', { nom: 'Bleu de Chanel', marque: 'Chanel', searchKeywords: kw, bestPrice: 89 }),
-      d('p2', { nom: 'Bleu de Chanel Parfum', marque: 'Chanel', searchKeywords: kw, bestPrice: 110 }),
-    ]));
-
-    // Prime the cache with a catalog search
-    const catalogResults = await searchParfumsCached('bleu de chanel');
-    expect(catalogResults.length).toBe(2);
-    const originalRef0 = catalogResults[0];
-
-    // Run scan search — must NOT mutate the cached object
-    const scannedResults = await searchParfumFromScan('Chanel', 'Bleu de Chanel');
-    expect(scannedResults.length).toBe(2);
-
-    // The cached objects must NOT have _scanScore
-    const cached = catalogResults[0] as Record<string, unknown>;
-    expect(cached._scanScore).toBeUndefined();
-
-    // The original object reference must still equal the catalog result
-    expect(catalogResults[0]).toBe(originalRef0);
+  it('returns [] if both marque and nom are null', async () => {
+    expect(await searchParfumFromScan(null, null)).toEqual([]);
   });
-});
 
-describe('generateQueryTrigrams (via fuzzy fallback)', () => {
-  // Expose via re-import of internal function — test indirectly via search
-  // Actually test via normalize utils directly
-  it('generateTrigrams works correctly', () => {
-    const trigrams = generateTrigrams('chane');
-    expect(trigrams).toContain('$ch');
-    expect(trigrams).toContain('cha');
-    expect(trigrams).toContain('han');
-    expect(trigrams).toContain('ane');
-    expect(trigrams).toContain('ne$');
+  it('boosts exact nom match (+50) above partial', async () => {
+    mockRpc.mockResolvedValue({
+      data: [
+        row('p1', { nom: 'Sauvage Parfum', marque: 'Dior', search_text: 'dior sauvage parfum' }),
+        row('p2', { nom: 'Sauvage', marque: 'Dior', search_text: 'dior sauvage' }),
+      ],
+      error: null,
+    });
+    const results = await searchParfumFromScan('Dior', 'Sauvage');
+    // p2 (exact nom match +50) should be first
+    expect(results[0].id).toBe('p2');
   });
-});
 
-describe('useCatalog rate limit', () => {
-  // Already covered by useCatalog.test.ts. Adding: rateLimited exposed in return.
-  it('rateLimited is exported in hook return value', () => {
-    // This is a type-level assertion — the test suite already verifies behavior
-    const { useCatalog } = jest.requireActual('../../src/hooks/useCatalog');
-    expect(typeof useCatalog).toBe('function');
+  it('boosts exact marque match (+15)', async () => {
+    mockRpc.mockResolvedValue({
+      data: [
+        row('p1', { nom: 'Test', marque: 'Diorissimo', search_text: 'diorissimo test' }),
+        row('p2', { nom: 'Test', marque: 'Dior', search_text: 'dior test' }),
+      ],
+      error: null,
+    });
+    const results = await searchParfumFromScan('Dior', 'Test');
+    expect(results[0].id).toBe('p2');
   });
 });

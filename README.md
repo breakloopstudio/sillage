@@ -7,8 +7,8 @@
 [![Expo SDK 57](https://img.shields.io/badge/Expo-SDK%2057-4630EB?logo=expo)](https://expo.dev)
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
-[![Firebase](https://img.shields.io/badge/Firebase-BaaS-FFCA28?logo=firebase)](https://firebase.google.com)
-[![Tests 194](https://img.shields.io/badge/Tests-194%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
+[![Tests 216](https://img.shields.io/badge/Tests-216%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -47,10 +47,10 @@
 | **Langage** | TypeScript 6.0 (strict) |
 | **Navigation** | Expo Router (file-based) + react-native-pager-view (native pan) |
 | **Animations** | React Native Reanimated 4, Gesture Handler 2, react-native-svg |
-| **Backend** | Firebase Auth, Firestore, Storage, Cloud Functions (europe-west1) |
-| **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Firestore (catalogue 25K parfums) |
+| **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
+| **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 194 tests, 15 suites |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 216 tests, 17 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -58,7 +58,7 @@
 
 ### Prérequis
 - Node.js ≥ 18
-- Firebase CLI (`npm i -g firebase-tools`)
+- Supabase CLI (`npm i -g supabase`) + Docker Desktop (backend local)
 - Expo CLI (`npx expo`)
 
 ### Installation
@@ -67,32 +67,31 @@
 git clone https://github.com/breakloopstudio/parfumscan-react.git
 cd parfumscan-react
 npm install
-
-# Cloud Functions (backend)
-cd functions && npm install && cd ..
 ```
 
 ### Variables d'environnement
 
 ```bash
-# Racine — émulateurs Firebase (optionnel)
-cp .env.example .env
+# .env (jamais committé) — clés Supabase + Google
+EXPO_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+EXPO_PUBLIC_USE_SUPABASE=true
+SUPABASE_SERVICE_ROLE_KEY=eyJ...        # scripts d'import uniquement
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...
 
-# Cloud Functions — clés API requis
-cp functions/.env.example functions/.env
-# Puis édite functions/.env avec tes vraies clés :
-#   OPENAI_API_KEY=sk-...
+# Edge Functions (Vault) :
+#   supabase secrets set OPENAI_API_KEY=sk-... CRON_SERVICE_ROLE_KEY=...
 ```
 
 ### Lancement
 
 ```bash
+# Backend local (Postgres + API + Edge Functions)
+supabase start
+
 npm start
-
 npm run android   # ou npm run ios
-
-# Émulateurs Firebase locaux
-npm run emulators
 ```
 
 ### Build APK (installation sur téléphone)
@@ -150,66 +149,60 @@ app/
 └── admin.tsx                 # Administration (seed + reset cache + upload)
 
 src/
-├── services/     (14)        # Firebase, Firestore, GPT-4o, user-data, wardrobe, theme-storage, weather, voice-search…
-├── hooks/        (14)        # useAuth, useScanReducer, useCatalog, useFavoris, useCollection, useWishlist, useScans, useWardrobe, useShelves, useSotd, useNetwork, useDensityPreference, useVoiceSearch, useWeather
+├── services/     (14)        # supabase, firestore, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/impl/            # impl Supabase de chaque service + search-shared + sql-utils (service public = export * from impl/<x>.supabase)
+├── hooks/        (17)        # useAuth (AppUser), useCatalog, useFavoris, useScans, useWardrobe, useShelves, useSotd, useScentList, useProfileStats, useScanPipeline, useScanReducer, useNetwork, useDensityPreference, useVoiceSearch, useWeather, useVoicePreference, useCollection
 ├── contexts/     (1)         # AuthContext (ThemeContext est dans src/theme/)
-├── components/   (13)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, ProfileAvatar, NoteDetailPopup, ImageViewerPopup, ActionSheet
+├── components/   (13)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet
 ├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx (SystemUI + NavigationBar theming)
-├── features/
-│   ├── scan/     (8)         # ScanScreen + 7 sous-états
-│   ├── catalog/  (9)         # CatalogPage, BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards, OlfactoryPyramid v5, DetailHero, CollapsingHeader, StickyBottomBar
-│   ├── wardrobe/ (10)        # WardrobeAddSheet, WardrobeCard, WardrobeGrid, WardrobeQuickSheet, SOTDCard, SOTDPicker, FilterBar, StarRating, ShelfManager, WeatherWidget
-│   ├── search/   (1)         # VoiceOverlay (panneau overlay 5 phases)
-│   ├── runner/   (11)        # Flacon Runner (easter egg endless runner — game loop, sprites, sons, persistance)
-│   └── navigation/ (1)       # DockBar (barre flottante 5 positions + FAB, indicateur doré, pulse ring, show/hide)
-├── models/       (8)         # Parfum, WardrobeItem, Shelf, SotdEntry, UserFavori, UserScan, UserCollectionItem, UserWishlistItem
-├── config/       (3)         # Firebase config, env, index
-├── utils/        (7)         # Error translator, translate-note, note-descriptions, normalize, ownership, weather-codes, weather-scoring
+├── features/                 # scan, catalog, wardrobe, search, navigation (DockBar), profile, favorites, scentlist, runner
+├── models/       (8)         # Parfum (+searchText), WardrobeItem, Shelf, SotdEntry, UserFavori, UserScan, UserCollectionItem, UserScentItem
+├── config/       (2)         # env, index
+└── utils/        (10)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring
 
-functions/                    # Cloud Functions Firebase
-├── src/index.ts              # GPT-4o Vision + Whisper transcription + sendNotification + checkPriceAlerts + sendWeatherNotifications
-├── src/weather-scoring.ts    # Scoring météo côté serveur (Node.js)
-└── lib/                      # Build JavaScript
+supabase/                     # Backend Supabase (versionné)
+├── migrations/   (0001→0009) # extensions, types, tables, index trgm/FTS, RLS+publication, RPC, cron pg_cron
+├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account + _shared/
+└── config.toml               # config projet (secrets via env(...))
 ```
 
 ---
 
 ## 📊 Données — Catalogue (~25 100 parfums)
 
-Le catalogue est importé depuis un scrape Fragrantica (239 marques), nettoyé et hébergé en autonome sur Firebase — **zéro dépendance à l'API Fragella** pour le socle de données.
+Le catalogue est importé depuis un scrape Fragrantica (239 marques), nettoyé et hébergé en autonome sur **Supabase** (table Postgres `parfums` + bucket Storage `parfum-images`) — **zéro dépendance à l'API Fragella** pour le socle de données.
 
 ### Pipeline
 
 ```
-data/raw/              data/clean/            Firestore + Storage
-239 JSON (1.27 GB)  →  239 JSON (31 MB)   →  parfums/{id}
-scrape Fragrantica      données factuelles     images hébergées
+data/raw/              data/clean/            Postgres + Supabase Storage
+239 JSON (1.27 GB)  →  239 JSON (31 MB)   →  parfums (table) + parfum-images (bucket)
+scrape Fragrantica      données factuelles     recherche tsvector + pg_trgm
 ```
 
 | Étape | Script | Action |
 |---|---|---|
 | 1. Nettoyage | `npm run clean-data` | `scripts/clean-apify.ts` — débruite, déduplique, strip les champs traçants |
-| 2. Import | `npm run import-data` | `scripts/import-firestore.ts` — parse les titres, génère les IDs, télécharge les images → Firebase Storage, écrit dans Firestore |
-| 3. WebP | `npm run migrate-webp` | `scripts/migrate-webp.ts` — conversion batch JPEG/PNG → WebP (sharp quality 82), upload Storage |
-| 4. Background removal | `npm run migrate-bg` | `scripts/migrate-bgremoval.ts` — suppression de fond bouteilles (MODNet), PNG transparent → WebP alpha |
+| 2. Export Firestore | `npm run export-firestore` | `scripts/export-firestore.ts` — dump NDJSON depuis l'ancien backend |
+| 3. Import Supabase | `npm run import-supabase` | `scripts/import-supabase.ts` — upsert Postgres (local ou `--target=cloud`) |
+| 4. Images | `npm run migrate-storage` | `scripts/migrate-storage.ts` — Firebase Storage → bucket `parfum-images`, réécriture `image_url` |
+| 5. WebP / BG removal | `npm run migrate-webp` / `migrate-bg` | conversion + suppression de fond (historique) |
 
 ### Images
 
 - **Format** : WebP 375×500 (converti depuis les vignettes scrape JPG)
-- **Background removal** : suppression de fond via `@imgly/background-removal-node` (MODNet), sortie PNG transparent → WebP alpha
-- **Stockage** : Firebase Storage → `parfums/{parfumId}/primary.webp`
+- **Stockage** : Supabase Storage (bucket public `parfum-images`) → `parfums/{id}_{ts}_{name}`
 - **Fallback UI** : initiale de la marque sur fond coloré (si image absente)
-- **Amélioration future** : upscale IA ou re-scrape pages détail
 
 ### Mapping des données
 
-| Champ Firestore | Source raw |
+| Colonne Postgres | Source raw |
 |---|---|
-| `nom`, `annee`, `typeParfum` | Parsé depuis `title` |
-| `notesTete/Coeur/Fond` | `pyramid.topNotes/middleNotes/baseNotes[].name` |
-| `mainAccords` | `mainAccords[].accord` (noms uniquement, pas les couleurs) |
-| `longevity`, `sillage`, `priceValue` | Moyennes → catégories textuelles |
-| `imageUrl` | `primaryImageUrl` → téléchargé → Firebase Storage |
+| `nom`, `annee`, `type_parfum` | Parsé depuis `title` |
+| `notes_tete/coeur/fond` | `pyramid.topNotes/middleNotes/baseNotes[].name` |
+| `main_accords` | `mainAccords[].accord` (noms uniquement, pas les couleurs) |
+| `search_text` / `search_vector` | **générées** (normalisation + tsvector) pour la recherche |
+| `image_url` | `primaryImageUrl` → téléchargé → Supabase Storage |
 | `source` | `'seed'` (données importées, pas d'API live) |
 
 ---
@@ -250,20 +243,18 @@ La page `app/catalog/[id].tsx` affiche les métadonnées du catalogue Firestore 
 > - Violet = donnees admin (seed/manual)
 > - Rouge = source inconnue (fallback)
 
-## 📚 Flux de recherche (cache-first v6.10)
+## 📚 Flux de recherche (RPC Postgres + cache client)
 
 ```
 Saisie ≥ 3 caractères → useCatalog() → debounce 150ms → requestIdRef anti-race
-  1. Cache exact → hit instantané
-  2. Prefix cache → re-score local (frappe progressive, 0 Firestore)
-  3. Firestore dual-query :
-     - 1 token (marque) → array-contains + orderBy reviewCount desc → limit 100
-     - 2+ tokens → array-contains-any → limit 200
-  4. Scoring : matchScore (prefixes, boucle for) + exactMatch (multi-token seulement) + popBonus (log(pop+1)/2)
-  5. Tri : pop-first (1 token) ou score (multi-token) + tiebreak, slice 50 résultats
+  1. Cache exact (LRU) → hit instantané
+  2. Prefix cache → re-score local sur search_text (frappe progressive, 0 RPC)
+  3. RPC search_parfums : candidats trgm (search_text %> token) ∪ FTS (search_vector @@ tsquery),
+     scoring serveur (word_similarity + exact +10 + popBonus), fuzzy similarity si < 5, dédup, limit 50
+  4. Tri : pertinence primaire + popularité tiebreaker
 ```
 
-Avantage : cache + prefix cache → la plupart des frappes ne touchent plus Firestore.
+Avantage : le scoring lourd (trgm + FTS + fuzzy) tourne côté Postgres ; cache + prefix cache → la plupart des frappes ne touchent pas le serveur.
 Les résultats sont triés par pertinence + popularité, pas alphabétiquement.
 
 ### Catalogue idle (v5.7)
@@ -284,6 +275,17 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v7.0 — Migration backend Firebase → Supabase (25/07/2026)
+
+- **Backend** : remplacement complet de Firebase (Auth/Firestore/Storage/Cloud Functions/FCM) par **Supabase** (Auth, Postgres + RLS, Storage, Realtime `postgres_changes`, Edge Functions Deno). Voir `MIGRATION_SUPABASE.md`.
+- **Schéma** : 9 migrations SQL (tables, RLS `auth.uid()=user_id`, index `pg_trgm`/tsvector, RPC, crons `pg_cron`).
+- **Recherche** : RPC `search_parfums` (tsvector + `pg_trgm`) remplace `array-contains` sur `searchKeywords` (supprimé → colonnes générées `search_text`/`search_vector`). Caches client (LRU + prefix cache) conservés.
+- **Couche services** : chaque service = dispatcher `export * from './impl/<x>.supabase'` ; signatures publiques inchangées. `useAuth` expose `AppUser` (uid = UUID Supabase).
+- **Push** : FCM → **Expo Push** (table `push_tokens`), plugin `expo-notifications`.
+- **Edge Functions** : 6 fonctions déployées (scan GPT-4o, Whisper, alertes prix, météo, notif, delete RGPD) + 3 crons.
+- **Dépendances** : retrait de `@react-native-firebase/*` ; ajout `@supabase/supabase-js`, `react-native-url-polyfill`, `expo-notifications`.
+- **Tests** : mock `@supabase/supabase-js` (jest-setup.js), 216/216 verts + E2E cloud 24/24 (`npm run test:supabase`).
+
 ## v6.10 — Search v2 + Similar Parfums refonte + UI fixes (21/07/2026)
 
 - **Search v2** : cache Map (exact + prefix cache local), dual query Firestore (1 token `array-contains` + `orderBy reviewCount`, 2+ tokens `array-contains-any`), `exactMatch` réservé aux queries multi-mots, signal composite `Math.max(reviewCount, ratingCount, popularityScore)`, bonus popularité `/2`, scoring single-pass (boucle for), tri pop-first pour 1 token, 50 résultats max, debounce 150ms, `requestIdRef` anti-race.

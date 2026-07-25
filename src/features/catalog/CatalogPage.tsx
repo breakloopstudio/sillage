@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
 import { useAuthContext } from '../../contexts/AuthContext';
 import ParfumCard from '../../components/ParfumCard';
-import ProfileAvatar from '../../components/ProfileAvatar';
 import SectionHeader from '../../components/SectionHeader';
 import BrandCapsules from './BrandCapsules';
 import CatalogRow from './CatalogRow';
@@ -45,10 +44,9 @@ function getDiscount(p: Parfum): number {
 
 interface Props {
   onScroll?: (y: number) => void;
-  onHorizontalScrollActive?: (active: boolean) => void;
 }
 
-export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Props) {
+export default function CatalogPage({ onScroll }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
@@ -147,11 +145,11 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
   }, [sharedPool, sharedLoading]);
 
   const handleBrandTap = useCallback((brand: string) => {
-    router.push(`/(tabs)/search?q=${encodeURIComponent(brand)}`);
+    router.push(`/search?q=${encodeURIComponent(brand)}`);
   }, [router]);
 
   const handleFamilyTap = useCallback((query: string) => {
-    router.push(`/(tabs)/search?q=${encodeURIComponent(query)}`);
+    router.push(`/search?q=${encodeURIComponent(query)}`);
   }, [router]);
 
   const handleViewAllBrands = useCallback(() => {
@@ -177,9 +175,8 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
       <BrandCapsules
         onViewAll={handleViewAllBrands}
         onBrandTap={handleBrandTap}
-        onHorizontalScrollActive={onHorizontalScrollActive}
       />
-
+      
       {/* Row: Pour vous / Tendances */}
       {!suggestionLoading && suggestionParfums.length > 0 && (
         <CatalogRow
@@ -189,7 +186,6 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
           onAction={scrollToGrid}
           collapsible
           defaultCollapsed={false}
-          onHorizontalScrollActive={onHorizontalScrollActive}
         >
           {suggestionParfums.map(p => (
             <ParfumCard key={p.id} parfum={p} mode="compact" />
@@ -204,7 +200,6 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
           subtitle="Les meilleurs rapports qualité-prix"
           collapsible
           defaultCollapsed={false}
-          onHorizontalScrollActive={onHorizontalScrollActive}
         >
           {bestDeals.map(p => (
             <ParfumCard key={p.id} parfum={p} mode="compact" />
@@ -213,7 +208,7 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
       )}
 
       {/* Row: Explorer par famille (ambiance cards) */}
-      <FamilyAmbianceCards onFamilyTap={handleFamilyTap} onHorizontalScrollActive={onHorizontalScrollActive} />
+      <FamilyAmbianceCards onFamilyTap={handleFamilyTap} />
 
       {/* Row: Icônes intemporelles (collapsed) */}
       {iconicParfums.length > 0 && (
@@ -222,7 +217,6 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
           subtitle="Les parfums qui ont marqué l'histoire"
           collapsible
           defaultCollapsed={true}
-          onHorizontalScrollActive={onHorizontalScrollActive}
         >
           {iconicParfums.map(p => (
             <ParfumCard key={p.id} parfum={p} mode="compact" />
@@ -256,7 +250,6 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
     s, suggestionParfums, suggestionLabel, suggestionLoading,
     bestDeals, dealsLoading, iconicParfums, gridDensity,
     handleViewAllBrands, handleBrandTap, handleFamilyTap, scrollToGrid,
-    onHorizontalScrollActive,
   ]);
 
   return (
@@ -275,7 +268,6 @@ export default function CatalogPage({ onScroll, onHorizontalScrollActive }: Prop
           <Text style={s.heroTitle}>ParfumScan</Text>
           <Text style={s.heroSub}>Trouve ton parfum au meilleur prix</Text>
         </View>
-        <ProfileAvatar />
       </View>
 
       {gridLoading ? (

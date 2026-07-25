@@ -1,7 +1,10 @@
 "use strict";
 // functions/src/weather-scoring.ts — Scoring météo côté serveur (Node.js)
 // Adapté de src/utils/weather-scoring.ts pour l'environnement Cloud Functions
+// ⚠️ Doublon de src/utils/weather-scoring.ts — toute modification doit être reportée dans l'autre fichier
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.WMO_META = void 0;
+exports.getWmoMeta = getWmoMeta;
 exports.fetchWeatherForServer = fetchWeatherForServer;
 exports.scoreItemForWeather = scoreItemForWeather;
 exports.weatherEmoji = weatherEmoji;
@@ -35,6 +38,7 @@ const WMO_META = {
     96: { label: 'Orage', icon: 'thunderstorm', seasonBoost: { spring: 0.5, summer: 0.4, fall: 0.7, winter: 0.6 } },
     99: { label: 'Orage', icon: 'thunderstorm', seasonBoost: { spring: 0.4, summer: 0.3, fall: 0.6, winter: 0.5 } },
 };
+exports.WMO_META = WMO_META;
 function getWmoMeta(code) {
     return WMO_META[code] ?? WMO_META[1];
 }
@@ -93,9 +97,13 @@ async function fetchWeatherForServer(lat, lon) {
         url.searchParams.set('latitude', String(lat));
         url.searchParams.set('longitude', String(lon));
         url.searchParams.set('current', 'temperature_2m,weather_code,is_day');
+        url.searchParams.set('daily', 'temperature_2m_max');
         url.searchParams.set('timezone', 'auto');
         url.searchParams.set('forecast_days', '1');
-        const res = await fetch(url.toString());
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10_000);
+        const res = await fetch(url.toString(), { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (!res.ok)
             return null;
         const data = await res.json();
@@ -103,16 +111,19 @@ async function fetchWeatherForServer(lat, lon) {
             temperature: data.current.temperature_2m,
             weatherCode: data.current.weather_code,
             isDay: data.current.is_day === 1,
+            dailyMax: data.daily.temperature_2m_max[0] ?? data.current.temperature_2m,
         };
     }
     catch (err) {
+        if (err?.name === 'AbortError')
+            return null;
         console.warn('[weather-scoring] fetch failed:', err?.message ?? String(err));
         return null;
     }
 }
 function scoreItemForWeather(item, weather) {
     const famille = normalizeFamille(item.familleOlactive);
-    const season = mapTempToSeason(weather.temperature);
+    const season = mapTempToSeason(weather.dailyMax ?? weather.temperature);
     const wmo = getWmoMeta(weather.weatherCode);
     let score = 0;
     if (famille) {
@@ -129,7 +140,7 @@ function scoreItemForWeather(item, weather) {
         score += 0.1;
     if (item.sotdCount && item.sotdCount > 0)
         score += Math.min(item.sotdCount * 0.02, 0.15);
-    return Math.round(score * 100);
+    return Math.min(Math.round(score * 100), 100);
 }
 function weatherEmoji(icon) {
     switch (icon) {

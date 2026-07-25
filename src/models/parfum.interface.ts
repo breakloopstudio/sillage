@@ -32,6 +32,7 @@ export interface Parfum {
   imageVerified?: boolean;
   typeParfum?: string | null;
   searchKeywords?: string[];
+  searchText?: string;          // Supabase : colonne générée (remplace searchKeywords pour le scoring client)
   purchaseUrl?: string | null;
   mainAccords?: string[];
   longevity?: string | null;
@@ -47,6 +48,7 @@ export interface Parfum {
   country?: string;
   mainAccordsPercentage?: Record<string, string>;
   generalNotes?: string[];
+  perfumers?: string[];
   confidence?: string;
   seasonRanking?: { name: string; score: number }[];
   occasionRanking?: { name: string; score: number }[];

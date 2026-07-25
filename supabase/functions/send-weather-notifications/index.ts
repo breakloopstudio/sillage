@@ -1,0 +1,108 @@
+// Supabase Edge Function: send-weather-notifications
+// Cron 7h Paris — envoie une suggestion de parfum basée sur la météo du jour.
+// Appelée par pg_cron → pg_net avec Authorization Bearer <service_role_key>.
+
+import { createAdminClient } from '../_shared/supabase.ts';
+import { coordsKey, weatherRunId } from '../_shared/helpers.ts';
+import { fetchWeatherForServer, scoreItemForWeather, getWmoMeta, weatherEmoji, type WardrobeEntry, type WeatherData } from '../_shared/weather-scoring.ts';
+import { sendPush, purgeDeadTokens } from '../_shared/expo-push.ts';
+
+const NIGHT_ICON: Record<string, string> = {
+  sunny: 'moon',
+  'partly-sunny': 'cloudy-night',
+};
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+Deno.serve(async (_req: Request) => {
+  const supabase = createAdminClient();
+  const now = new Date();
+  const runId = weatherRunId(now);
+
+  // Utilisateurs éligibles (weatherNotifs + pushNotifs + coordonnées GPS)
+  const { data: eligible, error } = await supabase
+    .from('user_settings')
+    .select('user_id, weather_lat, weather_lon')
+    .eq('weather_notifs', true)
+    .eq('push_notifs', true)
+    .not('weather_lat', 'is', null)
+    .not('weather_lon', 'is', null);
+  if (error) {
+    console.error('[sendWeather] fetch eligible error:', error.message);
+    return jsonResponse({ ok: false }, 500);
+  }
+  if (!eligible || eligible.length === 0) {
+    console.log('[sendWeather] No eligible users.');
+    return jsonResponse({ ok: true, processed: 0, sent: 0 });
+  }
+
+  // Cache météo : 1 fetch par coordonnées arrondies
+  const weatherCache = new Map<string, WeatherData>();
+  let processed = 0, sent = 0, purged = 0;
+
+  for (const row of eligible as { user_id: string; weather_lat: number; weather_lon: number }[]) {
+    try {
+      // Idempotence : conflit PK = déjà exécuté ce run
+      const { error: insertErr } = await supabase.from('notification_runs').insert({ user_id: row.user_id, run_id: runId });
+      if (insertErr) continue;
+
+      // Météo
+      const key = coordsKey(row.weather_lat, row.weather_lon);
+      if (!weatherCache.has(key)) {
+        const w = await fetchWeatherForServer(row.weather_lat, row.weather_lon);
+        if (w) weatherCache.set(key, w);
+      }
+      const weather = weatherCache.get(key);
+      if (!weather) continue;
+
+      // Wardrobe (ownership = 'have') — mapping snake_case → WardrobeEntry (camelCase)
+      const { data: wardrobe } = await supabase
+        .from('wardrobe')
+        .select('parfum_id, nom, marque, famille_olfactive, is_signature, sotd_count')
+        .eq('user_id', row.user_id)
+        .eq('ownership', 'have');
+      if (!wardrobe || wardrobe.length === 0) continue;
+
+      const items: WardrobeEntry[] = (wardrobe as Record<string, unknown>[]).map(w => ({
+        parfumId: w.parfum_id as string,
+        nom: (w.nom as string) ?? null,
+        marque: (w.marque as string) ?? null,
+        familleOlactive: (w.famille_olfactive as string) ?? null,
+        ownership: 'have',
+        isSignature: w.is_signature === true,
+        sotdCount: typeof w.sotd_count === 'number' ? w.sotd_count : 0,
+      }));
+
+      const scored = items
+        .map(item => ({ item, score: scoreItemForWeather(item, weather) }))
+        .sort((a, b) => b.score - a.score);
+      const top = scored[0];
+      if (!top || top.score < 30) continue;
+
+      // Tokens
+      const { data: tokens } = await supabase.from('push_tokens').select('token').eq('user_id', row.user_id);
+      if (!tokens || tokens.length === 0) continue;
+      const tokenList = (tokens as { token: string }[]).map(t => t.token);
+
+      const wmo = getWmoMeta(weather.weatherCode);
+      const icon = weather.isDay ? wmo.icon : (NIGHT_ICON[wmo.icon] ?? wmo.icon);
+      const title = `${weatherEmoji(icon)} ${Math.round(weather.temperature)}°C`;
+      const body = `Aujourd'hui : ${top.item.nom ?? '?'} de ${top.item.marque ?? '?'} (${top.score}% compatible)`;
+
+      const { successCount, deadTokens } = await sendPush(tokenList, title, body, {
+        type: 'weather-suggestion',
+        parfumId: top.item.parfumId,
+      });
+      sent += successCount;
+      purged += await purgeDeadTokens(supabase, deadTokens);
+      processed++;
+    } catch (e: unknown) {
+      console.warn(`[sendWeather] user ${row.user_id}:`, (e as Error)?.message ?? String(e));
+    }
+  }
+
+  console.log(`[sendWeather] Done — ${processed} processed, ${sent} sent, ${purged} purged, ${weatherCache.size} locations`);
+  return jsonResponse({ ok: true, processed, sent, locations: weatherCache.size });
+});

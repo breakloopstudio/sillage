@@ -23,9 +23,10 @@ interface Props {
   scrollY: SharedValue<number>;
   brand: string | undefined;
   name: string | undefined;
+  rightAction?: { icon: string; onPress: () => void; accessibilityLabel: string };
 }
 
-export default function CollapsingHeader({ scrollY, brand, name }: Props) {
+export default function CollapsingHeader({ scrollY, brand, name, rightAction }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -41,7 +42,7 @@ export default function CollapsingHeader({ scrollY, brand, name }: Props) {
   );
 
   const brandStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [0, 25], [1, 0], Extrapolation.CLAMP),
+    opacity: interpolate(scrollY.value, [0, 15], [1, 1], Extrapolation.CLAMP),
   }));
 
   if (!brand && !name) return null;
@@ -54,13 +55,15 @@ export default function CollapsingHeader({ scrollY, brand, name }: Props) {
             onPress={() => router.back()}
             style={s.backBtn}
             hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
           >
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
           </Pressable>
 
           <View style={s.textWrap}>
             {brand ? (
-              <Animated.Text style={[s.brand, brandStyle]} numberOfLines={1}>
+              <Animated.Text style={[compact ? s.brandCompact : s.brand, brandStyle]} numberOfLines={1}>
                 {brand}
               </Animated.Text>
             ) : null}
@@ -74,7 +77,19 @@ export default function CollapsingHeader({ scrollY, brand, name }: Props) {
             ) : null}
           </View>
 
-          <View style={s.backBtn} />
+          {rightAction ? (
+            <Pressable
+              onPress={rightAction.onPress}
+              style={s.backBtn}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={rightAction.accessibilityLabel}
+            >
+              <Ionicons name={rightAction.icon as never} size={24} color={theme.colors.text} />
+            </Pressable>
+          ) : (
+            <View style={s.backBtn} />
+          )}
         </View>
       </SafeAreaView>
     </Animated.View>
@@ -130,6 +145,14 @@ function getStyles(t: Theme) {
       fontSize: 18,
       color: t.colors.text,
       lineHeight: 22,
+    },
+    brandCompact: {
+      fontSize: 10,
+      textTransform: 'uppercase' as const,
+      letterSpacing: 1,
+      color: t.colors.textMuted,
+      fontFamily: 'Inter_600SemiBold',
+      marginBottom: 1,
     },
   } as const;
 }

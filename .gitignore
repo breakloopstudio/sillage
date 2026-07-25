@@ -74,3 +74,8 @@ NEXT_SESSION.md
 
 # ─── Données brutes (scrapées, non versionnées) ──────────────────
 /data
+
+# ─── Build / cache backend ───────────────────────────────────────
+functions/lib/
+.firebase/
+coverage/

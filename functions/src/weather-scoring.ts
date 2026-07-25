@@ -1,5 +1,6 @@
 // functions/src/weather-scoring.ts — Scoring météo côté serveur (Node.js)
 // Adapté de src/utils/weather-scoring.ts pour l'environnement Cloud Functions
+// ⚠️ Doublon de src/utils/weather-scoring.ts — toute modification doit être reportée dans l'autre fichier
 
 interface WmoMeta {
   label: string;

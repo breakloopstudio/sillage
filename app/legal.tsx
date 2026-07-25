@@ -5,6 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
+import {
+  LEGAL_COMPANY_NAME, LEGAL_COMPANY_FORM, LEGAL_ADDRESS, LEGAL_RCS,
+  LEGAL_EMAIL, LEGAL_DIRECTOR_NAME, LEGAL_HOST_NAME, LEGAL_HOST_ADDRESS, LEGAL_HOST_PHONE,
+} from '../src/config/legal';
 
 export default function LegalPage() {
   const { theme } = useTheme();
@@ -15,7 +19,7 @@ export default function LegalPage() {
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityLabel="Retour">
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
           </Pressable>
           <Text style={s.title}>Mentions légales</Text>
@@ -24,38 +28,36 @@ export default function LegalPage() {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Éditeur de l'application</Text>
-          <Text style={s.body}>
-            L'application ParfumScan est éditée par la société Breakloop Studio.{'\n\n'}
-            [Adresse postale]{'\n'}
-            France{'\n\n'}
-            Email : [email@exemple.com]{'\n'}
-            Téléphone : [facultatif]
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
+            L'application ParfumScan est éditée par {LEGAL_COMPANY_NAME}.{'\n'}
+            {LEGAL_COMPANY_FORM !== 'À_COMPLÉTER' ? `\nForme juridique : ${LEGAL_COMPANY_FORM}` : ''}
+            {LEGAL_ADDRESS !== 'À_COMPLÉTER' ? `\nSiège social : ${LEGAL_ADDRESS}` : ''}
+            {LEGAL_RCS !== 'À_COMPLÉTER' ? `\nRCS : ${LEGAL_RCS}` : ''}
+            {'\n\n'}Contact : {LEGAL_EMAIL}
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Directeur de la publication</Text>
-          <Text style={s.body}>
-            Pierre-Louis [NOM], représentant légal de Breakloop Studio
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
+            {LEGAL_DIRECTOR_NAME}, représentant légal de {LEGAL_COMPANY_NAME}
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Hébergement</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             L'application est hébergée par :{'\n\n'}
-            Google Cloud Platform{'\n'}
-            Google LLC{'\n'}
-            1600 Amphitheatre Parkway{'\n'}
-            Mountain View, CA 94043{'\n'}
-            États-Unis{'\n\n'}
+            {LEGAL_HOST_NAME}{'\n'}
+            {LEGAL_HOST_ADDRESS}{'\n'}
+            Tél. : {LEGAL_HOST_PHONE}{'\n\n'}
             Les données sont stockées dans la région europe-west1 (Belgique).
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Propriété intellectuelle</Text>
-          <Text style={s.body}>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
             L'ensemble du code source, du design, des textes et des éléments graphiques de l'application ParfumScan est la propriété exclusive de l'éditeur, sauf mention contraire.{'\n\n'}
             Toute reproduction, représentation, modification ou adaptation, partielle ou totale, est interdite sans autorisation préalable.{'\n\n'}
             La base de données de parfums est constituée à partir de données publiques et reste la propriété de leurs auteurs respectifs.
@@ -64,8 +66,8 @@ export default function LegalPage() {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Contact</Text>
-          <Text style={s.body}>
-            Pour toute question relative à l'application, vous pouvez contacter l'éditeur à l'adresse email indiquée ci-dessus.
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
+            Pour toute question relative à l'application, contactez-nous à l'adresse : {LEGAL_EMAIL}.
           </Text>
         </View>
 

@@ -22,16 +22,18 @@ interface Props {
   referencePrice: number | undefined;
   isFav: boolean;
   wardrobeItem: WardrobeItem | null;
+  inScentList: boolean;
   purchaseUrl: string | null | undefined;
   onToggleFav: () => void;
   onWardrobePress: () => void;
+  onScentPress: () => void;
   onPurchasePress: () => void;
 }
 
 export default function StickyBottomBar({
   scrollY, priceSectionY, bestPrice, referencePrice,
-  isFav, wardrobeItem, purchaseUrl,
-  onToggleFav, onWardrobePress, onPurchasePress,
+  isFav, wardrobeItem, inScentList, purchaseUrl,
+  onToggleFav, onWardrobePress, onScentPress, onPurchasePress,
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -75,9 +77,9 @@ export default function StickyBottomBar({
           )}
         </View>
 
-        {/* Actions fav + wardrobe */}
+        {/* Actions fav + scent + wardrobe */}
         <View style={s.actions}>
-          <Pressable onPress={onToggleFav} style={s.actionBtn} hitSlop={8}>
+          <Pressable onPress={onToggleFav} style={s.actionBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
             <Ionicons
               name={isFav ? 'heart' : 'heart-outline'}
               size={22}
@@ -85,7 +87,15 @@ export default function StickyBottomBar({
             />
           </Pressable>
 
-          <Pressable onPress={onWardrobePress} style={s.actionBtn} hitSlop={8}>
+          <Pressable onPress={onScentPress} style={s.actionBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={inScentList ? 'Voir dans le carnet' : 'Ajouter au carnet'}>
+            <Ionicons
+              name={inScentList ? 'eyedrop' : 'eyedrop-outline'}
+              size={22}
+              color={inScentList ? theme.colors.secondary : theme.colors.textMuted}
+            />
+          </Pressable>
+
+          <Pressable onPress={onWardrobePress} style={s.actionBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={wardrobeItem ? 'Modifier dans la parfumerie' : 'Ajouter à la parfumerie'}>
             <Ionicons
               name={wardrobeItem ? 'flask' : 'flask-outline'}
               size={22}

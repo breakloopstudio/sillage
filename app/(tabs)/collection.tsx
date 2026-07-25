@@ -11,29 +11,35 @@ import { useShelves } from '../../src/hooks/useShelves';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useWeather } from '../../src/hooks/useWeather';
 import { useNetwork } from '../../src/hooks/useNetwork';
-import WeatherWidget from '../../src/features/wardrobe/WeatherWidget';
+import { useScentList } from '../../src/hooks/useScentList';
 import { scoreWardrobeItemForWeather } from '../../src/utils/weather-scoring';
 import { saveWeatherCoords } from '../../src/services/user-data';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
-import ProfileAvatar from '../../src/components/ProfileAvatar';
 import EmptyState from '../../src/components/EmptyState';
 import Button from '../../src/components/Button';
+import FilterSheet from '../../src/components/FilterSheet';
 import SOTDCard from '../../src/features/wardrobe/SOTDCard';
 import SOTDPicker from '../../src/features/wardrobe/SOTDPicker';
 import FilterBar from '../../src/features/wardrobe/FilterBar';
 import WardrobeGrid from '../../src/features/wardrobe/WardrobeGrid';
 import WardrobeQuickSheet from '../../src/features/wardrobe/WardrobeQuickSheet';
 import ShelfManager from '../../src/features/wardrobe/ShelfManager';
+import ScentListEntry from '../../src/features/scentlist/ScentListEntry';
+import {
+  EMPTY_FAVORI_FILTERS,
+  countActiveFilters,
+  hasActiveFilters,
+  matchesFavoriFilters,
+  favoriMatchesSearch,
+  type FavoritesFilters,
+} from '../../src/utils/favori-filters';
+import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import type { WardrobeItem } from '../../src/models/wardrobe.interface';
 
-interface Props {
-  onScroll?: (y: number) => void;
-  onSheetOpen?: (visible: boolean) => void;
-  onHorizontalScrollActive?: (active: boolean) => void;
-}
+interface Props {}
 
-export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScrollActive }: Props) {
+export default function WardrobePage(_props: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
@@ -44,7 +50,9 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
   const { shelves, create: createShelf, update: updateShelf, remove: removeShelf } = useShelves(uid);
   const { sotd, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
-  const { weather, loading: weatherLoading, error: weatherError, coords } = useWeather(isAuthenticated && isOnline);
+  const { weather, loading: weatherLoading, coords } = useWeather(isAuthenticated && isOnline);
+  const { items: scentItems } = useScentList(uid);
+  const { reportScroll } = useNavigationChrome();
 
   const haveItems = useMemo(() => items.filter(i => i.ownership === 'have'), [items]);
   const sotdScore = useMemo(() => {
@@ -64,6 +72,8 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
   const [activeOwnership, setActiveOwnership] = useState<string | null>(null);
   const [activeShelfId, setActiveShelfId] = useState<string | null>(null);
   const [activeSort, setActiveSort] = useState<string>('recent');
+  const [attrFilters, setAttrFilters] = useState<FavoritesFilters>(EMPTY_FAVORI_FILTERS);
+  const [showAttrSheet, setShowAttrSheet] = useState(false);
   const [quickSheetItem, setQuickSheetItem] = useState<WardrobeItem | null>(null);
   const [shelfManagerVisible, setShelfManagerVisible] = useState(false);
   const [sotdPickerVisible, setSotdPickerVisible] = useState(false);
@@ -74,9 +84,17 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
     setSotdCardAnchor(e.nativeEvent.layout.y + e.nativeEvent.layout.height);
   }, []);
 
-  useEffect(() => {
-    onSheetOpen?.(quickSheetItem !== null || sotdPickerVisible);
-  }, [quickSheetItem, sotdPickerVisible, onSheetOpen]);
+  const activeAttrCount = useMemo(() => countActiveFilters(attrFilters), [attrFilters]);
+  const handleOpenAttrSheet = useCallback(() => setShowAttrSheet(true), []);
+  const handleCloseAttrSheet = useCallback(() => setShowAttrSheet(false), []);
+  const handleAttrFiltersChange = useCallback((next: FavoritesFilters) => setAttrFilters(next), []);
+  const handleAttrReset = useCallback(() => setAttrFilters(EMPTY_FAVORI_FILTERS), []);
+  const handleGlobalReset = useCallback(() => {
+    setAttrFilters(EMPTY_FAVORI_FILTERS);
+    setSearchQuery('');
+    setActiveOwnership(null);
+    setActiveShelfId(null);
+  }, []);
 
   const lastWeatherCoords = useRef<string | null>(null);
 
@@ -92,12 +110,10 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
     let result = [...items];
     if (activeOwnership) result = result.filter(i => i.ownership === activeOwnership);
     if (activeShelfId) result = result.filter(i => i.shelfIds.includes(activeShelfId));
+    result = result.filter(i => matchesFavoriFilters(i, attrFilters));
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      result = result.filter(i =>
-        (i.nom ?? '').toLowerCase().includes(q) ||
-        (i.marque ?? '').toLowerCase().includes(q)
-      );
+      result = result.filter(i => favoriMatchesSearch(i, q));
     }
     result.sort((a, b) => {
       switch (activeSort) {
@@ -112,7 +128,7 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
       }
     });
     return result;
-  }, [items, activeOwnership, activeShelfId, searchQuery, activeSort, weather]);
+  }, [items, activeOwnership, activeShelfId, attrFilters, searchQuery, activeSort, weather]);
 
   const handleQuickOwnership = (ownership: WardrobeItem['ownership']) => {
     if (!quickSheetItem) return;
@@ -174,9 +190,8 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
       <SafeAreaView edges={['bottom']} style={s.container}>
         <View style={s.header}>
           <Text style={s.title}>Ma Parfumerie</Text>
-          <ProfileAvatar />
         </View>
-        <EmptyState variant="wardrobe" onAction={() => router.replace('/(tabs)')} />
+        <EmptyState variant="wardrobe" onAction={() => router.push('/(tabs)')} />
         <View style={s.emptyCtaRow}>
           <Button variant="outline" onPress={() => router.push('/(tabs)/scan')} icon="camera-outline" style={s.emptyCtaBtn}>
             Scanner un flacon
@@ -189,19 +204,27 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
       <View style={s.header}>
-        <Text style={s.title}>Ma Parfumerie · {items.length}</Text>
-        <ProfileAvatar />
-      </View>
-
-      <WeatherWidget weather={weather} loading={weatherLoading} error={weatherError} sotdName={sotd?.nom ?? undefined} sotdScore={sotdScore ?? undefined} />
-
+          <Text style={s.title}>Ma Parfumerie · {items.length}</Text>
+        </View>
+        
       <View ref={sotdCardRef} onLayout={handleSotdCardLayout}>
         <SOTDCard
           sotd={sotd}
+          weather={weather}
+          weatherLoading={weatherLoading}
+          sotdScore={sotdScore}
           onPress={() => sotd && router.push(`/wardrobe/${sotd.parfumId}`)}
           onChangePress={() => setSotdPickerVisible(true)}
         />
       </View>
+
+      {scentItems.length > 0 && (
+        <ScentListEntry
+          toTryCount={scentItems.filter(i => i.status === 'to_try').length}
+          triedCount={scentItems.filter(i => i.status === 'tried').length}
+          onPress={() => router.push({ pathname: '/(tabs)/selection', params: { segment: 'carnet' } })}
+        />
+      )}
 
       <FilterBar
         shelves={shelves}
@@ -215,15 +238,30 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
         onSortChange={setActiveSort}
         onSearchChange={setSearchQuery}
         onManageShelves={() => setShelfManagerVisible(true)}
-        onHorizontalScrollActive={onHorizontalScrollActive}
+        attrFilters={attrFilters}
+        attrCount={activeAttrCount}
+        onOpenAttrSheet={handleOpenAttrSheet}
+        onAttrFiltersChange={handleAttrFiltersChange}
       />
+
+      {filtered.length === 0 && items.length > 0 && (activeAttrCount > 0 || searchQuery.trim().length > 0 || activeOwnership || activeShelfId) && (
+        <View style={s.emptyFilter}>
+          <Ionicons name="funnel-outline" size={28} color={theme.colors.textMuted} />
+          <Text style={s.emptyFilterText}>
+            {activeAttrCount > 0 ? 'Aucun parfum ne correspond à ces filtres' : `Aucun résultat pour « ${searchQuery.trim()} »`}
+          </Text>
+          <Pressable style={s.emptyResetBtn} onPress={handleGlobalReset}>
+            <Text style={s.emptyResetBtnText}>Réinitialiser</Text>
+          </Pressable>
+        </View>
+      )}
 
       <WardrobeGrid
         key={resolvedMode}
         items={filtered}
         loading={loading}
         onItemPress={setQuickSheetItem}
-        onScroll={onScroll}
+        onScroll={reportScroll}
       />
 
       <WardrobeQuickSheet
@@ -274,6 +312,15 @@ export default function WardrobePage({ onScroll, onSheetOpen, onHorizontalScroll
         }}
         onClose={() => setSotdPickerVisible(false)}
       />
+      <FilterSheet
+        visible={showAttrSheet}
+        items={items}
+        filters={attrFilters}
+        resultCount={filtered.length}
+        onFiltersChange={handleAttrFiltersChange}
+        onReset={handleAttrReset}
+        onClose={handleCloseAttrSheet}
+      />
     </SafeAreaView>
   );
 }
@@ -288,5 +335,30 @@ function getStyles(t: Theme) {
     authDesc: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, textAlign: 'center', lineHeight: 20, marginTop: 6 },
     emptyCtaRow: { alignItems: 'center', marginTop: 8 },
     emptyCtaBtn: { minWidth: 200 },
+    emptyFilter: {
+      paddingVertical: 24,
+      alignItems: 'center' as const,
+    },
+    emptyFilterText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      color: t.colors.textMuted,
+      marginTop: 8,
+      textAlign: 'center' as const,
+    },
+    emptyResetBtn: {
+      marginTop: 12,
+      borderWidth: 1.5 as number,
+      borderColor: t.colors.primary,
+      borderRadius: t.radius.base,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      minHeight: 44,
+    },
+    emptyResetBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      color: t.colors.primary,
+    },
   } as const;
 }

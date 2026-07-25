@@ -1,4 +1,4 @@
-# ParfumScan React — Environment & Commands (v6.18)
+# ParfumScan React — Environment & Commands (v6.23)
 
 ## Environnement local (Windows)
 | Variable | Valeur |
@@ -92,7 +92,7 @@ npm run test:ci       # CI mode avec couverture
 react-native 0.86.0 · expo ~57 · expo-router ~57
 @react-native-firebase/* ^25 · expo-camera ~57 · expo-image ~57 · expo-splash-screen ~57
 react-native-gesture-handler ~2.32 · react-native-reanimated ~4.5 · react-native-worklets 0.10
-react-native-svg ^15 · react-native-pager-view ^8.0 · @react-native-vector-icons/ionicons ^13
+react-native-svg ^15 · react-native-pager-view ^8.0 · react-native-tab-view ^4.3 · @react-native-vector-icons/ionicons ^13
 @react-native-async-storage/async-storage · expo-navigation-bar ~57 · expo-system-ui ~57 · typescript ~6.0
 react-hook-form ^7.81 · zod ^4.4
 expo-speech-recognition ^56 · expo-audio ~57 · expo-file-system ~57 · expo-location ~57
@@ -128,6 +128,46 @@ expo-speech-recognition ^56 · expo-audio ~57 · expo-file-system ~57 · expo-lo
 **Tests** : 194 tests, 15 suites. Test `error-translator` corrigé (unknown code → générique FR).
 
 **Scripts** : `audit-search-fields.ts`, `backfill-search-fields.ts`.
+
+## Notes v6.21 — Page Profil (23/07/2026)
+
+**Page Profil** : nouvelle route `/profile` (push slide_from_right). Accessible depuis le `ProfileAvatar` des 4 onglets (cible modifiée `/settings` → `/profile`). Auth gate inline (non connecté : écran connexion avec bouton retour, pattern maison existant).
+
+**Structure verticale** : header (back + titre « Profil » + rond settings 36 `surface2`/`border`) → identité centrée (avatar 88, displayName ou email local, email `textMuted`) → carte stats 3 colonnes (Favoris · Parfumerie · Scans, chiffres `Inter_700Bold` 24) + ligne chips ownership si parfumerie non vide (couleurs soft/ink dérivées de `WardrobeCard.badgeStyle`) → carte SOTD (parfum du jour avec image 44 → `/wardrobe/[parfumId]`, ou CTA « Choisis » → `/collection`, ou masquée si vide) → section Explorer : 4 rows data-driven (Favoris, Parfumerie, Historique, ScentList) avec icône cercle 36 `primarySoft` + compteur + chevron → déconnexion (bouton outline `overpriced`, `logout()` + `router.replace('/auth/login')`).
+
+**Données** : `useFavoris`, `useWardrobe`, `useScans`, `useSotd`. Loading agrégé (`dataLoading = favLoading || wardLoading || scansLoading`) — identité visible immédiatement, compteurs masqués (—) pendant le chargement, pas de saut de layout. Ownership via `useMemo` sur `items` (pattern `collection.tsx:68-72`). Rond settings → `/settings` (remplace l'ancienne fonction du ProfileAvatar ; la déconnexion est conservée aussi dans settings).
+
+**Évolutivité** : les rows Explorer sont un tableau `NAV_ROWS` (4 entrées) mappé avec `as const` — ajouter une entrée = +1 objet. La streak SOTD est prévue côté structure mais pas implémentée (dates `YYYY-MM-DD` existent en Firestore, requêtables ultérieurement).
+
+**Fichiers** : `app/profile.tsx` (créé, ~280 lignes), `src/components/ProfileAvatar.tsx` (modifié 1 ligne), `app/_layout.tsx` (ajout route).
+
+**Tests** : 193/194 (1 échec préexistant EmptyState.wishlist, inchangé). `npx tsc --noEmit` : 0 erreur sur `profile.tsx`.
+
+## Notes v6.20 — Parfumerie v2 : bannière unifiée, WardrobeCard native, filtres attributs (23/07/2026)
+
+**Bannière unifiée** : fusion de `WeatherWidget` + `SOTDCard` en une carte `primarySoft` compacte d'environ 40 px (économie ~55 px). Météo = icône + température ; SOTD = image + nom·marque + badge score coloré (seuils deal ≥ 70, fair ≥ 40) ; les deux segments coexistent avec un dot séparateur. États dégradés : pas de SOTD → label météo complet + CTA ; pas de météo → segment masqué ; ni l'un ni l'autre → carte masquée (`null`). `WeatherWidget.tsx` supprimé (usage unique).
+
+**WardrobeCard native** : reconstruction sans wrapper `ParfumCard` pour corriger les bugs d'overlay. Système de zones strictes : top-left = signature (secondarySoft), top-right = ownership (couleurs existantes), bottom-left = rating « ★ n » compact sur image. Notes perso déplacées dans le corps (inline). Hauteur image 136 px, corps ~66 px → `CARD_HEIGHT` = 212. Pas de ligne prix (non pertinente pour la parfumerie). Helper `brandColor` dupliqué localement.
+
+**Filtres attributs** : `FilterSheet` déplacé de `features/favorites/` → `components/FilterSheet.tsx` et généralisé (`items: FilterableItem[]`). `FilterBar` gagne un bouton « Filtres » (ligne recherche, badge compteur) + ligne conditionnelle de chips actifs (couleurs saisonnières). La page `collection.tsx` intègre `attrFilters`/`showAttrSheet`/`FilterSheet` + empty state + reset global owner/shelf/recherche. Recherche étendue aux notes (EN + FR, via `favoriMatchesSearch` + `allNotes`). Ownership/étagères restent en pills inline (axe primaire quotidien), les attributs en sheet (découverte occasionnelle) — barre hybride justifiée.
+
+**`favori-filters.ts` généralisé** : `FilterableItem` (interface minimale acceptée par `UserFavori` et `WardrobeItem`), signatures basées sur `FilterableItem` au lieu de `UserFavori`. Nouveaux helpers `buildActiveChips(f)` + `removeActiveChip(f, chip)` partagés entre `favorites.tsx` et `FilterBar`.
+
+**Dénormalisation** : 4 champs sur `WardrobeItem` (miroir `UserFavori` : `longevity`, `sillage`, `seasonScores`, `allNotes` — note: `allNotes` pour éviter la collision avec les notes personnelles texte `notes: string | null`). `addToWardrobe` accepte `parfum?: Parfum` optionnel ; si absent, fetch best-effort `getParfumById` (pattern `moveFavori`). Un seul call site modifié (`catalog/[id].tsx` passe `parfum`), les 2 autres (`favorites.tsx`, `history.tsx`) couverts par le fetch interne. `docToWardrobeItem` lit les 4 champs avec fallback `null`.
+
+**Tests** : 194 tests, 15 suites (inchangé). Tests `user-data.test.ts` fixés pour les nouveaux champs `Parfum` obligatoires.
+
+## Notes v6.19 — Filtres avancés des favoris (23/07/2026)
+
+**Filtres Favoris** : nouveau `FilterSheet` multi-facettes (Famille / Saison / Tenue / Sillage) avec chips multi-sélection, compteurs et application live. Barre de filtres simplifiée (bouton unique « Filtres » + badge compteur, chips actifs dismissibles, recherche texte étendue aux notes EN/FR).
+
+**Dénormalisation** : 4 nouveaux champs dans `UserFavori` (`longevity`, `sillage`, `seasonScores`, `notes`) peuplés par `buildFavoriFilterFields()` au moment de l'ajout. `addFavori()` refactorée avec une signature `(uid, parfum: Parfum)` — le call site unique (`catalog/[id].tsx`) mis à jour. `moveFavori()` enrichi (fetch best-effort du Parfum). `useFavoris` hook débarrassé du wrapper `addFavori` inutilisé.
+
+**Utils** : `src/utils/season.ts` (SeasonKey, SEASON_META, normalizeSeasonKey, seasonScoresFromRanking) extrait de la fiche détail — partagé avec les filtres. `src/utils/favori-filters.ts` (FavoritesFilters, prédicats, buckets, LONGEVITY_OPTIONS, SILLAGE_OPTIONS, favoriMatchesSearch).
+
+**Option B** : pas de backfill, pas de heal. Favoris anciens sans les champs exclus des facettes actives (ré-ajout manuel accepté).
+
+**Tests** : 195 tests, 15 suites. Tests `addFavori` mis à jour pour le nouvel objet Parfum (assertions sur les 4 champs filtres). Hook `useFavoris` nettoyé.
 
 ## Notes v6.16 — Scan stability, BrandSheet, Pager gestures (22/07/2026)
 
@@ -188,6 +228,43 @@ Refonte catalogue v2 — structure hybride rangées éditoriales + grille filtra
 
 ## Notes v6.7
 Parfumerie (ex « Garde-robe ») — icône `flask`. Favoris en grille (filtres famille, tri, ActionSheet). Historique groupé par période (Aujourd'hui/Hier/Cette semaine...), scans sauvegardés dans tous les états (no-result, error). `ActionSheet` bottom sheet custom. Dénormalisation `bestPrice`/`referencePrice`/`annee` dans UserFavori/UserScan. Back gesture edge-pan (40px strip gauche) sur fiche détail catalog. SOTDPicker ancré au-dessus de la carte (position absolute, sans Reanimated). `ImageViewerPopup` : tap sur la photo du parfum → popup plein écran. Recherche en grille 2 colonnes (`compact`). Images en `contain` (pas de crop). Parfums similaires triés par popularité + shuffle journalier. Recherche par préfixes (scoring `startsWith` + bonus `reviewCount`).
+
+## Notes v6.22 — Swipe horizontal entre onglets + fix indicateur DockBar (24/07/2026)
+
+**Navigation swipe** : remplacement du navigateur déprécié `Tabs` (expo-router) par `TopTabs` (`expo-router/js-top-tabs` — vendorisé dans expo-router 57). C'est un navigateur material-top-tabs basé sur `react-native-tab-view` (v4.3.2) + `react-native-pager-view` (8.0.2, déjà installé SDL-pinned). Swipe horizontal natif entre les 4 onglets avec indicateur doré continu piloté par `position` (Animated.Value). Navigation cross-tab (`router.push`), deep links, `useFocusEffect`, `useLocalSearchParams` préservés.
+
+**DockBar** : bug fixé — l'indicateur doré subissait un off-by-one pour les onglets 2 (Parfumerie) et 3 (Profil) : la formule `state.index < 2 ? state.index : state.index - 1` tronquait les indices 2→1 et 3→2. Maintenant `visualIdx = state.index`. Ajout du helper `getIndicatorLeftAtProgress(screenWidth, progress)` pour l'indicateur continu. Le `spring` existant devient le fallback (si `position` absente). La prop `position` (RN Animated.Value) est pontée vers `indicatorLeft` SharedValue via `addListener`.
+
+**NavigationChromeContext** : nouveau `resetDock()` — réaffiche le dock après un changement d'onglet (tap ou swipe). Utilisé via `screenListeners={{ focus: resetDock }}`. Utile surtout au swipe : si le dock était caché après scroll profond, il réapparaît automatiquement sur le nouvel onglet.
+
+**`tabBarPosition="bottom"`** : obligatoire sur TopTabs. Sans ça le DockBar (position absolute) se résout contre le parent top (conteneur hauteur 0 en haut de l'écran) → barre invisible en haut.
+
+**Dépendance** : `react-native-tab-view@^4` (JS pur), peer `react-native-pager-view` satisfait par la version SDL 8.0.2.
+
+**Tests** : 227 tests, 17 suites (inchangé). `npx tsc --noEmit` : 0 erreur sur `app/` et `src/`.
+
+## Notes v6.23 — Fix page fantôme TopTabs + resync docs (24/07/2026)
+
+**Bug** : swipe droite→gauche depuis l'onglet Profil révélait une 5e page blanche (seule SearchChrome visible). Cause : `app/(tabs)/scentlist.tsx` (stub redirect `return null`) auto-enregistré par expo-router comme 5e écran du TopTabs — `getSortedChildren` (expo-router `useScreens.js`) ajoute les routes du dossier non déclarées après les écrans déclarés → 5 pages natives dans le pager ViewPager2. Latent sous l'ancien `Tabs` (non swipeable), exposé par la migration TopTabs v6.22. Le `router.replace` du shim tirait une seule fois et perdait la course contre le settle du swipe → page blanche stable.
+
+**Fix** : shim déplacé `app/(tabs)/scentlist.tsx` → `app/scentlist.tsx` (Stack racine, non swipeable, `animation: 'none'`). Call site `collection.tsx` branché en direct sur `/(tabs)/selection?segment=carnet` (pattern `profile.tsx`). Clamp `Math.min(state.index, 3)` sur l'indicateur DockBar (2 spots).
+
+**Règle verrouillée** : aucun fichier-route utilitaire (redirect, stub, shim) dans `app/(tabs)/` — tout fichier du groupe devient une page swipeable du TopTabs. Les redirects vivent à la racine `app/`.
+
+**Rappel chemins** : la page Profil vit dans `app/(tabs)/profile.tsx` depuis v6.22 — la note v6.21 fait référence à l'ancien chemin `app/profile.tsx`. `ProfileAvatar.tsx` n'existe plus : l'avatar utilisateur est rendu dans la DockBar (onglet Profil, photo si `user.photoURL`).
+
+**Docs resynchronisées** : rules.md §2 (arborescences réelles : 14 services, 17 hooks, 13 components, 10 utils, 8 models, 10 dossiers features), §13 (227 tests / 17 suites), §15 (météo GPS-only, bannière unifiée — WeatherWidget supprimé v6.20), §19 (onboarding supprimé). reference.md : weather.ts GPS-only, +`scentlist.ts`, +`account.ts`, +`useScentList`, +`UserScentItem`, suppression du bloc DockBar pré-v6.22 (5 positions), FilterSheet `items: FilterableItem[]`, EmptyState 5 variantes.
+
+## Migration Supabase (en cours — l'app tourne toujours sur Firebase)
+
+**Statut** : Phase 0 validée (24/07/2026). Aucun code app modifié.
+**Plan complet** : `MIGRATION_SUPABASE.md` (décisions, cartographie, phasage).
+**Décisions verrouillées** : Expo Push (pas FCM) · auth Supabase fresh-start (pas de mapping UID, pas de comptes à migrer) · recherche tsvector + pg_trgm · IDs parfums = slugs texte · cutover big-bang par version.
+**Schéma** : `supabase/migrations/0001_extensions.sql` → `0006_functions.sql` — validé par `supabase db reset` + `supabase/smoke-test.sql` (12 tests, rejouable via `Get-Content supabase/smoke-test.sql | docker exec -i supabase_db_ParfumScan_react psql -U postgres -d postgres`).
+**Projet cloud** : `zrifarygomoljwhdjcbh` (Europe). Clés dans `.env` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` à renseigner pour les scripts).
+**Local** : `supabase start` (Docker Desktop requis) · `supabase db reset` · Studio http://127.0.0.1:54323 · DB postgresql://postgres:postgres@127.0.0.1:54322/postgres
+**CLI** : installé globalement (`npm i -g supabase`) — sur cette machine, lancer via `cmd /c` (ExecutionPolicy PowerShell).
+**Phases restantes** : ~~1 = export/import + push cloud + images~~ ✅ ~~2 = couche services~~ ✅ ~~3 = Edge Functions~~ ✅ **déployées** (24/07) — 6 fonctions en prod (`supabase functions deploy`), 3 crons pg_cron actifs (0008-0009), secrets OPENAI_API_KEY + CRON_SERVICE_ROLE_KEY configurés, smoke tests OK — 4 = activer `EXPO_PUBLIC_USE_SUPABASE=true` + test end-to-end device (scan, recherche, auth, favoris, realtime) · 5 = release + retrait deps Firebase.
 
 ## Docs
 Expo SDK 57: https://docs.expo.dev/versions/v57.0.0/

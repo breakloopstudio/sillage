@@ -48,13 +48,6 @@ describe('EmptyState', () => {
     });
   });
 
-  describe('variant: wishlist', () => {
-    it('renders correct title', async () => {
-      await renderWithTheme(<EmptyState variant="wishlist" onAction={onAction} />);
-      expect(screen.getByText("Ta liste d'envies est vide")).toBeTruthy();
-    });
-  });
-
   describe('variant: favoris', () => {
     it('renders correct title', async () => {
       await renderWithTheme(<EmptyState variant="favoris" onAction={onAction} />);

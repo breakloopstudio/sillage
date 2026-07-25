@@ -25,9 +25,10 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState<'email' | 'google' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
-  const canSubmit = email.trim().length > 0 && password.length >= 6;
+  const canSubmit = email.trim().length > 0 && password.length >= 6 && ageConfirmed;
 
   const handleEmailRegister = async () => {
     if (!canSubmit) return;
@@ -149,6 +150,13 @@ export default function RegisterPage() {
             </View>
           ) : null}
 
+          <Pressable style={s.checkRow} onPress={() => setAgeConfirmed(v => !v)} hitSlop={8} accessibilityRole="checkbox">
+            <Ionicons name={ageConfirmed ? 'checkbox' : 'square-outline'} size={22} color={ageConfirmed ? theme.colors.primary : theme.colors.textMuted} />
+            <Text style={s.checkLabel}>Je certifie avoir 15 ans ou plus</Text>
+          </Pressable>
+
+          <Text style={s.ageNote}>ParfumScan n'est pas destiné aux moins de 15 ans.</Text>
+
           <Pressable
             style={[s.submitBtn, (!canSubmit || isLoading) && s.submitBtnDisabled]}
             onPress={handleEmailRegister}
@@ -198,5 +206,8 @@ function getStyles(t: Theme) {
     link: { alignSelf: 'center', marginTop: 24 },
     linkText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted },
     linkBold: { fontFamily: 'Inter_600SemiBold', color: t.colors.primary },
+    checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+    checkLabel: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.text, flex: 1 },
+    ageNote: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, marginBottom: 8 },
   } as const;
 }

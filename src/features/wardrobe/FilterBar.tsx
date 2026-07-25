@@ -5,6 +5,12 @@ import { View, Text, TextInput, ScrollView, Pressable } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { ownershipLabel } from '../../utils/ownership';
+import { SEASON_META } from '../../utils/season';
+import {
+  type FavoritesFilters,
+  buildActiveChips,
+  removeActiveChip,
+} from '../../utils/favori-filters';
 import type { Shelf, WardrobeItem } from '../../models/wardrobe.interface';
 
 const SORT_OPTIONS: { key: string; label: string }[] = [
@@ -29,7 +35,10 @@ interface Props {
   onSortChange: (s: string) => void;
   onSearchChange: (q: string) => void;
   onManageShelves: () => void;
-  onHorizontalScrollActive?: (active: boolean) => void;
+  attrFilters: FavoritesFilters;
+  attrCount: number;
+  onOpenAttrSheet: () => void;
+  onAttrFiltersChange: (next: FavoritesFilters) => void;
 }
 
 export default function FilterBar({
@@ -44,14 +53,14 @@ export default function FilterBar({
   onSortChange,
   onSearchChange,
   onManageShelves,
-  onHorizontalScrollActive,
+  attrFilters,
+  attrCount,
+  onOpenAttrSheet,
+  onAttrFiltersChange,
 }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
-
-  const handleBeginDrag = useCallback(() => onHorizontalScrollActive?.(true), [onHorizontalScrollActive]);
-  const handleEndDrag = useCallback(() => onHorizontalScrollActive?.(false), [onHorizontalScrollActive]);
 
   const currentSortLabel = SORT_OPTIONS.find(o => o.key === activeSort)?.label ?? 'Tri';
 
@@ -72,6 +81,8 @@ export default function FilterBar({
 
   const isAllActive = activeOwnership === null && activeShelfId === null;
 
+  const activeAttrChips = useMemo(() => buildActiveChips(attrFilters), [attrFilters]);
+
   return (
     <View style={s.container}>
       <View style={s.searchRow}>
@@ -79,13 +90,22 @@ export default function FilterBar({
           <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
           <TextInput
             style={s.searchInput}
-            placeholder="Rechercher dans ma parfumerie..."
+            placeholder="Nom, marque ou note..."
             placeholderTextColor={theme.colors.textMuted}
             value={searchQuery}
             onChangeText={onSearchChange}
             keyboardAppearance={keyboardAppearance}
           />
         </View>
+        <Pressable style={s.filterBtn} onPress={onOpenAttrSheet} accessibilityLabel="Ouvrir les filtres">
+          <Ionicons name="options-outline" size={16} color={attrCount > 0 ? theme.colors.primary : theme.colors.textMuted} />
+          <Text style={[s.filterLabel, attrCount > 0 && s.filterLabelActive]}>Filtres</Text>
+          {attrCount > 0 && (
+            <View style={s.filterBadge}>
+              <Text style={s.filterBadgeText} allowFontScaling={false}>{attrCount}</Text>
+            </View>
+          )}
+        </Pressable>
         <Pressable
           style={s.sortBtn}
           onPress={() => {
@@ -104,9 +124,6 @@ export default function FilterBar({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.pillsRow}
-        onScrollBeginDrag={handleBeginDrag}
-        onScrollEndDrag={handleEndDrag}
-        onMomentumScrollEnd={handleEndDrag}
       >
         <Pressable
           style={[s.pill, isAllActive && s.pillActive]}
@@ -150,6 +167,32 @@ export default function FilterBar({
           <Ionicons name="add" size={14} color={theme.colors.textMuted} />
         </Pressable>
       </ScrollView>
+
+      {activeAttrChips.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.attrChipsRow}
+        >
+          {activeAttrChips.map(chip => {
+            const isSeason = !!chip.season;
+            const seasonToken = isSeason ? SEASON_META[chip.season!].token : null;
+            const bg = isSeason && seasonToken ? (theme.colors as Record<string, string>)[`${seasonToken}Soft`] : theme.colors.primarySoft;
+            const ink = isSeason && seasonToken ? (theme.colors as Record<string, string>)[seasonToken] : theme.colors.primaryInk;
+            return (
+              <Pressable
+                key={chip.key}
+                style={[s.attrChip, { backgroundColor: bg }]}
+                onPress={() => onAttrFiltersChange(removeActiveChip(attrFilters, chip))}
+              >
+                {chip.icon && <Ionicons name={chip.icon as never} size={14} color={ink} />}
+                <Text style={[s.attrChipText, { color: ink }]} allowFontScaling={false}>{chip.label}</Text>
+                <Ionicons name="close-circle" size={14} color={ink} />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -193,6 +236,57 @@ function getStyles(t: Theme) {
       fontFamily: 'Inter_500Medium',
       fontSize: 12,
       color: t.colors.primary,
+    },
+    filterBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      minHeight: 44,
+      borderRadius: 20,
+      backgroundColor: t.colors.surface,
+      borderWidth: 1,
+      borderColor: t.colors.border,
+    },
+    filterLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      color: t.colors.textMuted,
+    },
+    filterLabelActive: {
+      color: t.colors.primaryInk,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    filterBadge: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: t.colors.primary,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    filterBadgeText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 10,
+      color: '#FFFFFF',
+    },
+    attrChipsRow: {
+      gap: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+    },
+    attrChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 20,
+    },
+    attrChipText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
     },
     pillsRow: {
       paddingHorizontal: 4,

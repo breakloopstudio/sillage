@@ -17,6 +17,15 @@
         { "fieldPath": "popularityScore", "order": "DESCENDING" },
         { "fieldPath": "__name__", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "parfums",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "perfumers", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "popularityScore", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
     }
   ]
 }

@@ -128,7 +128,7 @@ export default function WardrobeDetailPage() {
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Retour">
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
           </Pressable>
           <Pressable onPress={handleRemove} hitSlop={12}>
@@ -322,7 +322,7 @@ function getStyles(t: Theme) {
   return {
     container: { flex: 1, backgroundColor: t.colors.background },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-    scroll: { paddingBottom: 40 },
+    scroll: { paddingBottom: 88 },
     notFoundText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, textAlign: 'center' },
     header: {
       flexDirection: 'row',

@@ -10,9 +10,7 @@ import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import OfflineBanner from '../src/components/OfflineBanner';
 import { useNetwork } from '../src/hooks/useNetwork';
-import { isFirebaseReady } from '../src/services/firebase';
-import { createNotificationChannels, startFcmRegistration } from '../src/services/fcm';
-import '../src/services/firebase';
+import { createNotificationChannels, startFcmRegistration } from '../src/services/push';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { PlayfairDisplay_500Medium, PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, PlayfairDisplay_700Bold_Italic } from '@expo-google-fonts/playfair-display';
@@ -52,7 +50,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!authReady) return;
-    if (!isFirebaseReady()) return;
     if (!segments[0]) return;
     const inAuth = segments[0] === 'auth';
     if (isAuthenticated && inAuth) router.replace('/(tabs)');
@@ -89,9 +86,17 @@ function RootLayoutInner() {
             <Stack.Screen name="auth/register" options={{ animation: 'fade' }} />
             <Stack.Screen name="catalog/[id]" options={{ animation: 'slide_from_right', gestureEnabled: true, fullScreenGestureEnabled: true }} />
             <Stack.Screen name="wardrobe/[parfumId]" options={{ animation: 'slide_from_right', headerShown: false }} />
+            <Stack.Screen name="perfumer/[name]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+            <Stack.Screen name="scan" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="search" options={{ animation: 'fade' }} />
+            <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="privacy-center" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="admin" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="scentlist" options={{ animation: 'none' }} />
           </Stack>
           </ErrorBoundary>
         </AuthGuard>

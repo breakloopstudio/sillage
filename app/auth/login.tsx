@@ -8,10 +8,11 @@ import {
 import { Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import { getAuth, sendPasswordResetEmail } from '@react-native-firebase/auth';
+import { supabase } from '../../src/services/supabase';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { textOn } from '../../src/utils/contrast';
+import { translateSupabaseError } from '../../src/utils/error-translator';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -63,12 +64,12 @@ export default function LoginPage() {
     Keyboard.dismiss();
     setLoading('forgotPassword'); setErrorMessage(null); setSuccessMessage(null);
     try {
-      await sendPasswordResetEmail(getAuth(), trimmed);
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
+      if (error) throw error;
       setSuccessMessage('Email de réinitialisation envoyé ! Vérifiez votre boîte de réception.');
     } catch (e: unknown) {
-      const code = (e as { code?: string }).code;
-      if (code === 'auth/user-not-found') setErrorMessage('Aucun compte trouvé avec cet email.');
-      else setErrorMessage(e instanceof Error ? e.message : "Erreur lors de l'envoi.");
+      const msg = translateSupabaseError(e);
+      if (msg) setErrorMessage(msg);
     }
     finally { setLoading(null); }
   };
