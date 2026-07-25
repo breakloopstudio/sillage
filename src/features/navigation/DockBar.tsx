@@ -106,7 +106,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
     if (!cfg) return null;
     const isActive = state.index === index;
 
-    if (routeKey === 'profile' && user?.photoURL) {
+    if (routeName === 'profile' && user?.photoURL) {
       return (
         <Pressable
           key={routeKey}

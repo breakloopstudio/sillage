@@ -193,7 +193,7 @@ export default function WardrobePage(_props: Props) {
         </View>
         <EmptyState variant="wardrobe" onAction={() => router.push('/(tabs)')} />
         <View style={s.emptyCtaRow}>
-          <Button variant="outline" onPress={() => router.push('/(tabs)/scan')} icon="camera-outline" style={s.emptyCtaBtn}>
+          <Button variant="outline" onPress={() => router.push('/scan')} icon="camera-outline" style={s.emptyCtaBtn}>
             Scanner un flacon
           </Button>
         </View>

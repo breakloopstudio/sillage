@@ -68,9 +68,6 @@ export default function AdminPage() {
 
   const selectedParfum = searchResults.find(p => p.id === selectedId) ?? null;
 
-  if (!isAuthenticated) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>Connectez-vous en tant qu'admin.</Text></View>;
-  if (!isAdmin) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>Accès réservé aux administrateurs.</Text></View>;
-
   const pickImage = useCallback(async () => {
     if (!ImagePicker) { Alert.alert('Non disponible', 'Installe expo-image-picker pour uploader des images.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -100,6 +97,9 @@ export default function AdminPage() {
       setUploading(false);
     }
   }, [selectedId, selectedUri, selectedParfum]);
+
+  if (!isAuthenticated) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>Connectez-vous en tant qu'admin.</Text></View>;
+  if (!isAdmin) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>Accès réservé aux administrateurs.</Text></View>;
 
   return (
     <SafeAreaView style={s.container}>

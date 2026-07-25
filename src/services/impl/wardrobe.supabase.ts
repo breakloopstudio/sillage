@@ -74,27 +74,45 @@ export async function addToWardrobe(
       filterFields = { longevity: f.longevity, sillage: f.sillage, season_scores: f.seasonScores, all_notes: f.notes };
     }
     const now = new Date().toISOString();
-    // upsert = parité setDoc(merge:true) : les champs explicitement fournis
-    // (rating null, notes null, …) sont écrits, comme dans l'impl Firebase
-    const { error } = await supabase.from('wardrobe').upsert({
-      user_id: uid,
-      parfum_id: parfumId,
-      ownership,
-      nom: nom ?? null,
-      marque: marque ?? null,
-      image_url: imageUrl ?? null,
-      famille_olfactive: familleOlactive ?? null,
-      rating: null,
-      notes: null,
-      shelf_ids: [],
-      size_ml: sizeMl ?? null,
-      sotd_count: 0,
-      is_signature: false,
-      ...filterFields,
-      added_at: now,
-      updated_at: now,
-    } as never);
-    if (error) throw error;
+
+    const existing = await isInWardrobe(uid, parfumId);
+    if (existing) {
+      const { error } = await supabase
+        .from('wardrobe')
+        .update({
+          ownership,
+          nom: nom ?? existing.nom,
+          marque: marque ?? existing.marque,
+          image_url: imageUrl ?? existing.imageUrl,
+          famille_olfactive: familleOlactive ?? existing.familleOlactive,
+          size_ml: sizeMl ?? existing.sizeMl,
+          ...filterFields,
+          updated_at: now,
+        } as never)
+        .eq('user_id', uid)
+        .eq('parfum_id', parfumId);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('wardrobe').insert({
+        user_id: uid,
+        parfum_id: parfumId,
+        ownership,
+        nom: nom ?? null,
+        marque: marque ?? null,
+        image_url: imageUrl ?? null,
+        famille_olfactive: familleOlactive ?? null,
+        rating: null,
+        notes: null,
+        shelf_ids: [],
+        size_ml: sizeMl ?? null,
+        sotd_count: 0,
+        is_signature: false,
+        ...filterFields,
+        added_at: now,
+        updated_at: now,
+      } as never);
+      if (error) throw error;
+    }
   } catch (e: unknown) {
     console.warn('[wardrobe] addToWardrobe failed:', (e as Error)?.message ?? String(e));
   }

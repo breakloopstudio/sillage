@@ -12,6 +12,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
+import { formatPrice } from '../../utils/format-price';
 import { ownershipLabel } from '../../utils/ownership';
 import type { WardrobeItem } from '../../models/wardrobe.interface';
 
@@ -64,7 +65,7 @@ export default function StickyBottomBar({
           {hasPrice ? (
             <>
               <View style={s.priceRow}>
-                <Text style={s.price}>{bestPrice!.toFixed(2)} €</Text>
+                <Text style={s.price}>{formatPrice(bestPrice!)}</Text>
                 {discountPct !== null && discountPct > 0 && discountPct <= 95 && (
                   <View style={[s.discountBadge, { backgroundColor: theme.colors.deal }]}>
                     <Text style={s.discountText}>-{discountPct}%</Text>

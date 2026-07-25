@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react-native';
 import { ThemeProvider } from '../../src/theme/ThemeContext';
 import PriceDisplay from '../../src/components/PriceDisplay';
+import { formatPrice } from '../../src/utils/format-price';
 
 jest.mock('../../src/services/theme-storage', () => ({
   getThemeMode: () => Promise.resolve('system'),
@@ -21,19 +22,19 @@ async function renderWithTheme(ui: React.ReactElement) {
 describe('PriceDisplay', () => {
   it('renders the best price with euro symbol', async () => {
     await renderWithTheme(<PriceDisplay bestPrice={89.99} animated={false} />);
-    expect(screen.getByText('89.99 €')).toBeTruthy();
+    expect(screen.getByText(formatPrice(89.99))).toBeTruthy();
   });
 
   it('shows reference price crossed out when lower than best', async () => {
     await renderWithTheme(<PriceDisplay bestPrice={89.99} referencePrice={120.00} animated={false} />);
-    expect(screen.getByText('120.00 €')).toBeTruthy();
+    expect(screen.getByText(formatPrice(120.00))).toBeTruthy();
   });
 
   it('does not show reference price if equal to best', async () => {
     const { queryByText } = await renderWithTheme(
       <PriceDisplay bestPrice={100} referencePrice={100} animated={false} />
     );
-    expect(queryByText('100.00 €')).toBeTruthy();
+    expect(queryByText(formatPrice(100))).toBeTruthy();
   });
 
   describe('deal (ratio < 0.8)', () => {
@@ -79,7 +80,7 @@ describe('PriceDisplay', () => {
       const { queryByText } = await renderWithTheme(
         <PriceDisplay bestPrice={89.99} animated={false} />
       );
-      expect(screen.getByText('89.99 €')).toBeTruthy();
+      expect(screen.getByText(formatPrice(89.99))).toBeTruthy();
       expect(queryByText('Bonne affaire')).toBeNull();
       expect(queryByText('Prix correct')).toBeNull();
       expect(queryByText('Trop cher')).toBeNull();
@@ -105,7 +106,7 @@ describe('PriceDisplay', () => {
   describe('large mode', () => {
     it('renders with larger text', async () => {
       await renderWithTheme(<PriceDisplay bestPrice={89.99} large animated={false} />);
-      expect(screen.getByText('89.99 €')).toBeTruthy();
+      expect(screen.getByText(formatPrice(89.99))).toBeTruthy();
     });
   });
 

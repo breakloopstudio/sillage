@@ -2,7 +2,7 @@
 // Cron 6h — vérifie toutes les alertes prix actives pour baisses ≥ 10% ou ≥ 5€.
 // Appelée par pg_cron → pg_net avec Authorization Bearer <service_role_key>.
 
-import { createAdminClient } from '../_shared/supabase.ts';
+import { createAdminClient, verifyCronAuth } from '../_shared/supabase.ts';
 import { evaluatePriceDrop, priceAlertRunId } from '../_shared/helpers.ts';
 import { sendPush, purgeDeadTokens } from '../_shared/expo-push.ts';
 
@@ -10,7 +10,8 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  if (!verifyCronAuth(req)) return jsonResponse({ error: 'Unauthorized.' }, 401);
   const supabase = createAdminClient();
   const now = new Date();
   const runId = priceAlertRunId(now);

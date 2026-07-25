@@ -11,6 +11,7 @@ import type { Parfum } from '../models';
 import { setPendingParfum } from '../services/catalog-bridge';
 import { translateNote } from '../utils/translate-note';
 import { textOn } from '../utils/contrast';
+import { formatPrice } from '../utils/format-price';
 
 export type CardMode = 'compact' | 'comfortable' | 'compactPlus' | 'list';
 
@@ -97,9 +98,9 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
           {bestPrice !== null ? (
             <>
-              <Text style={s.priceCompact}>{bestPrice.toFixed(0)} €</Text>
+              <Text style={s.priceCompact}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
               {parfum.referencePrice && bestPrice < parfum.referencePrice && (
-                <Text style={s.priceRefCompact}>{parfum.referencePrice.toFixed(0)} €</Text>
+                <Text style={s.priceRefCompact}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
               )}
             </>
           ) : (
@@ -112,7 +113,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
 
   // ── Mode: comfortable (grille 2 col, défaut) ──
   if (mode === 'comfortable') {
-    const a11yLabel = [parfum.nom, parfum.marque, bestPrice !== null ? `${bestPrice.toFixed(0)} euros` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${parfum.referencePrice.toFixed(0)}` : ''].filter(Boolean).join(', ');
+    const a11yLabel = [parfum.nom, parfum.marque, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     return (
       <Pressable
         style={s.cardComfortable}
@@ -153,9 +154,9 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             {priceTier && <View style={[s.priceDot, { backgroundColor: theme.colors[priceTier] }]} />}
             {bestPrice !== null ? (
               <>
-                <Text style={s.priceComfortable} maxFontSizeMultiplier={1.3}>{bestPrice.toFixed(0)} €</Text>
+                <Text style={s.priceComfortable} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
                 {parfum.referencePrice && bestPrice < parfum.referencePrice && (
-                  <Text style={s.priceRefComfortable}>{parfum.referencePrice.toFixed(0)} €</Text>
+                  <Text style={s.priceRefComfortable}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
                 )}
               </>
             ) : (
@@ -169,7 +170,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
 
   // ── Mode: compactPlus (grille 2 col dense) ──
   if (mode === 'compactPlus') {
-    const a11yLabelCompact = [parfum.nom, parfum.marque, bestPrice !== null ? `${bestPrice.toFixed(0)} euros` : ''].filter(Boolean).join(', ');
+    const a11yLabelCompact = [parfum.nom, parfum.marque, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     return (
       <Pressable
         style={s.cardCompactPlus}
@@ -204,9 +205,9 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
             {bestPrice !== null ? (
               <>
-                <Text style={s.priceCompactPlus} maxFontSizeMultiplier={1.3}>{bestPrice.toFixed(0)} €</Text>
+                <Text style={s.priceCompactPlus} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
                 {parfum.referencePrice && bestPrice < parfum.referencePrice && (
-                  <Text style={s.priceRefCompactPlus}>{parfum.referencePrice.toFixed(0)} €</Text>
+                  <Text style={s.priceRefCompactPlus}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
                 )}
               </>
             ) : (
@@ -220,7 +221,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
 
   // ── Mode: list ──
   if (mode === 'list') {
-    const a11yLabelList = [parfum.nom, parfum.marque, bestPrice !== null ? `${bestPrice.toFixed(0)} euros` : ''].filter(Boolean).join(', ');
+    const a11yLabelList = [parfum.nom, parfum.marque, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     return (
       <Pressable
         style={s.cardList}
@@ -256,13 +257,13 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           <View style={s.priceRowList}>
             {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
             {bestPrice !== null ? (
-              <Text style={s.priceList} maxFontSizeMultiplier={1.3}>{bestPrice.toFixed(0)} €</Text>
+              <Text style={s.priceList} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
             ) : (
               <Text style={s.priceListMuted}>— €</Text>
             )}
           </View>
           {parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice && (
-            <Text style={s.priceRefList}>{parfum.referencePrice.toFixed(0)} €</Text>
+            <Text style={s.priceRefList}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
           )}
         </View>
       </Pressable>

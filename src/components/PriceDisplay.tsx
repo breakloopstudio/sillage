@@ -5,6 +5,7 @@ import { View, Text, type ViewStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { textOn } from '../utils/contrast';
+import { formatPrice } from '../utils/format-price';
 
 type PriceValue = 'deal' | 'fair' | 'overpriced' | 'unknown';
 
@@ -60,10 +61,10 @@ export default function PriceDisplay({
     <Animated.View style={[s.container, { backgroundColor: bg }, style, animatedStyle]}>
       <View style={s.priceRow}>
         <Text style={[s.bestPrice, { color }, large && s.bestPriceLarge]}>
-          {bestPrice.toFixed(2)} €
+          {formatPrice(bestPrice)}
         </Text>
         {referencePrice && referencePrice > 0 && bestPrice < referencePrice && (
-          <Text style={s.refPrice}>{referencePrice.toFixed(2)} €</Text>
+          <Text style={s.refPrice}>{formatPrice(referencePrice)}</Text>
         )}
         {pct !== null && pct > 0 && pct <= 95 && (
           <View style={[s.discountBadge, { backgroundColor: color }]}>

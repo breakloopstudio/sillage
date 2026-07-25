@@ -383,7 +383,7 @@ export default function HistoryPage({ onScroll }: Props) {
             </Pressable>
             <Text style={s.title}>Historique</Text>
           </View>
-          <EmptyState variant="historique" onAction={() => router.push('/(tabs)/scan')} />
+          <EmptyState variant="historique" onAction={() => router.push('/scan')} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -407,7 +407,7 @@ export default function HistoryPage({ onScroll }: Props) {
         </View>
 
         {!hasScanToday && (
-          <Pressable style={s.todayPrompt} onPress={() => router.push('/(tabs)/scan')}>
+          <Pressable style={s.todayPrompt} onPress={() => router.push('/scan')}>
             <Ionicons name="sunny-outline" size={18} color={theme.colors.primary} />
             <Text style={s.todayPromptText}>Scanner un parfum aujourd'hui ?</Text>
           </Pressable>

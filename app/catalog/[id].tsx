@@ -18,6 +18,7 @@ import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import type { Parfum } from '../../src/models';
 import type { UserScentItem } from '../../src/models/user-scent.interface';
 import { translateNote } from '../../src/utils/translate-note';
+import { formatPrice } from '../../src/utils/format-price';
 import OlfactoryPyramid from '../../src/features/catalog/OlfactoryPyramid';
 import PriceDisplay from '../../src/components/PriceDisplay';
 import Button from '../../src/components/Button';
@@ -570,9 +571,9 @@ export default function CatalogDetailPage() {
                         {offer.volumeMl ? <Text style={s.offerVolume}>{offer.volumeMl} ml</Text> : null}
                       </View>
                       <View style={s.offerRight}>
-                        <Text style={s.offerPrice}>{offer.prix.toFixed(0)} €</Text>
+                        <Text style={s.offerPrice}>{formatPrice(offer.prix, { decimals: 0 })}</Text>
                         {parfum.bestPrice && offer.prix > parfum.bestPrice ? (
-                          <Text style={s.offerDiff}>+{(offer.prix - parfum.bestPrice).toFixed(0)} €</Text>
+                          <Text style={s.offerDiff}>+{formatPrice(offer.prix - parfum.bestPrice, { decimals: 0 })}</Text>
                         ) : null}
                       </View>
                     </Pressable>

@@ -2,7 +2,7 @@
 // Cron 7h Paris — envoie une suggestion de parfum basée sur la météo du jour.
 // Appelée par pg_cron → pg_net avec Authorization Bearer <service_role_key>.
 
-import { createAdminClient } from '../_shared/supabase.ts';
+import { createAdminClient, verifyCronAuth } from '../_shared/supabase.ts';
 import { coordsKey, weatherRunId } from '../_shared/helpers.ts';
 import { fetchWeatherForServer, scoreItemForWeather, getWmoMeta, weatherEmoji, type WardrobeEntry, type WeatherData } from '../_shared/weather-scoring.ts';
 import { sendPush, purgeDeadTokens } from '../_shared/expo-push.ts';
@@ -16,7 +16,8 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  if (!verifyCronAuth(req)) return jsonResponse({ error: 'Unauthorized.' }, 401);
   const supabase = createAdminClient();
   const now = new Date();
   const runId = weatherRunId(now);

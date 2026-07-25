@@ -26,13 +26,13 @@ function chainMock(resolved: unknown = { data: null, error: null }) {
 beforeEach(() => { jest.clearAllMocks(); });
 
 describe('addToWardrobe', () => {
-  it('upserts wardrobe item with ownership and defaults', async () => {
+  it('inserts new wardrobe item with ownership and defaults', async () => {
     const chain = chainMock();
     mockFrom.mockReturnValue(chain);
     await addToWardrobe('uid1', 'parfum_1', 'have', 'Sauvage', 'Dior', 'img.jpg', 'aromatic');
     expect(mockFrom).toHaveBeenCalledWith('wardrobe');
-    expect(chain.upsert).toHaveBeenCalled();
-    const arg = chain.upsert.mock.calls[0][0];
+    expect(chain.insert).toHaveBeenCalled();
+    const arg = chain.insert.mock.calls[0][0];
     expect(arg.user_id).toBe('uid1');
     expect(arg.parfum_id).toBe('parfum_1');
     expect(arg.ownership).toBe('have');
@@ -40,6 +40,31 @@ describe('addToWardrobe', () => {
     expect(arg.rating).toBeNull();
     expect(arg.shelf_ids).toEqual([]);
     expect(arg.sotd_count).toBe(0);
+  });
+
+  it('updates ownership only for existing item (preserves user data)', async () => {
+    const existing = {
+      data: {
+        parfum_id: 'parfum_1', nom: 'Sauvage', marque: 'Dior',
+        image_url: 'img.jpg', famille_olfactive: 'aromatic',
+        ownership: 'have', rating: 4, notes: 'Top', shelf_ids: ['s1'],
+        size_ml: 100, sotd_count: 3, is_signature: true,
+        longevity: 'long', sillage: 'powerful', season_scores: null,
+        all_notes: null, added_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      },
+      error: null,
+    };
+    const chain = chainMock(existing);
+    mockFrom.mockReturnValue(chain);
+    await addToWardrobe('uid1', 'parfum_1', 'want');
+    expect(chain.update).toHaveBeenCalled();
+    const arg = chain.update.mock.calls[0][0];
+    expect(arg.ownership).toBe('want');
+    expect(arg.rating).toBeUndefined();
+    expect(arg.notes).toBeUndefined();
+    expect(arg.shelf_ids).toBeUndefined();
+    expect(arg.sotd_count).toBeUndefined();
+    expect(arg.is_signature).toBeUndefined();
   });
 });
 

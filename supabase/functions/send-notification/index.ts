@@ -2,7 +2,7 @@
 // Envoi push à un utilisateur ou broadcast. Appel client (self ou admin)
 // ou appel interne avec service_role (cron).
 
-import { createAdminClient, getUserIdFromAuth } from '../_shared/supabase.ts';
+import { createAdminClient, verifyUserToken } from '../_shared/supabase.ts';
 import { sendPush, purgeDeadTokens } from '../_shared/expo-push.ts';
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -25,7 +25,7 @@ Deno.serve(async (req: Request) => {
 
   if (!isServiceRole) {
     let uid: string;
-    try { uid = getUserIdFromAuth(req); } catch {
+    try { uid = (await verifyUserToken(req)).uid; } catch {
       return jsonResponse({ error: 'Unauthorized.' }, 401);
     }
     if (userId && uid !== userId) {

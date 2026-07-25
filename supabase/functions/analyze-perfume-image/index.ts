@@ -32,7 +32,10 @@ function jsonResponse(data: unknown, status = 200): Response {
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
-  const uid = getUserIdFromAuth(req);
+  let uid: string;
+  try { uid = getUserIdFromAuth(req); } catch {
+    return jsonResponse({ error: 'Unauthorized.' }, 401);
+  }
   const authHeader = req.headers.get('Authorization') ?? '';
   const supabase = createUserClient(authHeader);
 

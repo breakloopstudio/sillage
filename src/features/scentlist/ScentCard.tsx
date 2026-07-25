@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
+import { formatPrice } from '../../utils/format-price';
 import type { UserScentItem, ScentVerdict } from '../../models';
 
 const VERDICT_META: Record<ScentVerdict, { label: string; token: string }> = {
@@ -70,7 +71,7 @@ export default function ScentCard({ item, onPress, onLongPress, onTryPress }: Pr
               </View>
             ) : null}
             {hasPrice ? (
-              <Text style={s.price} allowFontScaling={false}>{item.bestPrice!.toFixed(0)} €</Text>
+              <Text style={s.price} allowFontScaling={false}>{formatPrice(item.bestPrice!, { decimals: 0 })}</Text>
             ) : null}
             {hasPrice && discountPct !== null && discountPct > 0 ? (
               <View style={[s.discountBadge, { backgroundColor: theme.colors.deal }]}>

@@ -8,7 +8,10 @@ import { createUserClient, getUserIdFromAuth } from '../_shared/supabase.ts';
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
-  const uid = getUserIdFromAuth(req);
+  let uid: string;
+  try { uid = getUserIdFromAuth(req); } catch {
+    return new Response(JSON.stringify({ error: 'Unauthorized.' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+  }
   const authHeader = req.headers.get('Authorization') ?? '';
   const supabase = createUserClient(authHeader);
 
