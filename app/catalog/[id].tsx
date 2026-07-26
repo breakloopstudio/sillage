@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet, useWindowDimensions, Platform, Share } from 'react-native';
-import type { NativeSyntheticEvent, NativeScrollEvent, LayoutChangeEvent } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { getParfumById, updateParfum, getSimilarParfums } from '../../src/services/firestore';
@@ -156,14 +156,13 @@ function AccordBar({ name, pct, index, s, t }: { name: string; pct: number; inde
       <View style={[s.statTrack, { backgroundColor: t.colors.primarySoft }]}>
         <View style={[s.statFill, { width: `${pct}%`, backgroundColor: color }]} />
       </View>
-      <Text style={[s.statPct, { color: t.colors.violetInk }]}>{pct}%</Text>
+      <Text style={[s.statPct, { color: t.colors.primaryInk }]}>{pct}%</Text>
     </View>
   );
 }
 
 export default function CatalogDetailPage() {
   const rawId = useLocalSearchParams<{ id: string }>().id;
-  // Normalisation : useLocalSearchParams peut retourner string | string[]
   const id: string | undefined = Array.isArray(rawId) ? rawId[0] : rawId;
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
@@ -236,13 +235,21 @@ export default function CatalogDetailPage() {
 
     return () => { loadingRef.current = false; };
   }, [id]);
-  // Statut favori + wardrobe + scentlist
   useEffect(() => {
-    if (user?.uid && id) {
-      isParfumFavori(user.uid, id).then(r => { setIsFav(r.isFavori); setFavoriId(r.favoriId); }).catch(() => {});
-      isInWardrobe(user.uid, id).then(item => { setWardrobeItem(item); }).catch(() => {});
-      isInScentList(user.uid, id).then(item => { setScentItem(item); }).catch(() => {});
-    }
+    if (!user?.uid || !id) return;
+    let cancelled = false;
+    Promise.all([
+      isParfumFavori(user.uid, id).catch(() => ({ isFavori: false, favoriId: null })),
+      isInWardrobe(user.uid, id).catch(() => null),
+      isInScentList(user.uid, id).catch(() => null),
+    ]).then(([fav, ward, scent]) => {
+      if (cancelled) return;
+      setIsFav(fav.isFavori);
+      setFavoriId(fav.favoriId);
+      setWardrobeItem(ward);
+      setScentItem(scent);
+    });
+    return () => { cancelled = true; };
   }, [user?.uid, id]);
 
 
@@ -402,9 +409,9 @@ export default function CatalogDetailPage() {
     }
   }, [user?.uid, id]);
 
-  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollY.value = e.nativeEvent.contentOffset.y;
-  }, []);
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
 
   const handleImageError = useCallback(() => setImgFailed(true), []);
   const handleImagePress = useCallback(() => setShowImageViewer(true), []);
@@ -420,8 +427,14 @@ export default function CatalogDetailPage() {
   const handlePurchasePress = useCallback(() => {
     if (parfum?.purchaseUrl) Linking.openURL(parfum.purchaseUrl);
   }, [parfum?.purchaseUrl]);
+  const handleNotePress = useCallback((note: string, layer?: 'top' | 'heart' | 'base' | null) => setSelectedNote({ name: note, layer: layer ?? null }), []);
+  const handleTrySheetClose = useCallback(() => setShowTrySheet(false), []);
+  const handleWardrobeSheetClose = useCallback(() => setShowWardrobeSheet(false), []);
+  const handleNotePopupClose = useCallback(() => setSelectedNote(null), []);
+  const handleImageViewerClose = useCallback(() => setShowImageViewer(false), []);
 
   const heroUrl = parfum?.imageUrl ?? null;
+  const heroUrl2x = parfum?.imageUrl2x ?? null;
   const hasBestPrice = typeof parfum?.bestPrice === 'number' && parfum.bestPrice > 0;
   const ratingDisplay: number | undefined = (() => {
     const p = parfum;
@@ -457,15 +470,16 @@ export default function CatalogDetailPage() {
     ) : (
       <View style={{flex:1,backgroundColor:t.colors.background}}>
           <CollapsingHeader scrollY={scrollY} brand={parfum.marque} name={parfum.nom} rightAction={{ icon: 'share-social-outline', onPress: handleShare, accessibilityLabel: 'Partager ce parfum' }} />
-        <ScrollView
+        <Animated.ScrollView
           style={{flex:1}}
           contentContainerStyle={{paddingTop:insets.top+70}}
-          onScroll={handleScroll}
+          onScroll={scrollHandler}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
           <DetailHero
             imageUrl={heroUrl}
+            imageUrl2x={heroUrl2x}
             brand={parfum.marque}
             imgFailed={imgFailed}
             onImageError={handleImageError}
@@ -545,7 +559,7 @@ export default function CatalogDetailPage() {
                     large
                   />
                   {parfum.purchaseUrl ? (
-                    <Button variant="primary" onPress={() => Linking.openURL(parfum.purchaseUrl!)} icon="cart-outline" style={s.buyBtn}>
+                    <Button variant="primary" onPress={handlePurchasePress} icon="cart-outline" style={s.buyBtn}>
                       Voir l'offre
                     </Button>
                   ) : null}
@@ -582,108 +596,108 @@ export default function CatalogDetailPage() {
               ) : null}
             </View>
 
-            {/* ─── Pyramide olfactive ─── */}
-            <OlfactoryPyramid
-              topNotes={parfum.notesTete}
-              heartNotes={parfum.notesCoeur}
-              baseNotes={parfum.notesFond}
-              onNotePress={(note, layer) => setSelectedNote({ name: note, layer: layer ?? null })}
-            />
+                {/* ─── Pyramide olfactive ─── */}
+                <OlfactoryPyramid
+                  topNotes={parfum.notesTete}
+                  heartNotes={parfum.notesCoeur}
+                  baseNotes={parfum.notesFond}
+                  onNotePress={handleNotePress}
+                />
 
-            {/* ─── Accords principaux ─── */}
-            {parfum.mainAccords && parfum.mainAccords.length > 0 ? (
-              <View style={s.infoZone}>
-                <SectionTitle icon="color-filter-outline" title="Accords principaux" s={s} t={t} />
-                {(parfum.mainAccordsPercentage
-                  ? Object.entries(parfum.mainAccordsPercentage)
-                      .sort(([, a], [, b]) => accordScore(b) - accordScore(a))
-                      .map(([name, pctStr]) => ({ name, pct: accordScore(pctStr) }))
-                  : parfum.mainAccords.map((name, i) => ({ name, pct: 100 - i * 12 }))
-                ).slice(0, 5).map((a, i) => (
-                  <AccordBar key={a.name} name={translateNote(a.name)} pct={a.pct} index={i} s={s} t={t} />
-                ))}
-              </View>
-            ) : null}
-
-            {/* ─── Tenue & sillage ─── */}
-            {parfum.longevity || parfum.sillage ? (
-              <View style={s.infoZone}>
-                <SectionTitle icon="flash-outline" title="Tenue & sillage" tint={t.colors.reward} tintSoft={t.colors.rewardSoft} s={s} t={t} />
-                {parfum.longevity ? (() => {
-                  const m = longevityMeta(parfum.longevity!);
-                  return <GaugeRow icon="time-outline" iconBg={t.colors.violetSoft} iconColor={t.colors.violetInk} label="Longévité" valueLabel={m.label} pct={m.pct} barColor={t.colors.primary} valColor={t.colors.violetInk} s={s} />;
-                })() : null}
-                {parfum.sillage ? (() => {
-                  const m = sillageMeta(parfum.sillage!);
-                  return <GaugeRow icon="pulse-outline" iconBg={t.colors.rewardSoft} iconColor={t.colors.reward} label="Sillage" valueLabel={m.label} pct={m.pct} barColor={t.colors.reward} valColor={t.colors.rewardInk} s={s} />;
-                })() : null}
-              </View>
-            ) : null}
-
-            {/* ─── Quand le porter ─── */}
-            {seasonMax > 0 || topOccasions.length > 0 ? (
-              <View style={s.infoZone}>
-                <SectionTitle icon="calendar-outline" title="Quand le porter" tint={t.colors.secondary} tintSoft={t.colors.secondarySoft} s={s} t={t} />
-                {seasonMax > 0 ? (
-                  <View style={s.seasonCols}>
-                    {SEASON_ORDER.map(key => {
-                      const meta = SEASON_META[key];
-                      const score = seasonScores.get(key) ?? 0;
-                      const ratio = seasonMax > 0 ? score / seasonMax : 0;
-                      const isTop = key === topSeasonKey;
-                      const color = t.colors[meta.token];
-                      const soft = t.colors[`${meta.token}Soft`];
-                      return (
-                        <View key={key} style={s.seasonCol}>
-                          <View style={[s.seasonIconWrap, { backgroundColor: isTop ? soft : t.colors.surface2 }]}>
-                            <Ionicons name={meta.icon as never} size={15} color={score > 0 ? color : t.colors.textMuted} />
-                          </View>
-                          <View style={s.seasonTrack}>
-                            <View style={[s.seasonFill, { height: `${score > 0 ? Math.max(10, Math.round(ratio * 100)) : 6}%`, backgroundColor: score > 0 ? color : t.colors.border }]} />
-                          </View>
-                          <Text style={[s.seasonLabel, isTop ? { color: t.colors.text, fontFamily: 'Inter_600SemiBold' } : null]}>{meta.label}</Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : null}
-                {topOccasions.length > 0 ? (
-                  <View style={[s.occasionRow, seasonMax > 0 ? { marginTop: 14 } : null]}>
-                    {topOccasions.map((o, i) => (
-                      <View key={o.label} style={[s.occasionChip, i === 0 ? { backgroundColor: t.colors.primarySoft } : null]}>
-                        <Ionicons name={o.icon as never} size={12} color={i === 0 ? t.colors.primaryInk : t.colors.textMuted} />
-                        <Text style={[s.occasionChipText, i === 0 ? { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' } : null]}>{o.label}</Text>
-                      </View>
+                {/* ─── Accords principaux ─── */}
+                {parfum.mainAccords && parfum.mainAccords.length > 0 ? (
+                  <View style={s.infoZone}>
+                    <SectionTitle icon="color-filter-outline" title="Accords principaux" s={s} t={t} />
+                    {(parfum.mainAccordsPercentage
+                      ? Object.entries(parfum.mainAccordsPercentage)
+                          .sort(([, a], [, b]) => accordScore(b) - accordScore(a))
+                          .map(([name, pctStr]) => ({ name, pct: accordScore(pctStr) }))
+                      : parfum.mainAccords.map((name, i) => ({ name, pct: 100 - i * 12 }))
+                    ).slice(0, 5).map((a, i) => (
+                      <AccordBar key={a.name} name={translateNote(a.name)} pct={a.pct} index={i} s={s} t={t} />
                     ))}
                   </View>
                 ) : null}
-              </View>
-            ) : null}
 
-            {/* ─── Dans le même esprit (recommandations) ─── */}
-            {similars.length > 0 ? (
-              <View style={s.infoZone}>
-                <SectionTitle icon="sparkles-outline" title="Dans le même esprit" subtitle="Sélection aux accords proches" s={s} t={t} />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.similarRow}>
-                  {similars.map(sim => (
-                    <View key={sim.id} style={s.similarCardWrap}>
-                      <ParfumCard
-                        parfum={sim}
-                        mode="compact"
-                        onPressOverride={() => {
-                          setPendingParfum(sim);
-                          router.push(`/catalog/${sim.id}`);
-                        }}
-                      />
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-            {similarsLoading ? <ActivityIndicator style={{ marginTop: 12 }} color={t.colors.primary} /> : null}
+                {/* ─── Tenue & sillage ─── */}
+                {parfum.longevity || parfum.sillage ? (
+                  <View style={s.infoZone}>
+                    <SectionTitle icon="flash-outline" title="Tenue & sillage" tint={t.colors.reward} tintSoft={t.colors.rewardSoft} s={s} t={t} />
+                    {parfum.longevity ? (() => {
+                      const m = longevityMeta(parfum.longevity!);
+                      return <GaugeRow icon="time-outline" iconBg={t.colors.primarySoft} iconColor={t.colors.primaryInk} label="Longévité" valueLabel={m.label} pct={m.pct} barColor={t.colors.primary} valColor={t.colors.primaryInk} s={s} />;
+                    })() : null}
+                    {parfum.sillage ? (() => {
+                      const m = sillageMeta(parfum.sillage!);
+                      return <GaugeRow icon="pulse-outline" iconBg={t.colors.rewardSoft} iconColor={t.colors.reward} label="Sillage" valueLabel={m.label} pct={m.pct} barColor={t.colors.reward} valColor={t.colors.rewardInk} s={s} />;
+                    })() : null}
+                  </View>
+                ) : null}
+
+                {/* ─── Quand le porter ─── */}
+                {seasonMax > 0 || topOccasions.length > 0 ? (
+                  <View style={s.infoZone}>
+                    <SectionTitle icon="calendar-outline" title="Quand le porter" tint={t.colors.secondary} tintSoft={t.colors.secondarySoft} s={s} t={t} />
+                    {seasonMax > 0 ? (
+                      <View style={s.seasonCols}>
+                        {SEASON_ORDER.map(key => {
+                          const meta = SEASON_META[key];
+                          const score = seasonScores.get(key) ?? 0;
+                          const ratio = seasonMax > 0 ? score / seasonMax : 0;
+                          const isTop = key === topSeasonKey;
+                          const color = t.colors[meta.token];
+                          const soft = t.colors[`${meta.token}Soft`];
+                          return (
+                            <View key={key} style={s.seasonCol}>
+                              <View style={[s.seasonIconWrap, { backgroundColor: isTop ? soft : t.colors.surface2 }]}>
+                                <Ionicons name={meta.icon as never} size={15} color={score > 0 ? color : t.colors.textMuted} />
+                              </View>
+                              <View style={s.seasonTrack}>
+                                <View style={[s.seasonFill, { height: `${score > 0 ? Math.max(10, Math.round(ratio * 100)) : 6}%`, backgroundColor: score > 0 ? color : t.colors.border }]} />
+                              </View>
+                              <Text style={[s.seasonLabel, isTop ? { color: t.colors.text, fontFamily: 'Inter_600SemiBold' } : null]}>{meta.label}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    ) : null}
+                    {topOccasions.length > 0 ? (
+                      <View style={[s.occasionRow, seasonMax > 0 ? { marginTop: 14 } : null]}>
+                        {topOccasions.map((o, i) => (
+                          <View key={o.label} style={[s.occasionChip, i === 0 ? { backgroundColor: t.colors.primarySoft } : null]}>
+                            <Ionicons name={o.icon as never} size={12} color={i === 0 ? t.colors.primaryInk : t.colors.textMuted} />
+                            <Text style={[s.occasionChipText, i === 0 ? { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' } : null]}>{o.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {/* ─── Dans le même esprit (recommandations) ─── */}
+                {similars.length > 0 ? (
+                  <View style={s.infoZone}>
+                    <SectionTitle icon="sparkles-outline" title="Dans le même esprit" subtitle="Sélection aux accords proches" s={s} t={t} />
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.similarRow}>
+                      {similars.map(sim => (
+                        <View key={sim.id} style={s.similarCardWrap}>
+                          <ParfumCard
+                            parfum={sim}
+                            mode="compact"
+                            onPressOverride={() => {
+                              setPendingParfum(sim);
+                              router.push(`/catalog/${sim.id}`);
+                            }}
+                          />
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+                {similarsLoading ? <ActivityIndicator style={{ marginTop: 12 }} color={t.colors.primary} /> : null}
         </View>
         <View style={{height:100}} />
-        </ScrollView>
+        </Animated.ScrollView>
 
         <StickyBottomBar
           scrollY={scrollY}
@@ -697,9 +711,7 @@ export default function CatalogDetailPage() {
           onToggleFav={toggleFav}
           onWardrobePress={handleWardrobePress}
           onScentPress={handleScentPress}
-          onPurchasePress={() => {
-            if (parfum.purchaseUrl) Linking.openURL(parfum.purchaseUrl);
-          }}
+          onPurchasePress={handlePurchasePress}
         />
       </View>
       )}
@@ -711,7 +723,7 @@ export default function CatalogDetailPage() {
           parfumImageUrl={heroUrl}
           existingItem={scentItem}
           saving={trySheetSaving}
-          onClose={() => setShowTrySheet(false)}
+          onClose={handleTrySheetClose}
           onSave={handleTrySheetSave}
           onRemove={scentItem?.status === 'tried' ? handleTrySheetRemove : undefined}
         />
@@ -721,32 +733,25 @@ export default function CatalogDetailPage() {
         parfumName={parfum?.nom}
         parfumBrand={parfum?.marque}
         parfumImageUrl={heroUrl}
-        onClose={() => setShowWardrobeSheet(false)}
+        onClose={handleWardrobeSheetClose}
         onSelect={handleWardrobeAdd}
       />
       <NoteDetailPopup
         visible={selectedNote !== null}
         noteName={selectedNote?.name ?? ''}
         layer={selectedNote?.layer ?? null}
-        onClose={() => setSelectedNote(null)}
+        onClose={handleNotePopupClose}
       />
       <ImageViewerPopup
         visible={showImageViewer}
         imageUrl={heroUrl ?? ''}
+        imageUrl2x={heroUrl2x}
         brand={parfum?.marque ?? ''}
         name={parfum?.nom ?? ''}
-        onClose={() => setShowImageViewer(false)}
+        onClose={handleImageViewerClose}
       />
     </>
   );
-
-  if (Platform.OS === 'android') {
-    return (
-      <View style={{ flex: 1, backgroundColor: t.colors.background }}>
-        {content}
-      </View>
-    );
-  }
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.background }}>

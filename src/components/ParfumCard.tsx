@@ -1,7 +1,7 @@
 // src/components/ParfumCard.tsx — Carte parfum réutilisable (4 modes)
 // compact (rangées horizontales), comfortable (grille 2 col), compactPlus (grille dense), list
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -69,20 +69,23 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
   const imageSource = useMemo(() => (imageUrl ? { uri: imageUrl } : null), [imageUrl]);
   const gradientColors = useMemo(() => [theme.colors.surface, theme.colors.surfaceImgBottom] as const, [theme.colors]);
 
-  const goToDetail = () => {
+  const goToDetail = useCallback(() => {
     if (onPressOverride) { onPressOverride(); return; }
     setPendingParfum(parfum);
     router.push(`/catalog/${parfum.id}`);
-  };
+  }, [onPressOverride, parfum, router]);
+
+  const handleImgError = useCallback(() => setImgFailed(true), []);
 
   // ── Mode: compact (rangées horizontales) ──
   if (mode === 'compact') {
+    const a11yLabelCompact = [parfum.nom, parfum.marque, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : ''].filter(Boolean).join(', ');
     return (
-      <Pressable style={s.cardCompact} onPress={goToDetail} accessible={true} accessibilityRole="button">
+      <Pressable style={s.cardCompact} onPress={goToDetail} accessible={true} accessibilityLabel={a11yLabelCompact} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
         {showImage ? (
           <View style={s.imgWrapCompact}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgCompact} contentFit="contain" transition={300} onError={() => setImgFailed(true)} />
+            <Image source={imageSource!} style={s.imgCompact} contentFit="contain" transition={300} onError={handleImgError} />
             {discount !== null && <View style={s.dealBadgeCompact}><Text style={s.dealBadgeTextCompact}>-{discount}%</Text></View>}
           </View>
         ) : (
@@ -126,7 +129,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         {showImage ? (
           <View style={s.imgWrapComfortable}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgComfortable} contentFit="contain" transition={300} onError={() => setImgFailed(true)} />
+            <Image source={imageSource!} style={s.imgComfortable} contentFit="contain" transition={300} onError={handleImgError} />
             {discount !== null && <View style={s.dealBadge}><Text style={s.dealBadgeText}>-{discount}%</Text></View>}
           </View>
         ) : (
@@ -183,7 +186,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         {showImage ? (
           <View style={s.imgWrapCompactPlus}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgCompactPlus} contentFit="contain" transition={300} onError={() => setImgFailed(true)} />
+            <Image source={imageSource!} style={s.imgCompactPlus} contentFit="contain" transition={300} onError={handleImgError} />
             {discount !== null && <View style={s.dealBadgeCompactPlus}><Text style={s.dealBadgeTextCompactPlus}>-{discount}%</Text></View>}
           </View>
         ) : (
@@ -234,7 +237,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         {showImage ? (
           <View style={s.imgWrapList}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgList} contentFit="contain" transition={300} onError={() => setImgFailed(true)} />
+            <Image source={imageSource!} style={s.imgList} contentFit="contain" transition={300} onError={handleImgError} />
           </View>
         ) : (
           <View style={[s.imgPlaceholderList, { backgroundColor: tint }]}>
@@ -277,8 +280,8 @@ function getStyles(t: Theme) {
   return {
     // ── Shared ──
     imgBgFull: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-    tagFamily: { backgroundColor: t.colors.violetSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-    tagFamilyText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.violetInk },
+    tagFamily: { backgroundColor: t.colors.primarySoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    tagFamilyText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.primaryInk },
     tagYear: { backgroundColor: t.colors.rewardSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
     tagYearText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.rewardInk },
     priceDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },

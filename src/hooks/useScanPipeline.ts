@@ -59,7 +59,8 @@ export function useScanPipeline(
           dispatch({ type: 'SCAN_NO_RESULT', scanResult });
         }
       }
-    } catch {
+    } catch (e) {
+      console.warn('[scan] search failed:', e);
       if (uid) {
         saveScan(uid, {
           rawText: JSON.stringify(scanResult),
@@ -125,6 +126,7 @@ export function useScanPipeline(
         return;
       }
     } catch (e: unknown) {
+      console.warn('[scan] analysis failed:', e);
       if (mountedRef.current) {
         dispatch({
           type: 'SCAN_ERROR',

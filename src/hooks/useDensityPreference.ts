@@ -23,12 +23,12 @@ export function useDensityPreference() {
   useEffect(() => {
     AsyncStorage.getItem(KEY).then(v => {
       if (isValid(v)) setDensityState(v);
-    }).catch(() => {});
+    }).catch((e) => console.warn('[density] persist failed:', e));
   }, []);
 
   const setDensity = useCallback((mode: CardMode) => {
     setDensityState(mode);
-    AsyncStorage.setItem(KEY, mode).catch(() => {});
+    AsyncStorage.setItem(KEY, mode).catch((e) => console.warn('[density] persist failed:', e));
   }, []);
 
   return { density, setDensity } as const;

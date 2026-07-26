@@ -34,8 +34,6 @@ export default function ShelfManager({ visible, shelves, orphanCount, onClose, o
 
   const shelfColors = resolvedMode === 'dark' ? SHELF_COLORS_DARK : SHELF_COLORS_LIGHT;
 
-  if (!visible) return null;
-
   const handleCreate = useCallback(() => {
     if (!newName.trim()) return;
     hapticsLight();
@@ -55,6 +53,8 @@ export default function ShelfManager({ visible, shelves, orphanCount, onClose, o
       ]
     );
   }, [onDelete]);
+
+  if (!visible) return null;
 
   return (
     <View style={s.backdrop}>

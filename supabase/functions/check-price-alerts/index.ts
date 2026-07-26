@@ -16,15 +16,23 @@ Deno.serve(async (req: Request) => {
   const now = new Date();
   const runId = priceAlertRunId(now);
 
-  // 1. Toutes les alertes (pas de FK vers parfums dans le schéma → 2 requêtes + jointure JS)
-  const { data: alerts, error } = await supabase
-    .from('price_alerts')
-    .select('user_id, parfum_id, last_price');
-  if (error) {
-    console.error('[checkPriceAlerts] fetch alerts error:', error.message);
-    return jsonResponse({ ok: false }, 500);
+  // 1. Toutes les alertes (pagination par chunks de 1000)
+  const alerts: { user_id: string; parfum_id: string; last_price: number | null }[] = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from('price_alerts')
+      .select('user_id, parfum_id, last_price')
+      .range(offset, offset + PAGE - 1);
+    if (error) {
+      console.error('[checkPriceAlerts] fetch alerts error:', error.message);
+      return jsonResponse({ ok: false }, 500);
+    }
+    if (!data || data.length === 0) break;
+    alerts.push(...(data as { user_id: string; parfum_id: string; last_price: number | null }[]));
+    if (data.length < PAGE) break;
   }
-  if (!alerts || alerts.length === 0) {
+  if (alerts.length === 0) {
     console.log('[checkPriceAlerts] No alerts.');
     return jsonResponse({ ok: true, checked: 0, sent: 0 });
   }

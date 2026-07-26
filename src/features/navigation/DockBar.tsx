@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useCallback } from 'react';
+import { View, Text, Pressable, StyleSheet, useWindowDimensions, Animated as RNAnimated } from 'react-native';
 import { Image } from 'expo-image';
-interface BottomTabBarProps {
+export interface BottomTabBarProps {
   state: { index: number; routes: Array<{ key: string; name: string }> };
   navigation: { navigate: (name: string) => void };
+  position?: RNAnimated.Value;
 }
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
@@ -53,7 +54,7 @@ const TAB_MAP = {
   profile:     { iconActive: 'person', iconInactive: 'person-outline', label: 'Profil' },
 } as const;
 
-export default function DockBar({ state, navigation }: BottomTabBarProps) {
+export default function DockBar({ state, navigation, position }: BottomTabBarProps) {
   const { theme, resolvedMode } = useTheme();
   const m = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -77,11 +78,20 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
   }, []);
 
   useEffect(() => {
+    if (position) return;
     indicatorLeft.value = withSpring(
       getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
       { damping: 22, stiffness: 280, mass: 0.7 },
     );
-  }, [state.index, windowWidth]);
+  }, [state.index, windowWidth, position]);
+
+  useEffect(() => {
+    if (!position) return;
+    const id = position.addListener(({ value }) => {
+      indicatorLeft.value = getIndicatorLeftAtProgress(windowWidth, value);
+    });
+    return () => position.removeListener(id);
+  }, [position, windowWidth]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: indicatorLeft.value }],
@@ -96,10 +106,10 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
     opacity: 2 - pulseScale.value,
   }));
 
-  const handleFabPress = () => {
+  const handleFabPress = useCallback(() => {
     hapticsLight();
     router.push('/scan');
-  };
+  }, [router]);
 
   const renderTab = (routeKey: string, routeName: string, index: number) => {
     const cfg = TAB_MAP[routeName as keyof typeof TAB_MAP];
@@ -123,7 +133,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
               isActive && { borderColor: theme.colors.primary, borderWidth: 2 },
             ]}
           />
-          <Text style={[m.label, isActive && m.labelOn]}>{cfg.label}</Text>
+          <Text style={[m.label, isActive && m.labelOn]} allowFontScaling={false}>{cfg.label}</Text>
         </Pressable>
       );
     }
@@ -142,7 +152,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
           size={22}
           color={isActive ? theme.colors.primary : theme.colors.textMuted}
         />
-        <Text style={[m.label, isActive && m.labelOn]}>{cfg.label}</Text>
+        <Text style={[m.label, isActive && m.labelOn]} allowFontScaling={false}>{cfg.label}</Text>
       </Pressable>
     );
   };

@@ -53,6 +53,7 @@ Deno.serve(async (req: Request) => {
       'Authorization': `Bearer ${serviceKey}`,
       'apikey': serviceKey,
     },
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res.ok) {

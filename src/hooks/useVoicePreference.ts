@@ -19,7 +19,7 @@ export function useVoicePreference() {
 
   const setEnabled = useCallback((val: boolean) => {
     setEnabledState(val);
-    AsyncStorage.setItem(KEY, String(val)).catch(() => {});
+    AsyncStorage.setItem(KEY, String(val)).catch((e) => console.warn('[voice] persist failed:', e));
   }, []);
 
   return { voiceEnabled: enabled, setVoiceEnabled: setEnabled } as const;

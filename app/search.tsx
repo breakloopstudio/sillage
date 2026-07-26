@@ -11,11 +11,15 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useCatalog } from '../src/hooks/useCatalog';
 import { useVoiceSearch, type VoiceState, type VoiceResult } from '../src/hooks/useVoiceSearch';
 import { transcribeVoice } from '../src/services/voice-search';
+import { getParfumsByFamily } from '../src/services/firestore';
+import { getFamilyByKey } from '../src/utils/olfactory-families';
 import ParfumCard from '../src/components/ParfumCard';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { consumePendingCatalogQuery } from '../src/services/catalog-bridge';
 import { useDensityPreference, GRID_MODES } from '../src/hooks/useDensityPreference';
 import { useNetwork } from '../src/hooks/useNetwork';
+import { textOn } from '../src/utils/contrast';
+import type { Parfum } from '../src/models';
 
 const RECENT_KEY = '@parfumscan/recent-searches';
 
@@ -44,13 +48,16 @@ export default function SearchScreen() {
   const s = useMemo(() => getStyles(theme), [theme]);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const router = useRouter();
-  const { q: routeQuery } = useLocalSearchParams<{ q?: string }>();
+  const { q: routeQuery, family: familyKey } = useLocalSearchParams<{ q?: string; family?: string }>();
+  const familyDef = useMemo(() => getFamilyByKey(familyKey), [familyKey]);
   const [initialQuery] = useState(() => routeQuery ?? consumePendingCatalogQuery());
 
   const inputRef = useRef<TextInput>(null);
-  const [searchText, setSearchText] = useState(initialQuery ?? '');
+  const [searchText, setSearchText] = useState(() => familyDef?.label ?? initialQuery ?? '');
   const recentLoadedRef = useRef(false);
   const { parfums, searching, error, rateLimited, search, clear } = useCatalog();
+  const [familyResults, setFamilyResults] = useState<Parfum[] | null>(familyDef ? [] : null);
+  const [familyLoading, setFamilyLoading] = useState(!!familyDef);
   const { density: searchDensity, setDensity: setSearchDensity } = useDensityPreference();
   const { isOnline } = useNetwork();
   const [recentSearches, setRecentSearches] = useState<string[]>(recentStore.items);
@@ -87,9 +94,21 @@ export default function SearchScreen() {
   }, [voiceSearch.transcript, voiceState]);
 
   useEffect(() => {
+    if (familyDef) return;
     const t = setTimeout(() => inputRef.current?.focus(), 250);
     return () => clearTimeout(t);
-  }, []);
+  }, [familyDef]);
+
+  useEffect(() => {
+    if (!familyDef) return;
+    let cancelled = false;
+    setFamilyLoading(true);
+    getParfumsByFamily(familyDef.values, 50)
+      .then(list => { if (!cancelled) setFamilyResults(list); })
+      .catch(() => { if (!cancelled) setFamilyResults([]); })
+      .finally(() => { if (!cancelled) setFamilyLoading(false); });
+    return () => { cancelled = true; };
+  }, [familyDef]);
 
   useEffect(() => {
     loadRecentFromStorage().then(items => {
@@ -101,14 +120,16 @@ export default function SearchScreen() {
   }, []);
 
   useEffect(() => {
+    if (familyDef) return;
     if (initialQuery && initialQuery.trim().length >= 3) {
       setSearchText(initialQuery);
       search(initialQuery.trim());
     }
-  }, [initialQuery]);
+  }, [initialQuery, familyDef]);
 
   const handleTextChange = useCallback((t: string) => {
     setSearchText(t);
+    setFamilyResults(null);
     if (voiceState !== 'idle') voiceSearch.cancel();
     t.trim().length >= 3 ? search(t) : clear();
   }, [search, clear, voiceState, voiceSearch]);
@@ -143,7 +164,10 @@ export default function SearchScreen() {
     inputRef.current?.blur();
   }, [search]);
 
-  const hasResults = parfums.length > 0 && !searching;
+  const inFamilyMode = familyResults !== null;
+  const displayParfums = inFamilyMode ? familyResults! : parfums;
+  const isSearching = searching || familyLoading;
+  const hasResults = displayParfums.length > 0 && !isSearching;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
@@ -179,7 +203,7 @@ export default function SearchScreen() {
             />
           </Pressable>
           {searchText.length > 0 && (
-            <Pressable onPress={() => { setSearchText(''); clear(); }} hitSlop={8}>
+            <Pressable onPress={() => { setSearchText(''); setFamilyResults(null); clear(); }} hitSlop={8}>
               <Ionicons name="close-circle" size={18} color={theme.colors.textMuted} />
             </Pressable>
           )}
@@ -205,9 +229,9 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {searching && <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />}
+      {isSearching && <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />}
 
-      {rateLimited && (
+      {rateLimited && !inFamilyMode && (
         <View style={s.rateBanner}>
           <Ionicons name="timer-outline" size={14} color={theme.colors.fairInk} />
           <Text style={s.rateBannerText}>Trop de recherches. Réessaie dans quelques secondes.</Text>
@@ -216,6 +240,19 @@ export default function SearchScreen() {
 
       {hasResults ? (
         <>
+          {inFamilyMode && familyDef && (
+            <View style={[s.familyHeader, { backgroundColor: theme.colors[familyDef.accentSoft] }]}>
+              <View style={[s.familyIcon, { backgroundColor: theme.colors[familyDef.accent] }]}>
+                <Ionicons name={familyDef.icon as never} size={16} color={textOn(theme.colors[familyDef.accent])} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.familyTitle}>{familyDef.label}</Text>
+                <Text style={s.familyMeta}>
+                  {displayParfums.length.toLocaleString('fr-FR')} parfums · {familyDef.tagline}
+                </Text>
+              </View>
+            </View>
+          )}
           <View style={s.densityRow}>
             {GRID_MODES.map(m => (
               <Pressable
@@ -231,7 +268,7 @@ export default function SearchScreen() {
           </View>
           <FlatList
             key={`search-${searchDensity}-${resolvedMode}`}
-            data={parfums}
+            data={displayParfums}
             numColumns={searchDensity === 'list' ? 1 : 2}
             keyExtractor={(p, i) => `${p.id}_${i}`}
             renderItem={({ item }) => (
@@ -247,13 +284,13 @@ export default function SearchScreen() {
             keyboardShouldPersistTaps="handled"
           />
         </>
-      ) : error ? (
+      ) : error && !inFamilyMode ? (
         <View style={s.errorContainer}>
           <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.primary} style={{ marginBottom: 12 }} />
           <Text style={s.errorTitle}>Impossible de rechercher</Text>
           <Text style={s.errorDesc}>{error}</Text>
         </View>
-      ) : searchText.length >= 3 && !searching ? (
+      ) : !isSearching && (inFamilyMode || searchText.length >= 3) ? (
         <View style={s.empty}>
           <Ionicons name="search-outline" size={48} color={theme.colors.textMuted} style={{ opacity: 0.4 }} />
           <Text style={s.emptyTitle}>Aucun résultat</Text>
@@ -354,6 +391,34 @@ function getStyles(t: Theme) {
     resultRow: { gap: 8, marginBottom: 8 },
     resultCardWrap: { flex: 1, maxWidth: '50%' },
     resultCardWrapFull: { width: '100%' },
+    familyHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginHorizontal: 16,
+      marginTop: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: t.radius.base,
+    },
+    familyIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    familyTitle: {
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      fontSize: 17,
+      color: t.colors.text,
+    },
+    familyMeta: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      color: t.colors.textMuted,
+      marginTop: 1,
+    },
     densityRow: {
       flexDirection: 'row',
       gap: 6,

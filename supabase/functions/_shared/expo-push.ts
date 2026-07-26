@@ -38,7 +38,7 @@ export async function sendPush(
     const messages = batch.map((to) => ({ to, title, body, data: data ?? {}, sound: 'default' as const }));
 
     try {
-      const res = await fetch(EXPO_PUSH_URL, { method: 'POST', headers, body: JSON.stringify(messages) });
+      const res = await fetch(EXPO_PUSH_URL, { method: 'POST', headers, body: JSON.stringify(messages), signal: AbortSignal.timeout(10_000) });
       if (!res.ok) {
         console.warn(`[expo-push] HTTP ${res.status}: ${await res.text()}`);
         continue;
@@ -65,10 +65,13 @@ export async function sendPush(
  */
 export async function purgeDeadTokens(supabase: SupabaseClient, deadTokens: string[]): Promise<number> {
   if (deadTokens.length === 0) return 0;
-  let deleted = 0;
-  for (const token of deadTokens) {
-    const { error } = await supabase.from('push_tokens').delete().eq('token', token);
-    if (!error) deleted++;
+  const { error, count } = await supabase
+    .from('push_tokens')
+    .delete({ count: 'exact' })
+    .in('token', deadTokens);
+  if (error) {
+    console.warn('[expo-push] purgeDeadTokens failed:', error.message);
+    return 0;
   }
-  return deleted;
+  return count ?? 0;
 }

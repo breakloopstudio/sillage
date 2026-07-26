@@ -48,15 +48,3 @@ export function verifyCronAuth(req: Request): boolean {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   return token === cronKey || token === serviceKey;
 }
-
-/** @deprecated Utiliser verifyUserToken() — ne vérifie PAS la signature. */
-export function getUserIdFromAuth(req: Request): string {
-  const authHeader = req.headers.get('Authorization') ?? '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.sub as string;
-  } catch {
-    throw new Error('Invalid Authorization token');
-  }
-}

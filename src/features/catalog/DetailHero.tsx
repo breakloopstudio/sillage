@@ -16,6 +16,7 @@ function brandColor(brand: string): string {
 
 interface Props {
   imageUrl: string | null;
+  imageUrl2x?: string | null;
   brand: string;
   imgFailed: boolean;
   onImageError: () => void;
@@ -23,7 +24,7 @@ interface Props {
   onShare?: () => void;
 }
 
-export default function DetailHero({ imageUrl, brand, imgFailed, onImageError, onImagePress, onShare }: Props) {
+export default function DetailHero({ imageUrl, imageUrl2x, brand, imgFailed, onImageError, onImagePress, onShare }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
 
@@ -40,6 +41,15 @@ export default function DetailHero({ imageUrl, brand, imgFailed, onImageError, o
             transition={300}
             onError={onImageError}
           />
+          {imageUrl2x ? (
+            <Image
+              key={imageUrl2x}
+              source={{ uri: imageUrl2x }}
+              style={s.imageHd}
+              contentFit="contain"
+              transition={250}
+            />
+          ) : null}
         </Pressable>
       ) : (
         <View style={[s.placeholder, { backgroundColor: brandColor(brand) }]}>
@@ -74,6 +84,7 @@ function getStyles(t: Theme) {
       borderBottomColor: t.colors.border,
     },
     image: { width: '100%', height: 340, backgroundColor: t.colors.surface },
+    imageHd: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 },
     placeholder: { width: '100%', height: 340, justifyContent: 'center' as const, alignItems: 'center' as const },
     placeholderText: { fontSize: 72, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
     topActions: {

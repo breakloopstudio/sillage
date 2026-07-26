@@ -15,12 +15,16 @@ export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () =>
 ### `src/services/firestore.ts`
 ```ts
 // Catalogue — impl Supabase (RPC search_parfums / PostgREST). Signatures inchangées.
-export function onParfums(cb: (p: Parfum[]) => void): () => void;
 export function getParfumById(id: string): Promise<Parfum | undefined>;
 export function updateParfum(id: string, data: Partial<Parfum>): Promise<void>;
 export function getPopularParfums(limit: number): Promise<Parfum[]>;
 export function getPersonalizedSuggestions(uid: string, limit: number): Promise<Parfum[]>;
 export function searchParfumsCached(query: string): Promise<Parfum[]>;
+export function getParfumCount(): Promise<number>;
+export function getTopRatedParfums(limit?: number): Promise<Parfum[]>;
+export function getParfumsByFamily(values: string[], limit?: number): Promise<Parfum[]>;
+export function getFamilyOverview(values: string[]): Promise<{ top: Parfum | null; count: number }>;
+export function getSeasonalParfums(season: SeasonKey, limit?: number): Promise<Parfum[]>;
 ```
 → Voir **§7 — Algorithme de recherche** pour la spécification complète.
 
@@ -232,16 +236,6 @@ export function useFavoris(uid: string | null): {
 };
 ```
 
-### `useCollection(uid)` — `src/hooks/useCollection.ts`
-```ts
-// Hook Firestore temps réel pour la collection
-export function useCollection(uid: string | null): {
-  items: UserCollectionItem[];
-  loading: boolean;
-  remove: (id: string) => Promise<void>;
-};
-```
-
 ### `useWishlist(uid)` — `src/hooks/useWishlist.ts`
 ```ts
 // Hook Firestore temps réel pour la wishlist
@@ -406,6 +400,7 @@ interface Parfum {
   notesCoeur: string[];
   notesFond: string[];
   imageUrl?: string;
+  imageUrl2x?: string;       // URL WebP upscale ×4 (fiche détail / lightbox uniquement)
   perfumers?: string[];      // nez — signature dorée sous le badgeRow de la fiche détail
   // ...
 }
@@ -574,10 +569,27 @@ export function getNoteDescription(note: string): string | null;
 // Constantes et helpers saisonniers (importable par l'app et les scripts tsx)
 export type SeasonKey = 'spring' | 'summer' | 'fall' | 'winter';
 export const SEASON_ORDER: SeasonKey[];
-export const SEASON_META: Record<SeasonKey, { label: string; icon: string; token, tokenSoft }>;
+export const SEASON_META: Record<SeasonKey, { label: string; withArticle: string; icon: string; token, tokenSoft }>;
 export function normalizeSeasonKey(name: string): SeasonKey | null;
+export function currentSeason(date?: Date): SeasonKey;
 export const SEASON_MATCH_THRESHOLD = 50;
 export function seasonScoresFromRanking(ranking): Partial<Record<SeasonKey, number>> | null;
+```
+
+### `src/utils/olfactory-families.ts`
+```ts
+// Taxonomie : regroupe ~46 valeurs anglaises de famille_olfactive en 6 familles FR
+export interface OlfactoryFamily {
+  key: string;            // 'boisee' | 'florale' | 'hesperidee' | 'ambree' | 'gourmande' | 'aromatique'
+  label: string;          // label FR
+  tagline: string;        // accroche sensorielle
+  icon: string;           // icône Ionicons
+  accent: keyof Theme['colors'];
+  accentSoft: keyof Theme['colors'];
+  values: string[];       // valeurs anglaises rattachées (chacune n'appartient qu'à une famille)
+}
+export const OLFACTORY_FAMILIES: OlfactoryFamily[];
+export function getFamilyByKey(key: string | null | undefined): OlfactoryFamily | undefined;
 ```
 
 ### `src/utils/favori-filters.ts`
@@ -637,6 +649,17 @@ interface Props {
 interface Props {
   variant: 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist';
   onAction?: () => void;
+}
+```
+
+### `AuthGate` — `src/components/AuthGate.tsx`
+
+Écran « Connecte-toi » réutilisable pour les onglets protégés (profile, parfumerie, favoris, carnet). Icône 64 + titre Playfair + description + `Button` vers `/auth/login`.
+
+```ts
+interface Props {
+  icon: string;
+  description: string;
 }
 ```
 

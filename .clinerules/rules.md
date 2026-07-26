@@ -38,9 +38,9 @@ app/
 src/
 ├── services/     (14)        # supabase, firestore, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, wardrobe, scentlist, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (17)        # useAuth, useCatalog, useCollection, useDensityPreference, useFavoris, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useScentList, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWardrobe, useWeather
+├── hooks/        (16)        # useAuth, useCatalog, useDensityPreference, useFavoris, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useScentList, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWardrobe, useWeather
 ├── contexts/     (1)         # AuthContext (ThemeContext est dans src/theme/)
-├── components/   (13)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet
+├── components/   (14)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
 │   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero, CollapsingHeader, StickyBottomBar, BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
@@ -54,11 +54,11 @@ src/
 │   └── wardrobe/             # WardrobeAddSheet, WardrobeCard, WardrobeGrid, WardrobeQuickSheet, SOTDCard, SOTDPicker, FilterBar, StarRating, ShelfManager
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (2)         # env, index (firebase.config supprimé — migration Supabase)
-├── models/       (8)         # Parfum (+searchText), WardrobeItem (+Shelf, SotdEntry), UserFavori, UserScan, UserScentItem (+ScentVerdict), UserCollectionItem, ScanResult, index
-└── utils/        (10)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring
+├── models/       (8)         # Parfum (+searchText, +imageUrl2x), WardrobeItem (+Shelf, SotdEntry), UserFavori, UserScan, UserScentItem (+ScentVerdict), UserCollectionItem, ScanResult, index
+└── utils/        (12)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring, olfactory-families, alpha
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0009) # extensions, types, tables, index (trgm/FTS), RLS+publication, fonctions SQL (RPC), cron pg_cron
+├── migrations/   (0001→0019) # extensions, types, tables, index (trgm/FTS), RLS+publication, fonctions SQL (RPC search_parfums, seasonal_parfums, family_overviews…), cron pg_cron, image_url_2x
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
@@ -129,10 +129,12 @@ supabase/                     # Backend Supabase (versionné)
 ## §8 — Catalogue
 
 - Recherche via **RPC Postgres `search_parfums`** (tsvector + pg_trgm, ~25K parfums), cache LRU + prefix cache client, debounce 150ms
-- Navigation par famille olfactive (chips horizontaux)
+- **Taxonomie 6 familles** (`src/utils/olfactory-families.ts`) : regroupe ~46 valeurs anglaises de `famille_olfactive` en familles FR (boisée, florale, hespéridée, ambrée, gourmande, aromatique). `FamilyAmbianceCards` data-driven, recherche en mode famille (`/search?family=<key>`)
+- Rangées éditoriales : « Parfaits pour {saison} » (RPC `seasonal_parfums`), « Les mieux notés » (`getTopRatedParfums`), « Pour vous » (personnalisé) / populaires (fallback)
+- Fonctions catalogue : `getParfumCount`, `getTopRatedParfums`, `getParfumsByFamily`, `getFamilyOverview`, `getSeasonalParfums`, `getPersonalizedSuggestions`, `getSimilarParfums`
 - Tri : pertinence / prix croissant / prix décroissant
 - Dédoublonnage automatique par `marque+nom` normalisé (côté RPC + sécurité client)
-- Suggestions personnalisées (RPC `personalized_suggestions` si connecté) ou populaires (fallback)
+- **Images HD** : `image_url_2x` (upscale ×4, fiche détail/lightbox uniquement) — cf. §16b
 
 ---
 
@@ -212,7 +214,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 216 tests, 17 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 227 tests, 18 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
@@ -254,7 +256,8 @@ supabase/                     # Backend Supabase (versionné)
 - **WebP migration** : `scripts/migrate-webp.ts` — batch conversion JPEG/PNG → WebP (`sharp` quality 82), upload Storage, 8 parallèles, resumable
 - **Background removal** : `scripts/migrate-bgremoval.ts` — `@imgly/background-removal-node` (MODNet), sous-processus Node.js isolé dans `scripts/bgremoval/`
 - **Migration storage Supabase** : `scripts/migrate-storage.ts` — Firebase Storage → bucket `parfum-images`, 8 parallèles, resumable, réécriture `image_url`
-- **Commandes** : `npm run migrate-webp`, `npm run migrate-bg`, `npm run migrate-storage`
+- **Upscale ×4 (HD)** : `scripts/migrate-upscale.ts` — workers Python persistants (Real-ESRGAN + CUDA, venv `scripts/upscale/`), génère `primary_2x.webp` + colonne `image_url_2x`. ~0,5 img/s, resumable. La fiche détail/lightbox fondent de la 1x vers la 2x ; les listes restent en 1x
+- **Commandes** : `npm run migrate-webp`, `npm run migrate-bg`, `npm run migrate-storage`, `npm run migrate-upscale`
 - **Dépendances dev** : `sharp`, `tsx`
 
 ---

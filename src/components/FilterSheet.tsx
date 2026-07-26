@@ -2,10 +2,10 @@
 // Famille / Saison / Tenue / Sillage — chips multi-sélection, compteurs, application live
 // Partagé entre Favoris et Parfumerie
 
-import { useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { translateNote } from '../utils/translate-note';
@@ -73,14 +73,18 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
 
   const translateY = useSharedValue(300);
   const backdropOpacity = useSharedValue(0);
+  const [mounted, setMounted] = useState(visible);
 
   useEffect(() => {
     if (visible) {
+      setMounted(true);
       backdropOpacity.value = withTiming(1, { duration: 200 });
       translateY.value = withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
-    } else {
+    } else if (mounted) {
       backdropOpacity.value = withTiming(0, { duration: 150 });
-      translateY.value = withTiming(300, { duration: 200 });
+      translateY.value = withTiming(300, { duration: 200 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
     }
     return () => {
       cancelAnimation(backdropOpacity);
@@ -123,6 +127,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
   }, [items]);
 
   const handleClose = useCallback(() => onClose(), [onClose]);
+  const handleReset = useCallback(() => onReset(), [onReset]);
 
   const toggleFamily = useCallback((fam: string) => {
     onFiltersChange({ ...filters, families: toggleValue(filters.families, fam) });
@@ -143,7 +148,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
   const showReset = hasActiveFilters(filters);
   const footerLabel = resultCount === 0 ? 'Aucun résultat' : `Voir les ${resultCount} résultat${resultCount > 1 ? 's' : ''}`;
 
-  if (!visible) return null;
+  if (!mounted) return null;
 
   return (
     <View style={s.wrapper}>
@@ -156,7 +161,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
         <View style={s.header}>
           <Text style={s.title}>Filtres</Text>
           {showReset ? (
-            <Pressable onPress={onReset} hitSlop={8}>
+            <Pressable onPress={handleReset} hitSlop={8}>
               <Text style={s.resetLabel}>Réinitialiser</Text>
             </Pressable>
           ) : null}
@@ -248,8 +253,8 @@ function getStyles(t: Theme) {
     },
     sheet: {
       backgroundColor: t.colors.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
       paddingTop: 12,
       paddingHorizontal: 16,
       gap: 4,

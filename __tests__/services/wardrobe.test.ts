@@ -43,22 +43,20 @@ describe('addToWardrobe', () => {
   });
 
   it('updates ownership only for existing item (preserves user data)', async () => {
-    const existing = {
-      data: {
-        parfum_id: 'parfum_1', nom: 'Sauvage', marque: 'Dior',
-        image_url: 'img.jpg', famille_olfactive: 'aromatic',
-        ownership: 'have', rating: 4, notes: 'Top', shelf_ids: ['s1'],
-        size_ml: 100, sotd_count: 3, is_signature: true,
-        longevity: 'long', sillage: 'powerful', season_scores: null,
-        all_notes: null, added_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
-      },
-      error: null,
-    };
-    const chain = chainMock(existing);
-    mockFrom.mockReturnValue(chain);
+    const parfumChain = chainMock({ data: null, error: null });
+    const insertChain = chainMock({ data: null, error: { code: '23505', message: 'duplicate key' } });
+    const updateChain = chainMock();
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return parfumChain;
+      if (callCount === 2) return insertChain;
+      return updateChain;
+    });
     await addToWardrobe('uid1', 'parfum_1', 'want');
-    expect(chain.update).toHaveBeenCalled();
-    const arg = chain.update.mock.calls[0][0];
+    expect(insertChain.insert).toHaveBeenCalled();
+    expect(updateChain.update).toHaveBeenCalled();
+    const arg = updateChain.update.mock.calls[0][0];
     expect(arg.ownership).toBe('want');
     expect(arg.rating).toBeUndefined();
     expect(arg.notes).toBeUndefined();

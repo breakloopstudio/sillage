@@ -255,6 +255,26 @@ Parfumerie (ex « Garde-robe ») — icône `flask`. Favoris en grille (filtres 
 
 **Docs resynchronisées** : rules.md §2 (arborescences réelles : 14 services, 17 hooks, 13 components, 10 utils, 8 models, 10 dossiers features), §13 (227 tests / 17 suites), §15 (météo GPS-only, bannière unifiée — WeatherWidget supprimé v6.20), §19 (onboarding supprimé). reference.md : weather.ts GPS-only, +`scentlist.ts`, +`account.ts`, +`useScentList`, +`UserScentItem`, suppression du bloc DockBar pré-v6.22 (5 positions), FilterSheet `items: FilterableItem[]`, EmptyState 5 variantes.
 
+## Notes v7.1 — Catalogue éditorial, images HD, scroll UI-thread, durcissement (26/07/2026)
+
+**Images HD (upscale ×4)** : pipeline `scripts/migrate-upscale.ts` (`npm run migrate-upscale`) — pool de workers Python **persistants** (Real-ESRGAN + CUDA, venv isolé `scripts/upscale/`, modèle chargé une fois, jobs en JSON-lines stdin/stdout). Génère `primary_2x.webp` (1500×2000) + colonne `parfums.image_url_2x` (migration 0017). Débit ~0,5 img/s (sériel : GPU + I/O 1500×2000 + 3 allers-retours Supabase ; la concurrence n'accélère pas) → ~24K images en ~10h, resumable. Setup venv : `uv venv --python 3.10` + torch cu124 + realesrgan + `patch_basicsr.py` (torchvision≥0.17). **Câblage app** : `DetailHero` + `ImageViewerPopup` affichent la 1x (déjà en cache) puis fondent vers la 2x (`transition` expo-image, `key={imageUrl2x}`) ; listes/grilles restent en 1x. Champ `Parfum.imageUrl2x`, mappé dans `rowToParfum`/`WRITE_MAP`.
+
+**Taxonomie familles** : `src/utils/olfactory-families.ts` — 6 familles FR (boisée/florale/hespéridée/ambrée/gourmande/aromatique) regroupant ~46 valeurs anglaises. `FamilyAmbianceCards` v2 data-driven (flacon réel + effectif via `getFamilyOverview`, RPC `family_overviews` migrations 0018/0019), recherche mode famille (`/search?family=<key>`, `getParfumsByFamily`).
+
+**Catalogue** : nouvelles rangées « Parfaits pour {saison} » (RPC `seasonal_parfums`, migration 0015, `currentSeason()`) + « Les mieux notés » (`getTopRatedParfums`) ; compteur dynamique (`getParfumCount`). Nouvelles fonctions : `getTopRatedParfums`, `getParfumsByFamily`, `getFamilyOverview`, `getSeasonalParfums`, `getParfumCount`. Code mort supprimé (`onParfums`, `createParfum`, `deleteParfum`, `deleteAllCachedParfums`, `isInCollection`).
+
+**Scroll UI-thread** : `reportScroll(y)` (JS) → `SharedValue scrollY` (`NavigationChromeContext`) écrite via `useAnimatedScrollHandler` dans toutes les listes (CatalogPage, FavoritesContent, ScentListContent, WardrobeGrid, collection, selection, index, catalog/[id]). `CollapsingHeader` 100% UI thread (crossfade interpolate, plus de `LayoutAnimation`).
+
+**Auth** : nouveau composant partagé `src/components/AuthGate.tsx` (dé-duplique les gates inline de profile, collection, favoris, carnet). **`useCollection` supprimé** (concept « Collection » abandonné → Parfumerie unifiée ; le service `onCollection` existe encore mais n'a plus de consommateur UI).
+
+**Durcissement Edge Functions** : suppression de `getUserIdFromAuth` (ne vérifiait PAS la signature JWT) → `verifyUserToken` ; scan limité à 5 images / 5 Mo ; whitelist MIME audio + timeout 60s (transcribe) ; pagination alertes prix (chunks 1000) ; météo en batch `Promise.allSettled` ; `purgeDeadTokens` en 1 requête. **Realtime** : `subscribeUserTable` bufferise les événements arrivant avant la fin du fetch initial + canaux uniques (`channelSeq++`).
+
+**Config** : auth Supabase durcie (`config.toml` : mot de passe 8 car. `letters_digits`, confirmation email) ; retrait des variables d'émulateurs Firebase de `env.ts`. `season.ts` : `currentSeason()` + `SEASON_META.withArticle`. Copy généralisé au tutoiement.
+
+**Sécurité** : token Supabase retiré de `opencode.json` (le MCP lit `SUPABASE_ACCESS_TOKEN` depuis l'env).
+
+**Tests** : 227 tests, 18 suites (+ `__tests__/utils/season.test.ts`).
+
 ## Migration Supabase (en cours — l'app tourne toujours sur Firebase)
 
 **Statut** : Phase 0 validée (24/07/2026). Aucun code app modifié.

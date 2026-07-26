@@ -1,42 +1,60 @@
 // src/features/catalog/FamilyAmbianceCards.tsx — Cartes d'ambiance « Explorer par famille »
-// 6 cartes visuelles avec dégradés theme-aware + icônes Ionicons
+// v2 : flacon détouré (WebP transparent) qui flotte sur un fond teinté par famille,
+// badge icône accent, tagline sensorielle, effectif. Tape → /search?family=<key>.
 
-import { useMemo, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import SectionHeader from '../../components/SectionHeader';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
-
-interface FamilyDef {
-  key: string;
-  label: string;
-  query: string;
-  icon: string;
-  bgKey: keyof Theme['colors'];
-  accentKey: keyof Theme['colors'];
-}
-
-const FAMILIES: FamilyDef[] = [
-  { key: 'florale',   label: 'Florale',   query: 'floral',  icon: 'flower-outline',   bgKey: 'primarySoft',    accentKey: 'primary' },
-  { key: 'orientale', label: 'Orientale', query: 'oriental',icon: 'moon-outline',     bgKey: 'rewardSoft',     accentKey: 'reward' },
-  { key: 'boisee',    label: 'Boisée',    query: 'woody',   icon: 'leaf-outline',    bgKey: 'dealSoft',       accentKey: 'deal' },
-  { key: 'fraiche',   label: 'Fraîche',   query: 'fresh',   icon: 'snow-outline',    bgKey: 'pyramidTopSoft', accentKey: 'pyramidTop' },
-  { key: 'fougere',   label: 'Fougère',   query: 'fougere', icon: 'sparkles-outline',bgKey: 'violetSoft',     accentKey: 'violetInk' },
-  { key: 'chypree',   label: 'Chyprée',   query: 'chypre',  icon: 'diamond-outline', bgKey: 'secondarySoft',  accentKey: 'secondary' },
-];
+import { OLFACTORY_FAMILIES, type OlfactoryFamily } from '../../utils/olfactory-families';
+import { getFamilyOverview } from '../../services/firestore';
+import { textOn } from '../../utils/contrast';
+import type { Parfum } from '../../models';
 
 interface Props {
-  onFamilyTap: (query: string) => void;
+  onFamilyTap: (familyKey: string) => void;
 }
 
 export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const [overviews, setOverviews] = useState<Record<string, { top: Parfum | null; count: number }>>({});
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      OLFACTORY_FAMILIES.map(async f => {
+        const ov = await getFamilyOverview(f.values);
+        return [f.key, ov] as const;
+      }),
+    ).then(entries => {
+      if (cancelled) return;
+      setOverviews(Object.fromEntries(entries));
+      setLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handlePress = useCallback((key: string) => {
+    onFamilyTap(key);
+  }, [onFamilyTap]);
+
+  if (!loaded) return null;
+
+  const cards = OLFACTORY_FAMILIES
+    .map(f => ({ family: f, overview: overviews[f.key] }))
+    .filter(c => c.overview?.top?.imageUrl);
+
+  if (cards.length === 0) return null;
 
   return (
     <View style={s.container}>
       <SectionHeader
         title="Explorer par famille"
+        subtitle="Trouve ton sillage"
         style={{ paddingHorizontal: 16 }}
       />
       <ScrollView
@@ -44,53 +62,135 @@ export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.scrollContent}
       >
-        {FAMILIES.map(f => {
-          const bg = theme.colors[f.bgKey] ?? theme.colors.surface2;
-          const accent = theme.colors[f.accentKey] ?? theme.colors.primary;
-          return (
-            <Pressable
-              key={f.key}
-              style={[s.card, { backgroundColor: bg }]}
-              onPress={() => onFamilyTap(f.query)}
-            >
-              <View style={[s.iconWrap, { backgroundColor: accent + '20' }]}>
-                <Ionicons name={f.icon as never} size={22} color={accent} />
-              </View>
-              <Text style={s.label}>{f.label}</Text>
-            </Pressable>
-          );
-        })}
+        {cards.map(({ family, overview }) => (
+          <FamilyCard
+            key={family.key}
+            family={family}
+            top={overview!.top!}
+            count={overview!.count}
+            onPress={() => handlePress(family.key)}
+          />
+        ))}
       </ScrollView>
     </View>
+  );
+}
+
+function FamilyCard({ family, top, count, onPress }: {
+  family: OlfactoryFamily;
+  top: Parfum;
+  count: number;
+  onPress: () => void;
+}) {
+  const { theme } = useTheme();
+  const s = useMemo(() => getStyles(theme), [theme]);
+  const accent = theme.colors[family.accent];
+  const accentSoft = theme.colors[family.accentSoft];
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.card,
+        { backgroundColor: accentSoft },
+        pressed && s.cardPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${family.label}, ${family.tagline}, ${count} parfums`}
+    >
+      <View style={[s.iconBadge, { backgroundColor: accent }]}>
+        <Ionicons name={family.icon as never} size={14} color={textOn(accent)} />
+      </View>
+      <View style={s.imageZone}>
+        <Image
+          source={{ uri: top.imageUrl }}
+          style={s.bottle}
+          contentFit="contain"
+          transition={300}
+        />
+      </View>
+      <View style={s.textBlock}>
+        <Text style={s.label}>{family.label}</Text>
+        <Text style={s.tagline} numberOfLines={1}>{family.tagline}</Text>
+        <View style={s.countRow}>
+          <View style={[s.countDot, { backgroundColor: accent }]} />
+          <Text style={s.countText}>{count.toLocaleString('fr-FR')} parfums</Text>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
 function getStyles(t: Theme) {
   return {
     container: { marginBottom: t.spacing.xl },
-    scrollContent: { paddingHorizontal: t.spacing.md, gap: 10 },
+    scrollContent: { paddingHorizontal: t.spacing.md, gap: 12 },
+
     card: {
-      width: 140,
-      height: 80,
-      borderRadius: t.radius.base,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      gap: 10,
-      borderWidth: 1,
+      width: 150,
+      borderRadius: t.radius.card,
+      overflow: 'hidden',
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: t.colors.border,
     },
-    iconWrap: {
-      width: 44,
-      height: 44,
-      borderRadius: t.radius.sm,
+    cardPressed: { opacity: 0.85 },
+
+    iconBadge: {
+      position: 'absolute',
+      top: 10,
+      left: 10,
+      zIndex: 1,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
       justifyContent: 'center',
       alignItems: 'center',
     },
+
+    imageZone: {
+      height: 130,
+      paddingTop: 14,
+      paddingHorizontal: 12,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+    },
+    bottle: {
+      width: '100%',
+      height: '100%',
+    },
+
+    textBlock: {
+      paddingHorizontal: 12,
+      paddingTop: 8,
+      paddingBottom: 12,
+      gap: 2,
+    },
     label: {
       fontFamily: 'PlayfairDisplay_600SemiBold',
-      fontSize: 14,
+      fontSize: 16,
       color: t.colors.text,
+    },
+    tagline: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      color: t.colors.textMuted,
+    },
+    countRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginTop: 4,
+    },
+    countDot: {
+      width: 5,
+      height: 5,
+      borderRadius: 3,
+    },
+    countText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 10,
+      color: t.colors.textMuted,
+      fontVariant: ['tabular-nums'] as import('react-native').FontVariant[],
     },
   } as const;
 }

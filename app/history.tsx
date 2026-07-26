@@ -229,11 +229,7 @@ function ScanHistoryCard({
 
 // ── Composant principal ──
 
-interface Props {
-  onScroll?: (y: number) => void;
-}
-
-export default function HistoryPage({ onScroll }: Props) {
+export default function HistoryPage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
@@ -356,11 +352,11 @@ export default function HistoryPage({ onScroll }: Props) {
 
   if (!isAuthenticated) {
     return (
-      <SafeAreaView edges={['bottom']} style={s.container}>
+      <SafeAreaView edges={['top', 'bottom']} style={s.container}>
         <View style={s.center}>
           <Ionicons name="lock-closed-outline" size={64} color={theme.colors.textMuted} />
-          <Text style={s.authTitle}>Connectez-vous</Text>
-          <Text style={s.authDesc}>Accédez à votre historique de scans.</Text>
+          <Text style={s.authTitle}>Connecte-toi</Text>
+          <Text style={s.authDesc}>Accède à ton historique de scans.</Text>
           <Pressable style={s.authBtn} onPress={() => router.push('/auth/login')}>
             <Text style={s.authBtnText}>Se connecter</Text>
           </Pressable>
@@ -371,11 +367,9 @@ export default function HistoryPage({ onScroll }: Props) {
 
   if (scans.length === 0 && !loading) {
     return (
-      <SafeAreaView edges={['bottom']} style={s.container}>
+      <SafeAreaView edges={['top', 'bottom']} style={s.container}>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
-          onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
-          scrollEventThrottle={16}
         >
           <View style={s.headerBar}>
             <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Retour">
@@ -390,11 +384,9 @@ export default function HistoryPage({ onScroll }: Props) {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={s.container}>
+    <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView
         contentContainerStyle={s.scroll}
-        onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
-        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />
         }

@@ -3,8 +3,9 @@
 // Suppression des chips famille olfactive — dilution dans des sections nommées
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { Link, useRouter } from 'expo-router';
 import { useAuthContext } from '../../contexts/AuthContext';
 import ParfumCard from '../../components/ParfumCard';
@@ -13,16 +14,13 @@ import BrandCapsules from './BrandCapsules';
 import CatalogRow from './CatalogRow';
 import FamilyAmbianceCards from './FamilyAmbianceCards';
 import BrandSheet from './BrandSheet';
-import { getPopularParfums, getPersonalizedSuggestions } from '../../services/firestore';
+import { getPopularParfums, getPersonalizedSuggestions, getTopRatedParfums, getSeasonalParfums, getParfumCount } from '../../services/firestore';
 import { useDensityPreference, GRID_MODES } from '../../hooks/useDensityPreference';
+import type { CardMode } from '../../components/ParfumCard';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
+import { currentSeason, SEASON_META } from '../../utils/season';
 import type { Parfum } from '../../models';
-
-const ICONIC_NAMES = [
-  'N°5', 'Shalimar', "J'adore", 'Angel', 'Le Mâle',
-  'Opium', 'Coco Mademoiselle', 'L\'Interdit',
-];
 
 function seededShuffle<T>(arr: T[], seed: number): T[] {
   const shuffled = [...arr];
@@ -43,17 +41,29 @@ function getDiscount(p: Parfum): number {
 }
 
 interface Props {
-  onScroll?: (y: number) => void;
+  scrollY?: SharedValue<number>;
 }
 
-export default function CatalogPage({ onScroll }: Props) {
+export default function CatalogPage({ scrollY }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
-  const flatListRef = useRef<FlatList<Parfum>>(null);
+  const flatListRef = useRef<Animated.FlatList<Parfum>>(null);
+
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    if (scrollY) scrollY.value = e.contentOffset.y;
+  });
 
   const { density: gridDensity, setDensity: setGridDensity } = useDensityPreference();
+
+  const pendingScrollRef = useRef<number | null>(null);
+  const prevGridKeyRef = useRef<string | null>(null);
+
+  const handleDensityChange = useCallback((mode: CardMode) => {
+    if (scrollY) pendingScrollRef.current = scrollY.value;
+    setGridDensity(mode);
+  }, [scrollY, setGridDensity]);
 
   const [suggestionParfums, setSuggestionParfums] = useState<Parfum[]>([]);
   const [suggestionLabel, setSuggestionLabel] = useState('Parfums populaires');
@@ -62,7 +72,13 @@ export default function CatalogPage({ onScroll }: Props) {
   const [bestDeals, setBestDeals] = useState<Parfum[]>([]);
   const [dealsLoading, setDealsLoading] = useState(true);
 
-  const [iconicParfums, setIconicParfums] = useState<Parfum[]>([]);
+  const [topRated, setTopRated] = useState<Parfum[]>([]);
+  const [topRatedLoading, setTopRatedLoading] = useState(true);
+
+  const [seasonal, setSeasonal] = useState<Parfum[]>([]);
+  const [seasonalLoading, setSeasonalLoading] = useState(true);
+
+  const season = useMemo(() => currentSeason(), []);
 
   const [gridParfums, setGridParfums] = useState<Parfum[]>([]);
   const [gridLoading, setGridLoading] = useState(true);
@@ -70,6 +86,7 @@ export default function CatalogPage({ onScroll }: Props) {
 
   const [sharedPool, setSharedPool] = useState<Parfum[]>([]);
   const [sharedLoading, setSharedLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
 
   const today = Math.floor(Date.now() / 86400000);
 
@@ -80,10 +97,16 @@ export default function CatalogPage({ onScroll }: Props) {
       try {
         const popular = await getPopularParfums(120);
         if (!cancelled) setSharedPool(popular);
-      } catch {}
+      } catch (e) { console.warn('[catalog] getPopularParfums failed:', e); }
       if (!cancelled) setSharedLoading(false);
     }
     load();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getParfumCount().then(n => { if (!cancelled) setTotalCount(n); });
     return () => { cancelled = true; };
   }, []);
 
@@ -128,15 +151,6 @@ export default function CatalogPage({ onScroll }: Props) {
     setDealsLoading(false);
   }, [sharedPool, sharedLoading]);
 
-  // ── Icônes intemporelles — depuis le pool partagé ──
-  useEffect(() => {
-    if (sharedLoading) return;
-    const icons = sharedPool.filter(p => ICONIC_NAMES.some(name =>
-      p.nom.toLowerCase().includes(name.toLowerCase())
-    ));
-    setIconicParfums(seededShuffle(icons, today).slice(0, 8));
-  }, [sharedPool, sharedLoading]);
-
   // ── Grille — depuis le pool partagé ──
   useEffect(() => {
     if (sharedLoading) return;
@@ -144,12 +158,39 @@ export default function CatalogPage({ onScroll }: Props) {
     setGridLoading(false);
   }, [sharedPool, sharedLoading]);
 
+  // ── Les mieux notés (note + plancher de reviews) — fetch dédié ──
+  useEffect(() => {
+    let cancelled = false;
+    getTopRatedParfums(12)
+      .then(list => { if (!cancelled) setTopRated(list); })
+      .catch((e) => console.warn('[catalog] getTopRatedParfums', e))
+      .finally(() => { if (!cancelled) setTopRatedLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Parfaits pour la saison (saison dominante) — fetch dédié ──
+  useEffect(() => {
+    let cancelled = false;
+    getSeasonalParfums(season, 12)
+      .then(list => { if (!cancelled) setSeasonal(list); })
+      .catch((e) => console.warn('[catalog] getSeasonalParfums', e))
+      .finally(() => { if (!cancelled) setSeasonalLoading(false); });
+    return () => { cancelled = true; };
+  }, [season]);
+
+  // Dédup : un parfum dominant en saison ET bien noté ne doit pas apparaître
+  // dans deux rangées adjacentes. La rangée saison garde la priorité.
+  const topRatedDisplay = useMemo(() => {
+    const seasonalIds = new Set(seasonal.map(p => p.id));
+    return topRated.filter(p => !seasonalIds.has(p.id));
+  }, [topRated, seasonal]);
+
   const handleBrandTap = useCallback((brand: string) => {
     router.push(`/search?q=${encodeURIComponent(brand)}`);
   }, [router]);
 
-  const handleFamilyTap = useCallback((query: string) => {
-    router.push(`/search?q=${encodeURIComponent(query)}`);
+  const handleFamilyTap = useCallback((familyKey: string) => {
+    router.push(`/search?family=${encodeURIComponent(familyKey)}`);
   }, [router]);
 
   const handleViewAllBrands = useCallback(() => {
@@ -169,6 +210,23 @@ export default function CatalogPage({ onScroll }: Props) {
   const gridNumCols = gridDensity === 'list' ? 1 : 2;
   const gridKey = `${gridNumCols}col`;
 
+  useEffect(() => {
+    if (prevGridKeyRef.current === null) {
+      prevGridKeyRef.current = gridKey;
+      return;
+    }
+    if (prevGridKeyRef.current !== gridKey) {
+      prevGridKeyRef.current = gridKey;
+      const offset = pendingScrollRef.current;
+      if (offset != null && offset > 0) {
+        pendingScrollRef.current = null;
+        requestAnimationFrame(() => {
+          flatListRef.current?.scrollToOffset({ offset, animated: false });
+        });
+      }
+    }
+  }, [gridKey]);
+
   const listHeader = useMemo(() => (
     <View>
       {/* Brand capsules */}
@@ -181,13 +239,41 @@ export default function CatalogPage({ onScroll }: Props) {
       {!suggestionLoading && suggestionParfums.length > 0 && (
         <CatalogRow
           title={suggestionLabel}
-          subtitle="Suggestions basées sur vos goûts"
+          subtitle="Suggestions basées sur tes goûts"
           actionLabel="Voir tout →"
           onAction={scrollToGrid}
           collapsible
           defaultCollapsed={false}
         >
           {suggestionParfums.map(p => (
+            <ParfumCard key={p.id} parfum={p} mode="compact" />
+          ))}
+        </CatalogRow>
+      )}
+
+      {/* Row: Parfaits pour la saison (saison dominante) */}
+      {!seasonalLoading && seasonal.length > 0 && (
+        <CatalogRow
+          title={`Parfaits pour ${SEASON_META[season].withArticle}`}
+          subtitle="Les fragrances qui s'épanouissent en ce moment"
+          collapsible
+          defaultCollapsed={false}
+        >
+          {seasonal.map(p => (
+            <ParfumCard key={p.id} parfum={p} mode="compact" />
+          ))}
+        </CatalogRow>
+      )}
+
+      {/* Row: Les mieux notés (preuve sociale) */}
+      {!topRatedLoading && topRatedDisplay.length > 0 && (
+        <CatalogRow
+          title="Les mieux notés"
+          subtitle="Plébiscités par la communauté"
+          collapsible
+          defaultCollapsed={false}
+        >
+          {topRatedDisplay.map(p => (
             <ParfumCard key={p.id} parfum={p} mode="compact" />
           ))}
         </CatalogRow>
@@ -210,24 +296,12 @@ export default function CatalogPage({ onScroll }: Props) {
       {/* Row: Explorer par famille (ambiance cards) */}
       <FamilyAmbianceCards onFamilyTap={handleFamilyTap} />
 
-      {/* Row: Icônes intemporelles (collapsed) */}
-      {iconicParfums.length > 0 && (
-        <CatalogRow
-          title="Icônes intemporelles"
-          subtitle="Les parfums qui ont marqué l'histoire"
-          collapsible
-          defaultCollapsed={true}
-        >
-          {iconicParfums.map(p => (
-            <ParfumCard key={p.id} parfum={p} mode="compact" />
-          ))}
-        </CatalogRow>
-      )}
-
       {/* Grid controls */}
       <View style={s.gridControls}>
         <View style={s.gridControlsRow}>
-          <Text style={s.gridCount}>21 567 parfums</Text>
+          <Text style={s.gridCount}>
+            {totalCount != null ? `${new Intl.NumberFormat('fr-FR').format(totalCount)} parfums` : '…'}
+          </Text>
         </View>
         <View style={s.gridControlsRow}>
           <View style={s.segmentWrap}>
@@ -235,7 +309,7 @@ export default function CatalogPage({ onScroll }: Props) {
               <Pressable
                 key={m.key}
                 style={[s.segmentBtn, gridDensity === m.key && s.segmentBtnActive]}
-                onPress={() => setGridDensity(m.key)}
+                onPress={() => handleDensityChange(m.key)}
               >
                 <Text style={[s.segmentBtnText, gridDensity === m.key && s.segmentBtnTextActive]}>
                   {m.label}
@@ -248,15 +322,16 @@ export default function CatalogPage({ onScroll }: Props) {
     </View>
   ), [
     s, suggestionParfums, suggestionLabel, suggestionLoading,
-    bestDeals, dealsLoading, iconicParfums, gridDensity,
-    handleViewAllBrands, handleBrandTap, handleFamilyTap, scrollToGrid,
+    seasonal, seasonalLoading, topRatedDisplay, topRatedLoading, season,
+    bestDeals, dealsLoading, gridDensity,
+    handleViewAllBrands, handleBrandTap, handleFamilyTap, scrollToGrid, handleDensityChange,
   ]);
 
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
       {authReady && !isAuthenticated && (
         <View style={s.banner}>
-          <Text style={s.bannerText}>Connectez-vous pour des suggestions personnalisées</Text>
+          <Text style={s.bannerText}>Connecte-toi pour des suggestions personnalisées</Text>
           <Link href="/auth/login" style={s.bannerLink}>
             <Text style={s.bannerLinkText}>Connexion</Text>
           </Link>
@@ -275,7 +350,7 @@ export default function CatalogPage({ onScroll }: Props) {
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
-        <FlatList
+        <Animated.FlatList
           ref={flatListRef}
           key={gridKey}
           data={gridParfums}
@@ -287,7 +362,7 @@ export default function CatalogPage({ onScroll }: Props) {
           contentContainerStyle={s.gridContent}
           columnWrapperStyle={gridNumCols === 2 ? s.gridRow : undefined}
           showsVerticalScrollIndicator={false}
-          onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+          onScroll={scrollHandler}
           scrollEventThrottle={16}
         />
       )}

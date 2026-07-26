@@ -38,16 +38,6 @@ export function onFcmTokenRefresh(cb: (token: string) => void): () => void {
   return sub.remove;
 }
 
-export function onFcmMessage(cb: (payload: unknown) => void): () => void {
-  const sub = Notifications.addNotificationReceivedListener((n) => { cb(n as unknown); });
-  return sub.remove;
-}
-
-export function onFcmNotificationOpened(cb: (payload: unknown) => void): () => void {
-  const sub = Notifications.addNotificationResponseReceivedListener((r) => { cb(r as unknown); });
-  return sub.remove;
-}
-
 export async function deleteFcmToken(): Promise<void> {
   // Expo Push n'expose pas de suppression de token côté client.
   // Les tokens obsolètes sont nettoyés côté Edge Function (receipts).

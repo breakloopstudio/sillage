@@ -29,8 +29,8 @@ const CONFIG = {
   },
   wardrobe: {
     icon: 'flask-outline',
-    title: 'Votre parfumerie est vide',
-    desc: 'Ajoutez vos premiers flacons pour constituer votre collection personnelle.',
+    title: 'Ta parfumerie est vide',
+    desc: 'Ajoute tes premiers flacons pour constituer ta collection personnelle.',
     cta: 'Explorer le catalogue',
   },
   scentlist: {

@@ -26,6 +26,29 @@ export function useWeather(enabled = true): UseWeatherResult {
     return () => { mountedRef.current = false; };
   }, []);
 
+  const fetchWithPosition = useCallback(async () => {
+    let pos = await Location.getLastKnownPositionAsync();
+    if (!pos) {
+      pos = await withTimeout(
+        Location.getCurrentPositionAsync({}),
+        POSITION_TIMEOUT_MS,
+      );
+    }
+    if (pos) {
+      const data = await fetchWeather(pos.coords.latitude, pos.coords.longitude);
+      if (mountedRef.current) {
+        if (data) {
+          setWeather(data);
+          setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        } else {
+          setError('Impossible de récupérer la météo.');
+        }
+      }
+      return true;
+    }
+    return false;
+  }, []);
+
   const load = useCallback(async () => {
     if (!enabled) return;
 
@@ -36,49 +59,11 @@ export function useWeather(enabled = true): UseWeatherResult {
       const { status } = await Location.getForegroundPermissionsAsync();
 
       if (status === 'granted') {
-        let pos = await Location.getLastKnownPositionAsync();
-
-        if (!pos) {
-          pos = await withTimeout(
-            Location.getCurrentPositionAsync({}),
-            POSITION_TIMEOUT_MS,
-          );
-        }
-
-        if (pos) {
-          const data = await fetchWeather(pos.coords.latitude, pos.coords.longitude);
-          if (mountedRef.current) {
-            if (data) {
-              setWeather(data);
-              setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-            } else {
-              setError('Impossible de récupérer la météo.');
-            }
-          }
-          return;
-        }
+        if (await fetchWithPosition()) return;
       } else if (status === 'undetermined') {
         const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
         if (newStatus === 'granted') {
-          let pos = await Location.getLastKnownPositionAsync();
-          if (!pos) {
-            pos = await withTimeout(
-              Location.getCurrentPositionAsync({}),
-              POSITION_TIMEOUT_MS,
-            );
-          }
-          if (pos) {
-            const data = await fetchWeather(pos.coords.latitude, pos.coords.longitude);
-            if (mountedRef.current) {
-              if (data) {
-                setWeather(data);
-                setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-              } else {
-                setError('Impossible de récupérer la météo.');
-              }
-            }
-            return;
-          }
+          if (await fetchWithPosition()) return;
         }
       }
 
@@ -93,7 +78,7 @@ export function useWeather(enabled = true): UseWeatherResult {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, fetchWithPosition]);
 
   useEffect(() => {
     if (!enabled) return;

@@ -68,7 +68,7 @@ export default function SearchChrome() {
       setVoicePhase({ type: 'empty' });
     } catch {
       if (requestId !== voiceRequestIdRef.current) return;
-      setVoicePhase({ type: 'error', message: 'La recherche a échoué. Vérifiez votre connexion.' });
+      setVoicePhase({ type: 'error', message: 'La recherche a échoué. Vérifie ta connexion.' });
     }
   }, []);
 
@@ -86,7 +86,7 @@ export default function SearchChrome() {
   useEffect(() => {
     if (voicePhase.type !== 'searching') return;
     const t = setTimeout(() => {
-      setVoicePhase({ type: 'error', message: 'La recherche prend trop de temps. Veuillez réessayer.' });
+      setVoicePhase({ type: 'error', message: 'La recherche prend trop de temps. Réessaie.' });
     }, 20_000);
     return () => clearTimeout(t);
   }, [voicePhase.type]);

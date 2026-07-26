@@ -12,7 +12,7 @@ import { useSotd } from '../../src/hooks/useSotd';
 import { useProfileStats } from '../../src/hooks/useProfileStats';
 import { OWNERSHIP_LABELS } from '../../src/utils/ownership';
 import type { WardrobeItem } from '../../src/models/wardrobe.interface';
-import Button from '../../src/components/Button';
+import AuthGate from '../../src/components/AuthGate';
 
 const NAV_ROWS = [
   { key: 'favoris', icon: 'heart-outline', label: 'Favoris', route: '/(tabs)/selection', params: { segment: 'favoris' } },
@@ -82,14 +82,10 @@ export default function ProfilePage() {
           <Text style={s.title}>Profil</Text>
           <View style={s.headerSpacer} />
         </View>
-        <View style={s.gateWrap}>
-          <Ionicons name="person-outline" size={64} color={theme.colors.textMuted} />
-          <Text style={s.gateTitle}>Connectez-vous</Text>
-          <Text style={s.gateDesc} maxFontSizeMultiplier={1.3}>
-            Crée un compte pour suivre tes favoris, ta parfumerie et tes scans.
-          </Text>
-          <Button onPress={() => router.push('/auth/login')}>Se connecter</Button>
-        </View>
+        <AuthGate
+          icon="person-outline"
+          description="Crée un compte pour suivre tes favoris, ta parfumerie et tes scans."
+        />
       </SafeAreaView>
     );
   }
@@ -272,7 +268,6 @@ function getStyles(t: Theme) {
       paddingVertical: 12,
       marginBottom: 8,
     },
-    backBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
     headerSpacer: { width: 32 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text },
     settingsBtn: {
@@ -472,26 +467,6 @@ function getStyles(t: Theme) {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 15,
       color: t.colors.overpriced,
-    },
-
-    gateWrap: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 32,
-      gap: 16,
-    },
-    gateTitle: {
-      fontFamily: 'PlayfairDisplay_700Bold',
-      fontSize: 22,
-      color: t.colors.text,
-    },
-    gateDesc: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      color: t.colors.textMuted,
-      textAlign: 'center',
-      lineHeight: 21,
     },
   } as const;
 }

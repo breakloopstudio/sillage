@@ -5,6 +5,7 @@ export interface NavigationChromeContextValue {
   reportScroll: (y: number) => void;
   resetDock: () => void;
   dockTranslateY: SharedValue<number>;
+  scrollY: SharedValue<number>;
 }
 
 export const NavigationChromeContext = createContext<NavigationChromeContextValue | null>(null);
@@ -32,7 +33,8 @@ export function NavigationChromeProvider({ children }: { children: React.ReactNo
     reportScroll: (y: number) => { scrollY.value = y; },
     resetDock: () => { scrollY.value = 0; },
     dockTranslateY,
-  }), [dockTranslateY]);
+    scrollY,
+  }), [dockTranslateY, scrollY]);
 
   return (
     <NavigationChromeContext.Provider value={value}>

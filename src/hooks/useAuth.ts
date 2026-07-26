@@ -59,7 +59,7 @@ export function useAuth() {
             .eq('user_id', su.id)
             .maybeSingle();
           setIsAdmin(adm !== null);
-        } catch { setIsAdmin(false); }
+        } catch (e) { console.warn('[auth] admin check failed:', e); setIsAdmin(false); }
       } else {
         setIsAdmin(false);
       }

@@ -57,7 +57,7 @@ export function useCatalog() {
           timestamps.push(now);
         }
 
-        const results = cached ? await searchParfumsCached(q) : await searchParfumsCached(q);
+        const results = await searchParfumsCached(q);
         if (mountedRef.current && requestIdRef.current === id) {
           setParfums(results);
           setSearching(false);

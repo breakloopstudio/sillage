@@ -25,12 +25,13 @@ import { useTheme, type Theme } from '../theme/ThemeContext';
 interface Props {
   visible: boolean;
   imageUrl: string;
+  imageUrl2x?: string | null;
   brand: string;
   name: string;
   onClose: () => void;
 }
 
-export default function ImageViewerPopup({ visible, imageUrl, brand, name, onClose }: Props) {
+export default function ImageViewerPopup({ visible, imageUrl, imageUrl2x, brand, name, onClose }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -90,12 +91,23 @@ export default function ImageViewerPopup({ visible, imageUrl, brand, name, onClo
       </Pressable>
 
       <Animated.View style={[s.card, cardAnim]}>
-        <Image
-          source={{ uri: imageUrl }}
-          style={{ width: imageWidth, height: imageHeight }}
-          contentFit="contain"
-          transition={300}
-        />
+        <View style={{ width: imageWidth, height: imageHeight }}>
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: imageWidth, height: imageHeight }}
+            contentFit="contain"
+            transition={300}
+          />
+          {imageUrl2x ? (
+            <Image
+              key={imageUrl2x}
+              source={{ uri: imageUrl2x }}
+              style={s.imageHd}
+              contentFit="contain"
+              transition={250}
+            />
+          ) : null}
+        </View>
         <Text allowFontScaling={false} style={s.brand}>{brand}</Text>
         <Text allowFontScaling={false} style={s.name}>{name}</Text>
       </Animated.View>
@@ -136,6 +148,13 @@ function getStyles(_t: Theme) {
     card: {
       alignItems: 'center' as const,
       zIndex: 1,
+    },
+    imageHd: {
+      position: 'absolute' as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
     },
     brand: {
       fontFamily: 'Inter_400Regular',

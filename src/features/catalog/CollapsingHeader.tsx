@@ -1,23 +1,17 @@
-// src/features/catalog/CollapsingHeader.tsx — Header collapsé avec animation scroll
+// src/features/catalog/CollapsingHeader.tsx — Header collapsé avec animation scroll (100% UI thread)
 
-import { useMemo, useState } from 'react';
-import { View, Text, Pressable, LayoutAnimation } from 'react-native';
+import { useMemo } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
-  useAnimatedReaction,
   interpolate,
   Extrapolation,
-  runOnJS,
   type SharedValue,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
-
-function applyLayoutAnimation() {
-  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-}
 
 interface Props {
   scrollY: SharedValue<number>;
@@ -30,19 +24,13 @@ export default function CollapsingHeader({ scrollY, brand, name, rightAction }: 
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
-  const [compact, setCompact] = useState(false);
 
-  useAnimatedReaction(
-    () => scrollY.value > 30,
-    (isCompact) => {
-      runOnJS(setCompact)(isCompact);
-      runOnJS(applyLayoutAnimation)();
-    },
-    [],
-  );
+  const expandedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [20, 40], [1, 0], Extrapolation.CLAMP),
+  }));
 
-  const brandStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [0, 15], [1, 1], Extrapolation.CLAMP),
+  const compactStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [20, 40], [0, 1], Extrapolation.CLAMP),
   }));
 
   if (!brand && !name) return null;
@@ -62,19 +50,22 @@ export default function CollapsingHeader({ scrollY, brand, name, rightAction }: 
           </Pressable>
 
           <View style={s.textWrap}>
-            {brand ? (
-              <Animated.Text style={[compact ? s.brandCompact : s.brand, brandStyle]} numberOfLines={1}>
-                {brand}
-              </Animated.Text>
-            ) : null}
-            {name ? (
-              <Text
-                style={compact ? s.nameCompact : s.name}
-                numberOfLines={compact ? 1 : 2}
-              >
-                {name}
-              </Text>
-            ) : null}
+            <Animated.View style={[s.textStack, expandedStyle]}>
+              {brand ? (
+                <Text style={s.brand} numberOfLines={1}>{brand}</Text>
+              ) : null}
+              {name ? (
+                <Text style={s.name} numberOfLines={2}>{name}</Text>
+              ) : null}
+            </Animated.View>
+            <Animated.View style={[s.textStack, s.textStackCompact, compactStyle]}>
+              {brand ? (
+                <Text style={s.brandCompact} numberOfLines={1}>{brand}</Text>
+              ) : null}
+              {name ? (
+                <Text style={s.nameCompact} numberOfLines={1}>{name}</Text>
+              ) : null}
+            </Animated.View>
           </View>
 
           {rightAction ? (
@@ -124,6 +115,15 @@ function getStyles(t: Theme) {
     },
     textWrap: {
       flex: 1,
+      justifyContent: 'center' as const,
+    },
+    textStack: {},
+    textStackCompact: {
+      position: 'absolute' as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       justifyContent: 'center' as const,
     },
     brand: {

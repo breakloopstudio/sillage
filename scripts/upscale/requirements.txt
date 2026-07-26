@@ -1,0 +1,4 @@
+# Dépendances du worker upscale (venv isolé, Python 3.10)
+# torch/torchvision installés AVANT depuis l'index CUDA (voir README.md).
+realesrgan>=0.3.0
+opencv-python>=4.8

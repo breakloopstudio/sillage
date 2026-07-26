@@ -66,15 +66,27 @@ export interface SubscribeUserTableOptions<T> {
   onError?: (message: string) => void;
 }
 
+let channelSeq = 0;
+
 export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () => void {
   const { table, userId, order, mapRow, keyOf, sort, cb, onError } = opts;
   const items = new Map<string, T>();
   let cancelled = false;
+  let initialDone = false;
+  const pendingEvents: Array<{ eventType: string; row: Record<string, unknown> }> = [];
 
   const emit = (): void => {
     const arr = [...items.values()];
     if (sort) arr.sort(sort);
     cb(arr);
+  };
+
+  const applyEvent = (eventType: string, row: Record<string, unknown>): void => {
+    if (eventType === 'DELETE') {
+      items.delete(keyOf(row));
+    } else {
+      items.set(keyOf(row), mapRow(row));
+    }
   };
 
   // 1. Fetch initial (parité avec le snapshot initial d'onSnapshot)
@@ -86,29 +98,36 @@ export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () =>
     if (error) {
       console.warn(`[supabase] ${table} fetch error:`, error.message);
       onError?.(error.message);
+      initialDone = true;
+      pendingEvents.length = 0;
       cb([]);
       return;
     }
     for (const row of (data ?? []) as Record<string, unknown>[]) {
       items.set(keyOf(row), mapRow(row));
     }
+    for (const evt of pendingEvents) {
+      applyEvent(evt.eventType, evt.row);
+    }
+    pendingEvents.length = 0;
+    initialDone = true;
     emit();
   })();
 
-  // 2. Canal realtime — INSERT/UPDATE/DELETE appliqués au cache
+  // 2. Canal realtime — INSERT/UPDATE/DELETE bufferisés jusqu'au fetch initial
   const channel = supabase
-    .channel(`user:${table}:${userId}`)
+    .channel(`user:${table}:${userId}:${channelSeq++}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table, filter: `user_id=eq.${userId}` },
       (payload) => {
         if (cancelled) return;
-        if (payload.eventType === 'DELETE') {
-          items.delete(keyOf(payload.old as Record<string, unknown>));
-        } else {
-          const row = payload.new as Record<string, unknown>;
-          items.set(keyOf(row), mapRow(row));
+        const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown>;
+        if (!initialDone) {
+          pendingEvents.push({ eventType: payload.eventType, row });
+          return;
         }
+        applyEvent(payload.eventType, row);
         emit();
       },
     )

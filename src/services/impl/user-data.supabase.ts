@@ -246,22 +246,6 @@ export async function moveToCollection(uid: string, fromTab: string, fromItemId:
   }
 }
 
-export async function isInCollection(uid: string, parfumId: string): Promise<{ isInCollection: boolean; itemId: string | null }> {
-  try {
-    const { data, error } = await supabase
-      .from('collection')
-      .select('parfum_id')
-      .eq('user_id', uid)
-      .eq('parfum_id', parfumId)
-      .maybeSingle();
-    if (error) throw error;
-    if (data) return { isInCollection: true, itemId: parfumId };
-    return { isInCollection: false, itemId: null };
-  } catch {
-    return { isInCollection: false, itemId: null };
-  }
-}
-
 export async function moveToScentList(uid: string, fromTab: string, fromItemId: string, parfumId: string, nom?: string | null, marque?: string | null, imageUrl?: string | null, familleOlactive?: string | null): Promise<void> {
   try {
     void fromItemId;
@@ -391,15 +375,19 @@ export async function isPriceAlertActive(uid: string, parfumId: string): Promise
 
 export async function setPriceAlert(uid: string, parfumId: string, active: boolean, currentPrice?: number): Promise<void> {
   if (active) {
-    const now = new Date().toISOString();
-    const { error } = await supabase.from('price_alerts').upsert({
-      user_id: uid,
-      parfum_id: parfumId,
-      added_at: now,
-      last_price: currentPrice ?? null,
-      last_checked: now,
-    } as never);
-    if (error) throw error;
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('price_alerts').upsert({
+        user_id: uid,
+        parfum_id: parfumId,
+        added_at: now,
+        last_price: currentPrice ?? null,
+        last_checked: now,
+      } as never);
+      if (error) throw error;
+    } catch (e: unknown) {
+      console.warn('[user-data] setPriceAlert upsert failed:', (e as Error)?.message ?? String(e));
+    }
   } else {
     try {
       const { error } = await supabase

@@ -1,23 +1,19 @@
 ﻿import { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
   useSharedValue,
-  useAnimatedProps,
+  useAnimatedStyle,
   withTiming,
   cancelAnimation,
   FadeIn,
   FadeOut,
 } from 'react-native-reanimated';
-import { useWindowDimensions } from 'react-native';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
-import { pickInitialLayer, layerAphorism, type LayerKey } from './pyramid/geometry';
+import { pickInitialLayer, layerAphorism, alpha, type LayerKey } from './pyramid/geometry';
 import PyramidStage from './pyramid/PyramidStage';
 import NoteCloud from './pyramid/NoteCloud';
-
-const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
 
 interface LayerDef {
   key: LayerKey;
@@ -38,7 +34,6 @@ interface Props {
 export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, onNotePress }: Props) {
   const { theme, resolvedMode } = useTheme();
   const c = theme.colors;
-  const { width: screenW } = useWindowDimensions();
   const s = useMemo(() => getStyles(theme), [theme]);
 
   const [active, setActive] = useState<LayerKey | null>(() =>
@@ -69,68 +64,28 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, onNo
   const hasAnyNotes = layers.some(l => l.notes.length > 0);
   if (!hasAnyNotes) return null;
 
-  const dims = useMemo(() => {
-    const svgW = Math.min(250, screenW - 200);
-    const svgH = Math.round(svgW * 0.92);
-    return { svgW, svgH };
-  }, [screenW]);
-
-  const veilH = dims.svgH + 120;
-
-  const veilPrevO = useSharedValue(0);
-  const veilNextO = useSharedValue(0);
-  const [veilColors, setVeilColors] = useState<{ prev: string; next: string }>({
-    prev: _layerGradientColor(activeLayer, resolvedMode),
-    next: _layerGradientColor(activeLayer, resolvedMode),
-  });
+  const veilO = useSharedValue(0);
+  const [veilColor, setVeilColor] = useState(activeLayer?.color ?? 'transparent');
 
   useEffect(() => {
-    const nextColor = _layerGradientColor(activeLayer, resolvedMode);
-    setVeilColors(prev => ({ prev: prev.next, next: nextColor }));
-    const masterO = activeLayer ? (resolvedMode === 'light' ? 0.5 : 0.35) : 0;
-    veilPrevO.value = withTiming(0, { duration: 300 });
-    veilNextO.value = withTiming(masterO, { duration: 300 });
-    return () => {
-      cancelAnimation(veilPrevO);
-      cancelAnimation(veilNextO);
-    };
+    if (activeLayer) setVeilColor(activeLayer.color);
+    const target = activeLayer ? (resolvedMode === 'light' ? 0.5 : 0.35) : 0;
+    veilO.value = withTiming(target, { duration: 300 });
+    return () => { cancelAnimation(veilO); };
   }, [activeLayer, resolvedMode]);
 
-  const veilPrevProps = useAnimatedProps(() => ({ opacity: veilPrevO.value }));
-  const veilNextProps = useAnimatedProps(() => ({ opacity: veilNextO.value }));
+  const veilStyle = useAnimatedStyle(() => ({ opacity: veilO.value }));
 
   return (
     <Animated.View style={s.root} entering={FadeIn.duration(400)}>
-      <View pointerEvents="none" style={[s.veilWrap, { height: veilH }]}>
-        <Svg width={screenW} height={veilH}>
-          <Defs>
-            <RadialGradient id="veil-prev-grad" cx="50%" cy="50%" rx="50%" ry="50%">
-              <Stop offset="0" stopColor={veilColors.prev} stopOpacity={resolvedMode === 'light' ? 0.12 : 0.14} />
-              <Stop offset="1" stopColor={veilColors.prev} stopOpacity={0} />
-            </RadialGradient>
-            <RadialGradient id="veil-next-grad" cx="50%" cy="50%" rx="50%" ry="50%">
-              <Stop offset="0" stopColor={veilColors.next} stopOpacity={resolvedMode === 'light' ? 0.12 : 0.14} />
-              <Stop offset="1" stopColor={veilColors.next} stopOpacity={0} />
-            </RadialGradient>
-          </Defs>
-          <AnimatedEllipse
-            cx={screenW / 2}
-            cy={dims.svgH * 0.55}
-            rx={screenW * 0.7}
-            ry={dims.svgH * 0.75}
-            fill="url(#veil-prev-grad)"
-            animatedProps={veilPrevProps}
-          />
-          <AnimatedEllipse
-            cx={screenW / 2}
-            cy={dims.svgH * 0.55}
-            rx={screenW * 0.7}
-            ry={dims.svgH * 0.75}
-            fill="url(#veil-next-grad)"
-            animatedProps={veilNextProps}
-          />
-        </Svg>
-      </View>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          s.veil,
+          { backgroundColor: veilColor === 'transparent' ? undefined : alpha(veilColor, resolvedMode === 'light' ? 0.10 : 0.07) },
+          veilStyle,
+        ]}
+      />
 
       <View style={s.header}>
         <View style={s.headerRow}>
@@ -165,10 +120,6 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, onNo
   );
 }
 
-function _layerGradientColor(layer: LayerDef | null, _resolvedMode: 'light' | 'dark'): string {
-  return layer ? layer.color : 'transparent';
-}
-
 function getStyles(t: Theme) {
   const c = t.colors;
   return {
@@ -186,13 +137,13 @@ function getStyles(t: Theme) {
     title: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: c.text },
     aphorismSlot: { height: 22, marginTop: 6, marginLeft: 36, justifyContent: 'center' as const },
     aphorism: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15, color: c.textMuted },
-    veilWrap: {
+    veil: {
       position: 'absolute' as const,
-      top: 56,
-      left: -16,
-      right: -16,
-      alignItems: 'center' as const,
-      overflow: 'hidden' as const,
+      top: 40,
+      left: -32,
+      right: -32,
+      height: 280,
+      borderRadius: 140,
     },
   } as const;
 }

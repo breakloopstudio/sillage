@@ -18,6 +18,7 @@ export interface Parfum {
   notesCoeur: string[];
   notesFond: string[];
   imageUrl?: string;
+  imageUrl2x?: string;
   createdAt: Date;
   updatedAt: Date;
 

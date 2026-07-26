@@ -78,7 +78,7 @@ export interface WardrobeEntry { parfumId: string; nom: string|null; marque: str
 
 export async function fetchWeatherForServer(lat: number, lon: number): Promise<WeatherData | null> {
   try {
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max&timezone=auto&forecast_days=1`);
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max&timezone=auto&forecast_days=1`, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
     const data = await res.json();
     return {

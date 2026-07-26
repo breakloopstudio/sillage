@@ -5,7 +5,7 @@ import { useNavigationChrome } from '../../src/features/navigation/NavigationChr
 import CatalogPage from '../../src/features/catalog/CatalogPage';
 
 export default function CatalogTab() {
-  const { reportScroll } = useNavigationChrome();
+  const { scrollY } = useNavigationChrome();
   const router = useRouter();
 
   useFocusEffect(
@@ -19,5 +19,5 @@ export default function CatalogTab() {
     }, [router]),
   );
 
-  return <CatalogPage onScroll={reportScroll} />;
+  return <CatalogPage scrollY={scrollY} />;
 }

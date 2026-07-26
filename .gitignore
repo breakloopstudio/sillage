@@ -64,6 +64,7 @@ check_plugins.js
 find_api.js
 run_build.bat
 NEXT_SESSION.md
+scripts/_tmp-*.ts
 
 # ─── TypeScript ──────────────────────────────────────────────────
 *.tsbuildinfo
@@ -74,6 +75,10 @@ NEXT_SESSION.md
 
 # ─── Données brutes (scrapées, non versionnées) ──────────────────
 /data
+
+# ─── Binaires upscale (Real-ESRGAN, non versionnés) ──────────────
+scripts/upscale/venv/
+scripts/upscale/weights/
 
 # ─── Build / cache backend ───────────────────────────────────────
 functions/lib/

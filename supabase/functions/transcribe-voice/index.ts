@@ -3,13 +3,13 @@
 // Appelée par le client voice-search.ts (supabase.functions.invoke).
 
 import OpenAI from 'npm:openai';
-import { createUserClient, getUserIdFromAuth } from '../_shared/supabase.ts';
+import { createUserClient, verifyUserToken } from '../_shared/supabase.ts';
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
   let uid: string;
-  try { uid = getUserIdFromAuth(req); } catch {
+  try { ({ uid } = await verifyUserToken(req)); } catch {
     return new Response(JSON.stringify({ error: 'Unauthorized.' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
   }
   const authHeader = req.headers.get('Authorization') ?? '';
@@ -31,6 +31,10 @@ Deno.serve(async (req: Request) => {
   if (typeof mimeType !== 'string' || mimeType.length === 0) {
     return new Response(JSON.stringify({ error: 'mimeType requis.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
+  const ALLOWED_MIME = ['audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/m4a', 'audio/webm', 'audio/mpeg'];
+  if (!ALLOWED_MIME.includes(mimeType)) {
+    return new Response(JSON.stringify({ error: 'Format audio non supporté.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
 
   // Limite 10 Mo (parité Firebase) — base64 ≈ 1.37× la taille binaire
   const MAX_B64 = 10 * 1024 * 1024 * 1.37;
@@ -41,8 +45,8 @@ Deno.serve(async (req: Request) => {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) return new Response(JSON.stringify({ error: 'Clé API OpenAI non configurée.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
 
-  const openai = new OpenAI({ apiKey });
-  const buffer = new Uint8Array([...atob(audioBase64)].map(c => c.charCodeAt(0)));
+  const openai = new OpenAI({ apiKey, timeout: 60_000 });
+  const buffer = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0));
   const ext = mimeType === 'audio/wav' ? '.wav' : mimeType === 'audio/mp4' ? '.m4a' : '.audio';
   const file = new File([buffer], `audio${ext}`, { type: mimeType });
 

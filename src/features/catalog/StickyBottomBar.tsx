@@ -1,11 +1,13 @@
 // src/features/catalog/StickyBottomBar.tsx — Barre d'action flottante (prix + actions, slide-in après la section prix)
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Animated, {
   useAnimatedStyle,
+  useAnimatedReaction,
   interpolate,
   Extrapolation,
+  runOnJS,
   type SharedValue,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
@@ -39,6 +41,7 @@ export default function StickyBottomBar({
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const [barVisible, setBarVisible] = useState(false);
 
   const hasPrice = bestPrice !== undefined && bestPrice > 0;
   const discountPct =
@@ -46,19 +49,29 @@ export default function StickyBottomBar({
       ? Math.round((1 - bestPrice / referencePrice) * 100)
       : null;
 
+  useAnimatedReaction(
+    () => scrollY.value > priceSectionY.value,
+    (visible) => {
+      runOnJS(setBarVisible)(visible);
+    },
+    [],
+  );
+
   const barStyle = useAnimatedStyle(() => {
-    const visible = scrollY.value > priceSectionY.value ? 1 : 0;
+    const progress = interpolate(
+      scrollY.value,
+      [priceSectionY.value, priceSectionY.value + 40],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
     return {
-      opacity: interpolate(visible, [0, 1], [0, 1], Extrapolation.CLAMP),
-      transform: [
-        { translateY: interpolate(visible, [0, 1], [60, 0], Extrapolation.CLAMP) },
-      ],
-      pointerEvents: visible > 0.1 ? ('auto' as const) : ('none' as const),
+      opacity: progress,
+      transform: [{ translateY: interpolate(progress, [0, 1], [60, 0]) }],
     };
   });
 
   return (
-    <Animated.View style={[s.root, { paddingBottom: insets.bottom + 12 }, barStyle]}>
+    <Animated.View pointerEvents={barVisible ? 'auto' : 'none'} style={[s.root, { paddingBottom: insets.bottom + 12 }, barStyle]}>
       <View style={s.inner}>
         {/* Prix + réduction */}
         <View style={s.priceCol}>

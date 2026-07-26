@@ -1,6 +1,6 @@
 // app/auth/login.tsx — Connexion (email + Google)
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, Pressable, ActivityIndicator,
   KeyboardAvoidingView, Platform, ScrollView, Keyboard,
@@ -32,7 +32,7 @@ export default function LoginPage() {
 
   const canSubmit = email.trim().length > 0 && password.length > 0;
 
-  const handleEmailLogin = async () => {
+  const handleEmailLogin = useCallback(async () => {
     if (!canSubmit) return;
     if (!EMAIL_RE.test(email.trim())) { setErrorMessage('Adresse email invalide.'); return; }
     Keyboard.dismiss();
@@ -44,9 +44,9 @@ export default function LoginPage() {
       setErrorMessage(e instanceof Error ? e.message : 'Erreur de connexion.');
     }
     finally { setLoading(null); }
-  };
+  }, [canSubmit, email, password, login]);
 
-  const handleGoogle = async () => {
+  const handleGoogle = useCallback(async () => {
     Keyboard.dismiss();
     setLoading('google'); setErrorMessage(null);
     try { await loginWithGoogle(); }
@@ -56,28 +56,28 @@ export default function LoginPage() {
       setErrorMessage(e instanceof Error ? e.message : 'Erreur connexion Google.');
     }
     finally { setLoading(null); }
-  };
+  }, [loginWithGoogle]);
 
-  const handleForgotPassword = async () => {
+  const handleForgotPassword = useCallback(async () => {
     const trimmed = email.trim();
-    if (!EMAIL_RE.test(trimmed)) { setErrorMessage("Saisissez d'abord votre adresse email."); return; }
+    if (!EMAIL_RE.test(trimmed)) { setErrorMessage("Saisis d'abord ton adresse email."); return; }
     Keyboard.dismiss();
     setLoading('forgotPassword'); setErrorMessage(null); setSuccessMessage(null);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
       if (error) throw error;
-      setSuccessMessage('Email de réinitialisation envoyé ! Vérifiez votre boîte de réception.');
+      setSuccessMessage('Email de réinitialisation envoyé. Vérifie ta boîte de réception.');
     } catch (e: unknown) {
       const msg = translateSupabaseError(e);
       if (msg) setErrorMessage(msg);
     }
     finally { setLoading(null); }
-  };
+  }, [email]);
 
-  const onEmailChange = (v: string) => { setEmail(v); if (errorMessage) setErrorMessage(null); if (successMessage) setSuccessMessage(null); };
-  const onPasswordChange = (v: string) => { setPassword(v); if (errorMessage) setErrorMessage(null); if (successMessage) setSuccessMessage(null); };
+  const onEmailChange = useCallback((v: string) => { setEmail(v); if (errorMessage) setErrorMessage(null); if (successMessage) setSuccessMessage(null); }, [errorMessage, successMessage]);
+  const onPasswordChange = useCallback((v: string) => { setPassword(v); if (errorMessage) setErrorMessage(null); if (successMessage) setSuccessMessage(null); }, [errorMessage, successMessage]);
 
-  const togglePassword = () => setShowPassword(v => !v);
+  const togglePassword = useCallback(() => setShowPassword(v => !v), []);
   const isLoading = loading !== null;
 
   return (
@@ -92,7 +92,7 @@ export default function LoginPage() {
           </View>
           <View style={s.header}>
             <Text style={s.title}>ParfumScan</Text>
-            <Text style={s.subtitle}>Découvrez l'univers des parfums</Text>
+            <Text style={s.subtitle}>Découvre l'univers des parfums</Text>
           </View>
 
           <Pressable

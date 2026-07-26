@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 216](https://img.shields.io/badge/Tests-216%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 227](https://img.shields.io/badge/Tests-227%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -22,20 +22,20 @@
 | 🎨 **UI/UX « Luxe malin »** | Design system violet profond + doré/ambré + teal, 0 fontWeight, Inter + Playfair Display |
 | 📸 **Scan intelligent** | Burst 3 photos → GPT-4o Vision (adaptatif : 70% en 1 appel, 30% en cross-ref 2 photos) → searchParfumsCached() |
 | 🖼️ **Import galerie** | Photo existante → même pipeline IA, sans permissions supplémentaires |
-| 📚 **Catalogue** | Catalogue ~25K parfums (seed Firestore), navigation par familles (rangées éditoriales), capsules marques (top 10), grille 3 densités + persistance, recherche 100% Firestore avec cache + prefix cache |
+| 📚 **Catalogue** | Catalogue ~25K parfums (seed Postgres), taxonomie 6 familles olfactives (cartes d'ambiance data-driven), rangées éditoriales (« Parfaits pour {saison} », « Les mieux notés »), capsules marques, grille 3 densités + persistance, recherche RPC Postgres (tsvector + pg_trgm) avec cache + prefix cache |
 | 🧪 **Parfumerie** | Parfums possédés/souhaités/échantillons/décants, étagères custom, parfum signature (max 3), SOTD compact |
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
 | ⭐ **Wishlist** | Parfums à acheter, alertes prix |
 | ❤️ **Favoris** | Coups de cœur, sans obligation d'achat |
 | ⚙️ **Paramètres** | Alertes prix, devise EUR, notifs push, mentions légales |
-| 🧠 **Fiche détail v7** | DetailHero (prix retiré de l'image), CollapsingHeader, barre d'action flottante (DockBar), pyramide olfactive v5 interactive, « Quand le porter » (colonnes saisons + chips occasions), note detail popup, image viewer popup |
-| 🚀 **Onboarding** | 3 slides au premier lancement, swipe navigation, sans auth (⏸️ désactivé temporairement) |
-| 🔐 **Auth optionnelle** | App utilisable sans compte, login demandé uniquement quand nécessaire |
+| 🧠 **Fiche détail v7** | DetailHero (swap progressif image HD upscale ×4), CollapsingHeader (UI thread), barre d'action flottante (DockBar), pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
+| 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |
 | 📴 **Mode hors-ligne** | Bannière réseau globale (OfflineBanner dans `_layout.tsx`), état `reconnected` 2.5s, contenu dégradé via cache Firestore local |
 | 🌓 **Dark Mode** | 3 modes (système/clair/sombre), persistance AsyncStorage, SystemUI + NavigationBar theming, keyboardAppearance adaptatif |
 | 🎙️ **Recherche vocale** | Dictée vocale (expo-speech-recognition, on-device) + fallback OpenAI Whisper (Cloud Function), VoiceOverlay 5 phases avec transcript live et top résultats |
 | 🌤️ **Météo & suggestions** | Widget météo (Open-Meteo, gratuit), scoring des parfums adaptés à la météo dans la parfumerie, tri "Météo", SOTDPicker pré-trié, badge de compatibilité, notification push quotidienne à 7h via Cloud Function |
 | 🎮 **Flacon Runner** | Easter egg : endless runner dans Settings (5 taps version). Saut/double-saut, obstacles, combos, score lisse, milestones, skins déblocables, Reanimated UI thread |
+| 🖼️ **Images HD** | Upscale ×4 (Real-ESRGAN + CUDA) des flacons pour la fiche détail/lightbox ; les listes restent en 1x (perf) |
 
 ---
 
@@ -50,7 +50,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 216 tests, 17 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 227 tests, 18 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -127,41 +127,42 @@ ParfumScan propose un mode sombre complet disponible **sans authentification**.
 
 ```
 app/
-├── _layout.tsx               # Root : ThemeProvider → AuthProvider → AuthGuard
-├── index.tsx                 # Splash → redirection
+├── _layout.tsx               # Root : ThemeProvider → GestureHandlerRootView → AuthProvider → AuthGuard → ErrorBoundary
+├── index.tsx                 # Splash → redirection tabs
 ├── (tabs)/
-│   ├── _layout.tsx           # Stack (pages sur le pager)
-│   ├── index.tsx             # TabPager PagerView 4 pages + DockBar flottant + barre de recherche persistante
-│   ├── favorites.tsx         # Favoris (page standalone)
-│   ├── history.tsx           # Historique des scans
-│   ├── collection.tsx        # Parfumerie (grid, étagères, SOTD, parfum signature) — ex « Garde-robe »
-│   ├── scan.tsx              # Scanner overlay (push FAB)
-│   └── search.tsx            # Overlay recherche (résultats en grille 3 densités, recherches récentes)
+│   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom + SearchChrome + NavigationChromeProvider
+│   ├── index.tsx             # Catalogue (hôte CatalogPage)
+│   ├── selection.tsx         # Sélection segmentée Favoris/Carnet (?segment=carnet)
+│   ├── collection.tsx        # Parfumerie
+│   └── profile.tsx           # Profil (identité, stats, SOTD, navigation rapide, déconnexion)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
-├── catalog/[id].tsx          # Détail enrichi : DetailHero, CollapsingHeader, StickyBottomBar, pyramide v5, accords, saisons, ImageViewerPopup
-├── wardrobe/[parfumId].tsx    # Fiche personnelle (notes, notes, SOTD, étagères, signature)
-├── settings.tsx              # Paramètres : alertes prix, apparence, soutien, mentions légales, confidentialité
-├── legal.tsx                 # Mentions légales
-├── privacy.tsx               # Politique de confidentialité
-├── onboarding.tsx            # 3 slides swipe + AsyncStorage (⏸️ désactivé temporairement)
-└── admin.tsx                 # Administration (seed + reset cache + upload)
+├── catalog/[id].tsx          # Fiche détail v7 (DetailHero HD, CollapsingHeader, StickyBottomBar, pyramide, « Quand le porter »)
+├── wardrobe/[parfumId].tsx   # Fiche personnelle (notes, rating, SOTD, étagères)
+├── perfumer/[name].tsx       # Créations d'un nez
+├── settings.tsx              # Paramètres
+├── scan.tsx                  # Scan (slide_from_bottom)
+├── search.tsx                # Recherche (texte + mode famille ?family=<key>)
+├── history.tsx               # Historique des scans
+├── scentlist.tsx             # Redirection → /(tabs)/selection?segment=carnet
+├── legal.tsx / privacy.tsx / privacy-center.tsx / delete-account.tsx
+└── admin.tsx                 # Administration
 
 src/
 ├── services/     (14)        # supabase, firestore, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
 ├── services/impl/            # impl Supabase de chaque service + search-shared + sql-utils (service public = export * from impl/<x>.supabase)
-├── hooks/        (17)        # useAuth (AppUser), useCatalog, useFavoris, useScans, useWardrobe, useShelves, useSotd, useScentList, useProfileStats, useScanPipeline, useScanReducer, useNetwork, useDensityPreference, useVoiceSearch, useWeather, useVoicePreference, useCollection
+├── hooks/        (16)        # useAuth, useCatalog, useFavoris, useScans, useWardrobe, useShelves, useSotd, useScentList, useProfileStats, useScanPipeline, useScanReducer, useNetwork, useDensityPreference, useVoiceSearch, useWeather, useVoicePreference
 ├── contexts/     (1)         # AuthContext (ThemeContext est dans src/theme/)
-├── components/   (13)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet
-├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx (SystemUI + NavigationBar theming)
+├── components/   (14)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate
+├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx
 ├── features/                 # scan, catalog, wardrobe, search, navigation (DockBar), profile, favorites, scentlist, runner
-├── models/       (8)         # Parfum (+searchText), WardrobeItem, Shelf, SotdEntry, UserFavori, UserScan, UserCollectionItem, UserScentItem
+├── models/       (8)         # Parfum (+imageUrl2x), WardrobeItem, Shelf, SotdEntry, UserFavori, UserScan, UserCollectionItem, UserScentItem
 ├── config/       (2)         # env, index
-└── utils/        (10)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring
+└── utils/        (12)        # error-translator, translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring, olfactory-families, alpha
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0009) # extensions, types, tables, index trgm/FTS, RLS+publication, RPC, cron pg_cron
+├── migrations/   (0001→0019) # extensions, types, tables, index trgm/FTS, RLS, RPC (search_parfums, seasonal_parfums, family_overviews…), cron pg_cron, image_url_2x
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account + _shared/
 └── config.toml               # config projet (secrets via env(...))
 ```
@@ -275,6 +276,19 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v7.1 — Catalogue éditorial, images HD, scroll UI-thread, durcissement (26/07/2026)
+
+- **Images HD (upscale ×4)** : pipeline `scripts/migrate-upscale.ts` (workers Python persistants Real-ESRGAN + CUDA, ~0,5 img/s) génère `primary_2x.webp` (1500×2000) + colonne `parfums.image_url_2x` (migration 0017). La fiche détail (`DetailHero`) et la lightbox (`ImageViewerPopup`) affichent la 1x immédiatement puis fondent vers la 2x ; les listes restent en 1x (perf). Champ `Parfum.imageUrl2x`.
+- **Taxonomie familles** : `src/utils/olfactory-families.ts` regroupe ~46 valeurs anglaises en 6 familles FR (boisée, florale, hespéridée, ambrée, gourmande, aromatique). `FamilyAmbianceCards` v2 data-driven (flacon réel + effectif via `getFamilyOverview`), recherche en mode famille (`/search?family=<key>`).
+- **Catalogue** : nouvelles rangées « Parfaits pour {saison} » (RPC `seasonal_parfums`, migration 0015) et « Les mieux notés » ; compteur de parfums dynamique (`getParfumCount`). Nouvelles fonctions catalogue : `getTopRatedParfums`, `getParfumsByFamily`, `getFamilyOverview`, `getSeasonalParfums`. Code mort supprimé (`onParfums`, `createParfum`, `deleteParfum`…).
+- **Scroll UI-thread** : le callback `onScroll(y)` JS est remplacé par une `SharedValue scrollY` (`NavigationChromeContext`) écrite via `useAnimatedScrollHandler` dans toutes les listes. `CollapsingHeader` 100% UI thread (crossfade, plus de `LayoutAnimation`).
+- **Auth** : nouveau composant partagé `AuthGate` (dé-duplique les gates de profile, collection, favoris, carnet). `useCollection` supprimé (concept « Collection » abandonné au profit de la Parfumerie unifiée).
+- **Durcissement Edge Functions** : suppression de `getUserIdFromAuth` (ne vérifiait pas la signature JWT) au profit de `verifyUserToken` ; limites scan (5 images, 5 Mo), whitelist MIME audio, timeouts, pagination des alertes prix, batch météo en `Promise.allSettled`.
+- **Realtime** : `subscribeUserTable` durci (bufferisation des événements arrivant avant la fin du fetch initial, canaux uniques).
+- **Config** : auth Supabase durcie (mot de passe 8 car. `letters_digits`, confirmation d'email) ; retrait des variables d'émulateurs Firebase de `env.ts`.
+- **Utils** : `season.ts` — `currentSeason()` + `SEASON_META.withArticle`. Copy généralisé au tutoiement.
+- **Tests** : 227 tests, 18 suites (+ `season.test.ts`).
+
 ## v7.0 — Migration backend Firebase → Supabase (25/07/2026)
 
 - **Backend** : remplacement complet de Firebase (Auth/Firestore/Storage/Cloud Functions/FCM) par **Supabase** (Auth, Postgres + RLS, Storage, Realtime `postgres_changes`, Edge Functions Deno). Voir `MIGRATION_SUPABASE.md`.

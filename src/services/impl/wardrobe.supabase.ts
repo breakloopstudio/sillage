@@ -75,43 +75,38 @@ export async function addToWardrobe(
     }
     const now = new Date().toISOString();
 
-    const existing = await isInWardrobe(uid, parfumId);
-    if (existing) {
-      const { error } = await supabase
+    const { error: insErr } = await supabase.from('wardrobe').insert({
+      user_id: uid,
+      parfum_id: parfumId,
+      ownership,
+      nom: nom ?? null,
+      marque: marque ?? null,
+      image_url: imageUrl ?? null,
+      famille_olfactive: familleOlactive ?? null,
+      rating: null,
+      notes: null,
+      shelf_ids: [],
+      size_ml: sizeMl ?? null,
+      sotd_count: 0,
+      is_signature: false,
+      ...filterFields,
+      added_at: now,
+      updated_at: now,
+    } as never);
+    if (insErr) {
+      if (insErr.code !== '23505') throw insErr;
+      const updateRow: Record<string, unknown> = { ownership, updated_at: now, ...filterFields };
+      if (nom) updateRow.nom = nom;
+      if (marque) updateRow.marque = marque;
+      if (imageUrl) updateRow.image_url = imageUrl;
+      if (familleOlactive) updateRow.famille_olfactive = familleOlactive;
+      if (sizeMl !== undefined && sizeMl !== null) updateRow.size_ml = sizeMl;
+      const { error: upErr } = await supabase
         .from('wardrobe')
-        .update({
-          ownership,
-          nom: nom ?? existing.nom,
-          marque: marque ?? existing.marque,
-          image_url: imageUrl ?? existing.imageUrl,
-          famille_olfactive: familleOlactive ?? existing.familleOlactive,
-          size_ml: sizeMl ?? existing.sizeMl,
-          ...filterFields,
-          updated_at: now,
-        } as never)
+        .update(updateRow as never)
         .eq('user_id', uid)
         .eq('parfum_id', parfumId);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('wardrobe').insert({
-        user_id: uid,
-        parfum_id: parfumId,
-        ownership,
-        nom: nom ?? null,
-        marque: marque ?? null,
-        image_url: imageUrl ?? null,
-        famille_olfactive: familleOlactive ?? null,
-        rating: null,
-        notes: null,
-        shelf_ids: [],
-        size_ml: sizeMl ?? null,
-        sotd_count: 0,
-        is_signature: false,
-        ...filterFields,
-        added_at: now,
-        updated_at: now,
-      } as never);
-      if (error) throw error;
+      if (upErr) throw upErr;
     }
   } catch (e: unknown) {
     console.warn('[wardrobe] addToWardrobe failed:', (e as Error)?.message ?? String(e));

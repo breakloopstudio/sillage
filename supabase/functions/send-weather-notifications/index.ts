@@ -43,11 +43,15 @@ Deno.serve(async (req: Request) => {
   const weatherCache = new Map<string, WeatherData>();
   let processed = 0, sent = 0, purged = 0;
 
-  for (const row of eligible as { user_id: string; weather_lat: number; weather_lon: number }[]) {
-    try {
+  const BATCH = 10;
+  const rows = eligible as { user_id: string; weather_lat: number; weather_lon: number }[];
+
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const results = await Promise.allSettled(batch.map(async (row) => {
       // Idempotence : conflit PK = déjà exécuté ce run
       const { error: insertErr } = await supabase.from('notification_runs').insert({ user_id: row.user_id, run_id: runId });
-      if (insertErr) continue;
+      if (insertErr) return { sent: 0, purged: 0, processed: 0 };
 
       // Météo
       const key = coordsKey(row.weather_lat, row.weather_lon);
@@ -56,15 +60,15 @@ Deno.serve(async (req: Request) => {
         if (w) weatherCache.set(key, w);
       }
       const weather = weatherCache.get(key);
-      if (!weather) continue;
+      if (!weather) return { sent: 0, purged: 0, processed: 0 };
 
-      // Wardrobe (ownership = 'have') — mapping snake_case → WardrobeEntry (camelCase)
+      // Wardrobe (ownership = 'have')
       const { data: wardrobe } = await supabase
         .from('wardrobe')
         .select('parfum_id, nom, marque, famille_olfactive, is_signature, sotd_count')
         .eq('user_id', row.user_id)
         .eq('ownership', 'have');
-      if (!wardrobe || wardrobe.length === 0) continue;
+      if (!wardrobe || wardrobe.length === 0) return { sent: 0, purged: 0, processed: 0 };
 
       const items: WardrobeEntry[] = (wardrobe as Record<string, unknown>[]).map(w => ({
         parfumId: w.parfum_id as string,
@@ -80,11 +84,11 @@ Deno.serve(async (req: Request) => {
         .map(item => ({ item, score: scoreItemForWeather(item, weather) }))
         .sort((a, b) => b.score - a.score);
       const top = scored[0];
-      if (!top || top.score < 30) continue;
+      if (!top || top.score < 30) return { sent: 0, purged: 0, processed: 0 };
 
       // Tokens
       const { data: tokens } = await supabase.from('push_tokens').select('token').eq('user_id', row.user_id);
-      if (!tokens || tokens.length === 0) continue;
+      if (!tokens || tokens.length === 0) return { sent: 0, purged: 0, processed: 0 };
       const tokenList = (tokens as { token: string }[]).map(t => t.token);
 
       const wmo = getWmoMeta(weather.weatherCode);
@@ -96,11 +100,18 @@ Deno.serve(async (req: Request) => {
         type: 'weather-suggestion',
         parfumId: top.item.parfumId,
       });
-      sent += successCount;
-      purged += await purgeDeadTokens(supabase, deadTokens);
-      processed++;
-    } catch (e: unknown) {
-      console.warn(`[sendWeather] user ${row.user_id}:`, (e as Error)?.message ?? String(e));
+      const purgedCount = await purgeDeadTokens(supabase, deadTokens);
+      return { sent: successCount, purged: purgedCount, processed: 1 };
+    }));
+
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        sent += r.value.sent;
+        purged += r.value.purged;
+        processed += r.value.processed;
+      } else {
+        console.warn('[sendWeather] batch item failed:', (r.reason as Error)?.message ?? String(r.reason));
+      }
     }
   }
 

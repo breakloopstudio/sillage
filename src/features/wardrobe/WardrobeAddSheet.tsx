@@ -33,8 +33,6 @@ export default function WardrobeAddSheet({
   const [error, setError] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
 
-  if (!visible) return null;
-
   const handleSelect = useCallback((ownership: WardrobeItem['ownership']) => {
     hapticsLight();
     setSelected(ownership);
@@ -65,6 +63,8 @@ export default function WardrobeAddSheet({
       setLoading(false);
     }
   }, [selected, loading, sizeMl, onSelect, onClose]);
+
+  if (!visible) return null;
 
   return (
     <View style={s.backdrop}>

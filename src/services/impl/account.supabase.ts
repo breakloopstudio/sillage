@@ -78,7 +78,7 @@ export async function exportAccountData(): Promise<string> {
   const filename = `parfumscan-export-${formatDate()}.json`;
   const file = new File(Paths.cache, filename);
   file.write(json);
-  return `${Paths.cache}${filename}`;
+  return file.uri;
 }
 
 export async function shareAccountData(): Promise<void> {

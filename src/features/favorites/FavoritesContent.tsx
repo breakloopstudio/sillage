@@ -1,8 +1,9 @@
 // app/(tabs)/favorites.tsx — Moodboard olfactif : favoris en grille 3 densités
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, FlatList, Animated, Easing, LayoutAnimation, TextInput, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Animated, Easing, LayoutAnimation, TextInput, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Reanimated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -15,6 +16,7 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useDensityPreference, GRID_MODES } from '../../hooks/useDensityPreference';
 import type { CardMode } from '../../components/ParfumCard';
 import EmptyState from '../../components/EmptyState';
+import AuthGate from '../../components/AuthGate';
 import ActionSheet, { type ActionItem } from '../../components/ActionSheet';
 import ParfumCard from '../../components/ParfumCard';
 import type { UserFavori } from '../../models/user-favori.interface';
@@ -32,7 +34,7 @@ import {
 } from '../../utils/favori-filters';
 
 interface Props {
-  onScroll?: (y: number) => void;
+  scrollY?: SharedValue<number>;
 }
 
 function favoriToCardItem(f: UserFavori): Parfum {
@@ -48,7 +50,7 @@ function favoriToCardItem(f: UserFavori): Parfum {
   } as Parfum;
 }
 
-export default function FavoritesPage({ onScroll }: Props) {
+export default function FavoritesPage({ scrollY }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
@@ -57,6 +59,10 @@ export default function FavoritesPage({ onScroll }: Props) {
   const { favoris, loading, removeFavori } = useFavoris(uid);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const { density: gridDensity, setDensity: setGridDensity } = useDensityPreference();
+
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    if (scrollY) scrollY.value = e.contentOffset.y;
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FavoritesFilters>(EMPTY_FAVORI_FILTERS);
@@ -227,14 +233,7 @@ export default function FavoritesPage({ onScroll }: Props) {
   if (!isAuthenticated) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <View style={s.center}>
-          <Ionicons name="heart-outline" size={64} color={theme.colors.textMuted} />
-          <Text style={s.authTitle}>Connectez-vous</Text>
-          <Text style={s.authDesc}>Accédez à vos favoris.</Text>
-          <Pressable style={s.authBtn} onPress={() => router.push('/auth/login')}>
-            <Text style={s.authBtnText}>Se connecter</Text>
-          </Pressable>
-        </View>
+        <AuthGate icon="heart-outline" description="Accède à tes favoris." />
       </SafeAreaView>
     );
   }
@@ -253,7 +252,7 @@ export default function FavoritesPage({ onScroll }: Props) {
   if (favoris.length === 0) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <FlatList
+        <Reanimated.FlatList
           data={[]}
           renderItem={() => null}
           ListHeaderComponent={
@@ -264,7 +263,7 @@ export default function FavoritesPage({ onScroll }: Props) {
               <EmptyState variant="favoris" onAction={() => router.push('/(tabs)')} />
             </View>
           }
-          onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+          onScroll={scrollHandler}
           scrollEventThrottle={16}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />
@@ -392,7 +391,7 @@ export default function FavoritesPage({ onScroll }: Props) {
   return (
     <>
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <FlatList
+        <Reanimated.FlatList
           key={gridKey}
           data={filtered}
           keyExtractor={item => item.id}
@@ -403,7 +402,7 @@ export default function FavoritesPage({ onScroll }: Props) {
           contentContainerStyle={s.content}
           ListHeaderComponent={ListHeader}
           showsVerticalScrollIndicator={false}
-          onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+          onScroll={scrollHandler}
           scrollEventThrottle={16}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />
@@ -437,21 +436,6 @@ function getStyles(t: Theme) {
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
     headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 28, color: t.colors.text, flex: 1 },
-    authTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 20, color: t.colors.text, marginTop: 12 },
-    authDesc: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, textAlign: 'center', lineHeight: 20, marginTop: 6 },
-    authBtn: {
-      marginTop: 20,
-      borderWidth: 1.5,
-      borderColor: t.colors.primary,
-      borderRadius: t.radius.base,
-      paddingHorizontal: 32,
-      paddingVertical: 12,
-    },
-    authBtnText: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 15,
-      color: t.colors.primary,
-    },
     filterContainer: {
       paddingHorizontal: 12,
       paddingBottom: 4,

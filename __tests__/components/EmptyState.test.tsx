@@ -70,7 +70,7 @@ describe('EmptyState', () => {
   describe('variant: wardrobe', () => {
     it('renders correct title', async () => {
       await renderWithTheme(<EmptyState variant="wardrobe" onAction={onAction} />);
-      expect(screen.getByText('Votre parfumerie est vide')).toBeTruthy();
+      expect(screen.getByText('Ta parfumerie est vide')).toBeTruthy();
     });
   });
 

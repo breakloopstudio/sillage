@@ -1,8 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
-import { View, Text, SectionList, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, SectionList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import Ionicons from '@react-native-vector-icons/ionicons/static';
+
+const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useScentList } from '../../hooks/useScentList';
 import { getParfumById } from '../../services/firestore';
@@ -11,6 +13,7 @@ import { moveFavori } from '../../services/user-data';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsSuccess, hapticsLight } from '../../services/haptics';
 import EmptyState from '../../components/EmptyState';
+import AuthGate from '../../components/AuthGate';
 import ActionSheet, { type ActionItem } from '../../components/ActionSheet';
 import WardrobeAddSheet from '../../features/wardrobe/WardrobeAddSheet';
 import ScentCard from '../../features/scentlist/ScentCard';
@@ -25,16 +28,20 @@ interface SectionData {
 }
 
 interface Props {
-  onScroll?: (y: number) => void;
+  scrollY?: SharedValue<number>;
 }
 
-export default function ScentListContent({ onScroll }: Props) {
+export default function ScentListContent({ scrollY }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const { user, authReady, isAuthenticated } = useAuthContext();
   const uid = user?.uid ?? null;
   const { items, toTry, tried, loading, add, markTried, remove, moveToWardrobe } = useScentList(uid);
+
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    if (scrollY) scrollY.value = e.contentOffset.y;
+  });
 
   const [selectedItem, setSelectedItem] = useState<UserScentItem | null>(null);
   const [showTrySheet, setShowTrySheet] = useState(false);
@@ -205,14 +212,7 @@ export default function ScentListContent({ onScroll }: Props) {
   if (!isAuthenticated) {
     return (
       <SafeAreaView edges={[]} style={s.container}>
-        <View style={s.center}>
-          <Ionicons name="eyedrop-outline" size={64} color={theme.colors.textMuted} />
-          <Text style={s.authTitle}>Connectez-vous</Text>
-          <Text style={s.authDesc}>Accédez à votre carnet d'essais.</Text>
-          <Pressable style={s.authBtn} onPress={() => router.push('/auth/login')}>
-            <Text style={s.authBtnText}>Se connecter</Text>
-          </Pressable>
-        </View>
+        <AuthGate icon="eyedrop-outline" description="Accède à ton carnet d'essais." />
       </SafeAreaView>
     );
   }
@@ -236,7 +236,7 @@ export default function ScentListContent({ onScroll }: Props) {
   return (
     <>
       <SafeAreaView edges={[]} style={s.container}>
-        <SectionList
+        <AnimatedSectionList
           sections={sections}
           keyExtractor={item => item.id}
           renderItem={renderItem}
@@ -244,7 +244,7 @@ export default function ScentListContent({ onScroll }: Props) {
           stickySectionHeadersEnabled
           contentContainerStyle={s.content}
           showsVerticalScrollIndicator={false}
-          onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+          onScroll={scrollHandler}
           scrollEventThrottle={16}
           windowSize={5}
           maxToRenderPerBatch={10}
@@ -307,16 +307,5 @@ function getStyles(t: Theme) {
       fontSize: 13,
       color: t.colors.textMuted,
     },
-    authTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 20, color: t.colors.text, marginTop: 12 },
-    authDesc: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, textAlign: 'center' as const, lineHeight: 20, marginTop: 6 },
-    authBtn: {
-      marginTop: 20,
-      borderWidth: 1.5,
-      borderColor: t.colors.primary,
-      borderRadius: t.radius.base,
-      paddingHorizontal: 32,
-      paddingVertical: 12,
-    },
-    authBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: t.colors.primary },
   } as const;
 }

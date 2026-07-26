@@ -17,16 +17,22 @@ export function useSotd(uid: string | null) {
     refresh();
   }, [refresh]);
 
-  const setTodaySotd = async (item: WardrobeItem) => {
+  const setTodaySotd = useCallback(async (item: WardrobeItem) => {
     if (!uid) return;
-    await setSotd(uid, item.parfumId, item.nom ?? item.parfumId, item.marque ?? '', item.imageUrl);
+    const prev = sotd;
     setSotdState({
       parfumId: item.parfumId,
       nom: item.nom ?? item.parfumId,
       marque: item.marque ?? '',
       imageUrl: item.imageUrl,
     });
-  };
+    try {
+      await setSotd(uid, item.parfumId, item.nom ?? item.parfumId, item.marque ?? '', item.imageUrl);
+    } catch (e) {
+      console.warn('[sotd] setTodaySotd failed:', (e as Error)?.message ?? String(e));
+      setSotdState(prev);
+    }
+  }, [uid, sotd]);
 
   return { sotd, setTodaySotd, refresh };
 }

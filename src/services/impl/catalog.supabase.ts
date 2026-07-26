@@ -5,6 +5,7 @@
 
 import type { Parfum } from '../../models';
 import { normalize, STOP_WORDS } from '../../utils/normalize';
+import type { SeasonKey } from '../../utils/season';
 import { supabase } from '../supabase';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
 
@@ -27,6 +28,7 @@ function rowToParfum(row: Record<string, unknown>): Parfum {
     notesCoeur: (row.notes_coeur as string[]) ?? [],
     notesFond: (row.notes_fond as string[]) ?? [],
     imageUrl: (row.image_url as string) ?? undefined,
+    imageUrl2x: (row.image_url_2x as string) ?? undefined,
     bestPrice: (row.best_price as number) ?? undefined,
     referencePrice: (row.reference_price as number) ?? undefined,
     offers: (row.offers as Parfum['offers']) ?? [],
@@ -62,12 +64,13 @@ function rowToParfum(row: Record<string, unknown>): Parfum {
   };
 }
 
-// Mapping camelCase → snake_case pour les écritures (updateParfum/createParfum)
+// Mapping camelCase → snake_case pour les écritures (updateParfum)
 const WRITE_MAP: Record<string, string> = {
   nom: 'nom', marque: 'marque', annee: 'annee',
   familleOlactive: 'famille_olfactive',
   notesTete: 'notes_tete', notesCoeur: 'notes_coeur', notesFond: 'notes_fond',
-  imageUrl: 'image_url', bestPrice: 'best_price', referencePrice: 'reference_price',
+  imageUrl: 'image_url', imageUrl2x: 'image_url_2x',
+  bestPrice: 'best_price', referencePrice: 'reference_price',
   offers: 'offers', source: 'source', cachedAt: 'cached_at',
   imageVerified: 'image_verified', typeParfum: 'type_parfum', purchaseUrl: 'purchase_url',
   mainAccords: 'main_accords', longevity: 'longevity', sillage: 'sillage',
@@ -94,27 +97,6 @@ function parfumToRow(data: Record<string, unknown>): Record<string, unknown> {
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-export function onParfums(cb: (parfums: Parfum[]) => void): () => void {
-  // NOTE migration : `parfums` n'est PAS dans la publication realtime (listener
-  // admin, inutilisé dans l'app). Fetch unique — si un temps réel catalogue
-  // devient nécessaire, ajouter la table à la publication via une migration.
-  let cancelled = false;
-  void (async () => {
-    const { data, error } = await supabase
-      .from('parfums')
-      .select('*')
-      .order('updated_at', { ascending: false });
-    if (cancelled) return;
-    if (error) {
-      console.warn('[supabase] onParfums error:', error.message);
-      cb([]);
-      return;
-    }
-    cb(((data ?? []) as Record<string, unknown>[]).map(rowToParfum));
-  })();
-  return () => { cancelled = true; };
-}
-
 export async function getParfumById(id: string): Promise<Parfum | undefined> {
   const { data, error } = await supabase
     .from('parfums')
@@ -126,37 +108,10 @@ export async function getParfumById(id: string): Promise<Parfum | undefined> {
   return rowToParfum(data as Record<string, unknown>);
 }
 
-export async function createParfum(fragranceData: Omit<Parfum, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ id: string }> {
-  const now = new Date();
-  const row = parfumToRow({ ...fragranceData, createdAt: now, updatedAt: now });
-  // PK texte obligatoire : slug dérivé marque+nom (convention du seed)
-  if (!row.id) row.id = normalize(`${fragranceData.marque}_${fragranceData.nom}`);
-  const { data, error } = await supabase
-    .from('parfums')
-    .insert(row as never)
-    .select('id')
-    .single();
-  if (error) throw error;
-  return { id: (data as { id: string }).id };
-}
-
 export async function updateParfum(id: string, fragranceData: Partial<Omit<Parfum, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
   const row = parfumToRow({ ...fragranceData, updatedAt: new Date() });
   const { error } = await supabase.from('parfums').update(row as never).eq('id', id);
   if (error) throw error;
-}
-
-export async function deleteParfum(id: string): Promise<void> {
-  const { error } = await supabase.from('parfums').delete().eq('id', id);
-  if (error) throw error;
-}
-
-/** Supprime TOUS les parfums (reset catalogue — admin). */
-export async function deleteAllCachedParfums(): Promise<number> {
-  const { count } = await supabase.from('parfums').select('*', { count: 'exact', head: true });
-  const { error } = await supabase.from('parfums').delete().neq('id', '');
-  if (error) throw error;
-  return count ?? 0;
 }
 
 // ─── Recherche (RPC search_parfums : tsvector + pg_trgm server-side) ─────────
@@ -317,6 +272,19 @@ export async function searchParfumFromScan(marque: string | null, nom: string | 
   return dedupByMarqueNom(rescored);
 }
 
+/** Nombre total de parfums au catalogue (head query, pas de données transférées). */
+export async function getParfumCount(): Promise<number> {
+  try {
+    const { count, error } = await supabase
+      .from('parfums')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Parfums les plus populaires. */
 export async function getPopularParfums(limitCount: number = 6): Promise<Parfum[]> {
   try {
@@ -325,6 +293,87 @@ export async function getPopularParfums(limitCount: number = 6): Promise<Parfum[
       .select('*')
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(limitCount);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  } catch {
+    return [];
+  }
+}
+
+/** Parfums les mieux notés (plancher de reviews pour la crédibilité). */
+export async function getTopRatedParfums(limitCount: number = 12): Promise<Parfum[]> {
+  try {
+    const { data, error } = await supabase
+      .from('parfums')
+      .select('*')
+      .not('rating_score', 'is', null)
+      .gte('review_count', 50)
+      .not('image_url', 'is', null)
+      .order('rating_score', { ascending: false })
+      .order('review_count', { ascending: false })
+      .limit(limitCount);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  } catch {
+    return [];
+  }
+}
+
+/** Parfums d'une famille olfactive (panier de valeurs famille_olfactive). */
+export async function getParfumsByFamily(values: string[], limitCount: number = 50): Promise<Parfum[]> {
+  if (values.length === 0) return [];
+  try {
+    const { data, error } = await supabase
+      .from('parfums')
+      .select('*')
+      .in('famille_olfactive', values)
+      .not('image_url', 'is', null)
+      .order('popularity_score', { ascending: false, nullsFirst: false })
+      .limit(limitCount);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  } catch {
+    return [];
+  }
+}
+
+/** Aperçu des familles olfactives en 1 round-trip (RPC family_overviews).
+ *  Renvoie, par clé de famille, les flacons les plus populaires (rotation
+ *  côté client) + l'effectif total. Remplace N appels getFamilyOverview. */
+export async function getFamilyOverviews(
+  buckets: { key: string; values: string[] }[],
+  topPerFamily: number = 5,
+): Promise<Record<string, { bottles: string[]; count: number }>> {
+  const empty: Record<string, { bottles: string[]; count: number }> = {};
+  if (buckets.length === 0) return empty;
+  for (const b of buckets) empty[b.key] = { bottles: [], count: 0 };
+  try {
+    const { data, error } = await supabase.rpc('family_overviews', {
+      p_buckets: buckets,
+      p_top: topPerFamily,
+    });
+    if (error) throw error;
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+      const key = row.bucket_key as string;
+      const slot = empty[key];
+      if (!slot) continue;
+      const url = row.image_url as string | null;
+      if (url) slot.bottles.push(url);
+      slot.count = Number(row.total ?? 0);
+    }
+    return empty;
+  } catch {
+    return empty;
+  }
+}
+
+/** Parfums dont la saison passée est la saison dominante (RPC argmax). */
+export async function getSeasonalParfums(season: SeasonKey, limitCount: number = 12): Promise<Parfum[]> {
+  try {
+    const { data, error } = await supabase.rpc('seasonal_parfums', {
+      season,
+      lim: limitCount,
+    });
     if (error) throw error;
     return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
   } catch {

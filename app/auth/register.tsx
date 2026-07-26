@@ -1,6 +1,6 @@
 // app/auth/register.tsx — Inscription (email + Google)
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, Pressable, ActivityIndicator,
   KeyboardAvoidingView, Platform, ScrollView, Keyboard,
@@ -30,7 +30,7 @@ export default function RegisterPage() {
 
   const canSubmit = email.trim().length > 0 && password.length >= 6 && ageConfirmed;
 
-  const handleEmailRegister = async () => {
+  const handleEmailRegister = useCallback(async () => {
     if (!canSubmit) return;
     if (!EMAIL_RE.test(email.trim())) { setErrorMessage('Adresse email invalide.'); return; }
     Keyboard.dismiss();
@@ -42,9 +42,9 @@ export default function RegisterPage() {
       setErrorMessage(e instanceof Error ? e.message : "Erreur lors de l'inscription.");
     }
     finally { setLoading(null); }
-  };
+  }, [canSubmit, email, password, register]);
 
-  const handleGoogle = async () => {
+  const handleGoogle = useCallback(async () => {
     Keyboard.dismiss();
     setLoading('google'); setErrorMessage(null);
     try { await loginWithGoogle(); }
@@ -54,12 +54,12 @@ export default function RegisterPage() {
       setErrorMessage(e instanceof Error ? e.message : 'Erreur connexion Google.');
     }
     finally { setLoading(null); }
-  };
+  }, [loginWithGoogle]);
 
-  const onEmailChange = (v: string) => { setEmail(v); if (errorMessage) setErrorMessage(null); };
-  const onPasswordChange = (v: string) => { setPassword(v); if (errorMessage) setErrorMessage(null); };
+  const onEmailChange = useCallback((v: string) => { setEmail(v); if (errorMessage) setErrorMessage(null); }, [errorMessage]);
+  const onPasswordChange = useCallback((v: string) => { setPassword(v); if (errorMessage) setErrorMessage(null); }, [errorMessage]);
 
-  const togglePassword = () => setShowPassword(v => !v);
+  const togglePassword = useCallback(() => setShowPassword(v => !v), []);
   const isLoading = loading !== null;
 
   return (
@@ -74,7 +74,7 @@ export default function RegisterPage() {
           </View>
           <View style={s.header}>
             <Text style={s.title}>Créer un compte</Text>
-            <Text style={s.subtitle}>Rejoignez la communauté ParfumScan</Text>
+            <Text style={s.subtitle}>Rejoins la communauté ParfumScan</Text>
           </View>
 
           <Pressable
@@ -150,7 +150,7 @@ export default function RegisterPage() {
             </View>
           ) : null}
 
-          <Pressable style={s.checkRow} onPress={() => setAgeConfirmed(v => !v)} hitSlop={8} accessibilityRole="checkbox">
+          <Pressable style={s.checkRow} onPress={() => setAgeConfirmed(v => !v)} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} accessibilityRole="checkbox">
             <Ionicons name={ageConfirmed ? 'checkbox' : 'square-outline'} size={22} color={ageConfirmed ? theme.colors.primary : theme.colors.textMuted} />
             <Text style={s.checkLabel}>Je certifie avoir 15 ans ou plus</Text>
           </Pressable>

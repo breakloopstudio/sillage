@@ -3,7 +3,7 @@
 // prompts et logique de retry conservés à l'identique.
 
 import OpenAI from 'npm:openai';
-import { createUserClient, getUserIdFromAuth } from '../_shared/supabase.ts';
+import { createUserClient, verifyUserToken } from '../_shared/supabase.ts';
 
 interface ScanResult {
   marque: string | null;
@@ -33,7 +33,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
   let uid: string;
-  try { uid = getUserIdFromAuth(req); } catch {
+  try { ({ uid } = await verifyUserToken(req)); } catch {
     return jsonResponse({ error: 'Unauthorized.' }, 401);
   }
   const authHeader = req.headers.get('Authorization') ?? '';
@@ -56,16 +56,23 @@ Deno.serve(async (req: Request) => {
   }
 
   const images: string[] = isBurst ? imagesBase64! : [imageBase64!];
+  if (images.length > 5) {
+    return jsonResponse({ error: 'Maximum 5 images par requête.' }, 400);
+  }
+  const MAX_IMG_B64 = 5 * 1024 * 1024;
   for (const img of images) {
     if (typeof img !== 'string' || !img.startsWith('data:image/')) {
       return jsonResponse({ error: "Chaque image doit être en base64 avec préfixe \"data:image/\"." }, 400);
+    }
+    if (img.length > MAX_IMG_B64) {
+      return jsonResponse({ error: 'Image trop volumineuse (max 5 Mo par image).' }, 400);
     }
   }
 
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) return jsonResponse({ error: 'Clé API OpenAI non configurée.' }, 500);
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, timeout: 90_000 });
 
   // Prompts VERBATIM du code Firebase — ne pas raccourcir (qualité du scan)
   const BURST_PROMPT = `Tu es un expert en parfumerie. Tu analyses ${images.length} photos du MÊME flacon de parfum prises sous des angles légèrement différents. Analyse chaque photo indépendamment puis fusionne les lectures en un résultat unique. Retourne UNIQUEMENT un objet JSON avec ces champs :

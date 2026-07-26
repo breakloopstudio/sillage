@@ -4,7 +4,7 @@ import { TopTabs } from 'expo-router/js-top-tabs';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { NavigationChromeProvider, useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import SearchChrome from '../../src/features/search/SearchChrome';
-import DockBar from '../../src/features/navigation/DockBar';
+import DockBar, { type BottomTabBarProps } from '../../src/features/navigation/DockBar';
 
 function TabsNavigator() {
   const { theme } = useTheme();
@@ -17,13 +17,15 @@ function TabsNavigator() {
     lazy: true,
   }), [theme.colors.background]);
 
+  const screenListeners = useMemo(() => ({ focus: resetDock }), [resetDock]);
+
   return (
     <TopTabs
-      tabBar={(props: any) => <DockBar {...props} />}
+      tabBar={(props: BottomTabBarProps) => <DockBar {...props} />}
       tabBarPosition="bottom"
       overScrollMode="never"
       screenOptions={screenOptions}
-      screenListeners={{ focus: resetDock }}
+      screenListeners={screenListeners}
     >
       <TopTabs.Screen name="index" />
       <TopTabs.Screen name="selection" />

@@ -7,15 +7,24 @@ export const SEASON_ORDER: SeasonKey[] = ['spring', 'summer', 'fall', 'winter'];
 
 export const SEASON_META: Record<SeasonKey, {
   label: string;
+  withArticle: string;
   icon: string;
   token: 'seasonSpring' | 'seasonSummer' | 'seasonFall' | 'seasonWinter';
   tokenSoft: 'seasonSpringSoft' | 'seasonSummerSoft' | 'seasonFallSoft' | 'seasonWinterSoft';
 }> = {
-  spring: { label: 'Printemps', icon: 'flower-outline', token: 'seasonSpring', tokenSoft: 'seasonSpringSoft' },
-  summer: { label: 'Été',       icon: 'sunny',          token: 'seasonSummer', tokenSoft: 'seasonSummerSoft' },
-  fall:   { label: 'Automne',   icon: 'leaf',           token: 'seasonFall',   tokenSoft: 'seasonFallSoft' },
-  winter: { label: 'Hiver',     icon: 'snow',           token: 'seasonWinter', tokenSoft: 'seasonWinterSoft' },
+  spring: { label: 'Printemps', withArticle: 'le printemps', icon: 'flower-outline', token: 'seasonSpring', tokenSoft: 'seasonSpringSoft' },
+  summer: { label: 'Été',       withArticle: "l'été",        icon: 'sunny',          token: 'seasonSummer', tokenSoft: 'seasonSummerSoft' },
+  fall:   { label: 'Automne',   withArticle: "l'automne",    icon: 'leaf',           token: 'seasonFall',   tokenSoft: 'seasonFallSoft' },
+  winter: { label: 'Hiver',     withArticle: "l'hiver",      icon: 'snow',           token: 'seasonWinter', tokenSoft: 'seasonWinterSoft' },
 };
+
+export function currentSeason(date: Date = new Date()): SeasonKey {
+  const m = date.getMonth();
+  if (m >= 2 && m <= 4) return 'spring';
+  if (m >= 5 && m <= 7) return 'summer';
+  if (m >= 8 && m <= 10) return 'fall';
+  return 'winter';
+}
 
 export function normalizeSeasonKey(name: string): SeasonKey | null {
   const k = name.toLowerCase().trim();

@@ -47,7 +47,7 @@ export default function NoteCloud({ layer, onNotePress }: Props) {
       {layer.notes.map((note, i) => (
         <Animated.View
           key={`${layer.key}-${i}`}
-          entering={FadeInDown.delay(i * 55).duration(220).springify()}
+          entering={FadeInDown.delay(Math.min(i, 8) * 35).duration(200)}
         >
           <Pressable
             onPress={() => handlePress(note)}

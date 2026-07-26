@@ -12,13 +12,13 @@ import ScentListContent from '../../src/features/scentlist/ScentListContent';
 type SelectionSegment = 'favoris' | 'carnet';
 
 export default function SelectionScreen() {
-  const { theme, resolvedMode } = useTheme();
+  const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { segment } = useLocalSearchParams<{ segment?: string }>();
   const [activeSegment, setActiveSegment] = useState<SelectionSegment>(
     segment === 'carnet' ? 'carnet' : 'favoris',
   );
-  const { reportScroll } = useNavigationChrome();
+  const { scrollY } = useNavigationChrome();
 
   useEffect(() => {
     if (segment === 'carnet' || segment === 'favoris') {
@@ -30,8 +30,6 @@ export default function SelectionScreen() {
     hapticsLight();
     setActiveSegment(seg);
   }, []);
-
-  const isDark = resolvedMode === 'dark';
 
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
@@ -66,12 +64,11 @@ export default function SelectionScreen() {
       </View>
 
       <View style={{ flex: 1 }}>
-        <View style={{ flex: 1, display: activeSegment === 'favoris' ? 'flex' : 'none' }}>
-          <FavoritesContent onScroll={reportScroll} />
-        </View>
-        <View style={{ flex: 1, display: activeSegment === 'carnet' ? 'flex' : 'none' }}>
-          <ScentListContent onScroll={reportScroll} />
-        </View>
+        {activeSegment === 'favoris' ? (
+          <FavoritesContent scrollY={scrollY} />
+        ) : (
+          <ScentListContent scrollY={scrollY} />
+        )}
       </View>
     </SafeAreaView>
   );

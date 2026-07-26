@@ -17,6 +17,7 @@ import { saveWeatherCoords } from '../../src/services/user-data';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import EmptyState from '../../src/components/EmptyState';
+import AuthGate from '../../src/components/AuthGate';
 import Button from '../../src/components/Button';
 import FilterSheet from '../../src/components/FilterSheet';
 import SOTDCard from '../../src/features/wardrobe/SOTDCard';
@@ -37,10 +38,8 @@ import {
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import type { WardrobeItem } from '../../src/models/wardrobe.interface';
 
-interface Props {}
-
-export default function WardrobePage(_props: Props) {
-  const { theme, resolvedMode } = useTheme();
+export default function WardrobePage() {
+  const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
@@ -52,9 +51,8 @@ export default function WardrobePage(_props: Props) {
   const { isOnline } = useNetwork();
   const { weather, loading: weatherLoading, coords } = useWeather(isAuthenticated && isOnline);
   const { items: scentItems } = useScentList(uid);
-  const { reportScroll } = useNavigationChrome();
+  const { scrollY } = useNavigationChrome();
 
-  const haveItems = useMemo(() => items.filter(i => i.ownership === 'have'), [items]);
   const sotdScore = useMemo(() => {
     if (!weather || !sotd) return null;
     const sotdItem = items.find(i => i.parfumId === sotd.parfumId);
@@ -130,57 +128,82 @@ export default function WardrobePage(_props: Props) {
     return result;
   }, [items, activeOwnership, activeShelfId, attrFilters, searchQuery, activeSort, weather]);
 
-  const handleQuickOwnership = (ownership: WardrobeItem['ownership']) => {
+  const handleQuickOwnership = useCallback((ownership: WardrobeItem['ownership']) => {
     if (!quickSheetItem) return;
     update(quickSheetItem.parfumId, { ownership }).catch(() => {});
     setQuickSheetItem(prev => prev ? { ...prev, ownership } : null);
-  };
+  }, [quickSheetItem, update]);
 
-  const handleQuickRating = (rating: number) => {
+  const handleQuickRating = useCallback((rating: number) => {
     if (!quickSheetItem) return;
     update(quickSheetItem.parfumId, { rating: rating === 0 ? null : rating }).catch(() => {});
     setQuickSheetItem(prev => prev ? { ...prev, rating: rating === 0 ? null : rating } : null);
-  };
+  }, [quickSheetItem, update]);
 
-  const handleQuickToggleShelf = (shelfId: string) => {
+  const handleQuickToggleShelf = useCallback((shelfId: string) => {
     if (!quickSheetItem) return;
     const current = quickSheetItem.shelfIds;
     const next = current.includes(shelfId) ? current.filter(id => id !== shelfId) : [...current, shelfId];
     update(quickSheetItem.parfumId, { shelfIds: next }).catch(() => {});
     setQuickSheetItem(prev => prev ? { ...prev, shelfIds: next } : null);
-  };
+  }, [quickSheetItem, update]);
 
-  const handleQuickToggleSignature = () => {
+  const handleQuickToggleSignature = useCallback(() => {
     if (!quickSheetItem) return;
     const next = !quickSheetItem.isSignature;
     if (next && items.filter(i => i.isSignature).length >= 3) {
-      Alert.alert('Limite atteinte', 'Vous avez déjà 3 signatures. Retirez-en une avant d\'en ajouter.');
+      Alert.alert('Limite atteinte', 'Tu as déjà 3 signatures. Retires-en une avant d\'en ajouter.');
       return;
     }
     update(quickSheetItem.parfumId, { isSignature: next }).catch(() => {});
     setQuickSheetItem(prev => prev ? { ...prev, isSignature: next } : null);
-  };
+  }, [quickSheetItem, update, items]);
 
   const signatureCount = useMemo(() => items.filter(i => i.isSignature).length, [items]);
 
-  const handleQuickRemove = () => {
+  const handleQuickRemove = useCallback(() => {
     if (!quickSheetItem) return;
     Alert.alert('Retirer', 'Retirer ce parfum de la parfumerie ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Retirer', style: 'destructive', onPress: () => { remove(quickSheetItem.parfumId).catch(() => {}); setQuickSheetItem(null); } },
     ]);
-  };
+  }, [quickSheetItem, remove]);
+
+  const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
+  const handleEmptyScan = useCallback(() => router.push('/scan'), [router]);
+  const handleSotdPress = useCallback(() => { if (sotd) router.push(`/wardrobe/${sotd.parfumId}`); }, [sotd, router]);
+  const handleSotdChangePress = useCallback(() => setSotdPickerVisible(true), []);
+  const handleScentListPress = useCallback(() => router.push({ pathname: '/(tabs)/selection', params: { segment: 'carnet' } }), [router]);
+  const handleManageShelves = useCallback(() => setShelfManagerVisible(true), []);
+  const handleCloseQuickSheet = useCallback(() => setQuickSheetItem(null), []);
+  const handleViewMore = useCallback(() => {
+    const id = quickSheetItem?.parfumId;
+    setQuickSheetItem(null);
+    if (id) router.push(`/wardrobe/${id}`);
+  }, [quickSheetItem, router]);
+  const handleCloseShelfManager = useCallback(() => setShelfManagerVisible(false), []);
+  const handleCreateShelf = useCallback((name: string, icon?: string, color?: string) => { createShelf(name, icon, color); }, [createShelf]);
+  const handleRenameShelf = useCallback((id: string, name: string) => { updateShelf(id, { name }); }, [updateShelf]);
+  const handleSotdSelect = useCallback((parfumId: string) => {
+    if (parfumId === sotd?.parfumId) {
+      setSotdPickerVisible(false);
+      return;
+    }
+    const item = sotdEligible.find(i => i.parfumId === parfumId);
+    if (item) {
+      hapticsLight();
+      setTodaySotd(item).catch(() => {});
+    }
+    setSotdPickerVisible(false);
+  }, [sotd, sotdEligible, setTodaySotd]);
+  const handleCloseSotdPicker = useCallback(() => setSotdPickerVisible(false), []);
 
   if (!authReady) return <View style={s.center}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
 
   if (!isAuthenticated) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <View style={s.center}>
-          <Ionicons name="flask-outline" size={64} color={theme.colors.textMuted} />
-          <Text style={s.authTitle}>Connectez-vous</Text>
-          <Text style={s.authDesc}>Accédez à votre parfumerie.</Text>
-        </View>
+        <AuthGate icon="flask-outline" description="Accède à ta parfumerie." />
       </SafeAreaView>
     );
   }
@@ -191,9 +214,9 @@ export default function WardrobePage(_props: Props) {
         <View style={s.header}>
           <Text style={s.title}>Ma Parfumerie</Text>
         </View>
-        <EmptyState variant="wardrobe" onAction={() => router.push('/(tabs)')} />
+        <EmptyState variant="wardrobe" onAction={handleEmptyExplore} />
         <View style={s.emptyCtaRow}>
-          <Button variant="outline" onPress={() => router.push('/scan')} icon="camera-outline" style={s.emptyCtaBtn}>
+          <Button variant="outline" onPress={handleEmptyScan} icon="camera-outline" style={s.emptyCtaBtn}>
             Scanner un flacon
           </Button>
         </View>
@@ -213,8 +236,8 @@ export default function WardrobePage(_props: Props) {
           weather={weather}
           weatherLoading={weatherLoading}
           sotdScore={sotdScore}
-          onPress={() => sotd && router.push(`/wardrobe/${sotd.parfumId}`)}
-          onChangePress={() => setSotdPickerVisible(true)}
+          onPress={handleSotdPress}
+          onChangePress={handleSotdChangePress}
         />
       </View>
 
@@ -222,7 +245,7 @@ export default function WardrobePage(_props: Props) {
         <ScentListEntry
           toTryCount={scentItems.filter(i => i.status === 'to_try').length}
           triedCount={scentItems.filter(i => i.status === 'tried').length}
-          onPress={() => router.push({ pathname: '/(tabs)/selection', params: { segment: 'carnet' } })}
+          onPress={handleScentListPress}
         />
       )}
 
@@ -237,7 +260,7 @@ export default function WardrobePage(_props: Props) {
         onShelfChange={setActiveShelfId}
         onSortChange={setActiveSort}
         onSearchChange={setSearchQuery}
-        onManageShelves={() => setShelfManagerVisible(true)}
+        onManageShelves={handleManageShelves}
         attrFilters={attrFilters}
         attrCount={activeAttrCount}
         onOpenAttrSheet={handleOpenAttrSheet}
@@ -257,11 +280,10 @@ export default function WardrobePage(_props: Props) {
       )}
 
       <WardrobeGrid
-        key={resolvedMode}
         items={filtered}
         loading={loading}
         onItemPress={setQuickSheetItem}
-        onScroll={reportScroll}
+        scrollY={scrollY}
       />
 
       <WardrobeQuickSheet
@@ -269,16 +291,12 @@ export default function WardrobePage(_props: Props) {
         item={quickSheetItem}
         shelves={shelves}
         signatureCount={signatureCount}
-        onClose={() => setQuickSheetItem(null)}
+        onClose={handleCloseQuickSheet}
         onOwnershipChange={handleQuickOwnership}
         onRatingChange={handleQuickRating}
         onToggleShelf={handleQuickToggleShelf}
         onToggleSignature={handleQuickToggleSignature}
-        onViewMore={() => {
-          const id = quickSheetItem?.parfumId;
-          setQuickSheetItem(null);
-          if (id) router.push(`/wardrobe/${id}`);
-        }}
+        onViewMore={handleViewMore}
         onRemove={handleQuickRemove}
       />
 
@@ -286,9 +304,9 @@ export default function WardrobePage(_props: Props) {
         visible={shelfManagerVisible}
         shelves={shelves}
         orphanCount={items.filter(i => i.shelfIds.length === 0).length}
-        onClose={() => setShelfManagerVisible(false)}
-        onCreate={(name, icon, color) => { createShelf(name, icon, color); }}
-        onRename={(id, name) => { updateShelf(id, { name }); }}
+        onClose={handleCloseShelfManager}
+        onCreate={handleCreateShelf}
+        onRename={handleRenameShelf}
         onDelete={removeShelf}
       />
 
@@ -298,19 +316,8 @@ export default function WardrobePage(_props: Props) {
         currentSotdId={sotd?.parfumId ?? null}
         anchorTop={sotdCardAnchor}
         weather={weather}
-        onSelect={(parfumId) => {
-          if (parfumId === sotd?.parfumId) {
-            setSotdPickerVisible(false);
-            return;
-          }
-          const item = sotdEligible.find(i => i.parfumId === parfumId);
-          if (item) {
-            hapticsLight();
-            setTodaySotd(item).catch(() => {});
-          }
-          setSotdPickerVisible(false);
-        }}
-        onClose={() => setSotdPickerVisible(false)}
+        onSelect={handleSotdSelect}
+        onClose={handleCloseSotdPicker}
       />
       <FilterSheet
         visible={showAttrSheet}
@@ -331,8 +338,6 @@ function getStyles(t: Theme) {
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text, flex: 1 },
-    authTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 20, color: t.colors.text, marginTop: 12 },
-    authDesc: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, textAlign: 'center', lineHeight: 20, marginTop: 6 },
     emptyCtaRow: { alignItems: 'center', marginTop: 8 },
     emptyCtaBtn: { minWidth: 200 },
     emptyFilter: {

@@ -1,7 +1,8 @@
 // src/features/wardrobe/WardrobeGrid.tsx
 
 import { useMemo, useCallback } from 'react';
-import { FlatList, ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import Animated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import WardrobeCard from './WardrobeCard';
 import type { WardrobeItem } from '../../models/wardrobe.interface';
@@ -10,14 +11,18 @@ interface Props {
   items: WardrobeItem[];
   loading?: boolean;
   onItemPress: (item: WardrobeItem) => void;
-  onScroll?: (y: number) => void;
+  scrollY?: SharedValue<number>;
 }
 
 const CARD_HEIGHT = 212;
 
-export default function WardrobeGrid({ items, loading, onItemPress, onScroll }: Props) {
+export default function WardrobeGrid({ items, loading, onItemPress, scrollY }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    if (scrollY) scrollY.value = e.contentOffset.y;
+  });
 
   const renderItem = useCallback(({ item }: { item: WardrobeItem }) => (
     <WardrobeCard item={item} onPress={() => onItemPress(item)} />
@@ -38,7 +43,7 @@ export default function WardrobeGrid({ items, loading, onItemPress, onScroll }: 
   }
 
   return (
-    <FlatList
+    <Animated.FlatList
       data={items}
       numColumns={2}
       keyExtractor={item => item.parfumId}
@@ -47,7 +52,7 @@ export default function WardrobeGrid({ items, loading, onItemPress, onScroll }: 
       columnWrapperStyle={s.row}
       contentContainerStyle={s.content}
       showsVerticalScrollIndicator={false}
-      onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+      onScroll={scrollHandler}
       scrollEventThrottle={16}
       getItemLayout={getItemLayout}
       windowSize={5}
