@@ -1,6 +1,6 @@
 // src/services/impl/search-shared.ts
-// Helpers partagés par les deux implémentations catalogue (Firebase + Supabase) :
-// SearchError, cache LRU de recherche, dédoublonnage marque+nom, shuffle seedé.
+// Helpers du service catalogue (Supabase) :
+// SearchError, cache LRU de recherche, dédoublonnage marque+nom.
 
 import type { Parfum } from '../../models';
 import { normalize } from '../../utils/normalize';
@@ -49,18 +49,6 @@ export class LRUCache {
       if (first !== undefined) this.map.delete(first);
     }
     this.map.set(key, { results: value, cachedAt: Date.now() });
-  }
-
-  entries(): IterableIterator<[string, Parfum[]]> {
-    const valid: [string, Parfum[]][] = [];
-    for (const [key, entry] of this.map.entries()) {
-      if (!this.isExpired(entry)) {
-        valid.push([key, entry.results]);
-      } else {
-        this.map.delete(key);
-      }
-    }
-    return valid[Symbol.iterator]();
   }
 
   clear(): void {

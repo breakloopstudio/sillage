@@ -1,8 +1,8 @@
-// __tests__/services/firestore-search.test.ts
-// Tests searchParfumsCached + searchParfumFromScan (impl Supabase RPC)
+// __tests__/services/catalog-search.test.ts
+// Tests searchParfumsCached + searchParfumFromScan (RPC Supabase)
 
 import { supabase } from '../../src/services/supabase';
-import { searchParfumsCached, searchParfumFromScan, SearchError, clearSearchCache, peekSearchCache } from '../../src/services/firestore';
+import { searchParfumsCached, searchParfumFromScan, SearchError, clearSearchCache } from '../../src/services/catalog';
 
 const mockRpc = supabase.rpc as jest.Mock;
 
@@ -62,14 +62,7 @@ describe('searchParfumsCached', () => {
     await searchParfumsCached('test');
     expect(mockRpc).toHaveBeenCalledTimes(1);
     await searchParfumsCached('test');
-    expect(mockRpc).toHaveBeenCalledTimes(1); // cached
-  });
-
-  it('peekSearchCache returns cached results without RPC', async () => {
-    mockRpc.mockResolvedValue({ data: [row('p1')], error: null });
-    await searchParfumsCached('cached_query');
-    const peeked = peekSearchCache('cached_query');
-    expect(peeked).toHaveLength(1);
+    expect(mockRpc).toHaveBeenCalledTimes(1);
   });
 
   it('clearSearchCache forces new RPC call', async () => {
@@ -111,7 +104,6 @@ describe('searchParfumFromScan', () => {
       error: null,
     });
     const results = await searchParfumFromScan('Dior', 'Sauvage');
-    // p2 (exact nom match +50) should be first
     expect(results[0].id).toBe('p2');
   });
 

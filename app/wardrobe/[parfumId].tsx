@@ -10,7 +10,7 @@ import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useWardrobe } from '../../src/hooks/useWardrobe';
 import { useShelves } from '../../src/hooks/useShelves';
 import { useSotd } from '../../src/hooks/useSotd';
-import { getParfumById } from '../../src/services/firestore';
+import { getParfumById } from '../../src/services/catalog';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import type { Parfum } from '../../src/models';
 import StarRating from '../../src/features/wardrobe/StarRating';

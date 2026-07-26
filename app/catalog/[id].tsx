@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
-import { getParfumById, updateParfum, getSimilarParfums } from '../../src/services/firestore';
+import { getParfumById, updateParfum, getSimilarParfums } from '../../src/services/catalog';
 import { isParfumFavori, addFavori, removeFavori } from '../../src/services/user-data';
 import { isInScentList, addToScentList, markScentTried, updateScentItem, removeFromScentList, moveScentToWardrobe } from '../../src/services/scentlist';
 import { consumePendingParfum, setPendingParfum } from '../../src/services/catalog-bridge';

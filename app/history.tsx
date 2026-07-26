@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { useScans } from '../src/hooks/useScans';
-import { getParfumById } from '../src/services/firestore';
+import { getParfumById } from '../src/services/catalog';
 import { setPendingParfum } from '../src/services/catalog-bridge';
 import { addToWardrobe } from '../src/services/wardrobe';
 import { hapticsLight } from '../src/services/haptics';

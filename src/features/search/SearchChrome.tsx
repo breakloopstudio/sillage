@@ -8,12 +8,11 @@ import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated'
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
-import { searchParfumsCached } from '../../services/firestore';
+import { searchParfumsCached } from '../../services/catalog';
 import { transcribeVoice } from '../../services/voice-search';
 import { useVoiceSearch, type VoiceResult } from '../../hooks/useVoiceSearch';
 import { useNetwork } from '../../hooks/useNetwork';
 import { useVoicePreference } from '../../hooks/useVoicePreference';
-import type { Parfum } from '../../models';
 import VoiceOverlay from './VoiceOverlay';
 import type { VoicePhase } from './VoiceOverlay';
 
@@ -27,7 +26,6 @@ export default function SearchChrome() {
 
   const [voicePhase, setVoicePhase] = useState<VoicePhase>({ type: 'listening', transcript: '' });
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceResults, setVoiceResults] = useState<Parfum[]>([]);
   const voiceRequestIdRef = useRef(0);
 
   const handleVoiceResult = useCallback(async (result: VoiceResult) => {
@@ -42,7 +40,6 @@ export default function SearchChrome() {
         const results = await searchParfumsCached(resolvedQuery);
         if (requestId !== voiceRequestIdRef.current) return;
         if (results.length > 0) {
-          setVoiceResults(results);
           setVoicePhase({ type: 'results', results, query: resolvedQuery });
           return;
         }
@@ -57,7 +54,6 @@ export default function SearchChrome() {
           const results = await searchParfumsCached(resolvedQuery);
           if (requestId !== voiceRequestIdRef.current) return;
           if (results.length > 0) {
-            setVoiceResults(results);
             setVoicePhase({ type: 'results', results, query: resolvedQuery });
             return;
           }
@@ -81,7 +77,6 @@ export default function SearchChrome() {
 
   const overlayVisible = voicePhase.type !== 'listening';
   const showVoiceTranscript = voiceSearch.state === 'listening' || voiceSearch.state === 'processing';
-  const showMicFab = voiceEnabled && !overlayVisible;
 
   useEffect(() => {
     if (voicePhase.type !== 'searching') return;
@@ -103,7 +98,6 @@ export default function SearchChrome() {
       handleVoiceError('Recherche vocale indisponible hors-ligne.');
       return;
     }
-    setVoiceResults([]);
     setVoiceTranscript('');
     setVoicePhase({ type: 'listening', transcript: '' });
     hapticsLight();
@@ -122,7 +116,6 @@ export default function SearchChrome() {
     if (voiceSearch.state === 'listening' || voiceSearch.state === 'processing') {
       voiceSearch.stop();
     } else {
-      setVoiceResults([]);
       setVoiceTranscript('');
       setVoicePhase({ type: 'listening', transcript: '' });
       voiceSearch.start({ continuous: true });
@@ -138,7 +131,6 @@ export default function SearchChrome() {
     voiceSearch.cancel();
     setVoicePhase({ type: 'listening', transcript: '' });
     setVoiceTranscript('');
-    setVoiceResults([]);
     router.push(`/catalog/${id}`);
   }, [voiceSearch, router]);
 
@@ -146,7 +138,6 @@ export default function SearchChrome() {
     voiceSearch.cancel();
     setVoicePhase({ type: 'listening', transcript: '' });
     setVoiceTranscript('');
-    setVoiceResults([]);
     router.push(`/search?q=${encodeURIComponent(voiceTranscript)}`);
   }, [voiceSearch, voiceTranscript, router]);
 
@@ -154,18 +145,17 @@ export default function SearchChrome() {
     voiceSearch.cancel();
     setVoicePhase({ type: 'listening', transcript: '' });
     setVoiceTranscript('');
-    setVoiceResults([]);
   }, [voiceSearch]);
 
   const handleVoiceRetry = useCallback(() => {
-    setVoiceResults([]);
     setVoiceTranscript('');
     setVoicePhase({ type: 'listening', transcript: '' });
     voiceSearch.start({ continuous: true });
   }, [voiceSearch]);
 
-  const dockFadeStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(overlayVisible ? 0 : 1, { duration: 150 }),
+  const micFabVisible = voiceEnabled && !overlayVisible;
+  const micFabStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(micFabVisible ? 1 : 0, { duration: 150 }),
   }));
 
   if (pathname === '/profile') return null;
@@ -218,8 +208,11 @@ export default function SearchChrome() {
         onRetry={handleVoiceRetry}
       />
 
-      {showMicFab && (
-        <Animated.View style={[dockFadeStyle, s.micFabWrap]}>
+      {voiceEnabled && (
+        <Animated.View
+          style={[micFabStyle, s.micFabWrap]}
+          pointerEvents={micFabVisible ? 'auto' : 'none'}
+        >
           <Pressable
             onPressIn={handleFabPressIn}
             onPressOut={handleFabPressOut}
@@ -232,7 +225,7 @@ export default function SearchChrome() {
           >
             <Ionicons
               name={showVoiceTranscript ? 'mic' : 'mic-outline'}
-              size={22}
+              size={20}
               color={showVoiceTranscript ? textOn(theme.colors.primary) : theme.colors.primary}
             />
           </Pressable>

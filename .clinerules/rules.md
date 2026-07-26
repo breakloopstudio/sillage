@@ -36,7 +36,7 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (14)        # supabase, firestore, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/     (14)        # supabase, catalog, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, wardrobe, scentlist, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
 ├── hooks/        (16)        # useAuth, useCatalog, useDensityPreference, useFavoris, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useScentList, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWardrobe, useWeather
 ├── contexts/     (1)         # AuthContext (ThemeContext est dans src/theme/)
@@ -94,7 +94,7 @@ supabase/                     # Backend Supabase (versionné)
 - Scan/Recherche : routes racine (`slide_from_bottom` / `fade`), pas des onglets
 - Historique : route racine, poussée depuis Profil
 - Perfumer : route racine, poussée depuis la signature nez de la fiche détail (slide_from_right)
-- `NavigationChromeContext` pour le hide-on-scroll du dock — chaque écran actif écrit `reportScroll(y)`, le layout réagit sans conflit de gestes
+- `NavigationChromeContext` pour le hide-on-scroll du dock — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes
 - Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs, masqué sur l'onglet Profil
 - Swipe-back : natif (React Navigation), pas de geste custom → **0 conflit de swipe**
 - `router.push()` pour navigation avant, `router.back()` / `router.dismissTo()` pour retour
@@ -128,7 +128,7 @@ supabase/                     # Backend Supabase (versionné)
 
 ## §8 — Catalogue
 
-- Recherche via **RPC Postgres `search_parfums`** (tsvector + pg_trgm, ~25K parfums), cache LRU + prefix cache client, debounce 150ms
+- Recherche via **RPC Postgres `search_parfums`** (tsvector + pg_trgm, ~25K parfums), cache LRU client (200 entrées, 10 min), debounce 150ms, seuil 2 caractères
 - **Taxonomie 6 familles** (`src/utils/olfactory-families.ts`) : regroupe ~46 valeurs anglaises de `famille_olfactive` en familles FR (boisée, florale, hespéridée, ambrée, gourmande, aromatique). `FamilyAmbianceCards` data-driven, recherche en mode famille (`/search?family=<key>`)
 - Rangées éditoriales : « Parfaits pour {saison} » (RPC `seasonal_parfums`), « Les mieux notés » (`getTopRatedParfums`), « Pour vous » (personnalisé) / populaires (fallback)
 - Fonctions catalogue : `getParfumCount`, `getTopRatedParfums`, `getParfumsByFamily`, `getFamilyOverview`, `getSeasonalParfums`, `getPersonalizedSuggestions`, `getSimilarParfums`
@@ -193,7 +193,7 @@ supabase/                     # Backend Supabase (versionné)
 
 - Auth, Postgres (RLS), Storage, Realtime (`postgres_changes`), Edge Functions (Deno)
 - `src/services/supabase.ts` — client `@supabase/supabase-js` (AsyncStorage, `react-native-url-polyfill`) + `subscribeUserTable()` (adaptateur realtime : fetch initial + deltas INSERT/UPDATE/DELETE → même contrat qu'`onSnapshot`) + `isSupabaseReady()`
-- Chaque service public (`firestore.ts`, `user-data.ts`, …) = `export * from './impl/<x>.supabase'` ; l'implémentation vit dans `src/services/impl/`
+- Chaque service public (`catalog.ts`, `user-data.ts`, …) = `export * from './impl/<x>.supabase'` ; l'implémentation vit dans `src/services/impl/`
 - Schéma/RLS/fonctions SQL dans `supabase/migrations/` ; Edge Functions dans `supabase/functions/`
 - Secrets via `supabase secrets set` (Vault) — **jamais** en dur dans `config.toml` (références `env(...)` uniquement)
 
@@ -202,8 +202,8 @@ supabase/                     # Backend Supabase (versionné)
 ## §12 — Catalogue de données
 
 - Catalogue 100% autonome : ~25 100 parfums dans la table Postgres `parfums` (migrés depuis Firestore via `scripts/export-firestore.ts` + `scripts/import-supabase.ts`)
-- Recherche plein texte : colonnes générées `search_text` (index GIN `pg_trgm`) + `search_vector` (tsvector, config `french_unaccent`) — `searchKeywords` n'est plus stocké
-- `src/utils/normalize.ts` — `normalize()`, `STOP_WORDS` (tokenisation client du prefix cache) ; `buildSearchKeywords()`/`generateTrigrams()` conservés pour les tests
+- Recherche plein texte : colonnes générées `search_text` (index GIN `pg_trgm`) + `search_vector` (tsvector, config `french_unaccent`)
+- `src/utils/normalize.ts` — `normalize()`, `normalizeId()` (utilisés par le dédoublonnage et le rescoring scan)
 - RLS : `parfums` en lecture publique, écriture réservée aux admins (table `admins`)
 - Images hébergées sur **Supabase Storage** (bucket public `parfum-images`) : `parfums/{parfumId}_{ts}_{name}` ; migration via `scripts/migrate-storage.ts`
 - `source: 'seed'` — distingue les données importées des données saisies manuellement (`'manual'`)
@@ -214,7 +214,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 227 tests, 18 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 209 tests, 18 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique

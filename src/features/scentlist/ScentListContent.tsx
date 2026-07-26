@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useScentList } from '../../hooks/useScentList';
-import { getParfumById } from '../../services/firestore';
+import { getParfumById } from '../../services/catalog';
 import { setPendingParfum } from '../../services/catalog-bridge';
 import { moveFavori } from '../../services/user-data';
 import { useTheme, type Theme } from '../../theme/ThemeContext';

@@ -15,7 +15,7 @@ jest.mock('../../src/services/openai-vision', () => ({
 }));
 
 const mockSearch = jest.fn();
-jest.mock('../../src/services/firestore', () => ({
+jest.mock('../../src/services/catalog', () => ({
   searchParfumFromScan: (...args: unknown[]) => mockSearch(...args),
 }));
 

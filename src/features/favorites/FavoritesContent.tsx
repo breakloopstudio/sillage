@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useFavoris } from '../../hooks/useFavoris';
-import { getParfumById } from '../../services/firestore';
+import { getParfumById } from '../../services/catalog';
 import { moveToCollection, moveToScentList } from '../../services/user-data';
 import { addToWardrobe } from '../../services/wardrobe';
 import { setPendingParfum } from '../../services/catalog-bridge';

@@ -4,7 +4,7 @@
 import type { UserScentItem, ScentVerdict, Parfum } from '../../models';
 import type { WardrobeItem } from '../../models/wardrobe.interface';
 import { supabase, subscribeUserTable } from '../supabase';
-import { getParfumById } from '../firestore';
+import { getParfumById } from '../catalog';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate } from './sql-utils';
 

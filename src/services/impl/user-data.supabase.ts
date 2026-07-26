@@ -4,7 +4,7 @@
 
 import type { Parfum, UserFavori, UserScan, UserCollectionItem } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
-import { getParfumById } from '../firestore';
+import { getParfumById } from '../catalog';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate } from './sql-utils';
 

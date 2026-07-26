@@ -14,7 +14,7 @@ import BrandCapsules from './BrandCapsules';
 import CatalogRow from './CatalogRow';
 import FamilyAmbianceCards from './FamilyAmbianceCards';
 import BrandSheet from './BrandSheet';
-import { getPopularParfums, getPersonalizedSuggestions, getTopRatedParfums, getSeasonalParfums, getParfumCount } from '../../services/firestore';
+import { getPopularParfums, getPersonalizedSuggestions, getTopRatedParfums, getSeasonalParfums, getParfumCount } from '../../services/catalog';
 import { useDensityPreference, GRID_MODES } from '../../hooks/useDensityPreference';
 import type { CardMode } from '../../components/ParfumCard';
 import { useTheme, type Theme } from '../../theme/ThemeContext';

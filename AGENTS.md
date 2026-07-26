@@ -1,4 +1,4 @@
-# ParfumScan React — Environment & Commands (v6.23)
+# ParfumScan React — Environment & Commands (v7.2)
 
 ## Environnement local (Windows)
 | Variable | Valeur |
@@ -254,6 +254,19 @@ Parfumerie (ex « Garde-robe ») — icône `flask`. Favoris en grille (filtres 
 **Rappel chemins** : la page Profil vit dans `app/(tabs)/profile.tsx` depuis v6.22 — la note v6.21 fait référence à l'ancien chemin `app/profile.tsx`. `ProfileAvatar.tsx` n'existe plus : l'avatar utilisateur est rendu dans la DockBar (onglet Profil, photo si `user.photoURL`).
 
 **Docs resynchronisées** : rules.md §2 (arborescences réelles : 14 services, 17 hooks, 13 components, 10 utils, 8 models, 10 dossiers features), §13 (227 tests / 17 suites), §15 (météo GPS-only, bannière unifiée — WeatherWidget supprimé v6.20), §19 (onboarding supprimé). reference.md : weather.ts GPS-only, +`scentlist.ts`, +`account.ts`, +`useScentList`, +`UserScentItem`, suppression du bloc DockBar pré-v6.22 (5 positions), FilterSheet `items: FilterableItem[]`, EmptyState 5 variantes.
+
+## Notes v7.2 — Nettoyage héritage Firestore (26/07/2026)
+
+**Audit + suppression des règles héritées de Firestore** (obsolètes depuis la migration Supabase) :
+
+- **Seuil recherche 3→2 caractères** : le seuil 3 était une optimisation coût Firestore (lectures par document). Le RPC Postgres `search_parfums` (tsvector + pg_trgm) traite les queries courtes sans surcoût. Aligné partout : `useCatalog`, `search.tsx` (4 endroits). "CK", "Y" fonctionnent maintenant.
+- **Rate limiter 30/min supprimé** : protection anti-quota Firestore (lectures par document). Supabase facture au niveau infra (pool de connexions), pas par requête. `peekSearchCache`, `rateLimited`, `prevParfumsRef`, bannière UI — tout supprimé.
+- **Prefix cache + tokenisation client supprimés** (~70 lignes) : `scoreDocs`, max 4 tokens, `STOP_WORDS`, `multiToken` — dupliquait le scoring du RPC côté client. Le RPC tokenise, score, fuzzy-match et déduplique côté serveur.
+- **Code mort supprimé** : `buildSearchKeywords`, `generateTrigrams`, `STOP_WORDS` (normalize.ts), `searchKeywords` (interface Parfum), `translateFirebaseError` + 3 maps d'erreurs Firebase (error-translator.ts), `LRUCache.entries()` (search-shared.ts).
+- **Renommage** `src/services/firestore.ts` → `src/services/catalog.ts` (17 imports mis à jour).
+- **Conservé** : LRU cache exact (200 entrées, 10 min), debounce 150ms, rescoring scan (+50/+25/+15/+8 — le RPC ne distingue pas nom vs marque), `dedupByMarqueNom`, `rowToParfum`/`WRITE_MAP`.
+
+**Fichiers** : `normalize.ts` (58→12 lignes), `catalog.supabase.ts` (427→351), `useCatalog.ts` (90→53), `search.tsx` (−bannière rateLimited), `error-translator.ts` (94→38), `search-shared.ts` (−entries()), `parfum.interface.ts` (−searchKeywords). Tests : 209 tests, 18 suites (4 réécrits, 1 supprimé, 1 créé).
 
 ## Notes v7.1 — Catalogue éditorial, images HD, scroll UI-thread, durcissement (26/07/2026)
 

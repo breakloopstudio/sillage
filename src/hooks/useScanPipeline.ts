@@ -5,7 +5,7 @@ import { useRef, useCallback } from 'react';
 import type { ScanAction } from './useScanReducer';
 import type { ScanResult, Parfum } from '../models';
 import { analyzeImage, analyzeMultipleImages } from '../services/openai-vision';
-import { searchParfumFromScan } from '../services/firestore';
+import { searchParfumFromScan } from '../services/catalog';
 import { saveScan } from '../services/user-data';
 import { hapticsSuccess, hapticsError } from '../services/haptics';
 

@@ -7,7 +7,7 @@ export interface PriceOffer {
   volumeMl?: number;     // volume concerné par l'offre
 }
 
-// Modèle Parfum — collection Firestore 'parfums'
+// Modèle Parfum — table Postgres `parfums`
 export interface Parfum {
   id: string;
   nom: string;
@@ -27,13 +27,12 @@ export interface Parfum {
   referencePrice?: number;
   offers?: PriceOffer[];
 
-  // --- Métadonnées du catalogue (seed Firestore) ---
+  // --- Métadonnées du catalogue ---
   source?: 'seed' | 'manual';
   cachedAt?: Date;
   imageVerified?: boolean;
   typeParfum?: string | null;
-  searchKeywords?: string[];
-  searchText?: string;          // Supabase : colonne générée (remplace searchKeywords pour le scoring client)
+  searchText?: string;
   purchaseUrl?: string | null;
   mainAccords?: string[];
   longevity?: string | null;

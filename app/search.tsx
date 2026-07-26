@@ -11,7 +11,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useCatalog } from '../src/hooks/useCatalog';
 import { useVoiceSearch, type VoiceState, type VoiceResult } from '../src/hooks/useVoiceSearch';
 import { transcribeVoice } from '../src/services/voice-search';
-import { getParfumsByFamily } from '../src/services/firestore';
+import { getParfumsByFamily } from '../src/services/catalog';
 import { getFamilyByKey } from '../src/utils/olfactory-families';
 import ParfumCard from '../src/components/ParfumCard';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
@@ -55,7 +55,7 @@ export default function SearchScreen() {
   const inputRef = useRef<TextInput>(null);
   const [searchText, setSearchText] = useState(() => familyDef?.label ?? initialQuery ?? '');
   const recentLoadedRef = useRef(false);
-  const { parfums, searching, error, rateLimited, search, clear } = useCatalog();
+  const { parfums, searching, error, search, clear } = useCatalog();
   const [familyResults, setFamilyResults] = useState<Parfum[] | null>(familyDef ? [] : null);
   const [familyLoading, setFamilyLoading] = useState(!!familyDef);
   const { density: searchDensity, setDensity: setSearchDensity } = useDensityPreference();
@@ -121,7 +121,7 @@ export default function SearchScreen() {
 
   useEffect(() => {
     if (familyDef) return;
-    if (initialQuery && initialQuery.trim().length >= 3) {
+    if (initialQuery && initialQuery.trim().length >= 2) {
       setSearchText(initialQuery);
       search(initialQuery.trim());
     }
@@ -131,7 +131,7 @@ export default function SearchScreen() {
     setSearchText(t);
     setFamilyResults(null);
     if (voiceState !== 'idle') voiceSearch.cancel();
-    t.trim().length >= 3 ? search(t) : clear();
+    t.trim().length >= 2 ? search(t) : clear();
   }, [search, clear, voiceState, voiceSearch]);
 
   const handleVoiceToggle = useCallback(() => {
@@ -149,7 +149,7 @@ export default function SearchScreen() {
 
   const handleResultPress = useCallback((id: string) => {
     const text = searchText.trim();
-    if (text && text.length >= 3) {
+    if (text && text.length >= 2) {
       recentLoadedRef.current = true;
       recentStore.items = [text, ...recentStore.items.filter(x => x.toLowerCase() !== text.toLowerCase())].slice(0, 5);
       setRecentSearches(recentStore.items);
@@ -231,13 +231,6 @@ export default function SearchScreen() {
 
       {isSearching && <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />}
 
-      {rateLimited && !inFamilyMode && (
-        <View style={s.rateBanner}>
-          <Ionicons name="timer-outline" size={14} color={theme.colors.fairInk} />
-          <Text style={s.rateBannerText}>Trop de recherches. Réessaie dans quelques secondes.</Text>
-        </View>
-      )}
-
       {hasResults ? (
         <>
           {inFamilyMode && familyDef && (
@@ -290,7 +283,7 @@ export default function SearchScreen() {
           <Text style={s.errorTitle}>Impossible de rechercher</Text>
           <Text style={s.errorDesc}>{error}</Text>
         </View>
-      ) : !isSearching && (inFamilyMode || searchText.length >= 3) ? (
+      ) : !isSearching && (inFamilyMode || searchText.length >= 2) ? (
         <View style={s.empty}>
           <Ionicons name="search-outline" size={48} color={theme.colors.textMuted} style={{ opacity: 0.4 }} />
           <Text style={s.emptyTitle}>Aucun résultat</Text>
@@ -483,23 +476,6 @@ function getStyles(t: Theme) {
       lineHeight: 20,
       marginTop: 8,
       paddingHorizontal: 32,
-    },
-    rateBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      backgroundColor: t.colors.fairSoft,
-      marginHorizontal: 16,
-      marginTop: 8,
-      borderRadius: t.radius.sm,
-    },
-    rateBannerText: {
-      fontFamily: 'Inter_500Medium',
-      fontSize: 12,
-      color: t.colors.fairInk,
     },
   } as const;
 }

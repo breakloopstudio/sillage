@@ -1,6 +1,8 @@
 // src/features/catalog/FamilyAmbianceCards.tsx — Cartes d'ambiance « Explorer par famille »
-// v2 : flacon détouré (WebP transparent) qui flotte sur un fond teinté par famille,
-// badge icône accent, tagline sensorielle, effectif. Tape → /search?family=<key>.
+// v3 : 1 seul round-trip (RPC family_overviews), flacon détouré qui flotte sur un
+// fond teinté par famille + ombre de contact, rotation quotidienne du flacon
+// emblématique, badge icône accent, tagline sensorielle, effectif.
+// Tap → /search?family=<key>.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -9,9 +11,8 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import SectionHeader from '../../components/SectionHeader';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { OLFACTORY_FAMILIES, type OlfactoryFamily } from '../../utils/olfactory-families';
-import { getFamilyOverview } from '../../services/firestore';
+import { getFamilyOverviews } from '../../services/catalog';
 import { textOn } from '../../utils/contrast';
-import type { Parfum } from '../../models';
 
 interface Props {
   onFamilyTap: (familyKey: string) => void;
@@ -20,21 +21,16 @@ interface Props {
 export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
-  const [overviews, setOverviews] = useState<Record<string, { top: Parfum | null; count: number }>>({});
+  const [overviews, setOverviews] = useState<Record<string, { bottles: string[]; count: number }>>({});
   const [loaded, setLoaded] = useState(false);
+  const day = useMemo(() => Math.floor(Date.now() / 86400000), []);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all(
-      OLFACTORY_FAMILIES.map(async f => {
-        const ov = await getFamilyOverview(f.values);
-        return [f.key, ov] as const;
-      }),
-    ).then(entries => {
-      if (cancelled) return;
-      setOverviews(Object.fromEntries(entries));
-      setLoaded(true);
-    });
+    getFamilyOverviews(OLFACTORY_FAMILIES.map(f => ({ key: f.key, values: f.values })))
+      .then(result => { if (!cancelled) setOverviews(result); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -45,8 +41,13 @@ export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
   if (!loaded) return null;
 
   const cards = OLFACTORY_FAMILIES
-    .map(f => ({ family: f, overview: overviews[f.key] }))
-    .filter(c => c.overview?.top?.imageUrl);
+    .map(family => {
+      const ov = overviews[family.key];
+      const bottles = ov?.bottles ?? [];
+      const bottleUrl = bottles.length > 0 ? bottles[day % bottles.length] : null;
+      return { family, bottleUrl, count: ov?.count ?? 0 };
+    })
+    .filter(c => c.bottleUrl !== null && c.count > 0);
 
   if (cards.length === 0) return null;
 
@@ -62,12 +63,12 @@ export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.scrollContent}
       >
-        {cards.map(({ family, overview }) => (
+        {cards.map(({ family, bottleUrl, count }) => (
           <FamilyCard
             key={family.key}
             family={family}
-            top={overview!.top!}
-            count={overview!.count}
+            bottleUrl={bottleUrl!}
+            count={count}
             onPress={() => handlePress(family.key)}
           />
         ))}
@@ -76,13 +77,13 @@ export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
   );
 }
 
-function FamilyCard({ family, top, count, onPress }: {
+function FamilyCard({ family, bottleUrl, count, onPress }: {
   family: OlfactoryFamily;
-  top: Parfum;
+  bottleUrl: string;
   count: number;
   onPress: () => void;
 }) {
-  const { theme } = useTheme();
+  const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const accent = theme.colors[family.accent];
   const accentSoft = theme.colors[family.accentSoft];
@@ -102,8 +103,12 @@ function FamilyCard({ family, top, count, onPress }: {
         <Ionicons name={family.icon as never} size={14} color={textOn(accent)} />
       </View>
       <View style={s.imageZone}>
+        <View
+          style={[s.contactShadow, { opacity: resolvedMode === 'dark' ? 0.05 : 0.1 }]}
+          accessible={false}
+        />
         <Image
-          source={{ uri: top.imageUrl }}
+          source={{ uri: bottleUrl }}
           style={s.bottle}
           contentFit="contain"
           transition={300}
@@ -139,7 +144,7 @@ function getStyles(t: Theme) {
       position: 'absolute',
       top: 10,
       left: 10,
-      zIndex: 1,
+      zIndex: 2,
       width: 28,
       height: 28,
       borderRadius: 14,
@@ -154,9 +159,19 @@ function getStyles(t: Theme) {
       justifyContent: 'flex-end',
       alignItems: 'center',
     },
+    contactShadow: {
+      position: 'absolute',
+      bottom: 8,
+      left: '20%',
+      right: '20%',
+      height: 10,
+      borderRadius: 9999,
+      backgroundColor: t.colors.text,
+    },
     bottle: {
       width: '100%',
       height: '100%',
+      zIndex: 1,
     },
 
     textBlock: {

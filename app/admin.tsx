@@ -6,7 +6,7 @@ import {
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthContext } from '../src/contexts/AuthContext';
-import { searchParfumsCached, updateParfum } from '../src/services/firestore';
+import { searchParfumsCached, updateParfum } from '../src/services/catalog';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { textOn } from '../src/utils/contrast';
 import type { Parfum } from '../src/models';

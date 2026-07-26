@@ -1,10 +1,9 @@
 // src/services/impl/catalog.supabase.ts — Implémentation Supabase de l'API
-// catalogue (searchParfumsCached via RPC tsvector+trgm, mêmes signatures que
-// l'impl Firebase). Appelée par le dispatcher firestore.ts quand USE_SUPABASE=true.
+// catalogue (searchParfumsCached via RPC tsvector+trgm).
 // Cf. MIGRATION_SUPABASE.md §5.
 
 import type { Parfum } from '../../models';
-import { normalize, STOP_WORDS } from '../../utils/normalize';
+import { normalize } from '../../utils/normalize';
 import type { SeasonKey } from '../../utils/season';
 import { supabase } from '../supabase';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
@@ -36,7 +35,6 @@ function rowToParfum(row: Record<string, unknown>): Parfum {
     source: row.source as Parfum['source'],
     cachedAt: toDate(row.cached_at),
     imageVerified: (row.image_verified as boolean) ?? undefined,
-    // searchKeywords : absent du schéma (remplacé par la colonne générée search_text)
     searchText: (row.search_text as string) ?? undefined,
     purchaseUrl: (row.purchase_url as string | null) ?? undefined,
     mainAccords: (row.main_accords as string[]) ?? undefined,
@@ -118,11 +116,6 @@ export async function updateParfum(id: string, fragranceData: Partial<Omit<Parfu
 
 const _searchCache = new LRUCache(200);
 
-/** Vérifie si une query est en cache sans appel réseau (rate limiter). */
-export function peekSearchCache(queryStr: string): Parfum[] | undefined {
-  return _searchCache.get(queryStr.trim().toLowerCase());
-}
-
 /** Vide le cache de recherche (après une mutation admin). */
 export function clearSearchCache(): void {
   _searchCache.clear();
@@ -134,75 +127,6 @@ export async function searchParfumsCached(queryStr: string): Promise<Parfum[]> {
 
   const cached = _searchCache.get(q);
   if (cached !== undefined) return cached;
-
-  const rawTokens = q.split(/\s+/).filter(t => t.length >= 2);
-  if (rawTokens.length === 0) return [];
-
-  const searchTokens = rawTokens
-    .flatMap(t => normalize(t).split('_'))
-    .filter(t => t.length >= 2 && !STOP_WORDS.has(t))
-    .sort((a, b) => b.length - a.length)
-    .slice(0, 4);
-
-  if (searchTokens.length === 0) {
-    _searchCache.set(q, []);
-    return [];
-  }
-
-  const multiToken = searchTokens.length >= 2;
-  const normalizedQ = normalize(q);
-
-  // Scoring local pour le prefix cache — sur search_text (équivalent des searchKeywords)
-  const scoreDocs = (docs: Parfum[]): Parfum[] => {
-    const scored = docs.map((p) => {
-      const kw = (p.searchText ?? '').split(' ').filter(Boolean);
-      let matchScore = 0;
-      for (const token of searchTokens) {
-        let best: string | undefined;
-        for (const k of kw) {
-          if (k.startsWith(token) && (!best || k.length < best.length)) best = k;
-        }
-        if (best) matchScore += token.length / best.length;
-      }
-      const exactMatch = multiToken && (p.searchText ?? '').replace(/ /g, '_') === normalizedQ ? 10 : 0;
-      const pop = Math.max(p.reviewCount ?? 0, p.ratingCount ?? 0, p.popularityScore ?? 0);
-      const popBonus = pop > 0 ? Math.log(pop + 1) / 2 : 0;
-      return { p, _score: matchScore + exactMatch + popBonus, _pop: pop };
-    });
-    return scored
-      .filter((d) => d._score > 0)
-      .sort((a, b) => {
-        const diff = b._score - a._score;
-        if (Math.abs(diff) < 0.001) return b._pop - a._pop;
-        return diff;
-      })
-      .slice(0, 50)
-      .map((d) => d.p);
-  };
-
-  // Prefix cache : si une query plus courte est en cache, re-score localement
-  // (même stratégie que l'impl Firebase : la query cachée la plus peuplée,
-  // fallthrough réseau si < 5 résultats re-scorés)
-  let bestKey = '';
-  let bestResults: Parfum[] = [];
-  for (const [key, results] of _searchCache.entries()) {
-    if (results.length > 0 && q.startsWith(key) && q !== key && results.length > bestResults.length) {
-      bestKey = key;
-      bestResults = results;
-    }
-  }
-
-  if (bestKey) {
-    const reScored = scoreDocs(bestResults);
-    let deduped: Parfum[];
-    try { deduped = dedupByMarqueNom(reScored); } catch { deduped = reScored; }
-    if (deduped.length >= 5) {
-      _searchCache.set(q, deduped);
-      if (__DEV__) console.log(`[search] "${q}" — prefix cache hit (from "${bestKey}", ${deduped.length} results)`);
-      return deduped;
-    }
-    if (__DEV__) console.log(`[search] "${q}" — prefix cache low recall (${deduped.length}), falling through to RPC`);
-  }
 
   const t0 = Date.now();
 
@@ -223,8 +147,7 @@ export async function searchParfumsCached(queryStr: string): Promise<Parfum[]> {
   }
 }
 
-/** Recherche optimisée pour le scan — rescoring nom/marque structurés GPT-4o.
- *  Logique identique à l'impl Firebase (JS pur au-dessus de searchParfumsCached). */
+/** Recherche optimisée pour le scan — rescoring nom/marque structurés GPT-4o. */
 export async function searchParfumFromScan(marque: string | null, nom: string | null): Promise<Parfum[]> {
   if (!marque && !nom) return [];
 

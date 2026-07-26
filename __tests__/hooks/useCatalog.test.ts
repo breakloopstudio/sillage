@@ -2,18 +2,14 @@ import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { useCatalog } from '../../src/hooks/useCatalog';
 
 const mockSearch = jest.fn();
-const mockPeek = jest.fn().mockReturnValue(undefined);
-jest.mock('../../src/services/firestore', () => ({
+jest.mock('../../src/services/catalog', () => ({
   searchParfumsCached: (...args: unknown[]) => mockSearch(...args),
-  peekSearchCache: (...args: unknown[]) => mockPeek(...args),
 }));
 
 describe('useCatalog', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     mockSearch.mockClear();
-    mockPeek.mockClear();
-    mockPeek.mockReturnValue(undefined);
     mockSearch.mockResolvedValue([]);
   });
 
@@ -27,9 +23,9 @@ describe('useCatalog', () => {
     expect(result.current.searching).toBe(false);
   });
 
-  it('short query (< 3 chars) clears results immediately', () => {
+  it('short query (< 2 chars) clears results immediately', () => {
     const { result } = renderHook(() => useCatalog());
-    act(() => result.current.search('ab'));
+    act(() => result.current.search('a'));
     expect(result.current.parfums).toEqual([]);
     expect(result.current.searching).toBe(false);
     expect(mockSearch).not.toHaveBeenCalled();
@@ -42,7 +38,7 @@ describe('useCatalog', () => {
     expect(result.current.searching).toBe(false);
   });
 
-  it('valid query (>= 3 chars) sets searching=true immediately', () => {
+  it('valid query (>= 2 chars) sets searching=true immediately', () => {
     const { result } = renderHook(() => useCatalog());
     act(() => result.current.search('dior'));
     expect(result.current.searching).toBe(true);
@@ -63,7 +59,7 @@ describe('useCatalog', () => {
   it('debounce cancels previous timer on rapid calls', async () => {
     const { result } = renderHook(() => useCatalog());
 
-    act(() => result.current.search('dio'));
+    act(() => result.current.search('di'));
     act(() => result.current.search('dior'));
     act(() => result.current.search('dior sauv'));
 
@@ -75,15 +71,11 @@ describe('useCatalog', () => {
   it('requestIdRef prevents stale results from fast typing', async () => {
     const { result } = renderHook(() => useCatalog());
 
-    // First search — will be stale
     act(() => result.current.search('dior'));
-    await act(async () => { jest.advanceTimersByTime(149); }); // not yet triggered
+    await act(async () => { jest.advanceTimersByTime(149); });
 
-    // Second search — cancels first, starts fresh
     act(() => result.current.search('sauvage'));
 
-    // The first timer's callback would run here, but it was cleared
-    // Advance to trigger second search only
     await act(async () => { jest.advanceTimersByTime(150); });
     expect(mockSearch).toHaveBeenCalledTimes(1);
     expect(mockSearch).toHaveBeenCalledWith('sauvage');
@@ -105,7 +97,7 @@ describe('useCatalog', () => {
   });
 
   it('sets searching=false when searchParfumsCached throws', async () => {
-    mockSearch.mockRejectedValue(new Error('Firestore error'));
+    mockSearch.mockRejectedValue(new Error('RPC error'));
     const { result } = renderHook(() => useCatalog());
 
     act(() => result.current.search('dior'));
@@ -134,7 +126,7 @@ describe('useCatalog', () => {
       const { result } = renderHook(() => useCatalog());
 
       act(() => result.current.search('dior'));
-      jest.advanceTimersByTime(50); // not yet triggered
+      jest.advanceTimersByTime(50);
       act(() => result.current.clear());
       await act(async () => { jest.advanceTimersByTime(200); });
 
@@ -149,7 +141,6 @@ describe('useCatalog', () => {
     unmount();
     act(() => { jest.advanceTimersByTime(150); });
 
-    // Le cleanup du useEffect clear le timer → mock jamais appele
     expect(mockSearch).not.toHaveBeenCalled();
   });
 });

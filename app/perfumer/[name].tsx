@@ -5,7 +5,7 @@ import { View, Text, Pressable, ActivityIndicator, FlatList } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import { getParfumsByPerfumer } from '../../src/services/firestore';
+import { getParfumsByPerfumer } from '../../src/services/catalog';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';

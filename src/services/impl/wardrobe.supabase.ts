@@ -5,7 +5,7 @@
 import type { WardrobeItem, Shelf, SotdEntry } from '../../models/wardrobe.interface';
 import type { Parfum } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
-import { getParfumById } from '../firestore';
+import { getParfumById } from '../catalog';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate, today } from './sql-utils';
 

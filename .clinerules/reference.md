@@ -12,18 +12,19 @@ export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () =>
 // Même contrat qu'onSnapshot. setAuth realtime synchro via onAuthStateChange.
 ```
 
-### `src/services/firestore.ts`
+### `src/services/catalog.ts`
 ```ts
-// Catalogue — impl Supabase (RPC search_parfums / PostgREST). Signatures inchangées.
+// Catalogue — impl Supabase (RPC search_parfums / PostgREST).
 export function getParfumById(id: string): Promise<Parfum | undefined>;
 export function updateParfum(id: string, data: Partial<Parfum>): Promise<void>;
 export function getPopularParfums(limit: number): Promise<Parfum[]>;
 export function getPersonalizedSuggestions(uid: string, limit: number): Promise<Parfum[]>;
 export function searchParfumsCached(query: string): Promise<Parfum[]>;
+export function clearSearchCache(): void;
 export function getParfumCount(): Promise<number>;
 export function getTopRatedParfums(limit?: number): Promise<Parfum[]>;
 export function getParfumsByFamily(values: string[], limit?: number): Promise<Parfum[]>;
-export function getFamilyOverview(values: string[]): Promise<{ top: Parfum | null; count: number }>;
+export function getFamilyOverviews(buckets: { key: string; values: string[] }[], topPerFamily?: number): Promise<Record<string, { bottles: string[]; count: number }>>;
 export function getSeasonalParfums(season: SeasonKey, limit?: number): Promise<Parfum[]>;
 ```
 → Voir **§7 — Algorithme de recherche** pour la spécification complète.
@@ -37,23 +38,18 @@ export function searchParfumFromScan(marque: string | null, nom: string | null):
 
 ```ts
 export function getSimilarParfums(mainAccords: string[], excludeId: string, limit?: number): Promise<Parfum[]>;
-// Scoring par nombre d'accords partagés (array-contains-any) + orderBy popularityScore, shuffle journalier (Lehmer RNG), ParfumCard compact dans UI, cache TTL 24h via similarIdsCachedAt
+// RPC similar_parfums : intersection main_accords × 10 + popularité/100, shuffle journalier SQL
 ```
 
 ```ts
 export function getParfumsByPerfumer(name: string): Promise<Parfum[]>;
-// where('perfumers','array-contains',name) + orderBy popularityScore DESC, limit 50
-// Index composite requis : perfumers CONTAINS + popularityScore DESC (firestore.indexes.json)
+// PostgREST .contains('perfumers', [name]) + order('popularity_score') DESC, limit 50
 ```
 
 ### `src/utils/normalize.ts`
 ```ts
-// Utilitaires de normalisation des chaînes
-export const STOP_WORDS: Set<string>;   // 38 mots vides FR/EN
 export function normalize(s: string): string;
 export function normalizeId(s: string): string;
-export function generateTrigrams(word: string): string[];  // trigrammes $-padded
-export function buildSearchKeywords(marque: string, nom: string, familleOlactive?: string): string[];
 ```
 
 ### `src/services/user-data.ts`
@@ -811,11 +807,11 @@ interface Props {
 
 ### `NavigationChromeContext` — `src/features/navigation/NavigationChromeContext.tsx`
 
-Contexte React partagé par les onglets du navigateur `TopTabs`. Fournit `reportScroll(y)` (écrit dans `scrollY` SharedValue), `resetDock()` (réaffiche le dock après un changement d'onglet — swipe ou tap), et `dockTranslateY` (SharedValue animée : 0 = visible, 120 = caché). La logique de hide-on-scroll est centralisée ici (`useAnimatedReaction` sur `scrollY` → `withTiming` sur `dockTranslateY`). Chaque écran d'onglet appelle `reportScroll` depuis son `onScroll`. Un seul écran visible à la fois → zéro conflit d'écriture.
+Contexte React partagé par les onglets du navigateur `TopTabs`. Fournit `scrollY` (SharedValue écrite directement par les écrans via `useAnimatedScrollHandler`), `resetDock()` (réaffiche le dock après un changement d'onglet — swipe ou tap), et `dockTranslateY` (SharedValue animée : 0 = visible, 120 = caché). La logique de hide-on-scroll est centralisée ici (`useAnimatedReaction` sur `scrollY` → `withTiming` sur `dockTranslateY`). Chaque écran d'onglet écrit `scrollY.value` depuis son scroll handler UI-thread. Un seul écran visible à la fois → zéro conflit d'écriture.
 
 ### `DockBar` — `src/features/navigation/DockBar.tsx` — custom tabBar TopTabs
 
-Barre flottante 4 onglets + FAB Scan central, verre dépoli (BlurView). Fonctionne comme `tabBar` custom du navigateur `TopTabs` (`expo-router/js-top-tabs`). Reçoit `{ state, navigation, position }` (MaterialTopTabBarProps vendorisés). L'indicateur doré est piloté en continu via `position` (RN Animated.Value ponté vers `indicatorLeft` SharedValue) ; le spring sur `state.index` sert de fallback. La géométrie de l'indicateur est exportée via `getIndicatorLeft(screenWidth, tabVisualIndex)` et `getIndicatorLeftAtProgress(screenWidth, progress)` (fonctions pures, testables). Le FAB central (`router.push('/scan')`) est rendu entre le 2e et 3e onglet. L'onglet Profil affiche l'avatar utilisateur si connecté. Hide-on-scroll via `dockTranslateY` du `NavigationChromeContext`. Accessibilité : chaque onglet a `accessibilityRole="tab"` + `accessibilityLabel`.
+Barre flottante 4 onglets + FAB Scan central, verre dépoli (BlurView). Fonctionne comme `tabBar` custom du navigateur `TopTabs` (`expo-router/js-top-tabs`). Reçoit `{ state, navigation }`. L'indicateur doré suit `state.index` via un spring Reanimated (`withSpring`, damping 22, stiffness 280). La géométrie de l'indicateur est exportée via `getIndicatorLeft(screenWidth, tabVisualIndex)` (fonction pure, testable). Le FAB central (`router.push('/scan')`) est rendu entre le 2e et 3e onglet — pas d'haptique à l'ouverture (réservé à la capture, §2.6). L'onglet Profil affiche l'avatar utilisateur si connecté. Pulse ring FAB coupé en Reduced Motion (`useReducedMotion`). Hide-on-scroll via `dockTranslateY` du `NavigationChromeContext`. Accessibilité : chaque onglet a `accessibilityRole="tab"` + `accessibilityLabel`.
 
 ### `SearchChrome` — `src/features/search/SearchChrome.tsx`
 
@@ -827,44 +823,36 @@ Chrome partagé rendu dans le layout des tabs (`(tabs)/_layout.tsx`). Contient l
 
 ### Vue d'ensemble
 
-La recherche est 100 % Postgres via la RPC `search_parfums`, sans API externe. Chaque parfum (~25 100 lignes dans `parfums`) porte deux colonnes **générées** : `search_text` (texte normalisé, index GIN `pg_trgm`) et `search_vector` (tsvector, config `french_unaccent` = `unaccent` + dictionnaire `simple`, sans stemming). L'utilisateur tape → debounce 150ms → RPC → top 50. Le client ajoute un cache LRU + prefix cache. `searchKeywords` n'est plus stocké.
+La recherche est 100 % Postgres via la RPC `search_parfums`, sans API externe. Chaque parfum (~25 100 lignes dans `parfums`) porte deux colonnes **générées** : `search_text` (texte normalisé, index GIN `pg_trgm`) et `search_vector` (tsvector, config `french_unaccent` = `unaccent` + dictionnaire `simple`, sans stemming). L'utilisateur tape → debounce 150ms → RPC → top 50. Le client ajoute un cache LRU (200 entrées, TTL 10 min).
 
 ### Couche 1 — Indexation (colonnes générées, migration 0003)
 
 `search_text = norm_txt(marque || ' ' || nom)` (lowercase + `unaccent` + remplacement des non-alnum par espace). `search_vector = to_tsvector('french_unaccent', marque+nom+famille+notes)`. Index : `gin(search_text gin_trgm_ops)` (préfixe + typo) + `gin(search_vector)` (FTS). `norm_txt`/`immutable_unaccent` vivent dans `supabase/migrations/0001`.
 
-### Couche 2 — Tokenisation de la requête (client, pour le prefix cache)
-
-Même logique qu'historiquement : lowercase → split espaces → `normalize` + split `_` → filtre `STOP_WORDS` + min 2 chars → max 4 tokens triés par longueur desc (`src/utils/normalize.ts`).
-
-### Couche 3 — RPC `search_parfums(q, max_results)` (scoring serveur)
+### Couche 2 — RPC `search_parfums(q, max_results)` (scoring serveur)
 
 La RPC fait tout le scoring côté Postgres :
 
 - **Candidats** : `search_text %> token` (word-similarity trgm, joint sur chaque token) ∪ `search_vector @@ tsquery`.
-- **matchScore** = Σ `word_similarity(token, search_text)` par token (≈ ancien `token.len / bestKeyword.len`).
+- **matchScore** = Σ `word_similarity(token, search_text)` par token.
 - **exactMatch** = +10 si ≥ 2 tokens ET `search_text` contient la query normalisée.
 - **popBonus** = `ln(greatest(review_count, rating_count, popularity_score) + 1) / 2`.
-- **Fuzzy** : si < 5 résultats, `similarity(search_text, q) > 0.25` (Jaccard trgm natif — remplace l'ancien fallback `$`-padded côté client).
+- **Fuzzy** : si < 5 résultats, `similarity(search_text, q) > 0.25` (Jaccard trgm natif).
 - **Dédup** : `DISTINCT ON (norm_txt(marque), norm_txt(nom))` + `ORDER BY score DESC, pop DESC LIMIT max_results`.
 
-### Couche 4 — Caches client (`src/services/impl/catalog.supabase.ts`)
+### Couche 3 — Cache client (`src/services/impl/catalog.supabase.ts`)
 
-#### Cache exact (LRU, 200 entrées, TTL 10 min)
-`peekSearchCache()` / `clearSearchCache()` exposés (rate limiter, mutations admin).
-
-#### Prefix cache
-Si une query plus courte est en cache (et **même nombre de mots**), re-score local sur `search_text` avec la formule matchScore/exactMatch/popBonus identique ; fallthrough RPC si < 5 résultats re-scorés.
+Cache exact LRU (200 entrées, TTL 10 min). `clearSearchCache()` exposé pour les mutations admin.
 
 #### Recherches récentes (AsyncStorage)
 Les 5 dernières recherches persistent dans `@parfumscan/recent-searches`.
 
-### Couche 5 — Debounce et anti-race (`useCatalog`)
+### Couche 4 — Debounce et anti-race (`useCatalog`)
 
 | Mécanisme | Détail |
 |---|---|
 | **Debounce** | 150ms avant d'appeler `searchParfumsCached` |
-| **Seuil** | Query < 3 caractères → pas de requête |
+| **Seuil** | Query < 2 caractères → pas de requête |
 | **Anti-race** | `requestIdRef` incrémenté à chaque frappe ; seuls les résultats du dernier ID sont appliqués |
 | **Unmount safety** | `mountedRef` empêche `setState` après démontage |
 
@@ -875,8 +863,6 @@ Frappe utilisateur
   → useCatalog.search() [debounce 150ms, requestIdRef anti-race]
     → searchParfumsCached(query)
       → Cache exact (LRU) ? return
-      → Tokenisation + filtrage stop words
-      → Prefix cache (si même nombre de mots) ? re-score local → return si ≥ 5
       → RPC search_parfums (scoring + fuzzy + dédup + limit 50)
       → Dédoublonnage sécurité marque+nom
       → Cache (LRU) + return top 50
@@ -885,7 +871,7 @@ Frappe utilisateur
 
 ### Dédoublonnage marque+nom (`dedupByMarqueNom`, `impl/search-shared.ts`)
 
-Filtre par clé `normalize(marque) + '_' + normalize(nom)`, garde le 1er (meilleur score). Appliqué côté RPC (`DISTINCT ON`) + sécurité client (sortie de `searchParfumsCached`/`searchParfumFromScan`/prefix cache).
+Filtre par clé `normalize(marque) + '_' + normalize(nom)`, garde le 1er (meilleur score). Appliqué côté RPC (`DISTINCT ON`) + sécurité client (sortie de `searchParfumsCached`/`searchParfumFromScan`).
 
 ### `searchParfumFromScan` — Recherche optimisée scan (client, inchangé)
 
