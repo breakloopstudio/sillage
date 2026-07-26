@@ -1,101 +1,94 @@
-// app/(tabs)/collection.tsx — Parfumerie (garde-robe personnelle)
+// app/(tabs)/collection.tsx — Ma Parfumerie (vue unifiée : favoris + user_parfum)
 
 import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, type LayoutChangeEvent } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
+import { useFavorisContext } from '../../src/contexts/FavorisContext';
 import { useUserParfum } from '../../src/hooks/useUserParfum';
 import { useShelves } from '../../src/hooks/useShelves';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useWeather } from '../../src/hooks/useWeather';
 import { useNetwork } from '../../src/hooks/useNetwork';
-
+import { useDensityPreference, GRID_MODES } from '../../src/hooks/useDensityPreference';
+import { buildMyParfums, filterByPill, pillOfItem, myParfumToCard, MY_PARFUM_PILLS, type MyParfum, type PillId } from '../../src/utils/my-parfums';
 import { scoreWardrobeItemForWeather } from '../../src/utils/weather-scoring';
 import { saveWeatherCoords } from '../../src/services/user-data';
+import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
+import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import EmptyState from '../../src/components/EmptyState';
 import AuthGate from '../../src/components/AuthGate';
-import Button from '../../src/components/Button';
 import FilterSheet from '../../src/components/FilterSheet';
+import StatuerSheet from '../../src/components/StatuerSheet';
+import ParfumCard from '../../src/components/ParfumCard';
 import SOTDCard from '../../src/features/wardrobe/SOTDCard';
 import SOTDPicker from '../../src/features/wardrobe/SOTDPicker';
-import FilterBar from '../../src/features/wardrobe/FilterBar';
-import WardrobeGrid from '../../src/features/wardrobe/WardrobeGrid';
-import WardrobeQuickSheet from '../../src/features/wardrobe/WardrobeQuickSheet';
 import ShelfManager from '../../src/features/wardrobe/ShelfManager';
-import ScentListEntry from '../../src/features/scentlist/ScentListEntry';
+import { SEASON_META } from '../../src/utils/season';
 import {
   EMPTY_FAVORI_FILTERS,
   countActiveFilters,
-  hasActiveFilters,
   matchesFavoriFilters,
   favoriMatchesSearch,
+  buildActiveChips,
+  removeActiveChip,
   type FavoritesFilters,
 } from '../../src/utils/favori-filters';
-import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
-import type { UserParfum, UserParfumStatus } from '../../src/models/user-parfum.interface';
+import type { UserParfumStatus } from '../../src/models/user-parfum.interface';
 
-export default function WardrobePage() {
-  const { theme } = useTheme();
+const SORT_OPTIONS: { key: string; label: string }[] = [
+  { key: 'recent', label: 'Récents' },
+  { key: 'rating', label: 'Mieux notés' },
+  { key: 'az', label: 'A–Z' },
+  { key: 'za', label: 'Z–A' },
+];
+
+export default function MaParfumeriePage() {
+  const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
   const uid = user?.uid ?? null;
+  const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
-  const { items: allItems, loading, update, remove } = useUserParfum(uid);
-  const items = useMemo(() => allItems.filter(i => i.status === 'have' || i.status === 'had'), [allItems]);
+  const { favoris, removeFavori } = useFavorisContext();
+  const { items, loading, add, update, remove } = useUserParfum(uid);
   const { shelves, create: createShelf, update: updateShelf, remove: removeShelf } = useShelves(uid);
   const { sotd, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
   const { weather, loading: weatherLoading, coords } = useWeather(isAuthenticated && isOnline);
   const { scrollY } = useNavigationChrome();
+  const { density, setDensity } = useDensityPreference();
 
+  const scrollHandler = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
+
+  const myParfums = useMemo(() => buildMyParfums(favoris, items), [favoris, items]);
+
+  const [activePill, setActivePill] = useState<PillId>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeShelfId, setActiveShelfId] = useState<string | null>(null);
+  const [activeSort, setActiveSort] = useState('recent');
+  const [attrFilters, setAttrFilters] = useState<FavoritesFilters>(EMPTY_FAVORI_FILTERS);
+  const [showAttrSheet, setShowAttrSheet] = useState(false);
+  const [shelfManagerVisible, setShelfManagerVisible] = useState(false);
+  const [sotdPickerVisible, setSotdPickerVisible] = useState(false);
+  const [sotdCardAnchor, setSotdCardAnchor] = useState(0);
+  const [statuerItem, setStatuerItem] = useState<MyParfum | null>(null);
+  const sotdCardRef = useRef<View>(null);
+
+  const sotdEligible = useMemo(() => items.filter(i => i.status === 'have'), [items]);
   const sotdScore = useMemo(() => {
     if (!weather || !sotd) return null;
     const sotdItem = items.find(i => i.parfumId === sotd.parfumId);
     return sotdItem ? scoreWardrobeItemForWeather(sotdItem, weather) : null;
   }, [items, weather, sotd]);
-  const sotdEligible = useMemo(() => items.filter(i => i.status === 'have'), [items]);
-
-  const ownershipCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const item of items) counts[item.status] = (counts[item.status] ?? 0) + 1;
-    return counts;
-  }, [items]);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeOwnership, setActiveOwnership] = useState<string | null>(null);
-  const [activeShelfId, setActiveShelfId] = useState<string | null>(null);
-  const [activeSort, setActiveSort] = useState<string>('recent');
-  const [attrFilters, setAttrFilters] = useState<FavoritesFilters>(EMPTY_FAVORI_FILTERS);
-  const [showAttrSheet, setShowAttrSheet] = useState(false);
-  const [quickSheetItem, setQuickSheetItem] = useState<UserParfum | null>(null);
-  const [shelfManagerVisible, setShelfManagerVisible] = useState(false);
-  const [sotdPickerVisible, setSotdPickerVisible] = useState(false);
-  const [sotdCardAnchor, setSotdCardAnchor] = useState<number>(0);
-  const sotdCardRef = useRef<View>(null);
-
-  const handleSotdCardLayout = useCallback((e: LayoutChangeEvent) => {
-    setSotdCardAnchor(e.nativeEvent.layout.y + e.nativeEvent.layout.height);
-  }, []);
-
-  const activeAttrCount = useMemo(() => countActiveFilters(attrFilters), [attrFilters]);
-  const handleOpenAttrSheet = useCallback(() => setShowAttrSheet(true), []);
-  const handleCloseAttrSheet = useCallback(() => setShowAttrSheet(false), []);
-  const handleAttrFiltersChange = useCallback((next: FavoritesFilters) => setAttrFilters(next), []);
-  const handleAttrReset = useCallback(() => setAttrFilters(EMPTY_FAVORI_FILTERS), []);
-  const handleGlobalReset = useCallback(() => {
-    setAttrFilters(EMPTY_FAVORI_FILTERS);
-    setSearchQuery('');
-    setActiveOwnership(null);
-    setActiveShelfId(null);
-  }, []);
 
   const lastWeatherCoords = useRef<string | null>(null);
-
   useEffect(() => {
     if (!isAuthenticated || !coords || !uid) return;
     const key = `${coords.lat.toFixed(4)},${coords.lon.toFixed(4)}`;
@@ -104,101 +97,128 @@ export default function WardrobePage() {
     saveWeatherCoords(uid, coords.lat, coords.lon).catch(() => {});
   }, [isAuthenticated, coords, uid]);
 
+  const pillCounts = useMemo(() => {
+    const counts: Record<PillId, number> = { all: myParfums.length, to_stat: 0, to_try: 0, have: 0, had: 0 };
+    for (const m of myParfums) counts[pillOfItem(m)] += 1;
+    return counts;
+  }, [myParfums]);
+
+  const pillFiltered = useMemo(() => filterByPill(myParfums, activePill), [myParfums, activePill]);
+
   const filtered = useMemo(() => {
-    let result = [...items];
-    if (activeOwnership) result = result.filter(i => i.status === activeOwnership);
-    if (activeShelfId) result = result.filter(i => i.shelfIds.includes(activeShelfId));
-    result = result.filter(i => matchesFavoriFilters(i, attrFilters));
+    let result = pillFiltered;
+    if (activeShelfId) result = result.filter(m => m.shelfIds.includes(activeShelfId));
+    result = result.filter(m => matchesFavoriFilters(m, attrFilters));
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      result = result.filter(i => favoriMatchesSearch(i, q));
+      result = result.filter(m => favoriMatchesSearch(m, q));
     }
-    result.sort((a, b) => {
+    return [...result].sort((a, b) => {
       switch (activeSort) {
-        case 'weather':
-          return weather
-            ? scoreWardrobeItemForWeather(b, weather) - scoreWardrobeItemForWeather(a, weather)
-            : b.addedAt.getTime() - a.addedAt.getTime();
-        case 'rating': return (Number.isNaN(b.rating) ? 0 : b.rating ?? 0) - (Number.isNaN(a.rating) ? 0 : a.rating ?? 0);
+        case 'rating': return (b.rating ?? 0) - (a.rating ?? 0);
         case 'az': return (a.nom ?? '').localeCompare(b.nom ?? '');
         case 'za': return (b.nom ?? '').localeCompare(a.nom ?? '');
         default: return b.addedAt.getTime() - a.addedAt.getTime();
       }
     });
-    return result;
-  }, [items, activeOwnership, activeShelfId, attrFilters, searchQuery, activeSort, weather]);
+  }, [pillFiltered, activeShelfId, attrFilters, searchQuery, activeSort]);
 
-  const handleQuickOwnership = useCallback((status: UserParfumStatus) => {
-    if (!quickSheetItem) return;
-    update(quickSheetItem.parfumId, { status }).catch(() => {});
-    setQuickSheetItem(prev => prev ? { ...prev, status } : null);
-  }, [quickSheetItem, update]);
+  const activeAttrCount = useMemo(() => countActiveFilters(attrFilters), [attrFilters]);
+  const activeChips = useMemo(() => buildActiveChips(attrFilters), [attrFilters]);
 
-  const handleQuickRating = useCallback((rating: number) => {
-    if (!quickSheetItem) return;
-    update(quickSheetItem.parfumId, { rating: rating === 0 ? null : rating }).catch(() => {});
-    setQuickSheetItem(prev => prev ? { ...prev, rating: rating === 0 ? null : rating } : null);
-  }, [quickSheetItem, update]);
+  const handleCardPress = useCallback((m: MyParfum) => {
+    setPendingParfum(myParfumToCard(m));
+    router.push(`/catalog/${m.parfumId}`);
+  }, [router]);
 
-  const handleQuickToggleShelf = useCallback((shelfId: string) => {
-    if (!quickSheetItem) return;
-    const current = quickSheetItem.shelfIds;
-    const next = current.includes(shelfId) ? current.filter(id => id !== shelfId) : [...current, shelfId];
-    update(quickSheetItem.parfumId, { shelfIds: next }).catch(() => {});
-    setQuickSheetItem(prev => prev ? { ...prev, shelfIds: next } : null);
-  }, [quickSheetItem, update]);
+  const handleLongPress = useCallback((m: MyParfum) => setStatuerItem(m), []);
 
-  const handleQuickToggleSignature = useCallback(() => {
-    if (!quickSheetItem) return;
-    const next = !quickSheetItem.isSignature;
-    if (next && items.filter(i => i.isSignature).length >= 3) {
-      Alert.alert('Limite atteinte', 'Tu as déjà 3 signatures. Retires-en une avant d\'en ajouter.');
-      return;
+  const handleStatuerView = useCallback(() => {
+    if (statuerItem) handleCardPress(statuerItem);
+    setStatuerItem(null);
+  }, [statuerItem, handleCardPress]);
+
+  const handleStatuerStatus = useCallback((status: UserParfumStatus) => {
+    if (!statuerItem || !uid) { setStatuerItem(null); return; }
+    if (statuerItem.status === null) {
+      add(statuerItem.parfumId, status, myParfumToCard(statuerItem)).catch(() => {});
+    } else {
+      update(statuerItem.parfumId, { status }).catch(() => {});
     }
-    update(quickSheetItem.parfumId, { isSignature: next }).catch(() => {});
-    setQuickSheetItem(prev => prev ? { ...prev, isSignature: next } : null);
-  }, [quickSheetItem, update, items]);
+    setStatuerItem(null);
+  }, [statuerItem, uid, add, update]);
 
-  const signatureCount = useMemo(() => items.filter(i => i.isSignature).length, [items]);
+  const handleStatuerRemove = useCallback(() => {
+    if (!statuerItem) return;
+    if (statuerItem.status === null) {
+      removeFavori(statuerItem.parfumId);
+    } else {
+      remove(statuerItem.parfumId).catch(() => {});
+    }
+    setStatuerItem(null);
+  }, [statuerItem, removeFavori, remove]);
 
-  const handleQuickRemove = useCallback(() => {
-    if (!quickSheetItem) return;
-    Alert.alert('Retirer', 'Retirer ce parfum de la parfumerie ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Retirer', style: 'destructive', onPress: () => { remove(quickSheetItem.parfumId).catch(() => {}); setQuickSheetItem(null); } },
-    ]);
-  }, [quickSheetItem, remove]);
+  const statuerRemoveLabel = statuerItem !== null && statuerItem.status === null ? 'Retirer des favoris' : 'Retirer de ma parfumerie';
 
-  const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
-  const handleEmptyScan = useCallback(() => router.push('/scan'), [router]);
-  const handleSotdPress = useCallback(() => { if (sotd) router.push(`/wardrobe/${sotd.parfumId}`); }, [sotd, router]);
+  const handleSotdCardLayout = useCallback((e: LayoutChangeEvent) => {
+    setSotdCardAnchor(e.nativeEvent.layout.y + e.nativeEvent.layout.height);
+  }, []);
+  const handleSotdPress = useCallback(() => { if (sotd) router.push(`/catalog/${sotd.parfumId}`); }, [sotd, router]);
   const handleSotdChangePress = useCallback(() => setSotdPickerVisible(true), []);
-  const handleScentListPress = useCallback(() => router.push({ pathname: '/(tabs)/selection', params: { segment: 'carnet' } }), [router]);
+  const handleSotdSelect = useCallback((parfumId: string) => {
+    if (parfumId === sotd?.parfumId) { setSotdPickerVisible(false); return; }
+    const item = sotdEligible.find(i => i.parfumId === parfumId);
+    if (item) { hapticsLight(); setTodaySotd(item).catch(() => {}); }
+    setSotdPickerVisible(false);
+  }, [sotd, sotdEligible, setTodaySotd]);
+
   const handleManageShelves = useCallback(() => setShelfManagerVisible(true), []);
-  const handleCloseQuickSheet = useCallback(() => setQuickSheetItem(null), []);
-  const handleViewMore = useCallback(() => {
-    const id = quickSheetItem?.parfumId;
-    setQuickSheetItem(null);
-    if (id) router.push(`/wardrobe/${id}`);
-  }, [quickSheetItem, router]);
   const handleCloseShelfManager = useCallback(() => setShelfManagerVisible(false), []);
   const handleCreateShelf = useCallback((name: string, icon?: string, color?: string) => { createShelf(name, icon, color); }, [createShelf]);
   const handleRenameShelf = useCallback((id: string, name: string) => { updateShelf(id, { name }); }, [updateShelf]);
-  const handleSotdSelect = useCallback((parfumId: string) => {
-    if (parfumId === sotd?.parfumId) {
-      setSotdPickerVisible(false);
-      return;
-    }
-    const item = sotdEligible.find(i => i.parfumId === parfumId);
-    if (item) {
-      hapticsLight();
-      setTodaySotd(item).catch(() => {});
-    }
-    setSotdPickerVisible(false);
-  }, [sotd, sotdEligible, setTodaySotd]);
-  const handleCloseSotdPicker = useCallback(() => setSotdPickerVisible(false), []);
 
-  if (!authReady) return <View style={s.center}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
+  const handleOpenAttrSheet = useCallback(() => setShowAttrSheet(true), []);
+  const handleCloseAttrSheet = useCallback(() => setShowAttrSheet(false), []);
+  const handleAttrFiltersChange = useCallback((next: FavoritesFilters) => setAttrFilters(next), []);
+  const handleAttrReset = useCallback(() => setAttrFilters(EMPTY_FAVORI_FILTERS), []);
+
+  const cycleSort = useCallback(() => {
+    const idx = SORT_OPTIONS.findIndex(o => o.key === activeSort);
+    setActiveSort(SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].key);
+  }, [activeSort]);
+  const currentSortLabel = SORT_OPTIONS.find(o => o.key === activeSort)?.label ?? 'Tri';
+
+  const handlePillTap = useCallback((pill: PillId) => { hapticsLight(); setActivePill(pill); }, []);
+  const handleShelfTap = useCallback((id: string) => { hapticsLight(); setActiveShelfId(prev => (prev === id ? null : id)); }, []);
+  const handleGlobalReset = useCallback(() => {
+    setAttrFilters(EMPTY_FAVORI_FILTERS);
+    setSearchQuery('');
+    setActiveShelfId(null);
+  }, []);
+  const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
+
+  const gridNumCols = density === 'list' ? 1 : 2;
+  const gridKey = `${gridNumCols}col-${resolvedMode}`;
+
+  const renderItem = useCallback(({ item }: { item: MyParfum }) => (
+    <Pressable
+      onLongPress={() => handleLongPress(item)}
+      delayLongPress={400}
+      style={gridNumCols === 2 ? s.gridItemWrap : s.listItemWrap}
+    >
+      <ParfumCard
+        parfum={myParfumToCard(item)}
+        mode={density}
+        status={item.status}
+        rating={item.rating}
+        onPressOverride={() => handleCardPress(item)}
+      />
+    </Pressable>
+  ), [density, gridNumCols, handleCardPress, handleLongPress, s]);
+
+  if (!authReady) {
+    return <View style={s.center}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
+  }
 
   if (!isAuthenticated) {
     return (
@@ -208,96 +228,183 @@ export default function WardrobePage() {
     );
   }
 
-  if (items.length === 0 && !loading) {
+  if (loading) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <View style={s.header}>
-          <Text style={s.title}>Ma Parfumerie</Text>
-        </View>
+        <View style={s.header}><Text style={s.title}>Ma Parfumerie</Text></View>
+        <ActivityIndicator style={s.loadingSpinner} color={theme.colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (myParfums.length === 0) {
+    return (
+      <SafeAreaView edges={['bottom']} style={s.container}>
+        <View style={s.header}><Text style={s.title}>Ma Parfumerie</Text></View>
         <EmptyState variant="wardrobe" onAction={handleEmptyExplore} />
-        <View style={s.emptyCtaRow}>
-          <Button variant="outline" onPress={handleEmptyScan} icon="camera-outline" style={s.emptyCtaBtn}>
-            Scanner un flacon
-          </Button>
-        </View>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
-      <View style={s.header}>
-          <Text style={s.title}>Ma Parfumerie · {items.length}</Text>
-        </View>
-        
-      <View ref={sotdCardRef} onLayout={handleSotdCardLayout}>
-        <SOTDCard
-          sotd={sotd}
-          weather={weather}
-          weatherLoading={weatherLoading}
-          sotdScore={sotdScore}
-          onPress={handleSotdPress}
-          onChangePress={handleSotdChangePress}
-        />
-      </View>
+      <Animated.FlatList
+        key={gridKey}
+        data={filtered}
+        keyExtractor={item => item.parfumId}
+        renderItem={renderItem}
+        numColumns={gridNumCols}
+        columnWrapperStyle={gridNumCols === 2 ? s.row : undefined}
+        contentContainerStyle={s.content}
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        windowSize={5}
+        maxToRenderPerBatch={10}
+        extraData={resolvedMode}
+        ListHeaderComponent={
+          <View>
+            <View style={s.header}>
+              <Text style={s.title}>Ma Parfumerie{'\u00A0'}·{'\u00A0'}{myParfums.length}</Text>
+            </View>
 
-      {allItems.filter(i => i.status === 'to_try' || i.status === 'tried').length > 0 && (
-        <ScentListEntry
-          toTryCount={allItems.filter(i => i.status === 'to_try').length}
-          triedCount={allItems.filter(i => i.status === 'tried').length}
-          onPress={handleScentListPress}
-        />
-      )}
+            <View ref={sotdCardRef} onLayout={handleSotdCardLayout}>
+              <SOTDCard
+                sotd={sotd}
+                weather={weather}
+                weatherLoading={weatherLoading}
+                sotdScore={sotdScore}
+                onPress={handleSotdPress}
+                onChangePress={handleSotdChangePress}
+              />
+            </View>
 
-      <FilterBar
-        shelves={shelves}
-        activeOwnership={activeOwnership}
-        activeShelfId={activeShelfId}
-        activeSort={activeSort}
-        searchQuery={searchQuery}
-        ownershipCounts={ownershipCounts}
-        onOwnershipChange={setActiveOwnership}
-        onShelfChange={setActiveShelfId}
-        onSortChange={setActiveSort}
-        onSearchChange={setSearchQuery}
-        onManageShelves={handleManageShelves}
-        attrFilters={attrFilters}
-        attrCount={activeAttrCount}
-        onOpenAttrSheet={handleOpenAttrSheet}
-        onAttrFiltersChange={handleAttrFiltersChange}
+            <View style={s.searchRow}>
+              <View style={s.searchWrap}>
+                <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
+                <TextInput
+                  style={s.searchInput}
+                  placeholder="Nom, marque ou note..."
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  keyboardAppearance={keyboardAppearance}
+                />
+              </View>
+              <Pressable style={s.toolBtn} onPress={cycleSort} hitSlop={8} accessibilityRole="button" accessibilityLabel="Trier">
+                <Ionicons name="swap-vertical-outline" size={16} color={theme.colors.primary} />
+                <Text style={s.toolBtnLabel}>{currentSortLabel}</Text>
+              </Pressable>
+              <Pressable style={s.toolBtn} onPress={handleOpenAttrSheet} hitSlop={8} accessibilityRole="button" accessibilityLabel="Filtres">
+                <Ionicons name="options-outline" size={16} color={activeAttrCount > 0 ? theme.colors.primary : theme.colors.textMuted} />
+                {activeAttrCount > 0 ? (
+                  <View style={s.badge}><Text style={s.badgeText} allowFontScaling={false}>{activeAttrCount}</Text></View>
+                ) : null}
+              </Pressable>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
+              {MY_PARFUM_PILLS.map(pill => {
+                const active = activePill === pill.id;
+                return (
+                  <Pressable
+                    key={pill.id}
+                    style={[s.pill, active && s.pillActive]}
+                    onPress={() => handlePillTap(pill.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${pill.label}, ${pillCounts[pill.id]}`}
+                  >
+                    <Ionicons name={pill.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
+                    <Text style={[s.pillText, active && s.pillTextActive]} allowFontScaling={false}>{pill.label}</Text>
+                    <Text style={[s.pillCount, active && s.pillCountActive]} allowFontScaling={false}>{pillCounts[pill.id]}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.toolsRow}>
+              {GRID_MODES.map(m => (
+                <Pressable
+                  key={m.key}
+                  style={[s.densityBtn, density === m.key && s.densityBtnActive]}
+                  onPress={() => setDensity(m.key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={m.label}
+                >
+                  <Text style={[s.densityBtnText, density === m.key && s.densityBtnTextActive]} allowFontScaling={false}>{m.label}</Text>
+                </Pressable>
+              ))}
+              {shelves.length > 0 ? <View style={s.toolsSep} /> : null}
+              {shelves.map(sh => {
+                const active = activeShelfId === sh.id;
+                return (
+                  <Pressable
+                    key={sh.id}
+                    style={[s.shelfPill, active && s.shelfPillActive]}
+                    onPress={() => handleShelfTap(sh.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={sh.name}
+                  >
+                    {sh.icon ? <Ionicons name={sh.icon as never} size={13} color={active ? theme.colors.primaryInk : theme.colors.textMuted} /> : null}
+                    <Text style={[s.shelfPillText, active && s.shelfPillTextActive]} allowFontScaling={false}>{sh.name}</Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable style={s.manageShelfBtn} onPress={handleManageShelves} hitSlop={6} accessibilityRole="button" accessibilityLabel="Gérer les étagères">
+                <Ionicons name="add" size={14} color={theme.colors.textMuted} />
+              </Pressable>
+            </ScrollView>
+
+            {activeChips.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.activeChipsRow}>
+                {activeChips.map(chip => {
+                  const isSeason = !!chip.season;
+                  const seasonToken = isSeason ? SEASON_META[chip.season!].token : null;
+                  const bg = isSeason && seasonToken ? (theme.colors as Record<string, string>)[`${seasonToken}Soft`] : theme.colors.primarySoft;
+                  const ink = isSeason && seasonToken ? (theme.colors as Record<string, string>)[seasonToken] : theme.colors.primaryInk;
+                  return (
+                    <Pressable
+                      key={chip.key}
+                      style={[s.dismissChip, { backgroundColor: bg }]}
+                      onPress={() => setAttrFilters(prev => removeActiveChip(prev, chip))}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Retirer ${chip.label}`}
+                    >
+                      {chip.icon ? <Ionicons name={chip.icon as never} size={14} color={ink} /> : null}
+                      <Text style={[s.dismissChipText, { color: ink }]} allowFontScaling={false}>{chip.label}</Text>
+                      <Ionicons name="close-circle" size={14} color={ink} />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+
+            {filtered.length === 0 ? (
+              <View style={s.emptyFilter}>
+                <Ionicons name="funnel-outline" size={28} color={theme.colors.textMuted} />
+                <Text style={s.emptyFilterText}>
+                  {activeAttrCount > 0 || searchQuery.trim() || activeShelfId ? 'Aucun parfum ne correspond à ces filtres' : 'Aucun parfum dans cette vue'}
+                </Text>
+                <Pressable style={s.emptyResetBtn} onPress={handleGlobalReset} accessibilityRole="button" accessibilityLabel="Réinitialiser">
+                  <Text style={s.emptyResetBtnText}>Réinitialiser</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        }
       />
 
-      {filtered.length === 0 && items.length > 0 && (activeAttrCount > 0 || searchQuery.trim().length > 0 || activeOwnership || activeShelfId) && (
-        <View style={s.emptyFilter}>
-          <Ionicons name="funnel-outline" size={28} color={theme.colors.textMuted} />
-          <Text style={s.emptyFilterText}>
-            {activeAttrCount > 0 ? 'Aucun parfum ne correspond à ces filtres' : `Aucun résultat pour « ${searchQuery.trim()} »`}
-          </Text>
-          <Pressable style={s.emptyResetBtn} onPress={handleGlobalReset}>
-            <Text style={s.emptyResetBtnText}>Réinitialiser</Text>
-          </Pressable>
-        </View>
-      )}
-
-      <WardrobeGrid
-        items={filtered}
-        loading={loading}
-        onItemPress={setQuickSheetItem}
-        scrollY={scrollY}
-      />
-
-      <WardrobeQuickSheet
-        visible={quickSheetItem !== null}
-        item={quickSheetItem}
-        shelves={shelves}
-        signatureCount={signatureCount}
-        onClose={handleCloseQuickSheet}
-        onStatusChange={handleQuickOwnership}
-        onRatingChange={handleQuickRating}
-        onToggleShelf={handleQuickToggleShelf}
-        onToggleSignature={handleQuickToggleSignature}
-        onViewMore={handleViewMore}
-        onRemove={handleQuickRemove}
+      <StatuerSheet
+        visible={statuerItem !== null}
+        nom={statuerItem?.nom ?? ''}
+        marque={statuerItem?.marque ?? ''}
+        imageUrl={statuerItem?.imageUrl ?? null}
+        status={statuerItem?.status ?? null}
+        removeLabel={statuerRemoveLabel}
+        onClose={() => setStatuerItem(null)}
+        onView={handleStatuerView}
+        onSetStatus={handleStatuerStatus}
+        onRemove={handleStatuerRemove}
       />
 
       <ShelfManager
@@ -317,11 +424,12 @@ export default function WardrobePage() {
         anchorTop={sotdCardAnchor}
         weather={weather}
         onSelect={handleSotdSelect}
-        onClose={handleCloseSotdPicker}
+        onClose={() => setSotdPickerVisible(false)}
       />
+
       <FilterSheet
         visible={showAttrSheet}
-        items={items}
+        items={pillFiltered}
         filters={attrFilters}
         resultCount={filtered.length}
         onFiltersChange={handleAttrFiltersChange}
@@ -336,34 +444,80 @@ function getStyles(t: Theme) {
   return {
     container: { flex: 1, backgroundColor: t.colors.background },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+    content: { paddingHorizontal: 16, paddingBottom: 88 },
+    row: { gap: 8, marginBottom: 8 },
+    gridItemWrap: { flex: 1 },
+    listItemWrap: { marginBottom: 8 },
+    loadingSpinner: { marginTop: 24 },
+
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text, flex: 1 },
-    emptyCtaRow: { alignItems: 'center', marginTop: 8 },
-    emptyCtaBtn: { minWidth: 200 },
-    emptyFilter: {
-      paddingVertical: 24,
-      alignItems: 'center' as const,
+
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
+    searchWrap: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: t.colors.surface2,
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      height: 40,
+      gap: 8,
     },
-    emptyFilterText: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      color: t.colors.textMuted,
-      marginTop: 8,
-      textAlign: 'center' as const,
+    searchInput: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.text },
+    toolBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 20, backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.border, minHeight: 40 },
+    toolBtnLabel: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.primary },
+    badge: { minWidth: 16, height: 16, borderRadius: 8, backgroundColor: t.colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+    badgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: '#FFFFFF' },
+
+    pillsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: t.colors.surface2,
+      borderWidth: 1,
+      borderColor: 'transparent',
+      minHeight: 40,
     },
-    emptyResetBtn: {
-      marginTop: 12,
-      borderWidth: 1.5 as number,
-      borderColor: t.colors.primary,
-      borderRadius: t.radius.base,
-      paddingVertical: 10,
-      paddingHorizontal: 20,
-      minHeight: 44,
+    pillActive: { backgroundColor: t.colors.primarySoft, borderColor: t.colors.primary },
+    pillText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
+    pillTextActive: { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' },
+    pillCount: { fontFamily: 'Inter_700Bold', fontSize: 12, color: t.colors.textMuted },
+    pillCountActive: { color: t.colors.primaryInk },
+
+    toolsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 8, alignItems: 'center' },
+    densityBtn: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 6, backgroundColor: t.colors.surface2, minHeight: 36, justifyContent: 'center' },
+    densityBtnActive: { backgroundColor: t.colors.surface, ...t.shadow.card },
+    densityBtnText: { fontFamily: 'Inter_500Medium', fontSize: 11, color: t.colors.textMuted },
+    densityBtnTextActive: { fontFamily: 'Inter_600SemiBold', color: t.colors.text },
+    toolsSep: { width: 1, height: 20, backgroundColor: t.colors.border },
+    shelfPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+      borderRadius: 20,
+      backgroundColor: t.colors.surface2,
+      borderWidth: 1,
+      borderColor: 'transparent',
     },
-    emptyResetBtnText: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 13,
-      color: t.colors.primary,
-    },
+    shelfPillActive: { backgroundColor: t.colors.primarySoft, borderColor: t.colors.primary },
+    shelfPillText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.textMuted },
+    shelfPillTextActive: { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' },
+    manageShelfBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: t.colors.border, justifyContent: 'center', alignItems: 'center' },
+
+    activeChipsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
+    dismissChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20 },
+    dismissChipText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+
+    emptyFilter: { paddingVertical: 32, alignItems: 'center' },
+    emptyFilterText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, marginTop: 8, textAlign: 'center' },
+    emptyResetBtn: { marginTop: 12, borderWidth: 1.5, borderColor: t.colors.primary, borderRadius: t.radius.base, paddingVertical: 10, paddingHorizontal: 20, minHeight: 44 },
+    emptyResetBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
   } as const;
 }

@@ -87,9 +87,10 @@ function RootLayoutInner() {
             <Stack.Screen name="auth/login" options={{ animation: 'fade' }} />
             <Stack.Screen name="auth/register" options={{ animation: 'fade' }} />
             <Stack.Screen name="catalog/[id]" options={{ animation: 'slide_from_right', gestureEnabled: true, fullScreenGestureEnabled: true }} />
-            <Stack.Screen name="wardrobe/[parfumId]" options={{ animation: 'slide_from_right', headerShown: false }} />
+            <Stack.Screen name="wardrobe/[parfumId]" options={{ animation: 'none' }} />
             <Stack.Screen name="perfumer/[name]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="scan" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />

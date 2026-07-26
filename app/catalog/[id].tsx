@@ -21,6 +21,7 @@ import Button from '../../src/components/Button';
 import AlertPriceToggle from '../../src/components/AlertPriceToggle';
 import SaveSheet from '../../src/features/catalog/SaveSheet';
 import SaveButton from '../../src/features/catalog/SaveButton';
+import RelationSection from '../../src/features/catalog/RelationSection';
 import { useSaveController } from '../../src/features/catalog/useSaveController';
 import TrySheet from '../../src/features/scentlist/TrySheet';
 import NoteDetailPopup from '../../src/components/NoteDetailPopup';
@@ -355,6 +356,8 @@ export default function CatalogDetailPage() {
             onShare={handleShare}
           />
 
+          <RelationSection parfum={parfum} save={save} />
+
           <View style={s.contentWrap}>
             {/* ─── Méta : famille, concentration, année, note ─── */}
             <View style={s.badgeRow}>
@@ -434,7 +437,7 @@ export default function CatalogDetailPage() {
                 </View>
               ) : null}
 
-              <SaveButton label={save.saveLabel} onPress={save.openSaveSheet} variant="flow" />
+              {!save.item ? <SaveButton label={save.saveLabel} onPress={save.openSaveSheet} variant="flow" /> : null}
 
               {isAuthenticated && user?.uid && id ? (
                 <AlertPriceToggle parfumId={id} uid={user.uid} currentPrice={parfum.bestPrice} />
@@ -604,7 +607,6 @@ export default function CatalogDetailPage() {
         onSetStatus={save.setStatus}
         onSetVerdict={save.setVerdict}
         onRemove={save.remove}
-        onOpenWardrobe={save.openWardrobe}
         onOpenFullNotes={save.openFullNotes}
         onAddPossession={save.addPoss}
       />

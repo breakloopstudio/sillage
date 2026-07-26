@@ -14,11 +14,9 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight, hapticsSuccess } from '../../services/haptics';
-import { VERDICT_OPTIONS } from '../scentlist/TrySheet';
-import { statusLabel } from './useSaveController';
+import { VERDICT_OPTIONS } from '../../utils/verdicts';
+import { STATUS_CHIPS, chipForStatus } from '../../utils/status-chips';
 import type { UserParfum, UserParfumStatus, ScentVerdict, PossessionType } from '../../models/user-parfum.interface';
-
-const STATUS_OPTIONS: UserParfumStatus[] = ['to_try', 'tried', 'want', 'have', 'had'];
 
 const POSSESSION_OPTIONS: { type: PossessionType; label: string }[] = [
   { type: 'bottle', label: 'Flacon' },
@@ -36,7 +34,6 @@ interface Props {
   onSetStatus: (status: UserParfumStatus) => void;
   onSetVerdict: (verdict: ScentVerdict) => void;
   onRemove: () => void;
-  onOpenWardrobe: () => void;
   onOpenFullNotes: () => void;
   onAddPossession: (type: PossessionType, sizeMl?: number | null) => void;
 }
@@ -44,7 +41,7 @@ interface Props {
 export default function SaveSheet({
   visible, parfumName, parfumBrand, parfumImageUrl,
   item,
-  onClose, onSetStatus, onSetVerdict, onRemove, onOpenWardrobe, onOpenFullNotes, onAddPossession,
+  onClose, onSetStatus, onSetVerdict, onRemove, onOpenFullNotes, onAddPossession,
 }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -77,7 +74,7 @@ export default function SaveSheet({
   }));
 
   const handleStatus = useCallback((st: UserParfumStatus) => {
-    if (item?.status === st) return;
+    if (chipForStatus(item?.status) === chipForStatus(st)) return;
     hapticsLight();
     onSetStatus(st);
     hapticsSuccess();
@@ -95,7 +92,7 @@ export default function SaveSheet({
     hapticsSuccess();
   }, [onAddPossession]);
 
-  const showVerdict = item !== null && item.status !== 'to_try';
+  const showVerdict = item !== null && item.status !== 'to_try' && item.status !== 'want';
   const showPossessions = item?.status === 'have';
 
   return (
@@ -128,20 +125,20 @@ export default function SaveSheet({
 
               <Text style={s.sectionLabel}>Où en es-tu ?</Text>
               <View style={s.chips}>
-                {STATUS_OPTIONS.map(st => {
-                  const active = item?.status === st;
+                {STATUS_CHIPS.map(chip => {
+                  const active = chipForStatus(item?.status) === chip.id;
                   return (
                     <Pressable
-                      key={st}
+                      key={chip.id}
                       style={[s.chip, active && s.chipActive]}
-                      onPress={() => handleStatus(st)}
+                      onPress={() => handleStatus(chip.status)}
                       hitSlop={{ top: 4, bottom: 4 }}
                       accessibilityRole="button"
-                      accessibilityLabel={active ? `${statusLabel(st)} (sélectionné)` : statusLabel(st)}
+                      accessibilityLabel={active ? `${chip.label} (sélectionné)` : chip.label}
                     >
-                      {active ? <Ionicons name="checkmark" size={14} color={theme.colors.primaryInk} /> : null}
+                      <Ionicons name={chip.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
                       <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false}>
-                        {statusLabel(st)}
+                        {chip.label}
                       </Text>
                     </Pressable>
                   );
@@ -202,12 +199,6 @@ export default function SaveSheet({
 
               {item ? (
                 <View style={s.links}>
-                  {item.status === 'have' ? (
-                    <Pressable onPress={onOpenWardrobe} style={s.linkBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Ouvrir dans ma parfumerie">
-                      <Ionicons name="open-outline" size={16} color={theme.colors.textMuted} />
-                      <Text style={s.linkText}>Ouvrir dans ma parfumerie</Text>
-                    </Pressable>
-                  ) : null}
                   {showVerdict ? (
                     <Pressable onPress={onOpenFullNotes} style={s.linkBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Notes détaillées">
                       <Ionicons name="create-outline" size={16} color={theme.colors.textMuted} />

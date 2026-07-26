@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
+import { useAuthContext } from '../../contexts/AuthContext';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
 import { searchParfumsCached } from '../../services/catalog';
@@ -21,12 +23,18 @@ export default function SearchChrome() {
   const insets = useSafeAreaInsets();
   const s = useMemo(() => getSearchStyles(theme, insets.top), [theme, insets.top]);
   const router = useRouter();
-  const pathname = usePathname();
   const { isOnline } = useNetwork();
+  const { user } = useAuthContext();
 
   const [voicePhase, setVoicePhase] = useState<VoicePhase>({ type: 'listening', transcript: '' });
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const voiceRequestIdRef = useRef(0);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  const handleAvatarPress = useCallback(() => {
+    hapticsLight();
+    router.push('/profile');
+  }, [router]);
 
   const handleVoiceResult = useCallback(async (result: VoiceResult) => {
     const searchQuery = result.text?.trim() || '';
@@ -158,12 +166,10 @@ export default function SearchChrome() {
     opacity: withTiming(micFabVisible ? 1 : 0, { duration: 150 }),
   }));
 
-  if (pathname === '/profile') return null;
-
   return (
     <>
-      <View style={[s.searchWrap, s.searchBarShadow]}>
-        <View style={[s.searchBar, showVoiceTranscript && s.searchBarVoiceActive]}>
+      <View style={[s.searchWrap, s.searchBarShadow, s.searchRow]}>
+        <View style={[s.searchBar, showVoiceTranscript && s.searchBarVoiceActive, s.searchBarFlex]}>
           <BlurView
             intensity={20}
             tint={resolvedMode === 'dark' ? 'dark' : 'light'}
@@ -197,6 +203,15 @@ export default function SearchChrome() {
             />
           </Pressable>
         </View>
+        <Pressable onPress={handleAvatarPress} style={s.avatarBtn} accessibilityRole="button" accessibilityLabel="Ouvrir le profil">
+          {user?.photoURL && !avatarFailed ? (
+            <Image source={{ uri: user.photoURL }} style={s.avatarImg} onError={() => setAvatarFailed(true)} />
+          ) : (
+            <View style={s.avatarPlaceholder}>
+              <Ionicons name="person-outline" size={18} color={theme.colors.textMuted} />
+            </View>
+          )}
+        </Pressable>
       </View>
 
       <VoiceOverlay
@@ -241,6 +256,20 @@ function getSearchStyles(t: Theme, safeTop: number) {
       paddingHorizontal: t.spacing.md,
       paddingTop: safeTop + 8,
       paddingBottom: 6,
+    },
+    searchRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+    searchBarFlex: { flex: 1 },
+    avatarBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center' as const, alignItems: 'center' as const },
+    avatarImg: { width: 36, height: 36, borderRadius: 18 },
+    avatarPlaceholder: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.colors.surface2,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.colors.border,
     },
     searchBar: {
       flexDirection: 'row' as const,

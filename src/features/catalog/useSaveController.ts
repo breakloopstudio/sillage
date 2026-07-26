@@ -4,14 +4,15 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { addUserParfum, updateUserParfum, markTried as markTriedService, removeUserParfum, getUserParfum } from '../../services/user-parfum';
 import { addPossession } from '../../services/possessions';
 import { hapticsLight } from '../../services/haptics';
-import { VERDICT_OPTIONS, type TrySheetSaveData } from '../scentlist/TrySheet';
+import { verdictLabel } from '../../utils/verdicts';
+import type { TrySheetSaveData } from '../scentlist/TrySheet';
 import type { Parfum } from '../../models';
 import type { UserParfum, UserParfumStatus, ScentVerdict, PossessionType } from '../../models/user-parfum.interface';
 
 const STATUS_LABELS: Record<UserParfumStatus, string> = {
-  to_try: 'À essayer',
-  tried: 'Essayé',
-  want: 'Je le veux',
+  to_try: 'À sentir',
+  tried: 'Senti',
+  want: 'À sentir',
   have: 'Je l\u2019ai',
   had: 'Je l\u2019ai eu',
 };
@@ -44,7 +45,7 @@ export function useSaveController(parfum: Parfum | null) {
   const saveLabel = useMemo<string | null>(() => {
     if (!item) return null;
     if (item.status === 'tried' && item.verdict) {
-      return VERDICT_OPTIONS.find(o => o.key === item.verdict)?.label ?? 'Essayé';
+      return verdictLabel(item.verdict) ?? STATUS_LABELS.tried;
     }
     return STATUS_LABELS[item.status];
   }, [item]);
@@ -111,10 +112,37 @@ export function useSaveController(parfum: Parfum | null) {
     }
   }, [uid, id, item, setStatus]);
 
-  const openWardrobe = useCallback(() => {
-    setShowSaveSheet(false);
-    if (id) router.push(`/wardrobe/${id}`);
-  }, [id, router]);
+  const setRating = useCallback((rating: number | null) => {
+    if (!uid || !id || !item) return;
+    const prev = item;
+    setItem(p => (p ? { ...p, rating, updatedAt: new Date() } : p));
+    updateUserParfum(uid, id, { rating }).catch(() => setItem(prev));
+  }, [uid, id, item]);
+
+  const setNotes = useCallback((notes: string | null) => {
+    if (!uid || !id || !item) return;
+    const prev = item;
+    setItem(p => (p ? { ...p, notes, updatedAt: new Date() } : p));
+    updateUserParfum(uid, id, { notes }).catch(() => setItem(prev));
+  }, [uid, id, item]);
+
+  const toggleShelf = useCallback((shelfId: string) => {
+    if (!uid || !id || !item) return;
+    const prev = item;
+    const next = item.shelfIds.includes(shelfId)
+      ? item.shelfIds.filter(s => s !== shelfId)
+      : [...item.shelfIds, shelfId];
+    setItem(p => (p ? { ...p, shelfIds: next, updatedAt: new Date() } : p));
+    updateUserParfum(uid, id, { shelfIds: next }).catch(() => setItem(prev));
+  }, [uid, id, item]);
+
+  const toggleSignature = useCallback(() => {
+    if (!uid || !id || !item) return;
+    const prev = item;
+    const next = !item.isSignature;
+    setItem(p => (p ? { ...p, isSignature: next, updatedAt: new Date() } : p));
+    updateUserParfum(uid, id, { isSignature: next }).catch(() => setItem(prev));
+  }, [uid, id, item]);
 
   const openFullNotes = useCallback(() => {
     setShowSaveSheet(false);
@@ -150,6 +178,7 @@ export function useSaveController(parfum: Parfum | null) {
     showSaveSheet, showTrySheet, trySheetSaving,
     openSaveSheet, closeSaveSheet, closeTrySheet,
     setStatus, setVerdict, remove, addToTry, addPoss,
-    openWardrobe, openFullNotes, handleTrySheetSave,
+    setRating, setNotes, toggleShelf, toggleSignature,
+    openFullNotes, handleTrySheetSave,
   };
 }

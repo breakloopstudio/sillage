@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 227](https://img.shields.io/badge/Tests-227%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 218](https://img.shields.io/badge/Tests-218%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -20,15 +20,16 @@
 | Module | Description |
 |---|---|
 | 🎨 **UI/UX « Luxe malin »** | Design system violet profond + doré/ambré + teal, 0 fontWeight, Inter + Playfair Display |
+| 🧭 **Navigation** | 2 onglets swipeables (Catalogue · Ma Parfumerie) + FAB Scan central (DockBar verre dépoli), accès profil via avatar rond en haut à droite (SearchChrome) |
 | 📸 **Scan intelligent** | Burst 3 photos → GPT-4o Vision (adaptatif : 70% en 1 appel, 30% en cross-ref 2 photos) → searchParfumsCached() |
 | 🖼️ **Import galerie** | Photo existante → même pipeline IA, sans permissions supplémentaires |
 | 📚 **Catalogue** | Catalogue ~25K parfums (seed Postgres), taxonomie 6 familles olfactives (cartes d'ambiance data-driven), rangées éditoriales (« Parfaits pour {saison} », « Les mieux notés »), capsules marques, grille 3 densités + persistance, recherche RPC Postgres (tsvector + pg_trgm) avec cache + prefix cache |
-| 🧪 **Parfumerie** | Parfums possédés/souhaités/échantillons/décants, étagères custom, parfum signature (max 3), SOTD compact |
+| 🧪 **Ma Parfumerie** | Vue unifiée (union favoris + `user_parfum`), 5 pills (Tous · ❤️ À statuer · À sentir · Je l'ai · Fini), modèle 3 statuts, long-press universel (`StatuerSheet`), possessions (flacon/décant/échantillon), étagères custom, parfum signature (max 3), SOTD + météo |
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
-| ⭐ **Wishlist** | Parfums à acheter, alertes prix |
+| ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix |
 | ❤️ **Favoris** | Coups de cœur, sans obligation d'achat |
 | ⚙️ **Paramètres** | Alertes prix, devise EUR, notifs push, mentions légales |
-| 🧠 **Fiche détail v7** | DetailHero (swap progressif image HD upscale ×4), CollapsingHeader (UI thread), barre d'action flottante (DockBar), pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
+| 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (swap progressif image HD upscale ×4), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
 | 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |
 | 📴 **Mode hors-ligne** | Bannière réseau globale (OfflineBanner dans `_layout.tsx`), état `reconnected` 2.5s, contenu dégradé via cache Firestore local |
 | 🌓 **Dark Mode** | 3 modes (système/clair/sombre), persistance AsyncStorage, SystemUI + NavigationBar theming, keyboardAppearance adaptatif |
@@ -50,7 +51,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 227 tests, 18 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 218 tests, 19 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -130,36 +131,35 @@ app/
 ├── _layout.tsx               # Root : ThemeProvider → GestureHandlerRootView → AuthProvider → AuthGuard → ErrorBoundary
 ├── index.tsx                 # Splash → redirection tabs
 ├── (tabs)/
-│   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom + SearchChrome + NavigationChromeProvider
+│   ├── _layout.tsx           # TopTabs (2 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
-│   ├── selection.tsx         # Sélection segmentée Favoris/Carnet (?segment=carnet)
-│   ├── collection.tsx        # Parfumerie
-│   └── profile.tsx           # Profil (identité, stats, SOTD, navigation rapide, déconnexion)
+│   └── collection.tsx        # Ma Parfumerie (union favoris + user_parfum, 5 pills, grille ParfumCard, long-press StatuerSheet)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
-├── catalog/[id].tsx          # Fiche détail v7 (DetailHero HD, CollapsingHeader, StickyBottomBar, pyramide, « Quand le porter »)
-├── wardrobe/[parfumId].tsx   # Fiche personnelle (notes, rating, SOTD, étagères)
+├── catalog/[id].tsx          # Fiche unifiée v8.1 (DetailHero + section « Ma relation », pyramide, « Quand le porter »)
+├── wardrobe/[parfumId].tsx   # Redirect vers /catalog/[parfumId] (fiche unifiée)
 ├── perfumer/[name].tsx       # Créations d'un nez
+├── profile.tsx               # Profil (route racine, poussée depuis l'avatar — identité, stats, SOTD, déconnexion)
 ├── settings.tsx              # Paramètres
 ├── scan.tsx                  # Scan (slide_from_bottom)
 ├── search.tsx                # Recherche (texte + mode famille ?family=<key>)
 ├── history.tsx               # Historique des scans
-├── scentlist.tsx             # Redirection → /(tabs)/selection?segment=carnet
+├── scentlist.tsx             # Redirection → /(tabs)/collection
 ├── legal.tsx / privacy.tsx / privacy-center.tsx / delete-account.tsx
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (14)        # supabase, firestore, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/     (14)        # supabase, catalog, user-data, user-parfum, possessions, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
 ├── services/impl/            # impl Supabase de chaque service + search-shared + sql-utils (service public = export * from impl/<x>.supabase)
-├── hooks/        (16)        # useAuth, useCatalog, useFavoris, useScans, useWardrobe, useShelves, useSotd, useScentList, useProfileStats, useScanPipeline, useScanReducer, useNetwork, useDensityPreference, useVoiceSearch, useWeather, useVoicePreference
-├── contexts/     (1)         # AuthContext (ThemeContext est dans src/theme/)
-├── components/   (14)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate
+├── hooks/        (15)        # useAuth, useCatalog, useDensityPreference, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── contexts/     (2)         # AuthContext, FavorisContext (source de vérité favoris temps réel — ThemeContext est dans src/theme/)
+├── components/   (16)        # ParfumCard (badges statut/rating), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet
 ├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx
-├── features/                 # scan, catalog, wardrobe, search, navigation (DockBar), profile, favorites, scentlist, runner
-├── models/       (8)         # Parfum (+imageUrl2x), WardrobeItem, Shelf, SotdEntry, UserFavori, UserScan, UserCollectionItem, UserScentItem
+├── features/                 # scan, catalog (+ RelationSection), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager), search, navigation (DockBar 2 onglets + FAB), scentlist (TrySheet), runner
+├── models/       (6)         # Parfum (+imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, Shelf, SotdEntry), UserFavori, UserScan, ScanResult, index
 ├── config/       (2)         # env, index
-└── utils/        (12)        # error-translator, translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring, olfactory-families, alpha
+└── utils/        (15)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, my-parfums
 
 supabase/                     # Backend Supabase (versionné)
 ├── migrations/   (0001→0019) # extensions, types, tables, index trgm/FTS, RLS, RPC (search_parfums, seasonal_parfums, family_overviews…), cron pg_cron, image_url_2x
@@ -276,6 +276,21 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.1 — Refonte UX : 2 onglets, fiche unifiée, « Ma Parfumerie » (26/07/2026)
+
+- **Navigation** : 4 onglets → **2 onglets** (Catalogue · Ma Parfumerie) + FAB Scan central. Accès profil = avatar rond en haut à droite (dans `SearchChrome` → route racine `/profile`). `DockBar` recalculé (2 onglets + FAB centré). Onglet `selection.tsx` supprimé, `profile` déplacé en route racine.
+- **Fiche unifiée** : `catalog/[id]` absorbe la fiche personnelle — nouvelle section « Ma relation » (`RelationSection` : statut, verdict, note, impressions, possessions, étagères, signature, SOTD). `wardrobe/[parfumId]` → redirect.
+- **Ma Parfumerie** : union favoris + `user_parfum` (`my-parfums.ts`), 5 pills (Tous · ❤️ À statuer · À sentir · Je l'ai · Fini), grille `ParfumCard` (badges statut/rating), long-press universel (`StatuerSheet`).
+- **Modèle 3 statuts** : `status-chips.ts` — 5 statuts DB → 3 chips UI (À sentir / Je l'ai / Fini ; `want`+`tried` → « À sentir », `want` invisible). `verdicts.ts` (`VERDICT_OPTIONS` relocalisé).
+- **Nettoyage** : suppression de `FavoritesContent`, `ScentListContent`, `ScentCard`, `ScentListEntry`, `WardrobeGrid`, `WardrobeCard`, `WardrobeQuickSheet`, `FilterBar` + code mort.
+- **Tests** : 218 tests, 19 suites (+ `my-parfums.test.ts`).
+
+## v8.0 — Modèle unifié user_parfum + possessions (26/07/2026)
+
+- **Modèle** : fusion `wardrobe` + `scentlist` en une table `user_parfum` (PK user_id + parfum_id, statut `to_try|tried|want|have|had`, verdict, rating, notes, shelves, SOTD). Objets physiques → `possessions` multiples (flacon/décant/échantillon). Le cœur (`favoris`) reste une table indépendante.
+- **Principe** : un parfum = une ligne dont le statut évolue (transitions libres), le cœur est orthogonal au statut.
+- **Migration SQL** : `0021_unified_user_parfum.sql` (nouvelles tables + backfill + RPC mises à jour).
+
 ## v7.1 — Catalogue éditorial, images HD, scroll UI-thread, durcissement (26/07/2026)
 
 - **Images HD (upscale ×4)** : pipeline `scripts/migrate-upscale.ts` (workers Python persistants Real-ESRGAN + CUDA, ~0,5 img/s) génère `primary_2x.webp` (1500×2000) + colonne `parfums.image_url_2x` (migration 0017). La fiche détail (`DetailHero`) et la lightbox (`ImageViewerPopup`) affichent la 1x immédiatement puis fondent vers la 2x ; les listes restent en 1x (perf). Champ `Parfum.imageUrl2x`.

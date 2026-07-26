@@ -7,13 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import StarRating from '../wardrobe/StarRating';
 import type { UserParfum, ScentVerdict } from '../../models/user-parfum.interface';
-
-export const VERDICT_OPTIONS: { key: ScentVerdict; label: string; icon: string; token: string }[] = [
-  { key: 'love',    label: 'Coup de cœur',  icon: 'heart',        token: 'secondary' },
-  { key: 'like',    label: 'J\'aime',       icon: 'thumbs-up',    token: 'deal' },
-  { key: 'meh',     label: 'Mitigé',        icon: 'remove-outline', token: 'fair' },
-  { key: 'dislike', label: 'Pas pour moi',  icon: 'thumbs-down',  token: 'primary' },
-];
+import { VERDICT_OPTIONS } from '../../utils/verdicts';
 
 export interface TrySheetSaveData {
   verdict: ScentVerdict | null;

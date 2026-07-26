@@ -28,9 +28,7 @@ function TabsNavigator() {
       screenListeners={screenListeners}
     >
       <TopTabs.Screen name="index" />
-      <TopTabs.Screen name="selection" />
       <TopTabs.Screen name="collection" />
-      <TopTabs.Screen name="profile" />
     </TopTabs>
   );
 }

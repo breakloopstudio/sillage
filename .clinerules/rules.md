@@ -13,22 +13,21 @@ app/
 ├── _layout.tsx               # Root : ThemeProvider → GestureHandlerRootView → AuthProvider → AuthGuard → ErrorBoundary
 ├── index.tsx                 # Splash → redirection tabs
 ├── (tabs)/
-│   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom + SearchChrome + NavigationChromeProvider
+│   ├── _layout.tsx           # TopTabs (2 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond en haut à droite) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
-│   ├── selection.tsx         # Sélection segmentée Favoris/Carnet (param ?segment=carnet)
-│   ├── collection.tsx        # Parfumerie
-│   └── profile.tsx           # Profil (identité, stats, SOTD, navigation rapide, déconnexion)
+│   └── collection.tsx        # Ma Parfumerie (union favoris + user_parfum, 5 pills, grille ParfumCard, long-press StatuerSheet)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
-├── catalog/[id].tsx          # Fiche détail v7 (DetailHero, CollapsingHeader, StickyBottomBar, pyramide v7, prix unique, signature nez, « Quand le porter », « Dans le même esprit »)
-├── wardrobe/[parfumId].tsx   # Fiche personnelle (notes, rating, SOTD, étagères)
+├── catalog/[id].tsx          # Fiche unifiée v8.1 (DetailHero + section « Ma relation » via RelationSection, CollapsingHeader, StickyBottomBar, pyramide, prix, signature nez, « Quand le porter », « Dans le même esprit »)
+├── wardrobe/[parfumId].tsx   # Redirect vers /catalog/[parfumId] (fiche unifiée v8.1)
 ├── perfumer/[name].tsx       # Créations d'un nez (signature dorée de la fiche détail, grille densité partagée)
 ├── settings.tsx              # Paramètres (notifications, devise, apparence, soutien, légal, compte)
 ├── scan.tsx                  # Scan (slide_from_bottom)
 ├── search.tsx                # Recherche (fade)
 ├── history.tsx               # Historique des scans (route racine, poussée depuis Profil)
-├── scentlist.tsx             # Redirection /scentlist → /(tabs)/selection?segment=carnet (deep links ; JAMAIS dans (tabs)/ — cf. §5)
+├── profile.tsx               # Profil (route racine, poussée depuis l'avatar en haut à droite dans SearchChrome — identité, stats, SOTD, navigation, déconnexion)
+├── scentlist.tsx             # Redirection /scentlist → /(tabs)/collection (deep links ; JAMAIS dans (tabs)/ — cf. §5)
 ├── legal.tsx                 # Mentions légales
 ├── privacy.tsx               # Politique de confidentialité
 ├── privacy-center.tsx        # Centre de confidentialité
@@ -40,22 +39,20 @@ src/
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
 ├── hooks/        (15)        # useAuth, useCatalog, useDensityPreference, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
 ├── contexts/     (2)         # AuthContext, FavorisContext (source de vérité favoris temps réel partagée — ThemeContext est dans src/theme/)
-├── components/   (15)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton
+├── components/   (16)        # ParfumCard (badges statut/rating optionnels), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press universel)
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
-│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (parfumerie + carnet unifiés), SaveButton, useSaveController (logique d'enregistrement partagée fiche détail + favoris), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
-│   ├── favorites/            # FavoritesContent (onglet Sélection, segment Favoris)
-│   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs — l'avatar utilisateur vit ici, pas de ProfileAvatar) + NavigationChromeContext
-│   ├── profile/              # Contenu onglet Profil
+│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
+│   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 2 onglets + FAB Scan central) + NavigationChromeContext
 │   ├── runner/               # Flacon Runner (easter egg, cf. §17)
 │   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
-│   ├── scentlist/            # ScentListContent, ScentCard, ScentListEntry, TrySheet (onglet Sélection, segment Carnet)
-│   ├── search/     (2)       # SearchChrome (barre recherche + voix, masquée sur /profile) + VoiceOverlay
-│   └── wardrobe/             # WardrobeAddSheet, WardrobeCard, WardrobeGrid, WardrobeQuickSheet, SOTDCard, SOTDPicker, FilterBar, StarRating, ShelfManager
+│   ├── scentlist/            # TrySheet (éditeur « Notes détaillées » de la fiche unifiée)
+│   ├── search/     (2)       # SearchChrome (barre recherche + voix) + VoiceOverlay
+│   └── wardrobe/             # SOTDCard, SOTDPicker, StarRating, ShelfManager
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (2)         # env, index (firebase.config supprimé — migration Supabase)
 ├── models/       (6)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf, SotdEntry), UserFavori, UserScan, ScanResult, index
-└── utils/        (12)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring, olfactory-families, alpha
+└── utils/        (15)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, my-parfums (union favoris + user_parfum)
 
 supabase/                     # Backend Supabase (versionné)
 ├── migrations/   (0001→0019) # extensions, types, tables, index (trgm/FTS), RLS+publication, fonctions SQL (RPC search_parfums, seasonal_parfums, family_overviews…), cron pg_cron, image_url_2x
@@ -88,14 +85,14 @@ supabase/                     # Backend Supabase (versionné)
 ## §5 — Navigation
 
 - Expo Router file-based, **TopTabs + custom tabBar** (DockBar en verre dépoli)
-- Navigation : swipe horizontal natif entre les 4 onglets (TopTabs = material-top-tabs vendored, react-native-tab-view + pager-view 8.0.2)
-- IA : 4 onglets — Catalogue | Sélection (Favoris/Carnet segmentés) | Parfumerie | Profil — + FAB central Scan
+- Navigation : swipe horizontal natif entre les 2 onglets (TopTabs = material-top-tabs vendored, react-native-tab-view + pager-view 8.0.2)
+- IA : 2 onglets — Catalogue | Ma Parfumerie — + FAB central Scan. Accès profil = avatar rond en haut à droite (dans SearchChrome → route racine /profile)
 - **Règle d'or (v6.23)** : aucun fichier-route utilitaire (redirect, stub, shim) dans `app/(tabs)/` — expo-router auto-enregistre tout fichier du groupe comme écran du TopTabs, donc comme page swipeable du pager. Les redirects vivent à la racine `app/` (Stack, non swipeable)
 - Scan/Recherche : routes racine (`slide_from_bottom` / `fade`), pas des onglets
 - Historique : route racine, poussée depuis Profil
 - Perfumer : route racine, poussée depuis la signature nez de la fiche détail (slide_from_right)
 - `NavigationChromeContext` pour le hide-on-scroll du dock — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes
-- Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs, masqué sur l'onglet Profil
+- Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs (le profil est une route racine, hors tabs)
 - Swipe-back : natif (React Navigation), pas de geste custom → **0 conflit de swipe**
 - `router.push()` pour navigation avant, `router.back()` / `router.dismissTo()` pour retour
 - `setPendingParfum()` / `consumePendingParfum()` pour le pont inter-écrans scan → détail

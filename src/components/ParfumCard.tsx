@@ -13,6 +13,9 @@ import { translateNote } from '../utils/translate-note';
 import { textOn } from '../utils/contrast';
 import { formatPrice } from '../utils/format-price';
 import FavButton from './FavButton';
+import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { statusChipMeta, type StatusChipId } from '../utils/status-chips';
+import type { UserParfumStatus } from '../models/user-parfum.interface';
 
 export type CardMode = 'compact' | 'comfortable' | 'compactPlus' | 'list';
 
@@ -20,6 +23,8 @@ interface Props {
   parfum: Parfum;
   mode?: CardMode;
   onPressOverride?: () => void;
+  status?: UserParfumStatus | null;
+  rating?: number | null;
 }
 
 function getDiscount(p: Parfum): number | null {
@@ -54,7 +59,7 @@ function resolveImageUrl(p: Parfum): string | null {
   return p.imageUrl ?? null;
 }
 
-export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride }: Props) {
+export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, status, rating }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -77,6 +82,30 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
   }, [onPressOverride, parfum, router]);
 
   const handleImgError = useCallback(() => setImgFailed(true), []);
+
+  const statusMeta = status != null ? statusChipMeta(status) : null;
+  const showRating = typeof rating === 'number' && rating > 0;
+
+  const renderBadges = () => {
+    if (!statusMeta && !showRating) return null;
+    const bs = statusMeta ? s.statusColors[statusMeta.id] : null;
+    return (
+      <View style={s.statusRow}>
+        {statusMeta && bs ? (
+          <View style={[s.statusBadge, { backgroundColor: bs.bg }]}>
+            <Ionicons name={statusMeta.icon as never} size={10} color={bs.color} />
+            <Text style={[s.statusBadgeText, { color: bs.color }]} allowFontScaling={false}>{statusMeta.label}</Text>
+          </View>
+        ) : null}
+        {showRating ? (
+          <View style={[s.statusBadge, { backgroundColor: theme.colors.secondarySoft }]}>
+            <Ionicons name="star" size={10} color={theme.colors.secondaryInk} />
+            <Text style={[s.statusBadgeText, { color: theme.colors.secondaryInk }]} allowFontScaling={false}>{rating}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
 
   // ── Mode: compact (rangées horizontales) ──
   if (mode === 'compact') {
@@ -145,6 +174,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         <View style={s.bodyComfortable}>
           <Text style={s.brandComfortable} numberOfLines={1}>{parfum.marque}</Text>
           <Text style={s.titleComfortable} numberOfLines={2} ellipsizeMode="tail" maxFontSizeMultiplier={1.3}>{parfum.nom}</Text>
+          {renderBadges()}
           {parfum.familleOlactive || parfum.annee ? (
             <View style={s.tags}>
               {parfum.familleOlactive ? (
@@ -204,6 +234,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         <View style={s.bodyCompactPlus}>
           <Text style={s.brandCompactPlus} numberOfLines={1}>{parfum.marque}</Text>
           <Text style={s.titleCompactPlus} numberOfLines={1} ellipsizeMode="tail" maxFontSizeMultiplier={1.3}>{parfum.nom}</Text>
+          {renderBadges()}
           {parfum.familleOlactive ? (
             <View style={s.tagsCompact}>
               <View style={s.tagFamily}><Text style={s.tagFamilyText}>{translateNote(parfum.familleOlactive)}</Text></View>
@@ -256,6 +287,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         <View style={s.bodyList}>
           <Text style={s.brandList} numberOfLines={1}>{parfum.marque}</Text>
           <Text style={s.titleList} numberOfLines={1} ellipsizeMode="tail" maxFontSizeMultiplier={1.3}>{parfum.nom}</Text>
+          {renderBadges()}
           <View style={s.tagsList}>
             {parfum.familleOlactive ? (
               <View style={s.tagFamily}><Text style={s.tagFamilyText}>{translateNote(parfum.familleOlactive)}</Text></View>
@@ -295,6 +327,16 @@ function getStyles(t: Theme) {
     tagYearText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.rewardInk },
     priceDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
     priceDotSmall: { width: 7, height: 7, borderRadius: 3.5, marginRight: 4 },
+
+    // ── Status / rating badges (body) ──
+    statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 4 },
+    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    statusBadgeText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+    statusColors: {
+      to_try: { bg: t.colors.fairSoft, color: t.colors.fairInk },
+      have: { bg: t.colors.dealSoft, color: t.colors.dealInk },
+      had: { bg: t.colors.surface2, color: t.colors.textMuted },
+    } as Record<StatusChipId, { bg: string; color: string }>,
 
     // ── Compact (horizontal rows) ──
     cardCompact: {

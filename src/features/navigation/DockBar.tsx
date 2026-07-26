@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -18,7 +17,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
-import { useAuthContext } from '../../contexts/AuthContext';
 import { useNavigationChrome } from './NavigationChromeContext';
 
 export interface BottomTabBarProps {
@@ -33,17 +31,14 @@ const PULSE_MAX = 1.18;
 
 export function getIndicatorLeft(screenWidth: number, tabVisualIndex: number): number {
   const barW = Math.min(screenWidth * 0.88, 380);
-  const tabArea = barW - FAB_SPACE;
-  const tabW = tabArea / 4;
-  const fabOffset = tabVisualIndex >= 2 ? FAB_SPACE : 0;
-  return tabW * tabVisualIndex + tabW / 2 - INDICATOR_W / 2 + fabOffset;
+  const tabW = (barW - FAB_SPACE) / 2;
+  if (tabVisualIndex <= 0) return tabW / 2 - INDICATOR_W / 2;
+  return tabW + FAB_SPACE + tabW / 2 - INDICATOR_W / 2;
 }
 
 const TAB_MAP = {
-  index:       { iconActive: 'book',   iconInactive: 'book-outline',   label: 'Catalogue' },
-  selection:   { iconActive: 'bookmark', iconInactive: 'bookmark-outline', label: 'Sélection' },
-  collection:  { iconActive: 'flask',  iconInactive: 'flask-outline',  label: 'Parfumerie' },
-  profile:     { iconActive: 'person', iconInactive: 'person-outline', label: 'Profil' },
+  index:      { iconActive: 'book',  iconInactive: 'book-outline',  label: 'Catalogue' },
+  collection: { iconActive: 'flask', iconInactive: 'flask-outline', label: 'Parfumerie' },
 } as const;
 
 export default function DockBar({ state, navigation }: BottomTabBarProps) {
@@ -51,14 +46,13 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
   const m = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuthContext();
   const { dockTranslateY } = useNavigationChrome();
   const { width: windowWidth } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
 
   const pulseScale = useSharedValue(PULSE_MIN);
   const indicatorLeft = useSharedValue(
-    getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
+    getIndicatorLeft(windowWidth, Math.min(state.index, 1)),
   );
 
   useEffect(() => {
@@ -73,9 +67,9 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
 
   useEffect(() => {
     indicatorLeft.value = reduceMotion
-      ? getIndicatorLeft(windowWidth, Math.min(state.index, 3))
+      ? getIndicatorLeft(windowWidth, Math.min(state.index, 1))
       : withSpring(
-          getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
+          getIndicatorLeft(windowWidth, Math.min(state.index, 1)),
           { damping: 22, stiffness: 280, mass: 0.7 },
         );
   }, [state.index, windowWidth, reduceMotion]);
@@ -106,25 +100,6 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
     const cfg = TAB_MAP[routeName as keyof typeof TAB_MAP];
     if (!cfg) return null;
     const isActive = state.index === index;
-
-    if (routeName === 'profile' && user?.photoURL) {
-      return (
-        <Pressable
-          key={routeKey}
-          style={s.tab}
-          onPress={() => handleTabPress(routeName)}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: isActive }}
-          accessibilityLabel={cfg.label}
-        >
-          <Image
-            source={{ uri: user.photoURL }}
-            style={[s.avatarIcon, isActive && m.avatarActive]}
-          />
-          <Text style={[m.label, isActive && m.labelOn]} allowFontScaling={false}>{cfg.label}</Text>
-        </Pressable>
-      );
-    }
 
     return (
       <Pressable
@@ -157,7 +132,6 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
         <Animated.View style={[s.indicator, m.indicator, { left: 0 }, indicatorStyle]} />
 
         {state.routes[0] && renderTab(state.routes[0].key, state.routes[0].name, 0)}
-        {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
 
         <View style={s.fabSlot}>
           <View style={s.fabOuter}>
@@ -175,8 +149,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
           </View>
         </View>
 
-        {state.routes[2] && renderTab(state.routes[2].key, state.routes[2].name, 2)}
-        {state.routes[3] && renderTab(state.routes[3].key, state.routes[3].name, 3)}
+        {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
       </View>
     </Animated.View>
   );
@@ -223,11 +196,6 @@ const s = StyleSheet.create({
     paddingTop: 6,
     zIndex: 2,
   },
-  avatarIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
   fabSlot: {
     flex: 0,
     width: FAB_SPACE,
@@ -271,7 +239,6 @@ function getStyles(t: Theme) {
     indicator: { backgroundColor: t.colors.secondary },
     label: { fontFamily: 'Inter_500Medium', fontSize: 10, color: t.colors.textMuted },
     labelOn: { color: t.colors.primary },
-    avatarActive: { borderColor: t.colors.primary, borderWidth: 2 },
     fab: { backgroundColor: t.colors.primary },
     fabShadow: { ...t.shadow.scanCircle },
     pulseRing: { borderColor: t.colors.primary + '4D' },

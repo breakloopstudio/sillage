@@ -1,29 +1,22 @@
-// app/profile.tsx — Page Profil (date d'application v6.21)
+// app/profile.tsx — Page Profil (route racine, poussée depuis l'avatar du DockBar)
 
 import { useState, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
-import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import { useAuthContext } from '../../src/contexts/AuthContext';
-import { useTheme, type Theme } from '../../src/theme/ThemeContext';
-import { useSotd } from '../../src/hooks/useSotd';
-import { useProfileStats } from '../../src/hooks/useProfileStats';
-import { statusLabel } from '../../src/features/catalog/useSaveController';
-import type { UserParfumStatus } from '../../src/models/user-parfum.interface';
-import AuthGate from '../../src/components/AuthGate';
-import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
+import { useAuthContext } from '../src/contexts/AuthContext';
+import { useTheme, type Theme } from '../src/theme/ThemeContext';
+import { useSotd } from '../src/hooks/useSotd';
+import { useProfileStats } from '../src/hooks/useProfileStats';
+import { STATUS_CHIPS, chipForStatus, type StatusChipId } from '../src/utils/status-chips';
+import AuthGate from '../src/components/AuthGate';
 
 const NAV_ROWS = [
-  { key: 'favoris', icon: 'heart-outline', label: 'Favoris', route: '/(tabs)/selection', params: { segment: 'favoris' } },
-  { key: 'wardrobe', icon: 'flask-outline', label: 'Parfumerie', route: '/(tabs)/collection' },
-  { key: 'scans', icon: 'time-outline', label: 'Historique', route: '/history' },
-  { key: 'scentlist', icon: 'book-outline', label: "Carnet d'essais", route: '/(tabs)/selection', params: { segment: 'carnet' } },
+  { key: 'parfumerie', icon: 'flask-outline', label: 'Ma Parfumerie', route: '/(tabs)/collection' },
+  { key: 'scans', icon: 'time-outline', label: 'Historique des scans', route: '/history' },
 ] as const;
-
-const STATUS_KEYS: UserParfumStatus[] = ['have', 'had', 'want', 'to_try', 'tried'];
 
 export default function ProfilePage() {
   const { theme } = useTheme();
@@ -34,35 +27,25 @@ export default function ProfilePage() {
 
   const { favorisCount, wardrobeItems: items, scansCount, loading: dataLoading } = useProfileStats(uid);
   const { sotd } = useSotd(uid);
-  const { scrollY } = useNavigationChrome();
-
-  const scrollHandler = useAnimatedScrollHandler((e) => {
-    scrollY.value = e.contentOffset.y;
-  });
 
   const [imgFailed, setImgFailed] = useState(false);
 
-  const ownershipCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const item of items) {
-      counts[item.status] = (counts[item.status] ?? 0) + 1;
-    }
+  const chipCounts = useMemo(() => {
+    const counts: Record<StatusChipId, number> = { to_try: 0, have: 0, had: 0 };
+    for (const item of items) counts[chipForStatus(item.status) ?? 'to_try'] += 1;
     return counts;
   }, [items]);
 
-  const navCounts = useMemo(() => ({
-    favoris: favorisCount ?? 0,
-    wardrobe: items.length,
-    scans: scansCount ?? 0,
-  }), [favorisCount, items.length, scansCount]);
-
-  const ownershipColorMap = useMemo(() => ({
-    have: { bg: theme.colors.primarySoft, color: theme.colors.primaryInk },
-    want: { bg: theme.colors.secondarySoft, color: theme.colors.secondaryInk },
-    had: { bg: theme.colors.surface2, color: theme.colors.textMuted },
+  const chipColorMap = useMemo(() => ({
     to_try: { bg: theme.colors.fairSoft, color: theme.colors.fairInk },
-    tried: { bg: theme.colors.dealSoft, color: theme.colors.dealInk },
+    have: { bg: theme.colors.dealSoft, color: theme.colors.dealInk },
+    had: { bg: theme.colors.surface2, color: theme.colors.textMuted },
   } as const), [theme]);
+
+  const navCounts = useMemo(() => ({
+    parfumerie: items.length,
+    scans: scansCount ?? 0,
+  }), [items.length, scansCount]);
 
   const handleLogout = useCallback(() => {
     logout().catch(() => {});
@@ -70,7 +53,7 @@ export default function ProfilePage() {
   }, [logout, router]);
 
   const handleSotdPress = useCallback(() => {
-    if (sotd) router.push(`/wardrobe/${sotd.parfumId}`);
+    if (sotd) router.push(`/catalog/${sotd.parfumId}`);
   }, [sotd, router]);
 
   if (!authReady) {
@@ -85,9 +68,11 @@ export default function ProfilePage() {
     return (
       <SafeAreaView edges={['top', 'bottom']} style={s.container}>
         <View style={s.header}>
-          <View style={s.headerSpacer} />
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Retour">
+            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+          </Pressable>
           <Text style={s.title}>Profil</Text>
-          <View style={s.headerSpacer} />
+          <View style={s.backBtn} />
         </View>
         <AuthGate
           icon="person-outline"
@@ -102,89 +87,66 @@ export default function ProfilePage() {
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
-      <Animated.ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-      >
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.header}>
-          <View style={s.headerSpacer} />
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Retour">
+            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+          </Pressable>
           <Text style={s.title}>Profil</Text>
-          <Pressable
-            onPress={() => router.push('/settings')}
-            hitSlop={4}
-            style={s.settingsBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Ouvrir les paramètres"
-          >
+          <Pressable onPress={() => router.push('/settings')} hitSlop={4} style={s.settingsBtn} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres">
             <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
           </Pressable>
         </View>
 
         <View style={s.identityWrap}>
           {user.photoURL && !imgFailed ? (
-            <Image
-              source={{ uri: user.photoURL }}
-              style={s.avatar}
-              contentFit="cover"
-              transition={200}
-              onError={() => setImgFailed(true)}
-            />
+            <Image source={{ uri: user.photoURL }} style={s.avatar} contentFit="cover" transition={200} onError={() => setImgFailed(true)} />
           ) : (
             <View style={s.avatarPlaceholder}>
-              <Text allowFontScaling={false} style={s.avatarInitial}>
-                {email.charAt(0).toUpperCase()}
-              </Text>
+              <Text allowFontScaling={false} style={s.avatarInitial}>{email.charAt(0).toUpperCase()}</Text>
             </View>
           )}
           <Text style={s.displayName}>{displayName}</Text>
-          {email.length > 0 && <Text style={s.email}>{email}</Text>}
+          {email.length > 0 ? <Text style={s.email}>{email}</Text> : null}
         </View>
 
         <View style={s.statsCard}>
           <View style={s.statsRow}>
             <View style={s.statCol}>
-              <Text allowFontScaling={false} style={s.statNum}>
-                {dataLoading || favorisCount === null ? '—' : favorisCount}
-              </Text>
+              <Text allowFontScaling={false} style={s.statNum}>{dataLoading || favorisCount === null ? '—' : favorisCount}</Text>
               <Text allowFontScaling={false} style={s.statLabel}>FAVORIS</Text>
             </View>
             <View style={s.statSep} />
             <View style={s.statCol}>
-              <Text allowFontScaling={false} style={s.statNum}>
-                {dataLoading ? '—' : items.length}
-              </Text>
+              <Text allowFontScaling={false} style={s.statNum}>{dataLoading ? '—' : items.length}</Text>
               <Text allowFontScaling={false} style={s.statLabel}>PARFUMERIE</Text>
             </View>
             <View style={s.statSep} />
             <View style={s.statCol}>
-              <Text allowFontScaling={false} style={s.statNum}>
-                {dataLoading ? '—' : scansCount}
-              </Text>
+              <Text allowFontScaling={false} style={s.statNum}>{dataLoading ? '—' : scansCount}</Text>
               <Text allowFontScaling={false} style={s.statLabel}>SCANS</Text>
             </View>
           </View>
 
-          {items.length > 0 && (
+          {items.length > 0 ? (
             <>
               <View style={s.statDivider} />
               <View style={s.ownershipWrap}>
-                {STATUS_KEYS.map(key => {
-                  const count = ownershipCounts[key];
+                {STATUS_CHIPS.map(chip => {
+                  const count = chipCounts[chip.id];
                   if (!count) return null;
-                  const colors = ownershipColorMap[key];
+                  const colors = chipColorMap[chip.id];
                   return (
-                    <View key={key} style={[s.ownershipChip, { backgroundColor: colors.bg }]}>
+                    <View key={chip.id} style={[s.ownershipChip, { backgroundColor: colors.bg }]}>
                       <Text allowFontScaling={false} style={[s.ownershipChipText, { color: colors.color }]}>
-                        {statusLabel(key)}{'\u00A0'}·{'\u00A0'}{count}
+                        {chip.label}{'\u00A0'}·{'\u00A0'}{count}
                       </Text>
                     </View>
                   );
                 })}
               </View>
             </>
-          )}
+          ) : null}
         </View>
 
         {sotd ? (
@@ -198,9 +160,7 @@ export default function ProfilePage() {
             </View>
             <View style={s.sotdBody}>
               <Text allowFontScaling={false} style={s.sotdLabel}>PARFUM DU JOUR</Text>
-              <Text style={s.sotdName} numberOfLines={1} ellipsizeMode="tail">
-                {sotd.nom}{'\u00A0'}·{'\u00A0'}{sotd.marque}
-              </Text>
+              <Text style={s.sotdName} numberOfLines={1} ellipsizeMode="tail">{sotd.nom}{'\u00A0'}·{'\u00A0'}{sotd.marque}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
           </Pressable>
@@ -210,9 +170,7 @@ export default function ProfilePage() {
               <Ionicons name="sunny-outline" size={22} color={theme.colors.secondary} />
             </View>
             <View style={s.sotdBody}>
-              <Text allowFontScaling={false} style={[s.sotdLabel, { color: theme.colors.secondary }]}>
-                PARFUM DU JOUR
-              </Text>
+              <Text allowFontScaling={false} style={[s.sotdLabel, { color: theme.colors.secondary }]}>PARFUM DU JOUR</Text>
               <Text style={s.sotdCta}>Choisis ton parfum du jour</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
@@ -226,26 +184,14 @@ export default function ProfilePage() {
             const count = navCounts[row.key as keyof typeof navCounts];
             const isLast = i === NAV_ROWS.length - 1;
             return (
-              <Pressable
-                key={row.key}
-                style={[s.navRow, !isLast && s.navRowBorder]}
-                onPress={() => {
-                  if ('params' in row) {
-                    router.push({ pathname: row.route, params: row.params });
-                  } else {
-                    router.push(row.route);
-                  }
-                }}
-              >
+              <Pressable key={row.key} style={[s.navRow, !isLast && s.navRowBorder]} onPress={() => router.push(row.route)}>
                 <View style={s.navIconWrap}>
                   <Ionicons name={row.icon} size={18} color={theme.colors.primaryInk} />
                 </View>
                 <Text style={s.navLabel}>{row.label}</Text>
-                {count !== undefined && (
-                  <Text allowFontScaling={false} style={s.navCount}>
-                    {dataLoading ? '—' : count}
-                  </Text>
-                )}
+                {count !== undefined ? (
+                  <Text allowFontScaling={false} style={s.navCount}>{dataLoading ? '—' : count}</Text>
+                ) : null}
                 <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
               </Pressable>
             );
@@ -256,7 +202,7 @@ export default function ProfilePage() {
           <Ionicons name="log-out-outline" size={20} color={theme.colors.overpriced} />
           <Text style={s.logoutText}>Déconnexion</Text>
         </Pressable>
-      </Animated.ScrollView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -264,14 +210,8 @@ export default function ProfilePage() {
 function getStyles(t: Theme) {
   return {
     container: { flex: 1, backgroundColor: t.colors.background },
-    scroll: { paddingBottom: 88 },
-    spinnerFull: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: t.colors.background,
-    },
-
+    scroll: { paddingBottom: 40 },
+    spinnerFull: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.colors.background },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -280,7 +220,7 @@ function getStyles(t: Theme) {
       paddingVertical: 12,
       marginBottom: 8,
     },
-    headerSpacer: { width: 32 },
+    backBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text },
     settingsBtn: {
       width: 36,
@@ -292,14 +232,8 @@ function getStyles(t: Theme) {
       justifyContent: 'center',
       alignItems: 'center',
     },
-
     identityWrap: { alignItems: 'center', paddingTop: 8, paddingBottom: 20 },
-    avatar: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      backgroundColor: t.colors.surface2,
-    },
+    avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: t.colors.surface2 },
     avatarPlaceholder: {
       width: 88,
       height: 88,
@@ -308,37 +242,13 @@ function getStyles(t: Theme) {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    avatarInitial: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 34,
-      color: t.colors.primaryInk,
-    },
-    displayName: {
-      fontFamily: 'PlayfairDisplay_700Bold',
-      fontSize: 22,
-      color: t.colors.text,
-      marginTop: 12,
-    },
-    email: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      color: t.colors.textMuted,
-      marginTop: 2,
-    },
-
-    statsCard: {
-      backgroundColor: t.colors.surface,
-      borderRadius: t.radius.card,
-      marginHorizontal: 16,
-      ...t.shadow.card,
-    },
+    avatarInitial: { fontFamily: 'Inter_700Bold', fontSize: 34, color: t.colors.primaryInk },
+    displayName: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text, marginTop: 12 },
+    email: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, marginTop: 2 },
+    statsCard: { backgroundColor: t.colors.surface, borderRadius: t.radius.card, marginHorizontal: 16, ...t.shadow.card },
     statsRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20 },
     statCol: { flex: 1, alignItems: 'center' },
-    statNum: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 24,
-      color: t.colors.text,
-    },
+    statNum: { fontFamily: 'Inter_700Bold', fontSize: 24, color: t.colors.text },
     statLabel: {
       fontFamily: 'Inter_500Medium',
       fontSize: 10,
@@ -347,33 +257,11 @@ function getStyles(t: Theme) {
       color: t.colors.textMuted,
       marginTop: 2,
     },
-    statSep: {
-      width: StyleSheet.hairlineWidth,
-      alignSelf: 'stretch',
-      backgroundColor: t.colors.border,
-      marginVertical: 4,
-    },
-    statDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: t.colors.border,
-      marginHorizontal: 12,
-    },
-    ownershipWrap: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      padding: 12,
-    },
-    ownershipChip: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 20,
-    },
-    ownershipChipText: {
-      fontFamily: 'Inter_500Medium',
-      fontSize: 11,
-    },
-
+    statSep: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: t.colors.border, marginVertical: 4 },
+    statDivider: { height: StyleSheet.hairlineWidth, backgroundColor: t.colors.border, marginHorizontal: 12 },
+    ownershipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 12 },
+    ownershipChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+    ownershipChipText: { fontFamily: 'Inter_500Medium', fontSize: 11 },
     sotdCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -404,17 +292,8 @@ function getStyles(t: Theme) {
       color: t.colors.secondary,
       marginBottom: 2,
     },
-    sotdName: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 14,
-      color: t.colors.text,
-    },
-    sotdCta: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 13,
-      color: t.colors.textMuted,
-    },
-
+    sotdName: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: t.colors.text },
+    sotdCta: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted },
     sectionTitle: {
       fontFamily: 'Inter_400Regular',
       fontSize: 11,
@@ -425,24 +304,9 @@ function getStyles(t: Theme) {
       marginTop: 24,
       marginBottom: 8,
     },
-
-    navCard: {
-      backgroundColor: t.colors.surface,
-      borderRadius: t.radius.card,
-      marginHorizontal: 16,
-      ...t.shadow.card,
-    },
-    navRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 14,
-      gap: 12,
-    },
-    navRowBorder: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: t.colors.border,
-    },
+    navCard: { backgroundColor: t.colors.surface, borderRadius: t.radius.card, marginHorizontal: 16, ...t.shadow.card },
+    navRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 14, gap: 12 },
+    navRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
     navIconWrap: {
       width: 36,
       height: 36,
@@ -451,18 +315,8 @@ function getStyles(t: Theme) {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    navLabel: {
-      flex: 1,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 14,
-      color: t.colors.text,
-    },
-    navCount: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 14,
-      color: t.colors.textMuted,
-    },
-
+    navLabel: { flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 14, color: t.colors.text },
+    navCount: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.textMuted },
     logoutRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -471,14 +325,10 @@ function getStyles(t: Theme) {
       marginHorizontal: 16,
       marginTop: 32,
       paddingVertical: 14,
-      borderWidth: 1.5,
-      borderColor: t.colors.overpriced,
       borderRadius: t.radius.base,
+      borderWidth: 1,
+      borderColor: t.colors.overpricedSoft,
     },
-    logoutText: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 15,
-      color: t.colors.overpriced,
-    },
+    logoutText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: t.colors.overpriced },
   } as const;
 }

@@ -609,6 +609,35 @@ export function favoriMatchesSearch(fav, q): boolean;
 export function buildFavoriFilterFields(p): { longevity, sillage, seasonScores, notes };
 ```
 
+### `src/utils/status-chips.ts`
+```ts
+// Modèle 3 chips de statut (mapping UI → 5 statuts DB v8.0)
+export type StatusChipId = 'to_try' | 'have' | 'had';
+export interface StatusChip { id: StatusChipId; label: string; icon: string; status: UserParfumStatus };
+export const STATUS_CHIPS: StatusChip[];  // À sentir (to_try) / Je l'ai (have) / Fini (had)
+export function chipForStatus(status: UserParfumStatus | null | undefined): StatusChipId | null;  // want + tried → to_try
+export function statusChipMeta(status: UserParfumStatus | null | undefined): StatusChip | null;
+```
+
+### `src/utils/verdicts.ts`
+```ts
+export interface VerdictOption { key: ScentVerdict; label: string; icon: string; token: string };
+export const VERDICT_OPTIONS: VerdictOption[];  // love / like / meh / dislike
+export function verdictLabel(v: ScentVerdict | null | undefined): string | null;
+```
+
+### `src/utils/my-parfums.ts`
+```ts
+// Union favoris + user_parfum pour l'onglet Ma Parfumerie (compatible FilterableItem)
+export interface MyParfum { parfumId; nom; marque; imageUrl; status: UserParfumStatus | null; rating; isFav; /* + champs display/filtre */ };
+export type PillId = 'all' | 'to_stat' | StatusChipId;  // to_stat = favori sans ligne user_parfum
+export const MY_PARFUM_PILLS: { id: PillId; label: string; icon: string }[];
+export function buildMyParfums(favoris: UserFavori[], ups: UserParfum[]): MyParfum[];  // dédup par parfumId
+export function pillOfItem(m: MyParfum): Exclude<PillId, 'all'>;
+export function filterByPill(items: MyParfum[], pill: PillId): MyParfum[];
+export function myParfumToCard(m: MyParfum): Parfum;  // pour ParfumCard
+```
+
 ---
 
 ## §6 — Composants
@@ -723,6 +752,25 @@ interface Props {
 }
 ```
 
+### `StatuerSheet` — `src/components/StatuerSheet.tsx`
+
+Sheet de long-press universelle (Ma Parfumerie) : entête du parfum, « Voir la fiche », 3 chips de statut inline (`STATUS_CHIPS`), « Retirer ». Radius top 24 (§4.16), Reduced Motion respecté.
+
+```ts
+interface Props {
+  visible: boolean;
+  nom: string;
+  marque: string;
+  imageUrl: string | null;
+  status: UserParfumStatus | null;   // null = favori « à statuer »
+  removeLabel: string;               // « Retirer des favoris » | « Retirer de ma parfumerie »
+  onClose: () => void;
+  onView: () => void;
+  onSetStatus: (status: UserParfumStatus) => void;
+  onRemove: () => void;
+}
+```
+
 ### `ParfumCard` — `src/components/ParfumCard.tsx`
 
 Carte parfum 4 modes — point d'entree unique pour l'affichage catalogue, recherche, favoris, historique, wardrove.
@@ -734,6 +782,8 @@ interface Props {
   parfum: Parfum;
   mode?: CardMode;         // defaut: 'comfortable'
   onPressOverride?: () => void;
+  status?: UserParfumStatus | null;  // badge statut dans le body (Ma Parfumerie)
+  rating?: number | null;            // pastille ★ dans le body
 }
 ```
 
@@ -828,11 +878,11 @@ Contexte React partagé par les onglets du navigateur `TopTabs`. Fournit `scroll
 
 ### `DockBar` — `src/features/navigation/DockBar.tsx` — custom tabBar TopTabs
 
-Barre flottante 4 onglets + FAB Scan central, verre dépoli (BlurView). Fonctionne comme `tabBar` custom du navigateur `TopTabs` (`expo-router/js-top-tabs`). Reçoit `{ state, navigation }`. L'indicateur doré suit `state.index` via un spring Reanimated (`withSpring`, damping 22, stiffness 280). La géométrie de l'indicateur est exportée via `getIndicatorLeft(screenWidth, tabVisualIndex)` (fonction pure, testable). Le FAB central (`router.push('/scan')`) est rendu entre le 2e et 3e onglet — pas d'haptique à l'ouverture (réservé à la capture, §2.6). L'onglet Profil affiche l'avatar utilisateur si connecté. Pulse ring FAB coupé en Reduced Motion (`useReducedMotion`). Hide-on-scroll via `dockTranslateY` du `NavigationChromeContext`. Accessibilité : chaque onglet a `accessibilityRole="tab"` + `accessibilityLabel`.
+Barre flottante 2 onglets + FAB Scan central, verre dépoli (BlurView). Fonctionne comme `tabBar` custom du navigateur `TopTabs` (`expo-router/js-top-tabs`). Reçoit `{ state, navigation }`. L'indicateur doré suit `state.index` via un spring Reanimated (`withSpring`, damping 22, stiffness 280). La géométrie de l'indicateur est exportée via `getIndicatorLeft(screenWidth, tabVisualIndex)` (fonction pure, 2 onglets + FAB centré). Le FAB central (`router.push('/scan')`) est rendu entre les 2 onglets — pas d'haptique à l'ouverture (réservé à la capture, §2.6). **Pas d'avatar dans le DockBar** : l'accès profil (avatar rond) vit dans `SearchChrome` (en haut à droite). Pulse ring FAB coupé en Reduced Motion (`useReducedMotion`). Hide-on-scroll via `dockTranslateY` du `NavigationChromeContext`. Accessibilité : chaque onglet a `accessibilityRole="tab"` + `accessibilityLabel`.
 
 ### `SearchChrome` — `src/features/search/SearchChrome.tsx`
 
-Chrome partagé rendu dans le layout des tabs (`(tabs)/_layout.tsx`). Contient la barre de recherche persistante (BlurView), le FAB micro, le `VoiceOverlay`, et toute la logique de recherche vocale (STT on-device + fallback Whisper). Auto-masqué sur l'onglet Profil (`usePathname() === '/profile'`).
+Chrome partagé rendu dans le layout des tabs (`(tabs)/_layout.tsx`). Contient la barre de recherche persistante (BlurView), l'**avatar profil rond** à droite de la barre (photo Google ou icône `person-outline` → route racine `/profile`), le FAB micro, le `VoiceOverlay`, et toute la logique de recherche vocale (STT on-device + fallback Whisper). Le profil est une route racine hors tabs, donc SearchChrome n'y apparaît jamais.
 
 ---
 
