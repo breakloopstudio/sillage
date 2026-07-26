@@ -26,14 +26,13 @@ export interface MyParfum {
   addedAt: Date;
 }
 
-export type PillId = 'all' | 'to_stat' | StatusChipId;
+export type PillId = 'all' | StatusChipId;
 
 export const MY_PARFUM_PILLS: { id: PillId; label: string; icon: string }[] = [
   { id: 'all',     label: 'Tous',       icon: 'apps-outline' },
-  { id: 'to_stat', label: 'À statuer',  icon: 'heart' },
-  { id: 'to_try',  label: 'À sentir',   icon: 'eyedrop-outline' },
+  { id: 'to_try',  label: 'À sentir',   icon: 'eye-outline' },
   { id: 'have',    label: 'Je l\u2019ai', icon: 'checkmark-circle-outline' },
-  { id: 'had',     label: 'Je l\u2019ai eu', icon: 'flag-outline' },
+  { id: 'had',     label: 'Fini', icon: 'archive-outline' },
 ];
 
 function merge(parfumId: string, fav: UserFavori | undefined, up: UserParfum | undefined): MyParfum {
@@ -76,7 +75,6 @@ export function buildMyParfums(favoris: UserFavori[], ups: UserParfum[]): MyParf
 }
 
 export function pillOfItem(m: MyParfum): Exclude<PillId, 'all'> {
-  if (m.status === null) return 'to_stat';
   return chipForStatus(m.status) ?? 'to_try';
 }
 

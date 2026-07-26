@@ -15,7 +15,7 @@ app/
 ├── (tabs)/
 │   ├── _layout.tsx           # TopTabs (2 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond en haut à droite) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
-│   └── collection.tsx        # Ma Parfumerie (union favoris + user_parfum, 5 pills, grille ParfumCard, long-press StatuerSheet)
+│   └── collection.tsx        # Ma Parfumerie (union favoris + user_parfum, 4 pills + filtre ♥ coups de cœur, grille ParfumCard prix masqué, long-press StatuerSheet)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
@@ -39,7 +39,7 @@ src/
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
 ├── hooks/        (15)        # useAuth, useCatalog, useDensityPreference, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
 ├── contexts/     (2)         # AuthContext, FavorisContext (source de vérité favoris temps réel partagée — ThemeContext est dans src/theme/)
-├── components/   (16)        # ParfumCard (badges statut/rating optionnels), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press universel)
+├── components/   (16)        # ParfumCard (badges statut/rating optionnels, hidePrice), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press universel)
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
 │   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards

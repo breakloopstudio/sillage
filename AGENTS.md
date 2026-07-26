@@ -398,3 +398,63 @@ Nécessite un compte de service Firebase :
 **Scripts images** : inchangés (opèrent sur `parfums.image_url`/`image_url_2x`, pas sur les tables user).
 
 **Tests** : 18 suites, 204 tests. `tsc --noEmit` : 0 erreur app/ + src/.
+
+## Notes v8.1 — Refonte UX : 2 onglets, fiche unifiée, « Ma Parfumerie » (26/07/2026)
+
+**Refonte UX majeure** (aucun changement de modèle de données — v8.0 inchangé). Objectif : réduire la charge cognitive, unifier les surfaces qui faisaient doublon (cœur vs statut `want`, Carnet vs Parfumerie, fiche catalogue vs fiche perso).
+
+**Navigation : 4 onglets → 2 onglets + FAB + avatar.**
+- Onglets : **Catalogue** | **Ma Parfumerie** + **FAB Scan** central (DockBar = 2 onglets + FAB uniquement, sans avatar).
+- `DockBar` : géométrie recalculée pour 2 onglets + FAB centré symétrique (`getIndicatorLeft` 2 tabs).
+- **Accès profil** : avatar rond (photo Google ou icône `person-outline`) en haut à droite de la page, dans `SearchChrome` (à droite de la barre de recherche) → pousse la route racine `/profile`. Visible sur les 2 onglets.
+- **Profil** : déplacé `app/(tabs)/profile.tsx` → `app/profile.tsx` (route racine Stack, `slide_from_right`, bouton retour). `NAV_ROWS` simplifié (Ma Parfumerie + Historique), chips de statut sur le modèle 3 chips, sans `useNavigationChrome` (hors tabs).
+- **Supprimé** : l'onglet `selection.tsx` (Favoris/Carnet segmentés).
+
+**Modèle de statut : 5 statuts DB → 3 chips UI.**
+- `src/utils/status-chips.ts` : `STATUS_CHIPS` = **À sentir** (`to_try`) / **Je l'ai** (`have`) / **Fini** (`had`). `chipForStatus()` mappe les 5 statuts DB vers 3 chips (`want` + `tried` → « À sentir ») ; `statusChipMeta()`. Le modèle DB (v8.0) ne change pas, `want` devient invisible en UI.
+- `src/utils/verdicts.ts` : `VERDICT_OPTIONS` relocalisé hors de `TrySheet` (+ helper `verdictLabel`).
+- `STATUS_LABELS` (useSaveController) aligné sur le nouveau vocabulaire (À sentir / Senti / Je l'ai / Fini).
+
+**Fiche unifiée.**
+- `app/catalog/[id].tsx` absorbe la fiche personnelle : nouvelle section **« Ma relation »** (`src/features/catalog/RelationSection.tsx`, conditionnelle à l'existence d'une relation) — 3 chips statut inline, verdict, rating (`StarRating`), notes éditables, possessions, étagères, signature, SOTD, retirer.
+- `app/wardrobe/[parfumId].tsx` → **redirect** vers `/catalog/[parfumId]` (tous les liens existants — SOTDCard, profil — continuent de fonctionner).
+- `useSaveController` étendu : `setRating`, `setNotes`, `toggleShelf`, `toggleSignature` (optimistes avec rollback). Le bouton « Enregistrer » flow n'apparaît que s'il n'y a pas encore de relation.
+
+**Ma Parfumerie (onglet `collection.tsx` réécrit).**
+- `src/utils/my-parfums.ts` : `buildMyParfums(favoris, userParfums)` — **union** favoris + user_parfum (dédup `parfumId`, `user_parfum` source du statut, le favori comble l'affichage et pose `isFav`), `pillOfItem`/`filterByPill`, `myParfumToCard`, `MY_PARFUM_PILLS`. Structurellement compatible `FilterableItem` (réutilise `matchesFavoriFilters`/`favoriMatchesSearch`).
+- **5 pills** : Tous · ❤️ À statuer · À sentir · Je l'ai · Fini (avec compteurs). « À statuer » = favoris sans ligne `user_parfum`.
+- Grille `ParfumCard` (densité partagée) + **badge statut/rating** dans le body (props optionnelles `status`/`rating`, modes comfortable/compactPlus/list).
+- **Long-press universel** : `src/components/StatuerSheet.tsx` — Voir la fiche / 3 chips statut inline / Retirer (« Retirer des favoris » si `status === null`, sinon « Retirer de ma parfumerie »).
+- Préservés : SOTD + météo (bannière `SOTDCard`), étagères (`ShelfManager`), `FilterSheet` attributs, recherche, tri (Récents / Mieux notés / A–Z / Z–A). **Tri « Météo » de la grille retiré** (le scoring exige `sotdCount`, absent de l'union) — scoring météo conservé pour le SOTD/`SOTDPicker`.
+
+**Fichiers créés** : `src/utils/status-chips.ts`, `src/utils/verdicts.ts`, `src/utils/my-parfums.ts`, `src/features/catalog/RelationSection.tsx`, `src/components/StatuerSheet.tsx`, `app/profile.tsx`, `__tests__/utils/my-parfums.test.ts`
+
+**Fichiers supprimés** : `app/(tabs)/selection.tsx`, `app/(tabs)/profile.tsx`, `src/features/favorites/FavoritesContent.tsx` (+ dossier `favorites/`), `src/features/scentlist/ScentListContent.tsx`, `ScentCard.tsx`, `ScentListEntry.tsx`, `src/features/wardrobe/WardrobeGrid.tsx`, `WardrobeCard.tsx`, `WardrobeQuickSheet.tsx`, `FilterBar.tsx`
+
+**Code mort retiré** : check `pathname === '/profile'` + `usePathname` dans `SearchChrome` (le profil n'est plus un onglet), style `avatarActive` du DockBar.
+
+**Conservés** : `TrySheet`, `useSaveController`, `SaveSheet` (toujours utilisés par la fiche pour « Notes détaillées ») ; `wardrobe/` garde `ShelfManager`, `SOTDCard`, `SOTDPicker`, `StarRating` ; `scentlist/` garde `TrySheet`.
+
+**Lacune connue (à traiter)** : un favori « à statuer » qu'on statue crée une ligne `user_parfum` sans champs de filtre (tenue/sillage/saison) → non filtrable par attributs tant que non backfillé.
+
+**Tests** : 19 suites, 218 tests (+14 `my-parfums`). `tsc --noEmit` : 0 erreur app/ + src/.
+
+## Notes v8.2 — Ma Parfumerie : vocabulaire statuts, densité en icônes, prix masqué, filtre ♥ (27/07/2026)
+
+**Refonte UX de l'onglet Ma Parfumerie** (aucun changement de modèle de données — v8.0/v8.1 inchangés). Objectif : lever la confusion entre le cœur (intérêt) et le statut (relation), et alléger un header qui empilait 4 rangées de contrôles ambigus.
+
+**Vocabulaire des statuts — « À statuer » supprimé.** La pill `to_stat` est retirée de `MY_PARFUM_PILLS` et de `PillId` (`my-parfums.ts`). `pillOfItem` perd sa branche `status === null` : un cœur sans ligne `user_parfum` tombe désormais dans « À sentir » (`chipForStatus(status) ?? 'to_try'`) — un seul geste = une seule case, plus d'étape administrative « statuer ». Les 4 pills deviennent **Tous · À sentir · Je l'ai · Fini**. Renommage « Je l'ai eu » → **Fini** (lève l'ambiguïté avec « Je l'ai »). Icônes : « À sentir » `eyedrop-outline` → `eye-outline` (à *voir/sentir*, pas à *saisir*) ; « Fini » `flag-outline` → `archive-outline`. Le libellé de section « Statuer » de `StatuerSheet` devient **« Ton statut »**. Le vocabulaire est désormais unique et partagé pills = chips fiche (`STATUS_CHIPS`) = badges carte.
+
+**Sélecteur de densité en icônes (Ma Parfumerie).** Les 3 segments texte `Confort/Compact/Liste` (qui mangeaient ~210 px et tassaient les pills) deviennent 3 boutons icônes via `DENSITY_ICON` (`grid-outline`/`apps-outline`/`list-outline`), conforme au design-guide §4.17. *Dette assumée* : Catalogue/Recherche/Perfumer conservent le toggle texte (inchangé, pas de régression) — à aligner plus tard si uniformité souhaitée.
+
+**Prix masqué en contexte perso.** Nouvelle prop `hidePrice?: boolean` sur `ParfumCard` (sans effet sur les 8 autres écrans). `collection.tsx` la passe → plus de `— €` ni de badge `-X%` dans Ma Parfumerie (vue de relation, pas d'achat ; pas de tri par prix ni de total).
+
+**Badge statut cohérent.** `renderItem` passe `status={item.status ?? (item.isFav ? 'to_try' : null)}` : un cœur sans statut affiche le badge « À sentir », identique à sa pill — plus de décalage visuel cœur-rouge-vs-badge.
+
+**Filtre ♥ transversal.** Bouton `favOnly` ajouté dans la `searchRow` (à droite du tri/filtres) : `heart-outline` gris (éteint) / `heart` rouge sur `favoriteSoft` (actif). C'est un filtre qui se **cumule** avec la pill active, l'étagère et la recherche (ex. « Je l'ai » + ♥ = coups de cœur possédés) — pas un onglet, donc zéro doublon et modèle `isFav`/`status` indépendant préservé. Inclus dans `handleGlobalReset`.
+
+**Fichiers** : `src/utils/status-chips.ts`, `src/utils/my-parfums.ts`, `src/components/ParfumCard.tsx`, `app/(tabs)/collection.tsx`, `src/components/StatuerSheet.tsx` (modifiés) ; `__tests__/utils/my-parfums.test.ts` (2 tests réécrits : `pillOfItem(null) → to_try`, `filterByPill('to_try')` regroupe statués + cœurs).
+
+**Docs** : `rules.md` (§2 arborescence + components), `reference.md` (§5 `my-parfums`/`PillId`/`pillOfItem`, §6 `StatuerSheet`/`ParfumCard.hidePrice`), `README.md` (tableau + arborescence + components + récap v8.1) resynchronisés.
+
+**Tests** : 19 suites, 218 tests. `tsc --noEmit` : 0 erreur app/ + src/.

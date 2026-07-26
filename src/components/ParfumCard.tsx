@@ -25,6 +25,7 @@ interface Props {
   onPressOverride?: () => void;
   status?: UserParfumStatus | null;
   rating?: number | null;
+  hidePrice?: boolean;
 }
 
 function getDiscount(p: Parfum): number | null {
@@ -59,13 +60,13 @@ function resolveImageUrl(p: Parfum): string | null {
   return p.imageUrl ?? null;
 }
 
-export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, status, rating }: Props) {
+export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, status, rating, hidePrice = false }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const [imgFailed, setImgFailed] = useState(false);
 
-  const discount = getDiscount(parfum);
+  const discount = hidePrice ? null : getDiscount(parfum);
   const priceTier = getPriceTier(parfum);
   const bestPrice = parfum.bestPrice ?? null;
   const imageUrl = resolveImageUrl(parfum);
@@ -129,7 +130,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           <Text style={s.brandCompact} numberOfLines={1}>{parfum.marque}</Text>
           <Text style={s.titleCompact} numberOfLines={2} ellipsizeMode="tail">{parfum.nom}</Text>
         </View>
-        <View style={s.priceRowCompact}>
+        {!hidePrice ? (<View style={s.priceRowCompact}>
           {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
           {bestPrice !== null ? (
             <>
@@ -141,7 +142,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           ) : (
             <Text style={s.priceCompactMuted}>— €</Text>
           )}
-        </View>
+        </View>) : null}
       </Pressable>
     );
   }
@@ -188,7 +189,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           {parfum.notesTete?.length > 0 && (
             <Text style={s.notesText} numberOfLines={1}>{parfum.notesTete!.slice(0, 3).map(translateNote).join(' · ')}</Text>
           )}
-          <View style={s.priceRowComfortable}>
+          {!hidePrice ? (<View style={s.priceRowComfortable}>
             {priceTier && <View style={[s.priceDot, { backgroundColor: theme.colors[priceTier] }]} />}
             {bestPrice !== null ? (
               <>
@@ -200,7 +201,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             ) : (
               <Text style={s.priceComfortableMuted}>— €</Text>
             )}
-          </View>
+          </View>) : null}
         </View>
       </Pressable>
     );
@@ -242,7 +243,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           ) : (
             <View style={s.tagsCompact} />
           )}
-          <View style={s.priceRowCompactPlus}>
+          {!hidePrice ? (<View style={s.priceRowCompactPlus}>
             {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
             {bestPrice !== null ? (
               <>
@@ -254,7 +255,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             ) : (
               <Text style={s.priceCompactPlusMuted}>— €</Text>
             )}
-          </View>
+          </View>) : null}
         </View>
       </Pressable>
     );
@@ -297,7 +298,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             ) : null}
           </View>
         </View>
-        <View style={s.priceColList}>
+        {!hidePrice ? (<View style={s.priceColList}>
           <View style={s.priceRowList}>
             {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
             {bestPrice !== null ? (
@@ -309,7 +310,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           {parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice && (
             <Text style={s.priceRefList}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
           )}
-        </View>
+        </View>) : null}
       </Pressable>
     );
   }

@@ -93,8 +93,8 @@ describe('buildMyParfums', () => {
 });
 
 describe('pillOfItem', () => {
-  it('status null → to_stat', () => {
-    expect(pillOfItem(makeMy(null))).toBe('to_stat');
+  it('status null → to_try (cœur/repéré fusionné dans À sentir)', () => {
+    expect(pillOfItem(makeMy(null))).toBe('to_try');
   });
 
   it('to_try / want / tried → to_try', () => {
@@ -116,10 +116,9 @@ describe('filterByPill', () => {
     expect(filterByPill(items, 'all')).toHaveLength(4);
   });
 
-  it('to_stat filtre les non statués', () => {
-    const r = filterByPill(items, 'to_stat');
-    expect(r).toHaveLength(1);
-    expect(r[0].status).toBeNull();
+  it('to_try regroupe les statués to_try ET les cœurs non statués', () => {
+    const r = filterByPill(items, 'to_try');
+    expect(r).toHaveLength(2);
   });
 
   it('have filtre les possédés', () => {

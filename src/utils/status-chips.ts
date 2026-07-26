@@ -10,9 +10,9 @@ export interface StatusChip {
 }
 
 export const STATUS_CHIPS: StatusChip[] = [
-  { id: 'to_try', label: 'À sentir',   icon: 'eyedrop-outline',        status: 'to_try' },
+  { id: 'to_try', label: 'À sentir',   icon: 'eye-outline',        status: 'to_try' },
   { id: 'have',   label: 'Je l\u2019ai', icon: 'checkmark-circle-outline', status: 'have' },
-  { id: 'had',    label: 'Je l\u2019ai eu', icon: 'flag-outline',           status: 'had' },
+  { id: 'had',    label: 'Fini', icon: 'archive-outline',           status: 'had' },
 ];
 
 export function chipForStatus(status: UserParfumStatus | null | undefined): StatusChipId | null {

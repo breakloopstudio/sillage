@@ -94,7 +94,7 @@ export default function StatuerSheet({
           <Text style={s.actionLabel}>Voir la fiche</Text>
         </Pressable>
 
-        <Text style={s.sectionLabel}>Statuer</Text>
+        <Text style={s.sectionLabel}>Ton statut</Text>
         <View style={s.chips}>
           {STATUS_CHIPS.map(chip => {
             const active = activeChip === chip.id;

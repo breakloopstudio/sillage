@@ -48,6 +48,12 @@ const SORT_OPTIONS: { key: string; label: string }[] = [
   { key: 'za', label: 'Z–A' },
 ];
 
+const DENSITY_ICON: Record<string, string> = {
+  comfortable: 'grid-outline',
+  compactPlus: 'apps-outline',
+  list: 'list-outline',
+};
+
 export default function MaParfumeriePage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -73,6 +79,7 @@ export default function MaParfumeriePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeShelfId, setActiveShelfId] = useState<string | null>(null);
   const [activeSort, setActiveSort] = useState('recent');
+  const [favOnly, setFavOnly] = useState(false);
   const [attrFilters, setAttrFilters] = useState<FavoritesFilters>(EMPTY_FAVORI_FILTERS);
   const [showAttrSheet, setShowAttrSheet] = useState(false);
   const [shelfManagerVisible, setShelfManagerVisible] = useState(false);
@@ -98,7 +105,7 @@ export default function MaParfumeriePage() {
   }, [isAuthenticated, coords, uid]);
 
   const pillCounts = useMemo(() => {
-    const counts: Record<PillId, number> = { all: myParfums.length, to_stat: 0, to_try: 0, have: 0, had: 0 };
+    const counts: Record<PillId, number> = { all: myParfums.length, to_try: 0, have: 0, had: 0 };
     for (const m of myParfums) counts[pillOfItem(m)] += 1;
     return counts;
   }, [myParfums]);
@@ -108,6 +115,7 @@ export default function MaParfumeriePage() {
   const filtered = useMemo(() => {
     let result = pillFiltered;
     if (activeShelfId) result = result.filter(m => m.shelfIds.includes(activeShelfId));
+    if (favOnly) result = result.filter(m => m.isFav);
     result = result.filter(m => matchesFavoriFilters(m, attrFilters));
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
@@ -121,7 +129,7 @@ export default function MaParfumeriePage() {
         default: return b.addedAt.getTime() - a.addedAt.getTime();
       }
     });
-  }, [pillFiltered, activeShelfId, attrFilters, searchQuery, activeSort]);
+  }, [pillFiltered, activeShelfId, favOnly, attrFilters, searchQuery, activeSort]);
 
   const activeAttrCount = useMemo(() => countActiveFilters(attrFilters), [attrFilters]);
   const activeChips = useMemo(() => buildActiveChips(attrFilters), [attrFilters]);
@@ -177,6 +185,7 @@ export default function MaParfumeriePage() {
   const handleCreateShelf = useCallback((name: string, icon?: string, color?: string) => { createShelf(name, icon, color); }, [createShelf]);
   const handleRenameShelf = useCallback((id: string, name: string) => { updateShelf(id, { name }); }, [updateShelf]);
 
+  const handleToggleFavOnly = useCallback(() => { hapticsLight(); setFavOnly(v => !v); }, []);
   const handleOpenAttrSheet = useCallback(() => setShowAttrSheet(true), []);
   const handleCloseAttrSheet = useCallback(() => setShowAttrSheet(false), []);
   const handleAttrFiltersChange = useCallback((next: FavoritesFilters) => setAttrFilters(next), []);
@@ -194,6 +203,7 @@ export default function MaParfumeriePage() {
     setAttrFilters(EMPTY_FAVORI_FILTERS);
     setSearchQuery('');
     setActiveShelfId(null);
+    setFavOnly(false);
   }, []);
   const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
 
@@ -209,8 +219,9 @@ export default function MaParfumeriePage() {
       <ParfumCard
         parfum={myParfumToCard(item)}
         mode={density}
-        status={item.status}
+        status={item.status ?? (item.isFav ? 'to_try' : null)}
         rating={item.rating}
+        hidePrice
         onPressOverride={() => handleCardPress(item)}
       />
     </Pressable>
@@ -301,6 +312,9 @@ export default function MaParfumeriePage() {
                   <View style={s.badge}><Text style={s.badgeText} allowFontScaling={false}>{activeAttrCount}</Text></View>
                 ) : null}
               </Pressable>
+              <Pressable style={[s.toolBtn, favOnly && s.favBtnActive]} onPress={handleToggleFavOnly} hitSlop={8} accessibilityRole="button" accessibilityLabel="Mes coups de cœur" accessibilityState={{ checked: favOnly }}>
+                <Ionicons name={favOnly ? 'heart' : 'heart-outline'} size={16} color={favOnly ? theme.colors.favorite : theme.colors.textMuted} />
+              </Pressable>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
@@ -326,12 +340,12 @@ export default function MaParfumeriePage() {
               {GRID_MODES.map(m => (
                 <Pressable
                   key={m.key}
-                  style={[s.densityBtn, density === m.key && s.densityBtnActive]}
+                  style={[s.densityIconBtn, density === m.key && s.densityIconBtnActive]}
                   onPress={() => setDensity(m.key)}
                   accessibilityRole="button"
                   accessibilityLabel={m.label}
                 >
-                  <Text style={[s.densityBtnText, density === m.key && s.densityBtnTextActive]} allowFontScaling={false}>{m.label}</Text>
+                  <Ionicons name={DENSITY_ICON[m.key] as never} size={18} color={density === m.key ? theme.colors.primary : theme.colors.textMuted} />
                 </Pressable>
               ))}
               {shelves.length > 0 ? <View style={s.toolsSep} /> : null}
@@ -383,7 +397,7 @@ export default function MaParfumeriePage() {
               <View style={s.emptyFilter}>
                 <Ionicons name="funnel-outline" size={28} color={theme.colors.textMuted} />
                 <Text style={s.emptyFilterText}>
-                  {activeAttrCount > 0 || searchQuery.trim() || activeShelfId ? 'Aucun parfum ne correspond à ces filtres' : 'Aucun parfum dans cette vue'}
+                  {activeAttrCount > 0 || searchQuery.trim() || activeShelfId || favOnly ? 'Aucun parfum ne correspond à ces filtres' : 'Aucun parfum dans cette vue'}
                 </Text>
                 <Pressable style={s.emptyResetBtn} onPress={handleGlobalReset} accessibilityRole="button" accessibilityLabel="Réinitialiser">
                   <Text style={s.emptyResetBtnText}>Réinitialiser</Text>
@@ -467,6 +481,7 @@ function getStyles(t: Theme) {
     searchInput: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.text },
     toolBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 20, backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.border, minHeight: 40 },
     toolBtnLabel: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.primary },
+    favBtnActive: { backgroundColor: t.colors.favoriteSoft, borderColor: t.colors.favorite },
     badge: { minWidth: 16, height: 16, borderRadius: 8, backgroundColor: t.colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
     badgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: '#FFFFFF' },
 
@@ -490,10 +505,8 @@ function getStyles(t: Theme) {
     pillCountActive: { color: t.colors.primaryInk },
 
     toolsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 8, alignItems: 'center' },
-    densityBtn: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 6, backgroundColor: t.colors.surface2, minHeight: 36, justifyContent: 'center' },
-    densityBtnActive: { backgroundColor: t.colors.surface, ...t.shadow.card },
-    densityBtnText: { fontFamily: 'Inter_500Medium', fontSize: 11, color: t.colors.textMuted },
-    densityBtnTextActive: { fontFamily: 'Inter_600SemiBold', color: t.colors.text },
+    densityIconBtn: { width: 36, height: 36, borderRadius: 8, backgroundColor: t.colors.surface2, alignItems: 'center', justifyContent: 'center' },
+    densityIconBtnActive: { backgroundColor: t.colors.surface, ...t.shadow.card },
     toolsSep: { width: 1, height: 20, backgroundColor: t.colors.border },
     shelfPill: {
       flexDirection: 'row',

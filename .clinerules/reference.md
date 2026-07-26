@@ -630,10 +630,10 @@ export function verdictLabel(v: ScentVerdict | null | undefined): string | null;
 ```ts
 // Union favoris + user_parfum pour l'onglet Ma Parfumerie (compatible FilterableItem)
 export interface MyParfum { parfumId; nom; marque; imageUrl; status: UserParfumStatus | null; rating; isFav; /* + champs display/filtre */ };
-export type PillId = 'all' | 'to_stat' | StatusChipId;  // to_stat = favori sans ligne user_parfum
+export type PillId = 'all' | StatusChipId;  // cœur (favori sans statut) absorbé dans À sentir (plus de to_stat)
 export const MY_PARFUM_PILLS: { id: PillId; label: string; icon: string }[];
 export function buildMyParfums(favoris: UserFavori[], ups: UserParfum[]): MyParfum[];  // dédup par parfumId
-export function pillOfItem(m: MyParfum): Exclude<PillId, 'all'>;
+export function pillOfItem(m: MyParfum): Exclude<PillId, 'all'>;  // status null (cœur) → to_try
 export function filterByPill(items: MyParfum[], pill: PillId): MyParfum[];
 export function myParfumToCard(m: MyParfum): Parfum;  // pour ParfumCard
 ```
@@ -754,7 +754,7 @@ interface Props {
 
 ### `StatuerSheet` — `src/components/StatuerSheet.tsx`
 
-Sheet de long-press universelle (Ma Parfumerie) : entête du parfum, « Voir la fiche », 3 chips de statut inline (`STATUS_CHIPS`), « Retirer ». Radius top 24 (§4.16), Reduced Motion respecté.
+Sheet de long-press universelle (Ma Parfumerie) : entête du parfum, « Voir la fiche », section « Ton statut » = 3 chips inline (`STATUS_CHIPS`), « Retirer ». Radius top 24 (§4.16), Reduced Motion respecté.
 
 ```ts
 interface Props {
@@ -762,7 +762,7 @@ interface Props {
   nom: string;
   marque: string;
   imageUrl: string | null;
-  status: UserParfumStatus | null;   // null = favori « à statuer »
+  status: UserParfumStatus | null;   // null = favori sans statut (badge « À sentir »)
   removeLabel: string;               // « Retirer des favoris » | « Retirer de ma parfumerie »
   onClose: () => void;
   onView: () => void;
@@ -784,6 +784,7 @@ interface Props {
   onPressOverride?: () => void;
   status?: UserParfumStatus | null;  // badge statut dans le body (Ma Parfumerie)
   rating?: number | null;            // pastille ★ dans le body
+  hidePrice?: boolean;               // masque prix + badge -X% (contexte perso Ma Parfumerie)
 }
 ```
 
