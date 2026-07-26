@@ -1,8 +1,8 @@
 // src/hooks/useSotd.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import { getTodaySotd, setSotd } from '../services/wardrobe';
-import type { SotdEntry, WardrobeItem } from '../models/wardrobe.interface';
+import { getTodaySotd, setSotd } from '../services/user-parfum';
+import type { SotdEntry, UserParfum } from '../models/user-parfum.interface';
 
 export function useSotd(uid: string | null) {
   const [sotd, setSotdState] = useState<SotdEntry | null>(null);
@@ -17,7 +17,7 @@ export function useSotd(uid: string | null) {
     refresh();
   }, [refresh]);
 
-  const setTodaySotd = useCallback(async (item: WardrobeItem) => {
+  const setTodaySotd = useCallback(async (item: UserParfum) => {
     if (!uid) return;
     const prev = sotd;
     setSotdState({

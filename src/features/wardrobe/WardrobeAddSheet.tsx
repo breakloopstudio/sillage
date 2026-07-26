@@ -5,11 +5,14 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ownershipLabel } from '../../utils/ownership';
 import { hapticsLight, hapticsSuccess, hapticsError } from '../../services/haptics';
-import type { WardrobeItem } from '../../models/wardrobe.interface';
+import type { PossessionType } from '../../models/user-parfum.interface';
 
-const OWNERSHIP_OPTIONS: WardrobeItem['ownership'][] = ['have', 'want', 'had', 'sample', 'decant'];
+const POSSESSION_OPTIONS: { type: PossessionType; label: string }[] = [
+  { type: 'bottle', label: 'Flacon' },
+  { type: 'decant', label: 'Décant' },
+  { type: 'sample', label: 'Échantillon' },
+];
 
 interface Props {
   visible: boolean;
@@ -17,7 +20,7 @@ interface Props {
   parfumBrand?: string | null;
   parfumImageUrl?: string | null;
   onClose: () => void;
-  onSelect: (ownership: WardrobeItem['ownership'], sizeMl?: number | null) => Promise<void>;
+  onSelect: (type: PossessionType, sizeMl?: number | null) => Promise<void>;
 }
 
 export default function WardrobeAddSheet({
@@ -27,15 +30,15 @@ export default function WardrobeAddSheet({
   const s = useMemo(() => getStyles(theme), [theme]);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState<WardrobeItem['ownership'] | null>(null);
+  const [selected, setSelected] = useState<PossessionType | null>(null);
   const [sizeMl, setSizeMl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
 
-  const handleSelect = useCallback((ownership: WardrobeItem['ownership']) => {
+  const handleSelect = useCallback((type: PossessionType) => {
     hapticsLight();
-    setSelected(ownership);
+    setSelected(type);
     setSizeMl('');
     setError(null);
   }, []);
@@ -86,16 +89,16 @@ export default function WardrobeAddSheet({
           </View>
         </View>
 
-        <Text style={s.sectionLabel}>Choisir l'état</Text>
+        <Text style={s.sectionLabel}>Type de possession</Text>
         <View style={s.chips}>
-          {OWNERSHIP_OPTIONS.map(o => (
+          {POSSESSION_OPTIONS.map(o => (
             <Pressable
-              key={o}
-              style={[s.chip, selected === o && s.chipActive]}
-              onPress={() => handleSelect(o)}
+              key={o.type}
+              style={[s.chip, selected === o.type && s.chipActive]}
+              onPress={() => handleSelect(o.type)}
             >
-              <Text style={[s.chipText, selected === o && s.chipTextActive]}>
-                {ownershipLabel(o)}
+              <Text style={[s.chipText, selected === o.type && s.chipTextActive]}>
+                {o.label}
               </Text>
             </Pressable>
           ))}

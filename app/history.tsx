@@ -11,7 +11,7 @@ import { useAuthContext } from '../src/contexts/AuthContext';
 import { useScans } from '../src/hooks/useScans';
 import { getParfumById } from '../src/services/catalog';
 import { setPendingParfum } from '../src/services/catalog-bridge';
-import { addToWardrobe } from '../src/services/wardrobe';
+import { addUserParfum } from '../src/services/user-parfum';
 import { hapticsLight } from '../src/services/haptics';
 import { translateNote } from '../src/utils/translate-note';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
@@ -271,7 +271,7 @@ export default function HistoryPage() {
         icon: 'add-circle-outline',
         label: 'Ajouter à ma parfumerie',
         onPress: () => {
-          addToWardrobe(uid!, selectedScan.parfumId!, 'have', selectedScan.nom ?? undefined, selectedScan.marque ?? undefined, selectedScan.imageUrl ?? undefined, selectedScan.familleOlactive ?? undefined).catch(() => {});
+          addUserParfum(uid!, selectedScan.parfumId!, 'have').catch(() => {});
           setSelectedScan(null);
         },
       });

@@ -3,7 +3,7 @@
 // Mêmes contrôles de densité que la grille catalogue
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, FlatList, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,11 +11,17 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useCatalog } from '../src/hooks/useCatalog';
 import { useVoiceSearch, type VoiceState, type VoiceResult } from '../src/hooks/useVoiceSearch';
 import { transcribeVoice } from '../src/services/voice-search';
-import { getParfumsByFamily } from '../src/services/catalog';
+import { getParfumsByFamily, getPopularParfums, getPersonalizedSuggestions, getSeasonalParfums, getSuggestionIndex } from '../src/services/catalog';
 import { getFamilyByKey } from '../src/utils/olfactory-families';
+import { buildSuggestionIndex, matchSuggestions, type SuggestionIndex, type SuggestionTerm } from '../src/utils/suggest';
 import ParfumCard from '../src/components/ParfumCard';
+import CatalogRow from '../src/features/catalog/CatalogRow';
+import { TOP_BRANDS } from '../src/features/catalog/BrandCapsules';
+import { useAuthContext } from '../src/contexts/AuthContext';
+import { currentSeason, SEASON_META } from '../src/utils/season';
+import { hapticsLight, hapticsError } from '../src/services/haptics';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
-import { consumePendingCatalogQuery } from '../src/services/catalog-bridge';
+import { consumePendingCatalogQuery, setPendingParfum } from '../src/services/catalog-bridge';
 import { useDensityPreference, GRID_MODES } from '../src/hooks/useDensityPreference';
 import { useNetwork } from '../src/hooks/useNetwork';
 import { textOn } from '../src/utils/contrast';
@@ -43,6 +49,29 @@ async function saveRecentToStorage(items: string[]): Promise<void> {
   } catch { /* ignore */ }
 }
 
+const discoverStore = {
+  loaded: false,
+  label: 'Tendances du moment',
+  trends: [] as Parfum[],
+  seasonal: [] as Parfum[],
+};
+
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const shuffled = [...arr];
+  let s = seed;
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    s = (s * 16807 + 0) % 2147483647;
+    const j = s % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+const suggestStore = {
+  loaded: false,
+  index: { brands: [], names: [] } as SuggestionIndex,
+};
+
 export default function SearchScreen() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -61,6 +90,13 @@ export default function SearchScreen() {
   const { density: searchDensity, setDensity: setSearchDensity } = useDensityPreference();
   const { isOnline } = useNetwork();
   const [recentSearches, setRecentSearches] = useState<string[]>(recentStore.items);
+  const { user, authReady, isAuthenticated } = useAuthContext();
+  const season = useMemo(() => currentSeason(), []);
+  const [discover, setDiscover] = useState<{ trends: Parfum[]; seasonal: Parfum[] } | null>(
+    discoverStore.loaded ? { trends: discoverStore.trends, seasonal: discoverStore.seasonal } : null,
+  );
+  const [discoverLabel, setDiscoverLabel] = useState(discoverStore.label);
+  const [suggestIndex, setSuggestIndex] = useState<SuggestionIndex>(suggestStore.index);
 
   const handleVoiceResult = useCallback(async (result: VoiceResult) => {
     if (result.text) {
@@ -120,6 +156,54 @@ export default function SearchScreen() {
   }, []);
 
   useEffect(() => {
+    if (!authReady || discoverStore.loaded) return;
+    let cancelled = false;
+    const today = Math.floor(Date.now() / 86400000);
+    (async () => {
+      const [trendsRes, seasonalRes] = await Promise.allSettled([
+        (async () => {
+          if (isAuthenticated) {
+            const perso = await getPersonalizedSuggestions(user?.uid ?? '', 12);
+            if (perso.length > 0) return { items: perso, label: 'Pour toi' };
+          }
+          const pop = await getPopularParfums(12);
+          return { items: pop, label: 'Tendances du moment' };
+        })(),
+        getSeasonalParfums(season, 12),
+      ]);
+      if (cancelled) return;
+      const raw = trendsRes.status === 'fulfilled'
+        ? trendsRes.value
+        : { items: [] as Parfum[], label: 'Tendances du moment' };
+      const trends = seededShuffle(raw.items, today).slice(0, 8);
+      const trendIds = new Set(trends.map(p => p.id));
+      const seasonal = (seasonalRes.status === 'fulfilled' ? seasonalRes.value : [])
+        .filter(p => !trendIds.has(p.id))
+        .slice(0, 8);
+      discoverStore.loaded = true;
+      discoverStore.label = raw.label;
+      discoverStore.trends = trends;
+      discoverStore.seasonal = seasonal;
+      setDiscover({ trends, seasonal });
+      setDiscoverLabel(raw.label);
+    })();
+    return () => { cancelled = true; };
+  }, [authReady, isAuthenticated, user?.uid, season]);
+
+  useEffect(() => {
+    if (suggestStore.loaded) return;
+    let cancelled = false;
+    getSuggestionIndex(300).then(rows => {
+      if (cancelled) return;
+      const index = buildSuggestionIndex(rows);
+      suggestStore.loaded = true;
+      suggestStore.index = index;
+      setSuggestIndex(index);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (familyDef) return;
     if (initialQuery && initialQuery.trim().length >= 2) {
       setSearchText(initialQuery);
@@ -147,27 +231,70 @@ export default function SearchScreen() {
     }
   }, [isOnline, voiceState, voiceSearch, clear, handleVoiceError]);
 
-  const handleResultPress = useCallback((id: string) => {
-    const text = searchText.trim();
-    if (text && text.length >= 2) {
-      recentLoadedRef.current = true;
-      recentStore.items = [text, ...recentStore.items.filter(x => x.toLowerCase() !== text.toLowerCase())].slice(0, 5);
-      setRecentSearches(recentStore.items);
-      saveRecentToStorage(recentStore.items);
-    }
-    router.push(`/catalog/${id}`);
-  }, [searchText, router]);
+  const persistRecent = useCallback((term: string) => {
+    const t = term.trim();
+    if (!t || t.length < 2) return;
+    recentLoadedRef.current = true;
+    recentStore.items = [t, ...recentStore.items.filter(x => x.toLowerCase() !== t.toLowerCase())].slice(0, 5);
+    setRecentSearches(recentStore.items);
+    saveRecentToStorage(recentStore.items);
+  }, []);
+
+  const handleResultPress = useCallback((item: Parfum) => {
+    setPendingParfum(item);
+    persistRecent(searchText);
+    router.push(`/catalog/${item.id}`);
+  }, [persistRecent, searchText, router]);
+
+  const handleSubmitEditing = useCallback(() => {
+    persistRecent(searchText);
+    inputRef.current?.blur();
+  }, [persistRecent, searchText]);
+
+  const handleClearRecent = useCallback(() => {
+    hapticsError();
+    recentLoadedRef.current = true;
+    recentStore.items = [];
+    setRecentSearches([]);
+    AsyncStorage.removeItem(RECENT_KEY).catch(() => {});
+  }, []);
 
   const handleRecentTap = useCallback((term: string) => {
+    hapticsLight();
     setSearchText(term);
     search(term);
     inputRef.current?.blur();
   }, [search]);
 
+  const handleBrandTap = useCallback((brand: string) => {
+    hapticsLight();
+    setSearchText(brand);
+    search(brand);
+    inputRef.current?.blur();
+  }, [search]);
+
+  const suggestions = useMemo(
+    () => matchSuggestions(suggestIndex, searchText, 6),
+    [suggestIndex, searchText],
+  );
+
+  const handleSuggestionPress = useCallback((term: SuggestionTerm) => {
+    hapticsLight();
+    if (term.kind === 'parfum' && term.id) {
+      persistRecent(term.sub ? `${term.sub} ${term.label}` : term.label);
+      router.push(`/catalog/${term.id}`);
+      return;
+    }
+    setSearchText(term.label);
+    search(term.label);
+    inputRef.current?.blur();
+  }, [persistRecent, router, search]);
+
   const inFamilyMode = familyResults !== null;
   const displayParfums = inFamilyMode ? familyResults! : parfums;
   const isSearching = searching || familyLoading;
   const hasResults = displayParfums.length > 0 && !isSearching;
+  const showSuggestions = searchText.trim().length >= 1 && suggestions.length > 0 && !hasResults && !inFamilyMode;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
@@ -188,6 +315,7 @@ export default function SearchScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
+            onSubmitEditing={handleSubmitEditing}
             keyboardAppearance={keyboardAppearance}
           />
           <Pressable
@@ -214,82 +342,172 @@ export default function SearchScreen() {
       </View>
 
       {!searchText && (
-        <View style={s.recentSection}>
-          <Text style={s.recentTitle}>Recherches récentes</Text>
-          <View style={s.recentChips}>
-            {recentSearches.length > 0 ? recentSearches.map(term => (
-              <Pressable key={term} style={s.recentChip} onPress={() => handleRecentTap(term)}>
-                <Ionicons name="time-outline" size={14} color={theme.colors.textMuted} />
-                <Text style={s.recentChipText}>{term}</Text>
-              </Pressable>
-            )) : (
-              <Text style={s.recentEmpty}>Aucune recherche récente</Text>
-            )}
-          </View>
-        </View>
-      )}
-
-      {isSearching && <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />}
-
-      {hasResults ? (
-        <>
-          {inFamilyMode && familyDef && (
-            <View style={[s.familyHeader, { backgroundColor: theme.colors[familyDef.accentSoft] }]}>
-              <View style={[s.familyIcon, { backgroundColor: theme.colors[familyDef.accent] }]}>
-                <Ionicons name={familyDef.icon as never} size={16} color={textOn(theme.colors[familyDef.accent])} />
+        <ScrollView
+          style={s.discoverScroll}
+          contentContainerStyle={s.discoverScrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          {recentSearches.length > 0 && (
+            <View style={s.recentSection}>
+              <View style={s.recentHeaderRow}>
+                <Text style={s.sectionTitle}>Recherches récentes</Text>
+                <Pressable
+                  onPress={handleClearRecent}
+                  hitSlop={12}
+                  style={s.clearBtn}
+                  accessibilityLabel="Effacer les recherches récentes"
+                >
+                  <Text style={s.clearBtnText}>Tout effacer</Text>
+                </Pressable>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.familyTitle}>{familyDef.label}</Text>
-                <Text style={s.familyMeta}>
-                  {displayParfums.length.toLocaleString('fr-FR')} parfums · {familyDef.tagline}
-                </Text>
+              <View style={s.recentChips}>
+                {recentSearches.map(term => (
+                  <Pressable
+                    key={term}
+                    style={s.recentChip}
+                    onPress={() => handleRecentTap(term)}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    <Ionicons name="time-outline" size={14} color={theme.colors.textMuted} />
+                    <Text style={s.recentChipText}>{term}</Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
           )}
-          <View style={s.densityRow}>
-            {GRID_MODES.map(m => (
+
+          <View style={s.brandsSection}>
+            <Text style={[s.sectionTitle, s.brandsTitle]}>Maisons iconiques</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.brandsChips}
+            >
+              {TOP_BRANDS.map(brand => (
+                <Pressable
+                  key={brand}
+                  style={s.recentChip}
+                  onPress={() => handleBrandTap(brand)}
+                  hitSlop={{ top: 6, bottom: 6 }}
+                >
+                  <Text style={s.recentChipText}>{brand}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+
+          {discover !== null && discover.trends.length > 0 && (
+            <CatalogRow title={discoverLabel} collapsible={false}>
+              {discover.trends.map(p => (
+                <ParfumCard key={p.id} parfum={p} mode="compact" />
+              ))}
+            </CatalogRow>
+          )}
+
+          {discover !== null && discover.seasonal.length > 0 && (
+            <CatalogRow title={`Parfaits pour ${SEASON_META[season].withArticle}`} collapsible={false}>
+              {discover.seasonal.map(p => (
+                <ParfumCard key={p.id} parfum={p} mode="compact" />
+              ))}
+            </CatalogRow>
+          )}
+        </ScrollView>
+      )}
+
+      {showSuggestions ? (
+        <View style={s.suggestDropdown}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {suggestions.map((term, i) => (
               <Pressable
-                key={m.key}
-                style={[s.segmentBtn, searchDensity === m.key && s.segmentBtnActive]}
-                onPress={() => setSearchDensity(m.key)}
+                key={`${term.kind}_${term.id ?? term.key}`}
+                style={[s.suggestRow, i < suggestions.length - 1 && s.suggestRowBorder]}
+                onPress={() => handleSuggestionPress(term)}
+                accessibilityRole="button"
+                accessibilityLabel={term.kind === 'brand' ? `${term.label}, marque` : term.sub ? `${term.label}, ${term.sub}` : term.label}
               >
-                <Text style={[s.segmentBtnText, searchDensity === m.key && s.segmentBtnTextActive]}>
-                  {m.label}
-                </Text>
+                <Ionicons
+                  name={term.kind === 'brand' ? 'business-outline' : 'flask-outline'}
+                  size={16}
+                  color={theme.colors.textMuted}
+                />
+                <View style={s.suggestTexts}>
+                  <Text style={s.suggestLabel} numberOfLines={1}>{term.label}</Text>
+                  {term.sub ? <Text style={s.suggestSub} numberOfLines={1}>{term.sub}</Text> : null}
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
               </Pressable>
             ))}
-          </View>
-          <FlatList
-            key={`search-${searchDensity}-${resolvedMode}`}
-            data={displayParfums}
-            numColumns={searchDensity === 'list' ? 1 : 2}
-            keyExtractor={(p, i) => `${p.id}_${i}`}
-            renderItem={({ item }) => (
-              <View style={searchDensity === 'list' ? s.resultCardWrapFull : s.resultCardWrap}>
-                <Pressable onPress={() => handleResultPress(item.id)}>
-                  <ParfumCard parfum={item} mode={searchDensity} />
-                </Pressable>
+          </ScrollView>
+        </View>
+      ) : (
+        <>
+          {isSearching && <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />}
+
+          {hasResults ? (
+            <>
+              {inFamilyMode && familyDef && (
+                <View style={[s.familyHeader, { backgroundColor: theme.colors[familyDef.accentSoft] }]}>
+                  <View style={[s.familyIcon, { backgroundColor: theme.colors[familyDef.accent] }]}>
+                    <Ionicons name={familyDef.icon as never} size={16} color={textOn(theme.colors[familyDef.accent])} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.familyTitle}>{familyDef.label}</Text>
+                    <Text style={s.familyMeta}>
+                      {displayParfums.length.toLocaleString('fr-FR')} parfums · {familyDef.tagline}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <View style={s.densityRow}>
+                {GRID_MODES.map(m => (
+                  <Pressable
+                    key={m.key}
+                    style={[s.segmentBtn, searchDensity === m.key && s.segmentBtnActive]}
+                    onPress={() => setSearchDensity(m.key)}
+                  >
+                    <Text style={[s.segmentBtnText, searchDensity === m.key && s.segmentBtnTextActive]}>
+                      {m.label}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
-            )}
-            columnWrapperStyle={searchDensity !== 'list' ? s.resultRow : undefined}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          />
+              <FlatList
+                key={`search-${searchDensity}-${resolvedMode}`}
+                data={displayParfums}
+                numColumns={searchDensity === 'list' ? 1 : 2}
+                keyExtractor={(p, i) => `${p.id}_${i}`}
+                renderItem={({ item }) => (
+                  <View style={searchDensity === 'list' ? s.resultCardWrapFull : s.resultCardWrap}>
+                    <ParfumCard
+                      parfum={item}
+                      mode={searchDensity}
+                      onPressOverride={() => handleResultPress(item)}
+                    />
+                  </View>
+                )}
+                columnWrapperStyle={searchDensity !== 'list' ? s.resultRow : undefined}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              />
+            </>
+          ) : error && !inFamilyMode ? (
+            <View style={s.errorContainer}>
+              <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.primary} style={{ marginBottom: 12 }} />
+              <Text style={s.errorTitle}>Impossible de rechercher</Text>
+              <Text style={s.errorDesc}>{error}</Text>
+            </View>
+          ) : !isSearching && (inFamilyMode || searchText.length >= 2) ? (
+            <View style={s.empty}>
+              <Ionicons name="search-outline" size={48} color={theme.colors.textMuted} style={{ opacity: 0.4 }} />
+              <Text style={s.emptyTitle}>Aucun résultat</Text>
+              <Text style={s.emptyDesc}>Essaie une autre orthographe ou scanne un flacon.</Text>
+            </View>
+          ) : null}
         </>
-      ) : error && !inFamilyMode ? (
-        <View style={s.errorContainer}>
-          <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.primary} style={{ marginBottom: 12 }} />
-          <Text style={s.errorTitle}>Impossible de rechercher</Text>
-          <Text style={s.errorDesc}>{error}</Text>
-        </View>
-      ) : !isSearching && (inFamilyMode || searchText.length >= 2) ? (
-        <View style={s.empty}>
-          <Ionicons name="search-outline" size={48} color={theme.colors.textMuted} style={{ opacity: 0.4 }} />
-          <Text style={s.emptyTitle}>Aucun résultat</Text>
-          <Text style={s.emptyDesc}>Essaie une autre orthographe ou scanne un flacon.</Text>
-        </View>
-      ) : null}
+      )}
     </SafeAreaView>
   );
 }
@@ -347,13 +565,60 @@ function getStyles(t: Theme) {
       paddingTop: 8,
       paddingBottom: 12,
     },
-    recentTitle: {
+    discoverScroll: { flex: 1 },
+    discoverScrollContent: { paddingBottom: 24 },
+    recentHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    sectionTitle: {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 13,
       textTransform: 'uppercase',
       letterSpacing: 0.8,
       color: t.colors.textMuted,
-      marginBottom: 10,
+    },
+    brandsTitle: { marginBottom: 10 },
+    clearBtn: { paddingVertical: 4, paddingHorizontal: 8 },
+    clearBtnText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      color: t.colors.primary,
+    },
+    brandsSection: { paddingHorizontal: 16, paddingBottom: 8 },
+    brandsChips: { gap: 8, paddingRight: 16 },
+    suggestDropdown: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      borderRadius: t.radius.base,
+      backgroundColor: t.colors.surface,
+      ...t.shadow.elevated,
+    },
+    suggestRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      minHeight: 48,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+    },
+    suggestRowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.colors.border,
+    },
+    suggestTexts: { flex: 1 },
+    suggestLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 15,
+      color: t.colors.text,
+    },
+    suggestSub: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      color: t.colors.textMuted,
+      marginTop: 1,
     },
     recentChips: {
       flexDirection: 'row',
@@ -375,11 +640,6 @@ function getStyles(t: Theme) {
       fontFamily: 'Inter_500Medium',
       fontSize: 13,
       color: t.colors.text,
-    },
-    recentEmpty: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 13,
-      color: t.colors.textMuted,
     },
     resultRow: { gap: 8, marginBottom: 8 },
     resultCardWrap: { flex: 1, maxWidth: '50%' },

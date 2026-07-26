@@ -36,14 +36,14 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (14)        # supabase, catalog, user-data, wardrobe, scentlist, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
-├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, wardrobe, scentlist, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (16)        # useAuth, useCatalog, useDensityPreference, useFavoris, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useScentList, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWardrobe, useWeather
-├── contexts/     (1)         # AuthContext (ThemeContext est dans src/theme/)
-├── components/   (14)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate
+├── services/     (14)        # supabase, catalog, user-data, user-parfum, possessions, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
+├── hooks/        (15)        # useAuth, useCatalog, useDensityPreference, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── contexts/     (2)         # AuthContext, FavorisContext (source de vérité favoris temps réel partagée — ThemeContext est dans src/theme/)
+├── components/   (15)        # ParfumCard, Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
-│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero, CollapsingHeader, StickyBottomBar, BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
+│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (parfumerie + carnet unifiés), SaveButton, useSaveController (logique d'enregistrement partagée fiche détail + favoris), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
 │   ├── favorites/            # FavoritesContent (onglet Sélection, segment Favoris)
 │   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs — l'avatar utilisateur vit ici, pas de ProfileAvatar) + NavigationChromeContext
 │   ├── profile/              # Contenu onglet Profil
@@ -54,7 +54,7 @@ src/
 │   └── wardrobe/             # WardrobeAddSheet, WardrobeCard, WardrobeGrid, WardrobeQuickSheet, SOTDCard, SOTDPicker, FilterBar, StarRating, ShelfManager
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (2)         # env, index (firebase.config supprimé — migration Supabase)
-├── models/       (8)         # Parfum (+searchText, +imageUrl2x), WardrobeItem (+Shelf, SotdEntry), UserFavori, UserScan, UserScentItem (+ScentVerdict), UserCollectionItem, ScanResult, index
+├── models/       (6)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf, SotdEntry), UserFavori, UserScan, ScanResult, index
 └── utils/        (12)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, ownership, season, favori-filters, contrast, weather-codes, weather-scoring, olfactory-families, alpha
 
 supabase/                     # Backend Supabase (versionné)

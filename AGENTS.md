@@ -1,4 +1,4 @@
-# ParfumScan React — Environment & Commands (v7.2)
+# ParfumScan React — Environment & Commands (v8.0)
 
 ## Environnement local (Windows)
 | Variable | Valeur |
@@ -255,6 +255,36 @@ Parfumerie (ex « Garde-robe ») — icône `flask`. Favoris en grille (filtres 
 
 **Docs resynchronisées** : rules.md §2 (arborescences réelles : 14 services, 17 hooks, 13 components, 10 utils, 8 models, 10 dossiers features), §13 (227 tests / 17 suites), §15 (météo GPS-only, bannière unifiée — WeatherWidget supprimé v6.20), §19 (onboarding supprimé). reference.md : weather.ts GPS-only, +`scentlist.ts`, +`account.ts`, +`useScentList`, +`UserScentItem`, suppression du bloc DockBar pré-v6.22 (5 positions), FilterSheet `items: FilterableItem[]`, EmptyState 5 variantes.
 
+## Notes v7.4 — Curation en masse : cœur sur les cartes + FavorisContext + définition depuis Favoris (26/07/2026)
+
+**Modèle produit verrouillé** : curation (❤️ en masse, rapide, dans les listes) → qualification (définir l'état, lent, sur la fiche). L'onglet Favoris = pivot/file d'attente entre les deux. La boucle se ferme : les favoris nourrissent la RPC `personalized_suggestions` (0006_functions.sql) → « Pour vous » s'améliore.
+
+**FavorisContext** (`src/contexts/FavorisContext.tsx`, monté dans `_layout.tsx` sous AuthProvider) : source de vérité unique — 1 subscription `onFavoris`, expose `favoris`, `favIds: Set`, `isFav(id)`, `toggleFav(parfum)` (optimiste + rollback), `removeFavori(parfumId)`. Remplace 3 états éclatés supprimés : hook `useFavoris` (fichier supprimé), `isParfumFavori` + état local `isFav`/`favoriId` de la fiche détail, et l'effect `Promise.all` fav/wardrobe/scent de `[id].tsx`. Un cœur tapé n'importe où se synchronise instantanément (catalogue ↔ onglet Favoris ↔ hero fiche).
+
+**FavButton** (`src/components/FavButton.tsx`) : cœur auto-contenu (lit le contexte, pop spring `withSequence`+`withSpring`, `hapticsSuccess` ajout / `hapticsLight` retrait, auth gate → login, coupé en Reduced Motion). 3 tailles : `xs` (liste 26px), `sm` (cartes 32px), `lg` (hero 40px). Se positionne en absolute top-right.
+
+**Cœur sur ParfumCard** : rendu dans les 4 modes (compact/comfortable/compactPlus/liste), top-**right** (le badge promo est top-**left** dans le code, contrairement au guide §4.4). `ParfumCard` étant la surface universelle (9 écrans : catalogue grille + 4 rangées, recherche ×3, scan, voix, similaires, nez, historique, favoris), un seul changement = cœur partout. Placeholders passés en `position: 'relative'`.
+
+**useSaveController** (`src/features/catalog/useSaveController.ts`) : hook qui encapsule toute la logique d'enregistrement (wardrobeItem + scentItem + saveLabel + handlers SaveSheet/TrySheet, état optimiste). Réutilisé par la fiche détail ET l'onglet Favoris — zéro duplication. La fiche `[id].tsx` perd ~150 lignes d'état/handlers.
+
+**Bug de perte de données corrigé (Favoris)** : le menu long-press « Déplacer vers Parfumerie » appelait `moveToCollection` qui écrit dans la table `collection` **morte** (plus aucun consommateur UI depuis v7.1 ; l'onglet Parfumerie lit `wardrobe`) → le parfum disparaissait. Remplacé, ainsi que « Ajouter à ma parfumerie » (ownership 'have' codé en dur) et « Déplacer vers le carnet », par une action unique **« Définir »** qui ouvre la `SaveSheet` (choix complet d'ownership + carnet). Menu réduit à 3 actions : Voir le détail / Définir / Retirer. (Les fonctions service `moveToCollection`/`moveToScentList` restent en base, testées, mais ne sont plus appelées par l'UI — la voie de perte est fermée.)
+
+**Fichiers** : `FavorisContext.tsx`, `FavButton.tsx`, `useSaveController.ts` (créés) ; `ParfumCard.tsx`, `DetailHero.tsx`, `FavoritesContent.tsx`, `app/catalog/[id].tsx`, `app/_layout.tsx` (modifiés) ; `src/hooks/useFavoris.ts` (supprimé). Tests : 221/221, 19 suites. `tsc` : 0 erreur app/ + src/.
+
+## Notes v7.3 — Fiche détail : barre d'action refondue + SaveSheet unifiée (26/07/2026)
+
+**Barre d'action flottante** : les 3 icônes non labelisées (cœur/pipette/fiole) supprimées — layout refondu `[prix −X%] [Enregistrer] [Voir l'offre]`. `SaveButton` à état (`src/features/catalog/SaveButton.tsx`) : vide = « Enregistrer » (surface2), enregistré = statut affiché (« Possédé », « À essayer », « Coup de cœur »…, primarySoft + bookmark plein). Décliné en variante `bar` (flex:1) et `flow` (pleine largeur, ajouté dans le flux sous la section prix — l'action est accessible avant l'apparition de la barre).
+
+**Cœur favori sur le hero** : pattern Airbnb/Vinted — pastille 40px top-right de `DetailHero`, pop spring (withSequence timing 110ms → spring damping 10/stiffness 500) + `hapticsSuccess` à l'ajout / `hapticsLight` au retrait, coupé en Reduced Motion.
+
+**SaveSheet** (`src/features/catalog/SaveSheet.tsx`) : sheet content §4.16 (radius top 24, entrée withTiming 250 cubic-out + backdrop fade, sortie 200ms) unifiant les deux dimensions d'enregistrement, à application live (pas de bouton confirmer global) :
+- « Ta parfumerie » : 5 chips ownership (Possédé/Souhaité/Ancien/Échantillon/Décant — principe d'organisation conservé, upsert via `addToWardrobe` qui préserve rating/notes au conflit 23505) ; Décant → input ml inline + validation ; liens « Ouvrir dans ma parfumerie » / « Retirer ».
+- « Carnet d'essais » : chip « À essayer » + 4 chips verdict (réutilisation de `VERDICT_OPTIONS` exporté de TrySheet) ; lien « Notes détaillées… » → TrySheet (édition riche conservée).
+
+**Câblage** : `[id].tsx` — `saveLabel = useMemo` (priorité parfumerie > carnet), `handleSavePress` (auth gate), `handleSetVerdict` (markScentTried si to_try, updateScentItem si tried), `handleRemoveWardrobe` (rollback optimiste). `handleWardrobePress`/`handleScentPress`/`showWardrobeSheet` supprimés ; `WardrobeAddSheet` reste utilisé par `ScentListContent`.
+
+**Fichiers** : `SaveSheet.tsx` + `SaveButton.tsx` (créés), `StickyBottomBar.tsx` (réécrit), `DetailHero.tsx` (cœur), `TrySheet.tsx` (export VERDICT_OPTIONS), `app/catalog/[id].tsx` (câblage). Tests : 209/209, 18 suites. `tsc` : 0 erreur app/ + src/.
+
 ## Notes v7.2 — Nettoyage héritage Firestore (26/07/2026)
 
 **Audit + suppression des règles héritées de Firestore** (obsolètes depuis la migration Supabase) :
@@ -340,3 +370,31 @@ Nécessite un compte de service Firebase :
 | `imageUrlTransparent` = null, `imageFallbacks` = [] | Non disponibles dans le scrape, non nécessaires pour l'UI |
 | `source` = `'seed'` | Distingue les données importées des données API live |
 | Photos communauté (`images[]`, photogram) supprimées | Contenu utilisateur, risque légal, jamais affiché |
+
+## Notes v8.0 — Modèle unifié user_parfum + possessions (26/07/2026)
+
+**Refonte du modèle de données utilisateur.** Fusion de `wardrobe` + `scentlist` en une seule table `user_parfum` (parcours unifié). Les objets physiques (flacon, décant, échantillon) deviennent des `possessions` multiples par parfum. Le cœur (`favoris`) reste une table séparée et indépendante.
+
+**Nouveau modèle :**
+- `user_parfum` (PK: user_id + parfum_id) — statut (`to_try | tried | want | have | had`), verdict, rating, notes, tried_at, shelf_ids, sotd_count, is_signature + champs dénormalisés
+- `possessions` (PK: uuid, FK → user_parfum) — type (`bottle | decant | sample`), size_ml, quantity, for_sale, notes
+- `favoris` — inchangé (cœur léger, indépendant du statut)
+
+**Principes :**
+- Un parfum = une seule ligne dans `user_parfum`, son statut avance dans le temps (transitions libres, pas linéaires)
+- Possessions multiples : 1 flacon 100ml + 2 décants 5ml = 3 rows
+- Le cœur est orthogonal au statut (on peut aimer sans posséder, posséder sans aimer)
+- Plus de "déplacement" entre tables — un changement de statut est un simple UPDATE
+- `had` garde tout en mémoire (verdict, rating, étagères, SOTD) — utile pour les algos de reco
+
+**Migration SQL** : `0021_unified_user_parfum.sql` — nouvelles tables + backfill depuis wardrobe/scentlist + RPCs mises à jour (set_sotd, delete_shelf, export_user_data v3, personalized_suggestions v3) + suppression des RPCs move_* obsolètes. Appliquée sur le cloud (`supabase db push`).
+
+**Fichiers créés** : `src/models/user-parfum.interface.ts`, `src/services/impl/user-parfum.supabase.ts`, `src/services/impl/possessions.supabase.ts`, `src/services/user-parfum.ts`, `src/services/possessions.ts`, `src/hooks/useUserParfum.ts`, `src/hooks/usePossessions.ts`, `__tests__/services/user-parfum.test.ts`
+
+**Fichiers supprimés** : `wardrobe.interface.ts`, `user-scent.interface.ts`, `user-collection.interface.ts`, `wardrobe.supabase.ts`, `scentlist.supabase.ts`, `wardrobe.ts` (service), `scentlist.ts` (service), `useWardrobe.ts`, `useScentList.ts`, `ownership.ts`, `ownership.test.ts`, `wardrobe.test.ts`
+
+**Fichiers réécrits** : `useSaveController.ts` (1 état au lieu de 2), `SaveSheet.tsx` (statuts + verdict + possessions), `ScentListContent.tsx` (useUserParfum), `collection.tsx`, `profile.tsx`, `wardrobe/[parfumId].tsx`, `history.tsx`, `useProfileStats.ts`, `useShelves.ts`, `useSotd.ts`, + 10 composants wardrobe (WardrobeCard, WardrobeGrid, WardrobeQuickSheet, WardrobeAddSheet, FilterBar, SOTDPicker, SOTDCard, ShelfManager, ScentCard, TrySheet)
+
+**Scripts images** : inchangés (opèrent sur `parfums.image_url`/`image_url_2x`, pas sur les tables user).
+
+**Tests** : 18 suites, 204 tests. `tsc --noEmit` : 0 erreur app/ + src/.

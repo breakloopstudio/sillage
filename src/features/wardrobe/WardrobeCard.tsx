@@ -4,10 +4,10 @@ import { useMemo, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import { ownershipLabel } from '../../utils/ownership';
+import { statusLabel } from '../catalog/useSaveController';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
-import type { WardrobeItem } from '../../models/wardrobe.interface';
+import type { UserParfum } from '../../models/user-parfum.interface';
 
 const PALETTE = ['#5B21B6', '#1E40AF', '#065F46', '#92400E', '#991B1B', '#9D174D', '#3730A3', '#854D0E'];
 
@@ -18,7 +18,7 @@ function brandColor(brand: string): string {
 }
 
 interface Props {
-  item: WardrobeItem;
+  item: UserParfum;
   onPress: () => void;
 }
 
@@ -34,11 +34,11 @@ export default function WardrobeCard({ item, onPress }: Props) {
       have: { bg: theme.colors.primary, color: textOn(theme.colors.primary) },
       want: { bg: theme.colors.secondary, color: textOn(theme.colors.secondary) },
       had: { bg: 'rgba(0,0,0,0.55)', color: '#FFFFFF' },
-      sample: { bg: theme.colors.deal, color: textOn(theme.colors.deal) },
-      decant: { bg: theme.colors.dealSoft, color: theme.colors.deal },
+      to_try: { bg: theme.colors.deal, color: textOn(theme.colors.deal) },
+      tried: { bg: theme.colors.dealSoft, color: theme.colors.deal },
     };
-    return base[item.ownership] ?? base.have;
-  }, [item.ownership, theme]);
+    return base[item.status] ?? base.have;
+  }, [item.status, theme]);
 
   return (
     <View style={s.wrapper}>
@@ -66,7 +66,7 @@ export default function WardrobeCard({ item, onPress }: Props) {
 
           <View style={[s.ownershipBadge, { backgroundColor: badgeStyle.bg }]}>
             <Text allowFontScaling={false} style={[s.ownershipText, { color: badgeStyle.color }]}>
-              {ownershipLabel(item.ownership)}
+              {statusLabel(item.status)}
             </Text>
           </View>
 

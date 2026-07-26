@@ -253,7 +253,7 @@ export default function SettingsPage() {
         </Pressable>
       </ScrollView>
       {showRunner && (
-        <View style={StyleSheet.absoluteFill}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0B0712', margin: -100, padding: 100 }]}>
           <RunnerGame onClose={handleRunnerClose} />
         </View>
       )}

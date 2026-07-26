@@ -1,8 +1,8 @@
 // src/hooks/useShelves.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import { onShelves, createShelf, updateShelf, deleteShelf } from '../services/wardrobe';
-import type { Shelf } from '../models/wardrobe.interface';
+import { onShelves, createShelf, updateShelf, deleteShelf } from '../services/user-parfum';
+import type { Shelf } from '../models/user-parfum.interface';
 
 export function useShelves(uid: string | null) {
   const [shelves, setShelves] = useState<Shelf[]>([]);

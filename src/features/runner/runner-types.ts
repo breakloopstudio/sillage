@@ -46,6 +46,8 @@ export const OBSTACLE_DEFS: ObstacleDef[] = [
 export const FLYING_OBSTACLE_Y_OFFSET = 110;
 export const FLYING_OBSTACLE_MIN_SCORE = 300;
 
+export const PICKUP_SIZE = 38;
+
 export const PALETTE_INTERVAL = 800;
 
 export const PALETTES = [

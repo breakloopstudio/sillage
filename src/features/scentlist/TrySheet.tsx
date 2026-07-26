@@ -6,10 +6,9 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import StarRating from '../wardrobe/StarRating';
-import type { UserScentItem, ScentVerdict } from '../../models';
-import type { WardrobeItem } from '../../models/wardrobe.interface';
+import type { UserParfum, ScentVerdict } from '../../models/user-parfum.interface';
 
-const VERDICT_OPTIONS: { key: ScentVerdict; label: string; icon: string; token: string }[] = [
+export const VERDICT_OPTIONS: { key: ScentVerdict; label: string; icon: string; token: string }[] = [
   { key: 'love',    label: 'Coup de cœur',  icon: 'heart',        token: 'secondary' },
   { key: 'like',    label: 'J\'aime',       icon: 'thumbs-up',    token: 'deal' },
   { key: 'meh',     label: 'Mitigé',        icon: 'remove-outline', token: 'fair' },
@@ -28,7 +27,7 @@ interface Props {
   parfumName: string;
   parfumBrand: string;
   parfumImageUrl: string | null;
-  existingItem: UserScentItem | null;
+  existingItem: UserParfum | null;
   saving?: boolean;
   onClose: () => void;
   onSave: (data: TrySheetSaveData) => void;

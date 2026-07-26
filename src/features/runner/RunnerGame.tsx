@@ -9,10 +9,12 @@ import Animated, {
   withSequence,
   withTiming,
   withSpring,
+  useReducedMotion,
+  FadeIn,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useTheme, type Theme } from '../../theme/ThemeContext';
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { hapticsLight, hapticsSuccess, hapticsError } from '../../services/haptics';
 import { getHighScore, setHighScore, getSkinForScore, unlockSkin, getUnlockedSkins } from './runner-storage';
 import { SKINS } from './runner-storage';
@@ -28,13 +30,16 @@ import {
   type GameDimensions,
   JUMP_VELOCITY,
   DOUBLE_JUMP_VELOCITY,
+  PALETTES,
 } from './runner-types';
 
 interface Props {
   onClose: () => void;
 }
 
-function getStyles(t: Theme) {
+const MILESTONES = [500, 1000, 2000, 3000];
+
+function getStyles() {
   return {
     container: {
       ...StyleSheet.absoluteFill,
@@ -46,6 +51,7 @@ function getStyles(t: Theme) {
       top: 60,
       right: 24,
       alignItems: 'flex-end' as const,
+      zIndex: 50,
     },
     scoreText: {
       fontFamily: 'Inter_700Bold',
@@ -69,11 +75,7 @@ function getStyles(t: Theme) {
       alignItems: 'center' as const,
       zIndex: 100,
     },
-    closeText: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 20,
-      color: '#988EA8',
-    },
+
     startOverlay: {
       ...StyleSheet.absoluteFill,
       justifyContent: 'center' as const,
@@ -165,11 +167,16 @@ function getStyles(t: Theme) {
       fontSize: 16,
       color: '#FFFFFF',
     },
+    quitBtn: {
+      marginTop: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      alignItems: 'center' as const,
+    },
     quitText: {
       fontFamily: 'Inter_400Regular',
       fontSize: 14,
       color: '#988EA8',
-      marginTop: 14,
     },
     goPickups: {
       fontFamily: 'Inter_400Regular',
@@ -177,13 +184,10 @@ function getStyles(t: Theme) {
       color: '#988EA8',
       marginTop: 12,
     },
-    popupText: {
-      fontFamily: 'Inter_800ExtraBold',
-      fontSize: 16,
+    goFlash: {
+      fontFamily: 'PlayfairDisplay_700Bold',
+      fontSize: 64,
       color: '#D4A960',
-      textShadowColor: 'rgba(0,0,0,0.5)',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 3,
     },
   } as const;
 }
@@ -238,8 +242,8 @@ function FloatingPopup({ entry, onDone }: { entry: PopupEntry; onDone: (id: numb
 }
 
 export default function RunnerGame({ onClose }: Props) {
-  const { theme } = useTheme();
-  const s = useMemo(() => getStyles(theme), [theme]);
+  const s = useMemo(() => getStyles(), []);
+  const reduceMotion = useReducedMotion();
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const dims: GameDimensions = useMemo(() => ({
@@ -284,6 +288,8 @@ export default function RunnerGame({ onClose }: Props) {
   const milestoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [skin, setSkin] = useState<typeof SKINS[number]>(SKINS[0]);
+  const [paletteIdx, setPaletteIdx] = useState(0);
+  const [showGo, setShowGo] = useState(false);
 
   const shakeX = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
@@ -332,12 +338,12 @@ export default function RunnerGame({ onClose }: Props) {
     getHighScore().then(v => setHighScoreState(v)).catch(() => {});
     getUnlockedSkins().then(keys => {
       const best = [...keys].sort((a, b) => {
-        const sa = SKINS.find(s => s.key === a);
-        const sb = SKINS.find(s => s.key === b);
+        const sa = SKINS.find(sk => sk.key === a);
+        const sb = SKINS.find(sk => sk.key === b);
         return (sb?.threshold ?? 0) - (sa?.threshold ?? 0);
       })[0];
-      const skin = SKINS.find(s => s.key === best);
-      if (skin) setSkin(skin);
+      const found = SKINS.find(sk => sk.key === best);
+      if (found) setSkin(found);
     }).catch(() => {});
   }, []);
 
@@ -349,7 +355,9 @@ export default function RunnerGame({ onClose }: Props) {
         jumpVelocity.value = JUMP_VELOCITY;
         isJumping.value = true;
         setCountdown(-1);
+        setShowGo(true);
         countdownScale.value = withSpring(1, { damping: 12, stiffness: 300 });
+        setTimeout(() => setShowGo(false), 500);
       }, 400);
       return () => clearTimeout(t);
     }
@@ -366,14 +374,16 @@ export default function RunnerGame({ onClose }: Props) {
       if (state === 'dying') {
         scheduleOnRN(hapticsError);
         scheduleOnRN(sounds.playDeath);
-        shakeX.value = withSequence(
-          withTiming(7, { duration: 35 }),
-          withTiming(-6, { duration: 50 }),
-          withTiming(5, { duration: 40 }),
-          withTiming(-4, { duration: 55 }),
-          withTiming(2, { duration: 45 }),
-          withTiming(0, { duration: 90 }),
-        );
+        if (!reduceMotion) {
+          shakeX.value = withSequence(
+            withTiming(7, { duration: 35 }),
+            withTiming(-6, { duration: 50 }),
+            withTiming(5, { duration: 40 }),
+            withTiming(-4, { duration: 55 }),
+            withTiming(2, { duration: 45 }),
+            withTiming(0, { duration: 90 }),
+          );
+        }
       }
     },
   );
@@ -393,7 +403,7 @@ export default function RunnerGame({ onClose }: Props) {
       if (floor !== lastFloorShared.value) {
         lastFloorShared.value = floor;
         scheduleOnRN(updateScoreTarget, floor);
-        for (const m of [500, 1000, 2000, 3000]) {
+        for (const m of MILESTONES) {
           if (floor >= m && lastMilestoneShared.value < m) {
             lastMilestoneShared.value = m;
             scheduleOnRN(handleMilestone, MILESTONE_LABELS[m] ?? '');
@@ -416,6 +426,14 @@ export default function RunnerGame({ onClose }: Props) {
       if (bonus > 0) {
         scheduleOnRN(handlePopupTrigger, bonus);
       }
+    },
+  );
+
+  useAnimatedReaction(
+    () => palettePhase.value,
+    (phase) => {
+      const idx = phase % PALETTES.length;
+      scheduleOnRN(setPaletteIdx, idx);
     },
   );
 
@@ -497,6 +515,8 @@ export default function RunnerGame({ onClose }: Props) {
     setMilestone('');
     lastMilestoneShared.value = 0;
     shakeX.value = 0;
+    setPaletteIdx(0);
+    setShowGo(false);
   }, [resetGame, stopChase]);
 
   const handlePopupDone = useCallback((id: number) => {
@@ -526,7 +546,7 @@ export default function RunnerGame({ onClose }: Props) {
             jumpVelocity.value = DOUBLE_JUMP_VELOCITY;
             canDoubleJump.value = false;
             isDoubleJumping.value = true;
-            scheduleOnRN(hapticsSuccess);
+            scheduleOnRN(hapticsLight);
             scheduleOnRN(sounds.playJump);
             return;
           }
@@ -542,7 +562,7 @@ export default function RunnerGame({ onClose }: Props) {
   return (
     <GestureDetector gesture={tapGesture}>
       <Animated.View style={[s.container, shakeStyle]}>
-        <RunnerBackground bgOffset={bgOffset} midOffset={midOffset} />
+        <RunnerBackground bgOffset={bgOffset} midOffset={midOffset} paletteIdx={paletteIdx} />
         <RunnerGround groundOffset={groundOffset} groundY={dims.groundY} screenW={screenW} />
 
         <RunnerSpeedLines speed={speed} speedLineOffset={speedLineOffset} groundY={dims.groundY} />
@@ -556,10 +576,12 @@ export default function RunnerGame({ onClose }: Props) {
           gameState={gameState}
           bottleColor={skin.bottle}
           capColor={skin.cap}
+          reduceMotion={reduceMotion}
+          groundY={dims.groundY}
         />
 
-        <RunnerObstacles obs={obs} groundY={dims.groundY} />
-        <RunnerPickups pkp={pkp} />
+        <RunnerObstacles obs={obs} groundY={dims.groundY} paletteIdx={paletteIdx} />
+        <RunnerPickups pkp={pkp} reduceMotion={reduceMotion} />
 
         <View style={s.scoreContainer}>
           <Text allowFontScaling={false} style={s.scoreText}>
@@ -576,8 +598,10 @@ export default function RunnerGame({ onClose }: Props) {
           style={s.closeBtn}
           onPress={onClose}
           hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer le jeu"
         >
-          <Text style={s.closeText}>✕</Text>
+          <Ionicons name="close-outline" size={20} color="#988EA8" />
         </Pressable>
 
         {popups.map(p => (
@@ -604,9 +628,9 @@ export default function RunnerGame({ onClose }: Props) {
               <>
                 <Text style={s.title}>Flacon Runner</Text>
                 <Text style={s.subtitle}>Esquive les cristaux</Text>
-                <Text style={s.tapLabel}>TAP TO START</Text>
+                <Text style={s.tapLabel}>Tape pour jouer</Text>
                 <Text style={s.hint}>
-                  Tap = saut{'\n'}Double tap = double saut{'\n'}Enchainement aérien = combo{'\n'}Attrape les réductions !
+                  Tap = saut{'\n'}Double tap = double saut{'\n'}Enchaînement aérien = combo{'\n'}Attrape les réductions
                 </Text>
                 {highScore > 0 && (
                   <>
@@ -620,7 +644,7 @@ export default function RunnerGame({ onClose }: Props) {
         )}
 
         {showGameOver && (
-          <View style={s.goOverlay}>
+          <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(300)} style={s.goOverlay}>
             <Text style={s.goTitle}>Flacon brisé</Text>
             <Text allowFontScaling={false} style={s.goScore}>{displayScore}</Text>
             {isRecord && (
@@ -635,14 +659,16 @@ export default function RunnerGame({ onClose }: Props) {
             <Pressable style={s.retryBtn} onPress={handleRestart}>
               <Text style={s.retryText}>Rejouer</Text>
             </Pressable>
-            <Pressable onPress={onClose}>
+            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8}>
               <Text style={s.quitText}>Quitter</Text>
             </Pressable>
-          </View>
+          </Animated.View>
         )}
 
-        {uiState === 'dying' && (
-          <View style={{ ...StyleSheet.absoluteFill, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }} />
+        {showGo && (
+          <View style={s.startOverlay} pointerEvents="none">
+            <Animated.Text entering={reduceMotion ? undefined : FadeIn.duration(150)} style={s.goFlash}>GO</Animated.Text>
+          </View>
         )}
       </Animated.View>
     </GestureDetector>

@@ -7,7 +7,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { getWmoMeta } from '../../utils/weather-codes';
 import type { WeatherData } from '../../services/weather';
-import type { SotdEntry } from '../../models/wardrobe.interface';
+import type { SotdEntry } from '../../models/user-parfum.interface';
 
 const NIGHT_ICON: Record<string, string> = {
   sunny: 'moon',

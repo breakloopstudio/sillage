@@ -1,10 +1,12 @@
-// src/features/catalog/DetailHero.tsx — Image hero de la fiche détail (hero pur, sans overlay prix)
+// src/features/catalog/DetailHero.tsx — Image hero de la fiche détail (hero pur, cœur favori top-right)
 
 import { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
+import FavButton from '../../components/FavButton';
+import type { Parfum } from '../../models';
 
 const PALETTE = ['#5B21B6', '#1E40AF', '#065F46', '#92400E', '#991B1B', '#9D174D', '#3730A3', '#854D0E'];
 
@@ -19,12 +21,13 @@ interface Props {
   imageUrl2x?: string | null;
   brand: string;
   imgFailed: boolean;
+  parfum: Parfum;
   onImageError: () => void;
   onImagePress: () => void;
   onShare?: () => void;
 }
 
-export default function DetailHero({ imageUrl, imageUrl2x, brand, imgFailed, onImageError, onImagePress, onShare }: Props) {
+export default function DetailHero({ imageUrl, imageUrl2x, brand, imgFailed, parfum, onImageError, onImagePress, onShare }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
 
@@ -69,6 +72,8 @@ export default function DetailHero({ imageUrl, imageUrl2x, brand, imgFailed, onI
           ) : null}
         </View>
       ) : null}
+
+      <FavButton parfum={parfum} size="lg" />
     </View>
   );
 }

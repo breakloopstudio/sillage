@@ -74,7 +74,10 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [visibleLetter, setVisibleLetter] = useState<string | null>(null);
 
+  const stripRef = useRef<View>(null);
   const stripHeightRef = useRef(0);
+  const stripPageYRef = useRef(0);
+  const stripOffsetYRef = useRef(0);
   const lastLetterRef = useRef<string | null>(null);
   const visibleLetterRef = useRef<string | null>(null);
   const listRef = useRef<FlatList<Section>>(null);
@@ -144,15 +147,18 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
   }, [letterIndex, offsets]);
 
   // Cellules flex:1 → mapping exact y → lettre ; loupe clampée dans les bornes
-  const handleScrubY = useCallback((y: number) => {
+  const handleScrubY = useCallback((pageY: number) => {
     const h = stripHeightRef.current;
     const n = letterIndex.length;
     if (h <= 0 || n === 0) return;
 
-    loupeY.value = Math.min(Math.max(y, LOUPE_SIZE / 2), h - LOUPE_SIZE / 2);
+    const relativeY = pageY - stripPageYRef.current;
+    const clamped = Math.min(Math.max(relativeY, 0), h);
+
+    loupeY.value = stripOffsetYRef.current + Math.min(Math.max(relativeY, LOUPE_SIZE / 2), h - LOUPE_SIZE / 2);
 
     const cell = h / n;
-    const idx = Math.max(0, Math.min(n - 1, Math.floor(y / cell)));
+    const idx = Math.max(0, Math.min(n - 1, Math.floor(clamped / cell)));
     const letter = letterIndex[idx];
 
     if (letter && letter !== lastLetterRef.current) {
@@ -169,10 +175,10 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (evt) => {
       setIsScrubbing(true);
-      handleScrubY(evt.nativeEvent.locationY);
+      handleScrubY(evt.nativeEvent.pageY);
     },
     onPanResponderMove: (evt) => {
-      handleScrubY(evt.nativeEvent.locationY);
+      handleScrubY(evt.nativeEvent.pageY);
     },
     onPanResponderRelease: () => {
       setIsScrubbing(false);
@@ -275,8 +281,15 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
 
           {showStrip && (
             <View
+              ref={stripRef}
               style={s.strip}
-              onLayout={(e) => { stripHeightRef.current = e.nativeEvent.layout.height; }}
+              onLayout={(e) => {
+                stripHeightRef.current = e.nativeEvent.layout.height;
+                stripOffsetYRef.current = e.nativeEvent.layout.y;
+                stripRef.current?.measureInWindow((_x, y) => {
+                  stripPageYRef.current = y;
+                });
+              }}
               {...panResponder.panHandlers}
             >
               {letterIndex.map(letter => {
@@ -346,17 +359,19 @@ function getStyles(t: Theme) {
     strip: {
       width: 30,
       marginRight: 4,
-      marginVertical: 4,
-      borderRadius: 12,
+      borderRadius: 10,
       backgroundColor: t.colors.surface2,
+      alignSelf: 'center',
+      paddingVertical: 4,
     },
-    stripCell: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    stripCell: { width: 30, height: 17, justifyContent: 'center', alignItems: 'center' },
     stripPill: {
-      width: 22, height: 22, borderRadius: 11,
+      minWidth: 18, height: 13, borderRadius: 7,
       justifyContent: 'center', alignItems: 'center',
+      paddingHorizontal: 2,
     },
     stripPillActive: { backgroundColor: t.colors.primary },
-    stripText: { fontFamily: 'Inter_600SemiBold', fontSize: 10, color: t.colors.textMuted },
+    stripText: { fontFamily: 'Inter_600SemiBold', fontSize: 9, color: t.colors.textMuted },
     stripTextActive: { color: textOn(t.colors.primary) },
     loupe: {
       position: 'absolute',

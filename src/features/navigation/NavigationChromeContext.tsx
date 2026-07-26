@@ -2,7 +2,6 @@ import { createContext, useContext, useMemo } from 'react';
 import { useSharedValue, useAnimatedReaction, withTiming, Easing, type SharedValue } from 'react-native-reanimated';
 
 export interface NavigationChromeContextValue {
-  reportScroll: (y: number) => void;
   resetDock: () => void;
   dockTranslateY: SharedValue<number>;
   scrollY: SharedValue<number>;
@@ -30,7 +29,6 @@ export function NavigationChromeProvider({ children }: { children: React.ReactNo
   );
 
   const value = useMemo<NavigationChromeContextValue>(() => ({
-    reportScroll: (y: number) => { scrollY.value = y; },
     resetDock: () => { scrollY.value = 0; },
     dockTranslateY,
     scrollY,

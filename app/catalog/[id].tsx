@@ -9,21 +9,19 @@ import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { getParfumById, updateParfum, getSimilarParfums } from '../../src/services/catalog';
-import { isParfumFavori, addFavori, removeFavori } from '../../src/services/user-data';
-import { isInScentList, addToScentList, markScentTried, updateScentItem, removeFromScentList, moveScentToWardrobe } from '../../src/services/scentlist';
 import { consumePendingParfum, setPendingParfum } from '../../src/services/catalog-bridge';
-import { isInWardrobe, addToWardrobe } from '../../src/services/wardrobe';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import type { Parfum } from '../../src/models';
-import type { UserScentItem } from '../../src/models/user-scent.interface';
 import { translateNote } from '../../src/utils/translate-note';
 import { formatPrice } from '../../src/utils/format-price';
 import OlfactoryPyramid from '../../src/features/catalog/OlfactoryPyramid';
 import PriceDisplay from '../../src/components/PriceDisplay';
 import Button from '../../src/components/Button';
 import AlertPriceToggle from '../../src/components/AlertPriceToggle';
-import WardrobeAddSheet from '../../src/features/wardrobe/WardrobeAddSheet';
+import SaveSheet from '../../src/features/catalog/SaveSheet';
+import SaveButton from '../../src/features/catalog/SaveButton';
+import { useSaveController } from '../../src/features/catalog/useSaveController';
 import TrySheet from '../../src/features/scentlist/TrySheet';
 import NoteDetailPopup from '../../src/components/NoteDetailPopup';
 import ImageViewerPopup from '../../src/components/ImageViewerPopup';
@@ -172,13 +170,6 @@ export default function CatalogDetailPage() {
   const { user, isAuthenticated } = useAuthContext();
   const [parfum, setParfum] = useState<Parfum | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isFav, setIsFav] = useState(false);
-  const [favoriId, setFavoriId] = useState<string | null>(null);
-  const [wardrobeItem, setWardrobeItem] = useState<import('../../src/models/wardrobe.interface').WardrobeItem | null>(null);
-  const [scentItem, setScentItem] = useState<UserScentItem | null>(null);
-  const [showWardrobeSheet, setShowWardrobeSheet] = useState(false);
-  const [showTrySheet, setShowTrySheet] = useState(false);
-  const [trySheetSaving, setTrySheetSaving] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [selectedNote, setSelectedNote] = useState<{ name: string; layer: 'top' | 'heart' | 'base' | null } | null>(null);
   const [pending] = useState<Parfum | null>(() => consumePendingParfum());
@@ -190,6 +181,8 @@ export default function CatalogDetailPage() {
   const priceSectionY = useSharedValue(9999);
   const priceSectionRef = useRef<View>(null);
   const insets = useSafeAreaInsets();
+
+  const save = useSaveController(parfum);
 
   // Chargement auto-suffisant : bridge (preview) -> Firestore
   useEffect(() => {
@@ -235,23 +228,6 @@ export default function CatalogDetailPage() {
 
     return () => { loadingRef.current = false; };
   }, [id]);
-  useEffect(() => {
-    if (!user?.uid || !id) return;
-    let cancelled = false;
-    Promise.all([
-      isParfumFavori(user.uid, id).catch(() => ({ isFavori: false, favoriId: null })),
-      isInWardrobe(user.uid, id).catch(() => null),
-      isInScentList(user.uid, id).catch(() => null),
-    ]).then(([fav, ward, scent]) => {
-      if (cancelled) return;
-      setIsFav(fav.isFavori);
-      setFavoriId(fav.favoriId);
-      setWardrobeItem(ward);
-      setScentItem(scent);
-    });
-    return () => { cancelled = true; };
-  }, [user?.uid, id]);
-
 
   // Recommandations — recherche Firestore par accords partagés
   const simMainAccords = parfum?.mainAccords;
@@ -301,114 +277,6 @@ export default function CatalogDetailPage() {
     loadSimilars();
   }, [parfum?.id, simMainAccords, simSimilarIds, simCachedAt]);
 
-  const toggleFav = useCallback(() => {
-    if (!isAuthenticated) { router.push('/auth/login'); return; }
-    if (!user?.uid || !id || !parfum) {
-      console.warn('[fav] Missing data:', { uid: !!user?.uid, id: !!id, parfum: !!parfum });
-      return;
-    }
-    if (isFav && favoriId) {
-      const fid = favoriId;
-      setIsFav(false); setFavoriId(null);
-      removeFavori(user.uid, fid).catch(() => { setIsFav(true); setFavoriId(fid); });
-    } else {
-      setIsFav(true);
-      setFavoriId(id);
-      addFavori(user.uid, parfum)
-        .catch((e) => { console.warn('[fav] Failed:', (e as Error)?.message); setIsFav(false); setFavoriId(null); });
-    }
-  }, [isAuthenticated, user?.uid, id, parfum, isFav, favoriId, router]);
-
-  const handleWardrobeAdd = useCallback(async (ownership: import('../../src/models/wardrobe.interface').WardrobeItem['ownership'], sizeMl?: number | null): Promise<void> => {
-    if (!isAuthenticated) { router.push('/auth/login'); throw new Error('Non authentifié'); }
-    if (!user?.uid || !id || !parfum) throw new Error('Données manquantes');
-    await addToWardrobe(user.uid, id, ownership, parfum.nom, parfum.marque, parfum.imageUrl, parfum.familleOlactive, sizeMl ?? null, parfum);
-    setWardrobeItem({
-      parfumId: id, ownership, nom: parfum.nom, marque: parfum.marque,
-      imageUrl: parfum.imageUrl ?? null, familleOlactive: parfum.familleOlactive ?? null,
-      rating: null, notes: null, shelfIds: [], sizeMl: sizeMl ?? null, sotdCount: 0,
-      isSignature: false,
-      addedAt: new Date(), updatedAt: new Date(),
-    });
-  }, [isAuthenticated, user?.uid, id, parfum, router]);
-
-  const handleWardrobePress = useCallback(() => {
-    if (!isAuthenticated) { router.push('/auth/login'); return; }
-    if (wardrobeItem) { router.push(`/wardrobe/${id}`); return; }
-    setShowWardrobeSheet(true);
-  }, [isAuthenticated, wardrobeItem, id, router]);
-
-  const handleScentPress = useCallback(() => {
-    if (!isAuthenticated) { router.push('/auth/login'); return; }
-    if (scentItem) { setShowTrySheet(true); return; }
-    if (!user?.uid || !id || !parfum) return;
-    const p = parfum;
-    setScentItem({
-      id: p.id,
-      parfumId: p.id,
-      nom: p.nom,
-      marque: p.marque,
-      imageUrl: p.imageUrl ?? null,
-      familleOlactive: p.familleOlactive ?? null,
-      status: 'to_try',
-      verdict: null,
-      rating: null,
-      notes: null,
-      triedAt: null,
-      bestPrice: p.bestPrice,
-      referencePrice: p.referencePrice,
-      addedAt: new Date(),
-      updatedAt: new Date(),
-    });
-    addToScentList(user.uid, p).catch((e) => {
-      console.warn('[scent] add failed:', (e as Error)?.message);
-      setScentItem(null);
-    });
-  }, [isAuthenticated, scentItem, user?.uid, id, parfum, router]);
-
-  const handleTrySheetSave = useCallback(async (data: import('../../src/features/scentlist/TrySheet').TrySheetSaveData) => {
-    if (!user?.uid || !id) return;
-    setTrySheetSaving(true);
-    try {
-      if (scentItem?.status === 'tried') {
-        await updateScentItem(user.uid, id, {
-          verdict: data.verdict,
-          rating: data.rating,
-          notes: data.notes,
-        });
-        setScentItem(prev => prev ? { ...prev, verdict: data.verdict, rating: data.rating, notes: data.notes } : null);
-      } else {
-        await markScentTried(user.uid, id, data);
-        setScentItem(prev => prev ? { ...prev, status: 'tried', verdict: data.verdict, rating: data.rating, notes: data.notes, triedAt: new Date() } : null);
-      }
-      if (data.addToWardrobe) {
-        const item = scentItem;
-        if (item) {
-          await moveScentToWardrobe(user.uid, { ...item, rating: data.rating, notes: data.notes }, 'sample');
-          setScentItem(null);
-          const w = await isInWardrobe(user.uid, id).catch(() => null);
-          if (w) setWardrobeItem(w);
-        }
-      }
-    } catch (e: unknown) {
-      console.warn('[scent] save failed:', (e as Error)?.message ?? String(e));
-    } finally {
-      setTrySheetSaving(false);
-      setShowTrySheet(false);
-    }
-  }, [user?.uid, id, scentItem]);
-
-  const handleTrySheetRemove = useCallback(async () => {
-    if (!user?.uid || !id) return;
-    try {
-      await removeFromScentList(user.uid, id);
-      setScentItem(null);
-      setShowTrySheet(false);
-    } catch (e: unknown) {
-      console.warn('[scent] remove failed:', (e as Error)?.message ?? String(e));
-    }
-  }, [user?.uid, id]);
-
   const scrollHandler = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
   });
@@ -428,14 +296,13 @@ export default function CatalogDetailPage() {
     if (parfum?.purchaseUrl) Linking.openURL(parfum.purchaseUrl);
   }, [parfum?.purchaseUrl]);
   const handleNotePress = useCallback((note: string, layer?: 'top' | 'heart' | 'base' | null) => setSelectedNote({ name: note, layer: layer ?? null }), []);
-  const handleTrySheetClose = useCallback(() => setShowTrySheet(false), []);
-  const handleWardrobeSheetClose = useCallback(() => setShowWardrobeSheet(false), []);
   const handleNotePopupClose = useCallback(() => setSelectedNote(null), []);
   const handleImageViewerClose = useCallback(() => setShowImageViewer(false), []);
 
   const heroUrl = parfum?.imageUrl ?? null;
   const heroUrl2x = parfum?.imageUrl2x ?? null;
   const hasBestPrice = typeof parfum?.bestPrice === 'number' && parfum.bestPrice > 0;
+
   const ratingDisplay: number | undefined = (() => {
     const p = parfum;
     if (!p) return undefined;
@@ -482,6 +349,7 @@ export default function CatalogDetailPage() {
             imageUrl2x={heroUrl2x}
             brand={parfum.marque}
             imgFailed={imgFailed}
+            parfum={parfum}
             onImageError={handleImageError}
             onImagePress={handleImagePress}
             onShare={handleShare}
@@ -565,6 +433,8 @@ export default function CatalogDetailPage() {
                   ) : null}
                 </View>
               ) : null}
+
+              <SaveButton label={save.saveLabel} onPress={save.openSaveSheet} variant="flow" />
 
               {isAuthenticated && user?.uid && id ? (
                 <AlertPriceToggle parfumId={id} uid={user.uid} currentPrice={parfum.bestPrice} />
@@ -704,37 +574,39 @@ export default function CatalogDetailPage() {
           priceSectionY={priceSectionY}
           bestPrice={hasBestPrice ? parfum.bestPrice : undefined}
           referencePrice={parfum.referencePrice}
-          isFav={isFav}
-          wardrobeItem={wardrobeItem}
-          inScentList={scentItem !== null}
+          saveLabel={save.saveLabel}
           purchaseUrl={parfum.purchaseUrl}
-          onToggleFav={toggleFav}
-          onWardrobePress={handleWardrobePress}
-          onScentPress={handleScentPress}
+          onSavePress={save.openSaveSheet}
           onPurchasePress={handlePurchasePress}
         />
       </View>
       )}
       {parfum && (
         <TrySheet
-          visible={showTrySheet}
+          visible={save.showTrySheet}
           parfumName={parfum.nom}
           parfumBrand={parfum.marque}
           parfumImageUrl={heroUrl}
-          existingItem={scentItem}
-          saving={trySheetSaving}
-          onClose={handleTrySheetClose}
-          onSave={handleTrySheetSave}
-          onRemove={scentItem?.status === 'tried' ? handleTrySheetRemove : undefined}
+          existingItem={save.item}
+          saving={save.trySheetSaving}
+          onClose={save.closeTrySheet}
+          onSave={save.handleTrySheetSave}
+          onRemove={save.item ? save.remove : undefined}
         />
       )}
-      <WardrobeAddSheet
-        visible={showWardrobeSheet}
-        parfumName={parfum?.nom}
-        parfumBrand={parfum?.marque}
+      <SaveSheet
+        visible={save.showSaveSheet}
+        parfumName={parfum?.nom ?? ''}
+        parfumBrand={parfum?.marque ?? ''}
         parfumImageUrl={heroUrl}
-        onClose={handleWardrobeSheetClose}
-        onSelect={handleWardrobeAdd}
+        item={save.item}
+        onClose={save.closeSaveSheet}
+        onSetStatus={save.setStatus}
+        onSetVerdict={save.setVerdict}
+        onRemove={save.remove}
+        onOpenWardrobe={save.openWardrobe}
+        onOpenFullNotes={save.openFullNotes}
+        onAddPossession={save.addPoss}
       />
       <NoteDetailPopup
         visible={selectedNote !== null}

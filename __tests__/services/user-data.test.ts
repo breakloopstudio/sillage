@@ -4,7 +4,6 @@
 import { supabase } from '../../src/services/supabase';
 import {
   addFavori, removeFavori, saveScan, removeScan,
-  moveToCollection, moveFavori,
   getUserSettings, updateUserSetting,
 } from '../../src/services/user-data';
 import type { Parfum } from '../../src/models';
@@ -102,32 +101,6 @@ describe('removeScan', () => {
     await removeScan('uid1', 'scan-uuid');
     expect(chain.delete).toHaveBeenCalled();
     expect(chain.eq).toHaveBeenCalledWith('id', 'scan-uuid');
-  });
-});
-
-describe('moveToCollection', () => {
-  it('calls RPC move_to_collection', async () => {
-    mockRpc.mockResolvedValue({ error: null });
-    await moveToCollection('uid1', 'favoris', 'fav1', 'parfum_1', 'Nom', 'Marque', 'img.jpg');
-    expect(mockRpc).toHaveBeenCalledWith('move_to_collection', expect.objectContaining({
-      p_from: 'favoris',
-      p_parfum_id: 'parfum_1',
-      p_nom: 'Nom',
-    }));
-  });
-});
-
-describe('moveFavori', () => {
-  it('calls RPC move_favori', async () => {
-    mockRpc.mockResolvedValue({ error: null });
-    // getParfumById will return null (mock) → filter fields null
-    const chain = chainMock({ data: null, error: null });
-    mockFrom.mockReturnValue(chain);
-    await moveFavori('uid1', 'collection', 'c1', 'parfum_1', 'Nom', 'Marque');
-    expect(mockRpc).toHaveBeenCalledWith('move_favori', expect.objectContaining({
-      p_from: 'collection',
-      p_parfum_id: 'parfum_1',
-    }));
   });
 });
 

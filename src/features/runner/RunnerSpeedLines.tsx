@@ -14,7 +14,7 @@ interface Props {
 function RunnerSpeedLines({ groundY, speedLineOffset, speed }: Props) {
   const style = useAnimatedStyle(() => ({
     opacity: speed.value > SPEED_LINE_MIN_SPEED
-      ? (speed.value - SPEED_LINE_MIN_SPEED) / (MAX_SPEED - SPEED_LINE_MIN_SPEED) * 0.18
+      ? (speed.value - SPEED_LINE_MIN_SPEED) / (MAX_SPEED - SPEED_LINE_MIN_SPEED) * 0.3
       : 0,
     transform: [{ translateX: -(speedLineOffset.value % 600) }],
   }));
@@ -34,7 +34,7 @@ function RunnerSpeedLines({ groundY, speedLineOffset, speed }: Props) {
                     left: shift + j * 150 + (i * 30),
                     width: 80 + i * 30,
                     height: 2,
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: '#EDE8F5',
                     opacity: 0.6 - i * 0.15,
                     borderRadius: 1,
                   }}

@@ -459,16 +459,17 @@ Nappe lumineuse `RadialGradient` (couleur de strate → transparent, centre `alp
 
 ### 4.15 Iconographie (Ionicons)
 
-Une seule famille : `@react-native-vector-icons/ionicons`. Quatre tailles, un style.
+Une seule famille : `@react-native-vector-icons/ionicons`. Cinq tailles, un style.
 
 | Taille | Contexte |
 |---|---|
 | 14 | Pastilles de titre de section (§4.9), chips |
 | 16 | Inline avec texte 13–14 (durées, métadonnées) |
 | 20 | Boutons, rows de liste, onglets |
+| 24 | FAB central (56 × 56) |
 | 32 | Empty states (cercle 72 × 72) |
 
-- **Outline partout** (suffixe `-outline`), deux exceptions filled : cœur favori actif, étoiles de rating.
+- **Outline partout** (suffixe `-outline`), trois exceptions filled : cœur favori actif, étoiles de rating, icônes d'onglet actives dans le DockBar.
 - Couleur : `textMuted` par défaut ; `xxxInk` dans une pastille `xxxSoft` ; `#FFFFFF` (§2.3) sur bouton ou FAB plein. `primary` seul uniquement si l'icône EST l'action.
 - Cohérence sémantique : `time-outline` = temporalité, `flask` = parfumerie, `layers-outline` = structure olfactive, `color-filter-outline` = accords. Ne pas introduire une seconde métaphore pour un concept déjà pourvu.
 - Aucun emoji en remplacement d'une icône UI (les emojis de catégories olfactives restent confinés aux pétales §4.13 et au popup note).
@@ -923,7 +924,7 @@ function getStyles(t: Theme) {
 - [ ] Italique éditorial → max 2 lignes/écran, voix distinctes, non adjacentes (§3.2)
 - [ ] Boucles infinies → 1 max/écran, autres bornées ≤ 4 répétitions (§7.5)
 - [ ] Transparences → paliers §2.5 (`alpha()` + palier, dark lumineux ÷2, structure inchangé)
-- [ ] Icônes → tailles §4.15 (14/16/20/32), outline, couleur selon contexte
+- [ ] Icônes → tailles §4.15 (14/16/20/24/32), outline, couleur selon contexte
 - [ ] Copy → tutoiement, cadratin `–`, `·`, pas de « ! », ligne éditoriale ≤ 6 mots à métaphore sensorielle
 - [ ] Couleurs via tokens (`t.colors.xxx`), jamais en dur (sauf §2.3)
 - [ ] Ombres via `t.shadow.xxx`, jamais en dur
@@ -967,6 +968,7 @@ Implémentations canoniques à imiter (ne pas réinventer) :
 | `PriceDisplay` | `src/components/PriceDisplay.tsx` | §4.4, §3.7 (cible) |
 | `ActionSheet` | `src/components/ActionSheet.tsx` | §4.16 action sheet |
 | `FilterSheet` | `src/components/FilterSheet.tsx` | §4.16 content sheet |
+| `SaveSheet` | `src/features/catalog/SaveSheet.tsx` | §4.16 content sheet (application live), §2.6 haptique |
 | `DockBar` | `src/features/navigation/DockBar.tsx` | §4.11 langage flottant, §7.5 (pulse) |
 | `StickyBottomBar` | `src/features/catalog/StickyBottomBar.tsx` | §4.11 |
 | `OlfactoryPyramid` | `src/features/catalog/` | §4.12, §4.13, §4.14, §7.5 (particule) |

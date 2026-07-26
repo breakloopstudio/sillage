@@ -7,21 +7,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
-import { useWardrobe } from '../../src/hooks/useWardrobe';
+import { useUserParfum } from '../../src/hooks/useUserParfum';
 import { useShelves } from '../../src/hooks/useShelves';
 import { useSotd } from '../../src/hooks/useSotd';
 import { getParfumById } from '../../src/services/catalog';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import type { Parfum } from '../../src/models';
 import StarRating from '../../src/features/wardrobe/StarRating';
-import { ownershipLabel } from '../../src/utils/ownership';
+import { statusLabel } from '../../src/features/catalog/useSaveController';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
-import type { WardrobeItem } from '../../src/models/wardrobe.interface';
+import type { UserParfum, UserParfumStatus } from '../../src/models/user-parfum.interface';
 
-const OWNERSHIP_OPTIONS: WardrobeItem['ownership'][] = ['have', 'want', 'had', 'sample', 'decant'];
-const SIZE_OPTIONS = [30, 50, 75, 100, 125, 200];
-const DECANT_SIZE_OPTIONS = [2, 5, 8, 10, 20, 30];
+const STATUS_OPTIONS: UserParfumStatus[] = ['to_try', 'tried', 'want', 'have', 'had'];
 
 export default function WardrobeDetailPage() {
   const rawId = useLocalSearchParams<{ parfumId: string }>().parfumId;
@@ -32,7 +30,7 @@ export default function WardrobeDetailPage() {
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
   const uid = user?.uid ?? null;
-  const { items, update, remove } = useWardrobe(uid);
+  const { items, update, remove } = useUserParfum(uid);
   const { shelves } = useShelves(uid);
   const { sotd, setTodaySotd } = useSotd(uid);
 
@@ -68,9 +66,9 @@ export default function WardrobeDetailPage() {
   const isSotd = sotd?.parfumId === parfumId;
   const imageUrl = parfumData?.imageUrl ?? item.imageUrl ?? undefined;
 
-  const handleOwnershipChange = (o: WardrobeItem['ownership']) => {
+  const handleStatusChange = (st: UserParfumStatus) => {
     hapticsLight();
-    update(parfumId!, { ownership: o }).catch(() => {});
+    update(parfumId!, { status: st }).catch(() => {});
   };
 
   const handleRatingChange = (rating: number) => {
@@ -82,10 +80,6 @@ export default function WardrobeDetailPage() {
     const current = item.shelfIds;
     const next = current.includes(shelfId) ? current.filter(id => id !== shelfId) : [...current, shelfId];
     update(parfumId!, { shelfIds: next }).catch(() => {});
-  };
-
-  const handleSizeChange = (ml: number) => {
-    update(parfumId!, { sizeMl: item.sizeMl === ml ? null : ml }).catch(() => {});
   };
 
   const handleToggleSignature = () => {
@@ -161,14 +155,14 @@ export default function WardrobeDetailPage() {
 
           <Text style={s.sectionLabel}>État</Text>
           <View style={s.chips}>
-            {OWNERSHIP_OPTIONS.map(o => (
+            {STATUS_OPTIONS.map(st => (
               <Pressable
-                key={o}
-                style={[s.chip, item.ownership === o && s.chipActive]}
-                onPress={() => handleOwnershipChange(o)}
+                key={st}
+                style={[s.chip, item.status === st && s.chipActive]}
+                onPress={() => handleStatusChange(st)}
               >
-                <Text style={[s.chipText, item.ownership === o && s.chipTextActive]}>
-                  {ownershipLabel(o)}
+                <Text style={[s.chipText, item.status === st && s.chipTextActive]}>
+                  {statusLabel(st)}
                 </Text>
               </Pressable>
             ))}
@@ -192,24 +186,6 @@ export default function WardrobeDetailPage() {
             </Pressable>
           </View>
 
-          {(item.ownership === 'have' || item.ownership === 'decant' || item.ownership === 'sample') && (
-            <>
-              <Text style={s.sectionLabel}>Format</Text>
-              <View style={s.chips}>
-                {(item.ownership === 'have' ? SIZE_OPTIONS : DECANT_SIZE_OPTIONS).map(ml => (
-                  <Pressable
-                    key={ml}
-                    style={[s.chip, item.sizeMl === ml && s.chipActive]}
-                    onPress={() => handleSizeChange(ml)}
-                  >
-                    <Text style={[s.chipText, item.sizeMl === ml && s.chipTextActive]}>
-                      {ml}ml
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          )}
 
           {shelves.length > 0 && (
             <>

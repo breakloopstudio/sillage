@@ -5,6 +5,7 @@
 import type { Parfum } from '../../models';
 import { normalize } from '../../utils/normalize';
 import type { SeasonKey } from '../../utils/season';
+import type { SuggestionRow } from '../../utils/suggest';
 import { supabase } from '../supabase';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
 
@@ -218,6 +219,27 @@ export async function getPopularParfums(limitCount: number = 6): Promise<Parfum[
       .limit(limitCount);
     if (error) throw error;
     return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  } catch {
+    return [];
+  }
+}
+
+/** Index léger pour les suggestions type-ahead (4 colonnes, tri popularité). */
+export async function getSuggestionIndex(limitCount: number = 300): Promise<SuggestionRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from('parfums')
+      .select('id, nom, marque, popularity_score')
+      .not('image_url', 'is', null)
+      .order('popularity_score', { ascending: false, nullsFirst: false })
+      .limit(limitCount);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(r => ({
+      id: r.id as string,
+      nom: r.nom as string,
+      marque: r.marque as string,
+      pop: (r.popularity_score as number) ?? 0,
+    }));
   } catch {
     return [];
   }

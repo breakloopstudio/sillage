@@ -5,12 +5,12 @@ import { ActivityIndicator, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import WardrobeCard from './WardrobeCard';
-import type { WardrobeItem } from '../../models/wardrobe.interface';
+import type { UserParfum } from '../../models/user-parfum.interface';
 
 interface Props {
-  items: WardrobeItem[];
+  items: UserParfum[];
   loading?: boolean;
-  onItemPress: (item: WardrobeItem) => void;
+  onItemPress: (item: UserParfum) => void;
   scrollY?: SharedValue<number>;
 }
 
@@ -24,7 +24,7 @@ export default function WardrobeGrid({ items, loading, onItemPress, scrollY }: P
     if (scrollY) scrollY.value = e.contentOffset.y;
   });
 
-  const renderItem = useCallback(({ item }: { item: WardrobeItem }) => (
+  const renderItem = useCallback(({ item }: { item: UserParfum }) => (
     <WardrobeCard item={item} onPress={() => onItemPress(item)} />
   ), [onItemPress]);
 

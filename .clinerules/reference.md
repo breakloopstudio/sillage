@@ -82,15 +82,15 @@ export function moveFavori(uid: string, from: string, itemId: string, parfumId: 
 // Best-effort : fetch le parfum pour inclure les champs de filtrage (longevity, sillage...)
 ```
 
-### `src/services/wardrobe.ts`
+### `src/services/user-parfum.ts`
 ```ts
-// Wardrobe — collection unifiée (ownership states + metadata)
-export function onWardrobe(uid: string, cb: (items: WardrobeItem[]) => void): () => void;
-export async function addToWardrobe(uid: string, parfumId: string, ownership: 'have' | 'want' | 'had' | 'sample' | 'decant', nom?: string, marque?: string, imageUrl?: string, familleOlactive?: string, sizeMl?: number | null, parfum?: Parfum): Promise<void>;
-// parfum optionnel — si fourni, évite un fetch Supabase pour peupler les champs de filtrage
-export async function updateWardrobeItem(uid: string, parfumId: string, data: Partial<Pick<WardrobeItem, 'ownership' | 'rating' | 'notes' | 'shelfIds' | 'sizeMl' | 'isSignature'>>): Promise<void>;
-export async function removeFromWardrobe(uid: string, parfumId: string): Promise<void>;
-export async function isInWardrobe(uid: string, parfumId: string): Promise<WardrobeItem | null>;
+// UserParfum — relation unique (parcours + metadata) + Shelves + SOTD
+export function onUserParfums(uid: string, cb: (items: UserParfum[]) => void): () => void;
+export async function addUserParfum(uid: string, parfumId: string, status: UserParfumStatus, parfum?: Parfum): Promise<void>;
+export async function updateUserParfum(uid: string, parfumId: string, data: Partial<Pick<UserParfum, 'status' | 'verdict' | 'rating' | 'notes' | 'triedAt' | 'shelfIds' | 'isSignature'>>): Promise<void>;
+export async function markTried(uid: string, parfumId: string, data: { verdict: ScentVerdict | null; rating: number | null; notes: string | null }): Promise<void>;
+export async function removeUserParfum(uid: string, parfumId: string): Promise<void>;
+export async function getUserParfum(uid: string, parfumId: string): Promise<UserParfum | null>;
 
 // Shelves — étagères custom
 export function onShelves(uid: string, cb: (shelves: Shelf[]) => void): () => void;
@@ -101,6 +101,16 @@ export async function deleteShelf(uid: string, shelfId: string): Promise<void>;
 // SOTD — Parfum du jour (stocké par date YYYY-MM-DD)
 export async function getTodaySotd(uid: string): Promise<SotdEntry | null>;
 export async function setSotd(uid: string, parfumId: string, nom: string, marque: string, imageUrl?: string | null): Promise<void>;
+```
+
+### `src/services/possessions.ts`
+```ts
+// Possessions — objets physiques (multiples par parfum)
+export async function getPossessions(uid: string, parfumId: string): Promise<Possession[]>;
+export async function getAllPossessions(uid: string): Promise<Possession[]>;
+export async function addPossession(uid: string, parfumId: string, type: PossessionType, sizeMl?: number | null, quantity?: number, forSale?: boolean, notes?: string | null): Promise<string>;
+export async function updatePossession(uid: string, possessionId: string, data: Partial<Pick<Possession, 'type' | 'sizeMl' | 'quantity' | 'forSale' | 'notes'>>): Promise<void>;
+export async function removePossession(uid: string, possessionId: string): Promise<void>;
 ```
 
 ### `src/services/theme-storage.ts`
@@ -137,21 +147,6 @@ export function startFcmRegistration(uid: string): () => void;
 ```ts
 // Edge Function `transcribe-voice` (OpenAI Whisper-1) — fallback vocal
 export function transcribeVoice(audioBase64: string, mimeType: string): Promise<string>;
-```
-
-### `src/services/scentlist.ts`
-```ts
-// Carnet d'essais (parfums à sentir / sentis) — table scentlist
-export function onScentList(uid: string, cb: (items: UserScentItem[]) => void): () => void;
-export function addToScentList(uid: string, parfum: Parfum): Promise<void>;
-export function updateScentItem(uid: string, parfumId: string,
-  data: Partial<Pick<UserScentItem, 'verdict' | 'rating' | 'notes' | 'status' | 'triedAt'>>): Promise<void>;
-export function markScentTried(uid: string, parfumId: string,
-  data: { verdict: ScentVerdict | null; rating: number | null; notes: string | null }): Promise<void>;
-export function removeFromScentList(uid: string, parfumId: string): Promise<void>;
-export function isInScentList(uid: string, parfumId: string): Promise<UserScentItem | null>;
-export function moveScentToWardrobe(uid: string, item: UserScentItem,
-  ownership: WardrobeItem['ownership'], sizeMl?: number | null): Promise<void>;
 ```
 
 ### `src/services/account.ts`
@@ -222,14 +217,19 @@ interface AuthContextValue {
 }
 ```
 
-### `useFavoris(uid)` — `src/hooks/useFavoris.ts`
+### `useFavorisContext()` — `src/contexts/FavorisContext.tsx`
 ```ts
-// Hook Firestore temps réel pour les favoris
-export function useFavoris(uid: string | null): {
-  items: FilterableItem[];
+// Source de vérité favoris (1 subscription temps réel partagée, montée dans _layout.tsx).
+// Remplace l'ancien hook useFavoris + isParfumFavori + l'état local de la fiche détail.
+interface FavorisContextValue {
+  favoris: UserFavori[];
+  favIds: Set<string>;                 // Set des parfumId favoris
   loading: boolean;
-  removeFavori: (id: string) => Promise<void>;
-};
+  isFav: (parfumId: string) => boolean;
+  toggleFav: (parfum: Parfum) => void;  // optimiste + rollback (addFavori/removeFavori)
+  removeFavori: (parfumId: string) => void;
+}
+export function useFavorisContext(): FavorisContextValue;
 ```
 
 ### `useWishlist(uid)` — `src/hooks/useWishlist.ts`
@@ -252,22 +252,41 @@ export function useScans(uid: string | null): {
 };
 ```
 
-### `useWardrobe(uid)` — `src/hooks/useWardrobe.ts`
+### `useUserParfum(uid)` — `src/hooks/useUserParfum.ts`
 ```ts
-// Hook Firestore temps réel pour la garde-robe
-export function useWardrobe(uid: string | null): {
-  items: WardrobeItem[];
+// Hook temps réel unifié (remplace useWardrobe + useScentList)
+export function useUserParfum(uid: string | null): {
+  items: UserParfum[];
+  toTry: UserParfum[];
+  tried: UserParfum[];
+  want: UserParfum[];
+  have: UserParfum[];
+  had: UserParfum[];
   loading: boolean;
-  add: (parfumId: string, ownership: WardrobeItem['ownership'], nom?: string, marque?: string, imageUrl?: string, familleOlactive?: string) => Promise<void>;
-  update: (parfumId: string, data: Partial<Pick<WardrobeItem, 'ownership' | 'rating' | 'notes' | 'shelfIds' | 'sizeMl'>>) => Promise<void>;
+  add: (parfumId: string, status: UserParfumStatus, parfum?: Parfum) => Promise<void>;
+  update: (parfumId: string, data: Partial<Pick<UserParfum, 'status' | 'verdict' | 'rating' | 'notes' | 'triedAt' | 'shelfIds' | 'isSignature'>>) => Promise<void>;
+  markTried: (parfumId: string, data: { verdict: ScentVerdict | null; rating: number | null; notes: string | null }) => Promise<void>;
   remove: (parfumId: string) => Promise<void>;
-  checkInWardrobe: (parfumId: string) => Promise<WardrobeItem | null>;
+  get: (parfumId: string) => Promise<UserParfum | null>;
+};
+```
+
+### `usePossessions(uid, parfumId)` — `src/hooks/usePossessions.ts`
+```ts
+// Hook possessions (fetch on-demand par parfum, pas realtime)
+export function usePossessions(uid: string | null, parfumId: string | null): {
+  items: Possession[];
+  loading: boolean;
+  add: (type: PossessionType, sizeMl?: number | null, quantity?: number, forSale?: boolean, notes?: string | null) => Promise<string>;
+  update: (possessionId: string, data: Partial<Pick<Possession, 'type' | 'sizeMl' | 'quantity' | 'forSale' | 'notes'>>) => Promise<void>;
+  remove: (possessionId: string) => Promise<void>;
+  refresh: () => Promise<void>;
 };
 ```
 
 ### `useShelves(uid)` — `src/hooks/useShelves.ts`
 ```ts
-// Hook CRUD étagères (Firestore temps réel)
+// Hook CRUD étagères (temps réel)
 export function useShelves(uid: string | null): {
   shelves: Shelf[];
   create: (name: string, icon?: string, color?: string) => Promise<void>;
@@ -281,25 +300,10 @@ export function useShelves(uid: string | null): {
 // Hook Parfum du jour (lecture/écriture + état local optimiste)
 export function useSotd(uid: string | null): {
   sotd: SotdEntry | null;
-  setTodaySotd: (item: WardrobeItem) => Promise<void>;
+  setTodaySotd: (item: UserParfum) => Promise<void>;
   refresh: () => Promise<void>;
 };
 ```
-
-### `useScentList(uid)` — `src/hooks/useScentList.ts`
-```ts
-// Carnet d'essais temps réel
-export function useScentList(uid: string | null): {
-  items: UserScentItem[];
-  toTry: UserScentItem[];
-  tried: UserScentItem[];
-  loading: boolean;
-  add: (parfum: Parfum) => Promise<void>;
-  update: (parfumId: string, data: Partial<Pick<UserScentItem, 'verdict' | 'rating' | 'notes' | 'status' | 'triedAt'>>) => Promise<void>;
-  markTried: (parfumId: string, data: { verdict: ScentVerdict | null; rating: number | null; notes: string | null }) => Promise<void>;
-  remove: (parfumId: string) => Promise<void>;
-  moveToWardrobe: (item: UserScentItem, ownership: WardrobeItem['ownership'], sizeMl?: number | null) => Promise<void>;
-};
 ```
 
 ### `useDensityPreference()` — `src/hooks/useDensityPreference.ts`
@@ -621,6 +625,19 @@ interface Props {
   disabled?: boolean;
   onPress: () => void;
   children: React.ReactNode;
+}
+```
+
+### `FavButton` — `src/components/FavButton.tsx`
+
+Cœur favori auto-contenu : lit/écrit le `FavorisContext`, pop spring + haptique (§2.6),
+auth gate (→ `/auth/login` si déconnecté), coupé en Reduced Motion. Se positionne en
+`absolute` top-right du conteneur parent (image de carte ou hero).
+
+```ts
+interface Props {
+  parfum: Parfum;
+  size?: 'xs' | 'sm' | 'lg';  // xs 26px (liste), sm 32px (cartes), lg 40px (hero)
 }
 ```
 

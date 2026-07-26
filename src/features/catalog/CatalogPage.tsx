@@ -118,7 +118,9 @@ export default function CatalogPage({ scrollY }: Props) {
         try {
           const personalized = await getPersonalizedSuggestions(user.uid, 16);
           if (!cancelled && personalized.length > 0) {
-            setSuggestionParfums(seededShuffle(personalized, today).slice(0, 8));
+            const exploit = personalized.slice(0, 5);
+            const discover = seededShuffle(personalized.slice(5), today).slice(0, 3);
+            setSuggestionParfums([...exploit, ...discover]);
             setSuggestionLabel('Pour vous');
             setSuggestionLoading(false);
             return;

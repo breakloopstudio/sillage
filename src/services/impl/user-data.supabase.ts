@@ -2,9 +2,8 @@
 // (Favoris + scans + collection + settings + alertes prix).
 // Appelée par le dispatcher user-data.ts quand USE_SUPABASE=true.
 
-import type { Parfum, UserFavori, UserScan, UserCollectionItem } from '../../models';
+import type { Parfum, UserFavori, UserScan } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
-import { getParfumById } from '../catalog';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate } from './sql-utils';
 
@@ -44,17 +43,6 @@ function rowToScan(row: Record<string, unknown>): UserScan {
     annee: (row.annee as number) ?? undefined,
     bestPrice: (row.best_price as number) ?? undefined,
     status: (row.status as UserScan['status']) ?? undefined,
-  };
-}
-
-function rowToCollectionItem(row: Record<string, unknown>): UserCollectionItem {
-  return {
-    id: row.parfum_id as string, // parité : doc id Firestore = parfumId
-    parfumId: row.parfum_id as string,
-    nom: (row.nom as string) ?? null,
-    marque: (row.marque as string) ?? null,
-    imageUrl: (row.image_url as string) ?? null,
-    addedAt: toDate(row.added_at) ?? new Date(),
   };
 }
 
@@ -182,113 +170,6 @@ export async function removeScan(uid: string, scanId: string): Promise<void> {
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] removeScan failed:', (e as Error)?.message ?? String(e));
-  }
-}
-
-// ─── Collection ──────────────────────────────────────────────────────────────
-
-export function onCollection(uid: string, cb: (items: UserCollectionItem[]) => void): () => void {
-  return subscribeUserTable<UserCollectionItem>({
-    table: 'collection',
-    userId: uid,
-    mapRow: rowToCollectionItem,
-    keyOf: (row) => row.parfum_id as string,
-    sort: byAddedAtDesc,
-    cb,
-    onError: (msg) => console.warn('[user-data] onCollection error:', msg),
-  });
-}
-
-export async function addToCollection(uid: string, parfumId: string, nom?: string, marque?: string, imageUrl?: string): Promise<string> {
-  try {
-    const { error } = await supabase.from('collection').upsert({
-      user_id: uid,
-      parfum_id: parfumId,
-      nom: nom ?? null,
-      marque: marque ?? null,
-      image_url: imageUrl ?? null,
-      added_at: new Date().toISOString(),
-    } as never);
-    if (error) throw error;
-    return parfumId;
-  } catch (e: unknown) {
-    console.warn('[user-data] addToCollection failed:', (e as Error)?.message ?? String(e));
-    return parfumId;
-  }
-}
-
-export async function removeFromCollection(uid: string, itemId: string): Promise<void> {
-  try {
-    const { error } = await supabase
-      .from('collection')
-      .delete()
-      .eq('user_id', uid)
-      .eq('parfum_id', itemId);
-    if (error) throw error;
-  } catch (e: unknown) {
-    console.warn('[user-data] removeFromCollection failed:', (e as Error)?.message ?? String(e));
-  }
-}
-
-export async function moveToCollection(uid: string, fromTab: string, fromItemId: string, parfumId: string, nom?: string | null, marque?: string | null, imageUrl?: string | null): Promise<void> {
-  try {
-    void fromItemId; // l'RPC supprime par (user_id, parfum_id) — parité doc id déterministe
-    const { error } = await supabase.rpc('move_to_collection', {
-      p_from: fromTab,
-      p_parfum_id: parfumId,
-      p_nom: nom ?? null,
-      p_marque: marque ?? null,
-      p_image_url: imageUrl ?? null,
-    });
-    if (error) throw error;
-  } catch (e: unknown) {
-    console.warn('[user-data] moveToCollection failed:', (e as Error)?.message ?? String(e));
-  }
-}
-
-export async function moveToScentList(uid: string, fromTab: string, fromItemId: string, parfumId: string, nom?: string | null, marque?: string | null, imageUrl?: string | null, familleOlactive?: string | null): Promise<void> {
-  try {
-    void fromItemId;
-    const { error } = await supabase.rpc('move_to_scentlist', {
-      p_from: fromTab,
-      p_parfum_id: parfumId,
-      p_nom: nom ?? null,
-      p_marque: marque ?? null,
-      p_image_url: imageUrl ?? null,
-      p_famille_olfactive: familleOlactive ?? null,
-    });
-    if (error) throw error;
-  } catch (e: unknown) {
-    console.warn('[user-data] moveToScentList failed:', (e as Error)?.message ?? String(e));
-  }
-}
-
-export async function moveFavori(uid: string, fromTab: string, fromItemId: string, parfumId: string, nom?: string | null, marque?: string | null, imageUrl?: string | null, familleOlactive?: string | null): Promise<void> {
-  try {
-    void fromItemId;
-    // Champs filtres best-effort (parité impl Firebase : fetch du parfum)
-    let f: ReturnType<typeof buildFavoriFilterFields> | null = null;
-    try {
-      const p = await getParfumById(parfumId);
-      if (p) f = buildFavoriFilterFields(p);
-    } catch (e: unknown) {
-      console.warn('[user-data] moveFavori parfum fetch failed:', (e as Error)?.message ?? String(e));
-    }
-    const { error } = await supabase.rpc('move_favori', {
-      p_from: fromTab,
-      p_parfum_id: parfumId,
-      p_nom: nom ?? null,
-      p_marque: marque ?? null,
-      p_image_url: imageUrl ?? null,
-      p_famille_olfactive: familleOlactive ?? null,
-      p_longevity: f?.longevity ?? null,
-      p_sillage: f?.sillage ?? null,
-      p_season_scores: f?.seasonScores ?? null,
-      p_notes: f?.notes ?? null,
-    });
-    if (error) throw error;
-  } catch (e: unknown) {
-    console.warn('[user-data] moveFavori failed:', (e as Error)?.message ?? String(e));
   }
 }
 

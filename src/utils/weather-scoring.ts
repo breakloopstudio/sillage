@@ -1,7 +1,7 @@
 // src/utils/weather-scoring.ts — Score de compatibilité parfum × météo
 // ⚠️ Doublon de functions/src/weather-scoring.ts — toute modification doit être reportée dans l'autre fichier
 
-import type { WardrobeItem } from '../models/wardrobe.interface';
+import type { UserParfum } from '../models/user-parfum.interface';
 import type { WeatherData } from '../services/weather';
 import { getWmoMeta, mapTempToSeason } from './weather-codes';
 
@@ -68,7 +68,7 @@ function normalizeFamille(raw: string | null): string | null {
   return null;
 }
 
-export function scoreWardrobeItemForWeather(item: WardrobeItem, weather: WeatherData): number {
+export function scoreWardrobeItemForWeather(item: UserParfum, weather: WeatherData): number {
   const famille = normalizeFamille(item.familleOlactive);
   const season = mapTempToSeason(weather.dailyMax ?? weather.temperature);
   const wmo = getWmoMeta(weather.weatherCode);

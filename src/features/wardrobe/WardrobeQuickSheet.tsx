@@ -7,19 +7,19 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StarRating from './StarRating';
-import { ownershipLabel } from '../../utils/ownership';
+import { statusLabel } from '../catalog/useSaveController';
 import { hapticsLight } from '../../services/haptics';
-import type { WardrobeItem, Shelf } from '../../models/wardrobe.interface';
+import type { UserParfum, UserParfumStatus, Shelf } from '../../models/user-parfum.interface';
 
-const OWNERSHIP_OPTIONS: WardrobeItem['ownership'][] = ['have', 'want', 'had', 'sample', 'decant'];
+const STATUS_OPTIONS: UserParfumStatus[] = ['have', 'had'];
 
 interface Props {
   visible: boolean;
-  item: WardrobeItem | null;
+  item: UserParfum | null;
   shelves: Shelf[];
   signatureCount: number;
   onClose: () => void;
-  onOwnershipChange: (ownership: WardrobeItem['ownership']) => void;
+  onStatusChange: (status: UserParfumStatus) => void;
   onRatingChange: (rating: number) => void;
   onToggleShelf: (shelfId: string) => void;
   onToggleSignature: () => void;
@@ -33,7 +33,7 @@ export default function WardrobeQuickSheet({
   shelves,
   signatureCount,
   onClose,
-  onOwnershipChange,
+  onStatusChange,
   onRatingChange,
   onToggleShelf,
   onToggleSignature,
@@ -78,14 +78,14 @@ export default function WardrobeQuickSheet({
         <View style={s.section}>
           <Text style={s.sectionLabel}>État</Text>
           <View style={s.chips}>
-            {OWNERSHIP_OPTIONS.map(o => (
+            {STATUS_OPTIONS.map(o => (
               <Pressable
                 key={o}
-                style={[s.chip, item.ownership === o && s.chipActive]}
-                onPress={() => { hapticsLight(); onOwnershipChange(o); }}
+                style={[s.chip, item.status === o && s.chipActive]}
+                onPress={() => { hapticsLight(); onStatusChange(o); }}
               >
-                <Text style={[s.chipText, item.ownership === o && s.chipTextActive]}>
-                  {ownershipLabel(o)}
+                <Text style={[s.chipText, item.status === o && s.chipTextActive]}>
+                  {statusLabel(o)}
                 </Text>
               </Pressable>
             ))}

@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, useAuthContext } from '../src/contexts/AuthContext';
+import { FavorisProvider } from '../src/contexts/FavorisContext';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import OfflineBanner from '../src/components/OfflineBanner';
@@ -78,6 +79,7 @@ function RootLayoutInner() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <AuthProvider>
+        <FavorisProvider>
         <AuthGuard>
           <ErrorBoundary>
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
@@ -100,6 +102,7 @@ function RootLayoutInner() {
           </Stack>
           </ErrorBoundary>
         </AuthGuard>
+        </FavorisProvider>
       </AuthProvider>
       <OfflineBanner visible={!isOnline || reconnected} variant={reconnected ? 'reconnected' : 'offline'} />
     </GestureHandlerRootView>

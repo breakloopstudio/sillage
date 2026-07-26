@@ -8,11 +8,11 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 import { scoreWardrobeItemForWeather } from '../../utils/weather-scoring';
 import type { WeatherData } from '../../services/weather';
-import type { WardrobeItem } from '../../models/wardrobe.interface';
+import type { UserParfum } from '../../models/user-parfum.interface';
 
 interface Props {
   visible: boolean;
-  haveItems: WardrobeItem[];
+  haveItems: UserParfum[];
   currentSotdId: string | null;
   anchorTop: number;
   weather?: WeatherData | null;

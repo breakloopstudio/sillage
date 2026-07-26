@@ -6,7 +6,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
-import type { Shelf } from '../../models/wardrobe.interface';
+import type { Shelf } from '../../models/user-parfum.interface';
 
 const SHELF_COLORS_LIGHT = ['#6C3ED9', '#C8945A', '#0D9488', '#D97706', '#E04444', '#2563EB', '#059669', '#7C3AED'];
 const SHELF_COLORS_DARK  = ['#8B6CF6', '#D4A960', '#2DD4BF', '#F59E0B', '#EF4444', '#60A5FA', '#34D399', '#A78BFA'];

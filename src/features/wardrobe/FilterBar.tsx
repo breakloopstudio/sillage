@@ -4,14 +4,14 @@ import { useMemo, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
-import { ownershipLabel } from '../../utils/ownership';
+import { statusLabel } from '../catalog/useSaveController';
 import { SEASON_META } from '../../utils/season';
 import {
   type FavoritesFilters,
   buildActiveChips,
   removeActiveChip,
 } from '../../utils/favori-filters';
-import type { Shelf, WardrobeItem } from '../../models/wardrobe.interface';
+import type { Shelf, UserParfumStatus } from '../../models/user-parfum.interface';
 
 const SORT_OPTIONS: { key: string; label: string }[] = [
   { key: 'weather', label: 'Météo' },
@@ -21,7 +21,7 @@ const SORT_OPTIONS: { key: string; label: string }[] = [
   { key: 'za', label: 'Z–A' },
 ];
 
-const OWNERSHIP_KEYS: WardrobeItem['ownership'][] = ['have', 'want', 'had', 'sample', 'decant'];
+const STATUS_KEYS: UserParfumStatus[] = ['have', 'had'];
 
 interface Props {
   shelves: Shelf[];
@@ -132,14 +132,14 @@ export default function FilterBar({
           <Text style={[s.pillText, isAllActive && s.pillTextActive]}>Tous</Text>
         </Pressable>
 
-        {OWNERSHIP_KEYS.map(key => (
+        {STATUS_KEYS.map(key => (
           <Pressable
             key={key}
             style={[s.pill, activeOwnership === key && s.pillActive]}
             onPress={() => handleOwnershipTap(key)}
           >
             <Text style={[s.pillText, activeOwnership === key && s.pillTextActive]}>
-              {ownershipLabel(key)} · {ownershipCounts[key] ?? 0}
+              {statusLabel(key)} · {ownershipCounts[key] ?? 0}
             </Text>
           </Pressable>
         ))}

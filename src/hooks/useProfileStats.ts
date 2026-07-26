@@ -1,17 +1,17 @@
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../services/supabase';
-import type { WardrobeItem } from '../models/wardrobe.interface';
+import type { UserParfum, UserParfumStatus } from '../models/user-parfum.interface';
 import { toDate } from '../services/impl/sql-utils';
 
 interface ProfileStats {
   favorisCount: number | null;
-  wardrobeItems: WardrobeItem[];
+  wardrobeItems: UserParfum[];
   scansCount: number | null;
   loading: boolean;
 }
 
-function rowToWardrobeItem(row: Record<string, unknown>): WardrobeItem {
+function rowToUserParfum(row: Record<string, unknown>): UserParfum {
   const addedAt = toDate(row.added_at) ?? new Date();
   return {
     parfumId: row.parfum_id as string,
@@ -19,16 +19,17 @@ function rowToWardrobeItem(row: Record<string, unknown>): WardrobeItem {
     marque: (row.marque as string) ?? null,
     imageUrl: (row.image_url as string) ?? null,
     familleOlactive: (row.famille_olfactive as string) ?? null,
-    ownership: (row.ownership as WardrobeItem['ownership']) ?? 'have',
+    status: (row.status as UserParfumStatus) ?? 'have',
+    verdict: (row.verdict as UserParfum['verdict']) ?? null,
+    triedAt: row.tried_at ? new Date(row.tried_at as string) : null,
     rating: typeof row.rating === 'number' ? row.rating : null,
     notes: (row.notes as string) ?? null,
     shelfIds: Array.isArray(row.shelf_ids) ? row.shelf_ids as string[] : [],
-    sizeMl: typeof row.size_ml === 'number' ? row.size_ml : null,
     sotdCount: typeof row.sotd_count === 'number' ? row.sotd_count : 0,
     isSignature: row.is_signature === true,
     longevity: (row.longevity as string) ?? null,
     sillage: (row.sillage as string) ?? null,
-    seasonScores: (row.season_scores as WardrobeItem['seasonScores']) ?? null,
+    seasonScores: (row.season_scores as UserParfum['seasonScores']) ?? null,
     allNotes: Array.isArray(row.all_notes) ? row.all_notes as string[] : null,
     addedAt,
     updatedAt: toDate(row.updated_at) ?? addedAt,
@@ -37,7 +38,7 @@ function rowToWardrobeItem(row: Record<string, unknown>): WardrobeItem {
 
 export function useProfileStats(uid: string | null): {
   favorisCount: number | null;
-  wardrobeItems: WardrobeItem[];
+  wardrobeItems: UserParfum[];
   scansCount: number | null;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -58,12 +59,12 @@ export function useProfileStats(uid: string | null): {
     try {
       const [favRes, wardRes, scanRes] = await Promise.all([
         supabase.from('favoris').select('*', { count: 'exact', head: true }).eq('user_id', uid),
-        supabase.from('wardrobe').select('*').eq('user_id', uid),
+        supabase.from('user_parfum').select('*').eq('user_id', uid),
         supabase.from('scans').select('*', { count: 'exact', head: true }).eq('user_id', uid),
       ]);
       setStats({
         favorisCount: favRes.count ?? 0,
-        wardrobeItems: ((wardRes.data ?? []) as Record<string, unknown>[]).map(rowToWardrobeItem),
+        wardrobeItems: ((wardRes.data ?? []) as Record<string, unknown>[]).map(rowToUserParfum),
         scansCount: scanRes.count ?? 0,
         loading: false,
       });

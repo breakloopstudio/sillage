@@ -6,7 +6,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import SectionHeader from '../../components/SectionHeader';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 
-const TOP_BRANDS = [
+export const TOP_BRANDS = [
   'Dior', 'Chanel', 'Tom Ford', 'Hermès', 'Yves Saint Laurent',
   'Guerlain', 'Creed', 'Le Labo', 'Byredo', 'Maison Francis Kurkdjian',
 ];

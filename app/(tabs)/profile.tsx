@@ -1,7 +1,8 @@
 // app/profile.tsx — Page Profil (date d'application v6.21)
 
 import { useState, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -10,9 +11,10 @@ import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useProfileStats } from '../../src/hooks/useProfileStats';
-import { OWNERSHIP_LABELS } from '../../src/utils/ownership';
-import type { WardrobeItem } from '../../src/models/wardrobe.interface';
+import { statusLabel } from '../../src/features/catalog/useSaveController';
+import type { UserParfumStatus } from '../../src/models/user-parfum.interface';
 import AuthGate from '../../src/components/AuthGate';
+import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 
 const NAV_ROWS = [
   { key: 'favoris', icon: 'heart-outline', label: 'Favoris', route: '/(tabs)/selection', params: { segment: 'favoris' } },
@@ -21,7 +23,7 @@ const NAV_ROWS = [
   { key: 'scentlist', icon: 'book-outline', label: "Carnet d'essais", route: '/(tabs)/selection', params: { segment: 'carnet' } },
 ] as const;
 
-const OWNERSHIP_KEYS: WardrobeItem['ownership'][] = ['have', 'want', 'had', 'sample', 'decant'];
+const STATUS_KEYS: UserParfumStatus[] = ['have', 'had', 'want', 'to_try', 'tried'];
 
 export default function ProfilePage() {
   const { theme } = useTheme();
@@ -32,13 +34,18 @@ export default function ProfilePage() {
 
   const { favorisCount, wardrobeItems: items, scansCount, loading: dataLoading } = useProfileStats(uid);
   const { sotd } = useSotd(uid);
+  const { scrollY } = useNavigationChrome();
+
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
 
   const [imgFailed, setImgFailed] = useState(false);
 
   const ownershipCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const item of items) {
-      counts[item.ownership] = (counts[item.ownership] ?? 0) + 1;
+      counts[item.status] = (counts[item.status] ?? 0) + 1;
     }
     return counts;
   }, [items]);
@@ -53,8 +60,8 @@ export default function ProfilePage() {
     have: { bg: theme.colors.primarySoft, color: theme.colors.primaryInk },
     want: { bg: theme.colors.secondarySoft, color: theme.colors.secondaryInk },
     had: { bg: theme.colors.surface2, color: theme.colors.textMuted },
-    sample: { bg: theme.colors.dealSoft, color: theme.colors.dealInk },
-    decant: { bg: theme.colors.dealSoft, color: theme.colors.deal },
+    to_try: { bg: theme.colors.fairSoft, color: theme.colors.fairInk },
+    tried: { bg: theme.colors.dealSoft, color: theme.colors.dealInk },
   } as const), [theme]);
 
   const handleLogout = useCallback(() => {
@@ -95,7 +102,12 @@ export default function ProfilePage() {
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
         <View style={s.header}>
           <View style={s.headerSpacer} />
           <Text style={s.title}>Profil</Text>
@@ -158,14 +170,14 @@ export default function ProfilePage() {
             <>
               <View style={s.statDivider} />
               <View style={s.ownershipWrap}>
-                {OWNERSHIP_KEYS.map(key => {
+                {STATUS_KEYS.map(key => {
                   const count = ownershipCounts[key];
                   if (!count) return null;
                   const colors = ownershipColorMap[key];
                   return (
                     <View key={key} style={[s.ownershipChip, { backgroundColor: colors.bg }]}>
                       <Text allowFontScaling={false} style={[s.ownershipChipText, { color: colors.color }]}>
-                        {OWNERSHIP_LABELS[key]}{'\u00A0'}·{'\u00A0'}{count}
+                        {statusLabel(key)}{'\u00A0'}·{'\u00A0'}{count}
                       </Text>
                     </View>
                   );
@@ -244,7 +256,7 @@ export default function ProfilePage() {
           <Ionicons name="log-out-outline" size={20} color={theme.colors.overpriced} />
           <Text style={s.logoutText}>Déconnexion</Text>
         </Pressable>
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }

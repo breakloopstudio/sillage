@@ -6,17 +6,19 @@ import Animated, {
   useAnimatedStyle,
   type SharedValue,
 } from 'react-native-reanimated';
+import { PALETTES } from './runner-types';
 
 interface Props {
   bgOffset: SharedValue<number>;
   midOffset: SharedValue<number>;
+  paletteIdx: number;
 }
 
 const FAR_PERIOD = 1200;
 const MID_PERIOD = 1400;
 const SKY_BANDS = ['#0B0712', '#10091C', '#0D0818', '#120A1F', '#0B0712'];
 
-function FarLayer({ offset }: { offset: SharedValue<number> }) {
+function FarLayer({ offset, hillColor }: { offset: SharedValue<number>; hillColor: string }) {
   const style = useAnimatedStyle(() => ({
     transform: [{ translateX: -(offset.value % FAR_PERIOD) }],
   }));
@@ -40,7 +42,7 @@ function FarLayer({ offset }: { offset: SharedValue<number> }) {
               style={{
                 position: 'absolute', left: h.left, bottom: 0,
                 width: h.width, height: h.height,
-                backgroundColor: '#15101E', borderTopLeftRadius: 90, borderTopRightRadius: 90,
+                backgroundColor: hillColor, borderTopLeftRadius: 90, borderTopRightRadius: 90,
                 opacity: 0.6,
               }}
             />
@@ -51,7 +53,7 @@ function FarLayer({ offset }: { offset: SharedValue<number> }) {
   );
 }
 
-function MidLayer({ offset }: { offset: SharedValue<number> }) {
+function MidLayer({ offset, shelfColor, flaconColor }: { offset: SharedValue<number>; shelfColor: string; flaconColor: string }) {
   const style = useAnimatedStyle(() => ({
     transform: [{ translateX: -(offset.value % MID_PERIOD) }],
   }));
@@ -74,10 +76,10 @@ function MidLayer({ offset }: { offset: SharedValue<number> }) {
     <Animated.View style={[{ position: 'absolute', top: '62%', height: '12%', width: MID_PERIOD * 2, flexDirection: 'row' }, style]}>
       {[0, MID_PERIOD].map(shift => (
         <View key={shift} style={{ width: MID_PERIOD, height: '100%', position: 'relative' }}>
-          {shelves.map((s, j) => (
+          {shelves.map((sh, j) => (
             <View
               key={`sh${j}`}
-              style={{ position: 'absolute', left: s.left, bottom: 0, width: s.width, height: 6, backgroundColor: '#2A2238', opacity: 0.4 }}
+              style={{ position: 'absolute', left: sh.left, bottom: 0, width: sh.width, height: 6, backgroundColor: shelfColor, opacity: 0.4 }}
             />
           ))}
           {flacons.map((f, j) => (
@@ -85,7 +87,7 @@ function MidLayer({ offset }: { offset: SharedValue<number> }) {
               key={`fl${j}`}
               style={{
                 position: 'absolute', left: f.left, bottom: 6, width: f.width, height: f.height,
-                backgroundColor: '#1D1728', borderTopLeftRadius: 3, borderTopRightRadius: 3, opacity: 0.35,
+                backgroundColor: flaconColor, borderTopLeftRadius: 3, borderTopRightRadius: 3, opacity: 0.35,
               }}
             />
           ))}
@@ -95,8 +97,9 @@ function MidLayer({ offset }: { offset: SharedValue<number> }) {
   );
 }
 
-function RunnerBackground({ bgOffset, midOffset }: Props) {
+function RunnerBackground({ bgOffset, midOffset, paletteIdx }: Props) {
   const { width: screenW, height: screenH } = useWindowDimensions();
+  const pal = PALETTES[paletteIdx % PALETTES.length];
 
   const starPositions = useMemo(() =>
     Array.from({ length: 40 }, () => ({
@@ -110,15 +113,15 @@ function RunnerBackground({ bgOffset, midOffset }: Props) {
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-      {starPositions.map((s, i) => (
+      {starPositions.map((st, i) => (
         <View
           key={i}
-          style={{ position: 'absolute', left: s.x, top: s.y, width: s.size, height: s.size, borderRadius: s.size, backgroundColor: '#FFFFFF', opacity: s.opacity }}
+          style={{ position: 'absolute', left: st.x, top: st.y, width: st.size, height: st.size, borderRadius: st.size, backgroundColor: '#FFFFFF', opacity: st.opacity }}
         />
       ))}
 
-      <FarLayer offset={bgOffset} />
-      <MidLayer offset={midOffset} />
+      <FarLayer offset={bgOffset} hillColor={pal.crystal2} />
+      <MidLayer offset={midOffset} shelfColor={pal.crystal3} flaconColor={pal.crystal} />
 
       {SKY_BANDS.map((color, i) => (
         <View

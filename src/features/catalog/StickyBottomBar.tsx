@@ -1,4 +1,4 @@
-// src/features/catalog/StickyBottomBar.tsx — Barre d'action flottante (prix + actions, slide-in après la section prix)
+// src/features/catalog/StickyBottomBar.tsx — Barre d'action flottante (prix + Enregistrer + CTA, slide-in après la section prix)
 
 import { useMemo, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
@@ -10,33 +10,26 @@ import Animated, {
   runOnJS,
   type SharedValue,
 } from 'react-native-reanimated';
-import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { formatPrice } from '../../utils/format-price';
-import { ownershipLabel } from '../../utils/ownership';
-import type { WardrobeItem } from '../../models/wardrobe.interface';
+import SaveButton from './SaveButton';
 
 interface Props {
   scrollY: SharedValue<number>;
   priceSectionY: SharedValue<number>;
   bestPrice: number | undefined;
   referencePrice: number | undefined;
-  isFav: boolean;
-  wardrobeItem: WardrobeItem | null;
-  inScentList: boolean;
+  saveLabel: string | null;
   purchaseUrl: string | null | undefined;
-  onToggleFav: () => void;
-  onWardrobePress: () => void;
-  onScentPress: () => void;
+  onSavePress: () => void;
   onPurchasePress: () => void;
 }
 
 export default function StickyBottomBar({
   scrollY, priceSectionY, bestPrice, referencePrice,
-  isFav, wardrobeItem, inScentList, purchaseUrl,
-  onToggleFav, onWardrobePress, onScentPress, onPurchasePress,
+  saveLabel, purchaseUrl, onSavePress, onPurchasePress,
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -73,59 +66,28 @@ export default function StickyBottomBar({
   return (
     <Animated.View pointerEvents={barVisible ? 'auto' : 'none'} style={[s.root, { paddingBottom: insets.bottom + 12 }, barStyle]}>
       <View style={s.inner}>
-        {/* Prix + réduction */}
         <View style={s.priceCol}>
           {hasPrice ? (
-            <>
-              <View style={s.priceRow}>
-                <Text style={s.price}>{formatPrice(bestPrice!)}</Text>
-                {discountPct !== null && discountPct > 0 && discountPct <= 95 && (
-                  <View style={[s.discountBadge, { backgroundColor: theme.colors.deal }]}>
-                    <Text style={s.discountText}>-{discountPct}%</Text>
-                  </View>
-                )}
-              </View>
-            </>
+            <View style={s.priceRow}>
+              <Text style={s.price} numberOfLines={1}>{formatPrice(bestPrice!)}</Text>
+              {discountPct !== null && discountPct > 0 && discountPct <= 95 && (
+                <View style={[s.discountBadge, { backgroundColor: theme.colors.deal }]}>
+                  <Text style={s.discountText}>-{discountPct}%</Text>
+                </View>
+              )}
+            </View>
           ) : (
             <Text style={s.noPrice}>-- €</Text>
           )}
         </View>
 
-        {/* Actions fav + scent + wardrobe */}
-        <View style={s.actions}>
-          <Pressable onPress={onToggleFav} style={s.actionBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
-            <Ionicons
-              name={isFav ? 'heart' : 'heart-outline'}
-              size={22}
-              color={isFav ? theme.colors.favorite : theme.colors.textMuted}
-            />
-          </Pressable>
+        <SaveButton label={saveLabel} onPress={onSavePress} variant="bar" />
 
-          <Pressable onPress={onScentPress} style={s.actionBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={inScentList ? 'Voir dans le carnet' : 'Ajouter au carnet'}>
-            <Ionicons
-              name={inScentList ? 'eyedrop' : 'eyedrop-outline'}
-              size={22}
-              color={inScentList ? theme.colors.secondary : theme.colors.textMuted}
-            />
-          </Pressable>
-
-          <Pressable onPress={onWardrobePress} style={s.actionBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={wardrobeItem ? 'Modifier dans la parfumerie' : 'Ajouter à la parfumerie'}>
-            <Ionicons
-              name={wardrobeItem ? 'flask' : 'flask-outline'}
-              size={22}
-              color={wardrobeItem ? theme.colors.primary : theme.colors.textMuted}
-            />
-          </Pressable>
-        </View>
-
-        {/* CTA */}
         {purchaseUrl ? (
-          <Pressable onPress={onPurchasePress} style={s.cta}>
+          <Pressable onPress={onPurchasePress} style={s.cta} accessibilityRole="button" accessibilityLabel="Voir l'offre">
             <Text style={s.ctaText}>Voir l'offre</Text>
           </Pressable>
-        ) : (
-          <View style={s.ctaPlaceholder} />
-        )}
+        ) : null}
       </View>
     </Animated.View>
   );
@@ -152,7 +114,7 @@ function getStyles(t: Theme) {
       ...t.shadow.elevated,
     },
     priceCol: {
-      minWidth: 90,
+      flexShrink: 1,
       justifyContent: 'center' as const,
     },
     priceRow: {
@@ -162,8 +124,9 @@ function getStyles(t: Theme) {
     },
     price: {
       fontFamily: 'Inter_800ExtraBold',
-      fontSize: 20,
+      fontSize: 18,
       color: t.colors.text,
+      flexShrink: 1,
     },
     discountBadge: {
       paddingHorizontal: 6,
@@ -180,23 +143,9 @@ function getStyles(t: Theme) {
       fontSize: 15,
       color: t.colors.textMuted,
     },
-    actions: {
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 4,
-      marginLeft: 4,
-    },
-    actionBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-    },
     cta: {
-      marginLeft: 'auto' as const,
       backgroundColor: t.colors.primary,
-      paddingHorizontal: 18,
+      paddingHorizontal: 16,
       paddingVertical: 10,
       borderRadius: t.radius.base,
       ...t.shadow.button,
@@ -205,10 +154,6 @@ function getStyles(t: Theme) {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 14,
       color: textOn(t.colors.primary),
-    },
-    ctaPlaceholder: {
-      marginLeft: 'auto' as const,
-      width: 100,
     },
   } as const;
 }

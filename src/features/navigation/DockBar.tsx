@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, useWindowDimensions, Animated as RNAnimated } from 'react-native';
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
-export interface BottomTabBarProps {
-  state: { index: number; routes: Array<{ key: string; name: string }> };
-  navigation: { navigate: (name: string) => void };
-  position?: RNAnimated.Value;
-}
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useReducedMotion,
   withRepeat,
   withTiming,
   withSpring,
@@ -25,6 +21,11 @@ import { hapticsLight } from '../../services/haptics';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useNavigationChrome } from './NavigationChromeContext';
 
+export interface BottomTabBarProps {
+  state: { index: number; routes: Array<{ key: string; name: string }> };
+  navigation: { navigate: (name: string) => void };
+}
+
 const FAB_SPACE = 64;
 const INDICATOR_W = 28;
 const PULSE_MIN = 1;
@@ -38,15 +39,6 @@ export function getIndicatorLeft(screenWidth: number, tabVisualIndex: number): n
   return tabW * tabVisualIndex + tabW / 2 - INDICATOR_W / 2 + fabOffset;
 }
 
-export function getIndicatorLeftAtProgress(screenWidth: number, progress: number): number {
-  const p = Math.min(3, Math.max(0, progress));
-  const i = Math.min(2, Math.floor(p));
-  const f = p - i;
-  const a = getIndicatorLeft(screenWidth, i);
-  const b = getIndicatorLeft(screenWidth, i + 1);
-  return a + (b - a) * f;
-}
-
 const TAB_MAP = {
   index:       { iconActive: 'book',   iconInactive: 'book-outline',   label: 'Catalogue' },
   selection:   { iconActive: 'bookmark', iconInactive: 'bookmark-outline', label: 'Sélection' },
@@ -54,7 +46,7 @@ const TAB_MAP = {
   profile:     { iconActive: 'person', iconInactive: 'person-outline', label: 'Profil' },
 } as const;
 
-export default function DockBar({ state, navigation, position }: BottomTabBarProps) {
+export default function DockBar({ state, navigation }: BottomTabBarProps) {
   const { theme, resolvedMode } = useTheme();
   const m = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -62,6 +54,7 @@ export default function DockBar({ state, navigation, position }: BottomTabBarPro
   const { user } = useAuthContext();
   const { dockTranslateY } = useNavigationChrome();
   const { width: windowWidth } = useWindowDimensions();
+  const reduceMotion = useReducedMotion();
 
   const pulseScale = useSharedValue(PULSE_MIN);
   const indicatorLeft = useSharedValue(
@@ -69,29 +62,23 @@ export default function DockBar({ state, navigation, position }: BottomTabBarPro
   );
 
   useEffect(() => {
+    if (reduceMotion) return;
     pulseScale.value = withRepeat(
       withTiming(PULSE_MAX, { duration: 2500, easing: Easing.out(Easing.ease) }),
       -1,
       true,
     );
     return () => cancelAnimation(pulseScale);
-  }, []);
+  }, [reduceMotion]);
 
   useEffect(() => {
-    if (position) return;
-    indicatorLeft.value = withSpring(
-      getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
-      { damping: 22, stiffness: 280, mass: 0.7 },
-    );
-  }, [state.index, windowWidth, position]);
-
-  useEffect(() => {
-    if (!position) return;
-    const id = position.addListener(({ value }) => {
-      indicatorLeft.value = getIndicatorLeftAtProgress(windowWidth, value);
-    });
-    return () => position.removeListener(id);
-  }, [position, windowWidth]);
+    indicatorLeft.value = reduceMotion
+      ? getIndicatorLeft(windowWidth, Math.min(state.index, 3))
+      : withSpring(
+          getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
+          { damping: 22, stiffness: 280, mass: 0.7 },
+        );
+  }, [state.index, windowWidth, reduceMotion]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: indicatorLeft.value }],
@@ -103,13 +90,17 @@ export default function DockBar({ state, navigation, position }: BottomTabBarPro
 
   const pulseRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
-    opacity: 2 - pulseScale.value,
+    opacity: reduceMotion ? 0 : 2 - pulseScale.value,
   }));
 
   const handleFabPress = useCallback(() => {
-    hapticsLight();
     router.push('/scan');
   }, [router]);
+
+  const handleTabPress = useCallback((routeName: string) => {
+    hapticsLight();
+    navigation.navigate(routeName);
+  }, [navigation]);
 
   const renderTab = (routeKey: string, routeName: string, index: number) => {
     const cfg = TAB_MAP[routeName as keyof typeof TAB_MAP];
@@ -121,17 +112,14 @@ export default function DockBar({ state, navigation, position }: BottomTabBarPro
         <Pressable
           key={routeKey}
           style={s.tab}
-          onPress={() => navigation.navigate(routeName)}
+          onPress={() => handleTabPress(routeName)}
           accessibilityRole="tab"
           accessibilityState={{ selected: isActive }}
           accessibilityLabel={cfg.label}
         >
           <Image
             source={{ uri: user.photoURL }}
-            style={[
-              s.avatarIcon,
-              isActive && { borderColor: theme.colors.primary, borderWidth: 2 },
-            ]}
+            style={[s.avatarIcon, isActive && m.avatarActive]}
           />
           <Text style={[m.label, isActive && m.labelOn]} allowFontScaling={false}>{cfg.label}</Text>
         </Pressable>
@@ -142,14 +130,14 @@ export default function DockBar({ state, navigation, position }: BottomTabBarPro
       <Pressable
         key={routeKey}
         style={s.tab}
-        onPress={() => { hapticsLight(); navigation.navigate(routeName); }}
+        onPress={() => handleTabPress(routeName)}
         accessibilityRole="tab"
         accessibilityState={{ selected: isActive }}
         accessibilityLabel={cfg.label}
       >
         <Ionicons
           name={isActive ? cfg.iconActive : cfg.iconInactive}
-          size={22}
+          size={20}
           color={isActive ? theme.colors.primary : theme.colors.textMuted}
         />
         <Text style={[m.label, isActive && m.labelOn]} allowFontScaling={false}>{cfg.label}</Text>
@@ -168,16 +156,14 @@ export default function DockBar({ state, navigation, position }: BottomTabBarPro
         <View style={[s.overlay, m.overlay]} />
         <Animated.View style={[s.indicator, m.indicator, { left: 0 }, indicatorStyle]} />
 
-        {/* Tab 0 */}
         {state.routes[0] && renderTab(state.routes[0].key, state.routes[0].name, 0)}
-
-        {/* Tab 1 */}
         {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
 
-        {/* FAB central */}
         <View style={s.fabSlot}>
           <View style={s.fabOuter}>
-            <Animated.View style={[s.pulseRing, m.pulseRing, pulseRingStyle]} />
+            {!reduceMotion && (
+              <Animated.View style={[s.pulseRing, m.pulseRing, pulseRingStyle]} />
+            )}
             <Pressable
               style={[s.fab, m.fab, m.fabShadow]}
               onPress={handleFabPress}
@@ -189,10 +175,7 @@ export default function DockBar({ state, navigation, position }: BottomTabBarPro
           </View>
         </View>
 
-        {/* Tab 2 */}
         {state.routes[2] && renderTab(state.routes[2].key, state.routes[2].name, 2)}
-
-        {/* Tab 3 */}
         {state.routes[3] && renderTab(state.routes[3].key, state.routes[3].name, 3)}
       </View>
     </Animated.View>
@@ -244,8 +227,6 @@ const s = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    borderColor: 'transparent',
-    borderWidth: 0,
   },
   fabSlot: {
     flex: 0,
@@ -290,6 +271,7 @@ function getStyles(t: Theme) {
     indicator: { backgroundColor: t.colors.secondary },
     label: { fontFamily: 'Inter_500Medium', fontSize: 10, color: t.colors.textMuted },
     labelOn: { color: t.colors.primary },
+    avatarActive: { borderColor: t.colors.primary, borderWidth: 2 },
     fab: { backgroundColor: t.colors.primary },
     fabShadow: { ...t.shadow.scanCircle },
     pulseRing: { borderColor: t.colors.primary + '4D' },

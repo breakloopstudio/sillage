@@ -6,25 +6,22 @@ import { useRouter } from 'expo-router';
 
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 import { useAuthContext } from '../../contexts/AuthContext';
-import { useScentList } from '../../hooks/useScentList';
+import { useUserParfum } from '../../hooks/useUserParfum';
 import { getParfumById } from '../../services/catalog';
 import { setPendingParfum } from '../../services/catalog-bridge';
-import { moveFavori } from '../../services/user-data';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsSuccess, hapticsLight } from '../../services/haptics';
 import EmptyState from '../../components/EmptyState';
 import AuthGate from '../../components/AuthGate';
 import ActionSheet, { type ActionItem } from '../../components/ActionSheet';
-import WardrobeAddSheet from '../../features/wardrobe/WardrobeAddSheet';
 import ScentCard from '../../features/scentlist/ScentCard';
 import TrySheet from '../../features/scentlist/TrySheet';
-import type { UserScentItem } from '../../models';
-import type { WardrobeItem } from '../../models/wardrobe.interface';
+import type { UserParfum } from '../../models/user-parfum.interface';
 import type { TrySheetSaveData } from '../../features/scentlist/TrySheet';
 
 interface SectionData {
   title: string;
-  data: UserScentItem[];
+  data: UserParfum[];
 }
 
 interface Props {
@@ -37,17 +34,19 @@ export default function ScentListContent({ scrollY }: Props) {
   const router = useRouter();
   const { user, authReady, isAuthenticated } = useAuthContext();
   const uid = user?.uid ?? null;
-  const { items, toTry, tried, loading, add, markTried, remove, moveToWardrobe } = useScentList(uid);
+  const { items, loading, add, markTried, remove, update } = useUserParfum(uid);
 
   const scrollHandler = useAnimatedScrollHandler((e) => {
     if (scrollY) scrollY.value = e.contentOffset.y;
   });
 
-  const [selectedItem, setSelectedItem] = useState<UserScentItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<UserParfum | null>(null);
   const [showTrySheet, setShowTrySheet] = useState(false);
   const [trySheetSaving, setTrySheetSaving] = useState(false);
-  const [showWardrobeSheet, setShowWardrobeSheet] = useState(false);
-  const [wardrobeTarget, setWardrobeTarget] = useState<UserScentItem | null>(null);
+
+  const scentItems = useMemo(() => items.filter(i => i.status === 'to_try' || i.status === 'tried'), [items]);
+  const toTry = useMemo(() => scentItems.filter(i => i.status === 'to_try'), [scentItems]);
+  const tried = useMemo(() => scentItems.filter(i => i.status === 'tried'), [scentItems]);
 
   const sections = useMemo<SectionData[]>(() => {
     const out: SectionData[] = [];
@@ -56,7 +55,7 @@ export default function ScentListContent({ scrollY }: Props) {
     return out;
   }, [toTry, tried]);
 
-  const handleGoDetail = useCallback(async (item: UserScentItem) => {
+  const handleGoDetail = useCallback(async (item: UserParfum) => {
     try {
       const p = await getParfumById(item.parfumId);
       if (p) setPendingParfum(p);
@@ -66,7 +65,7 @@ export default function ScentListContent({ scrollY }: Props) {
     router.push(`/catalog/${item.parfumId}`);
   }, [router]);
 
-  const handleOpenTrySheet = useCallback((item: UserScentItem) => {
+  const handleOpenTrySheet = useCallback((item: UserParfum) => {
     setSelectedItem(item);
     setShowTrySheet(true);
   }, []);
@@ -82,7 +81,7 @@ export default function ScentListContent({ scrollY }: Props) {
     try {
       await markTried(selectedItem.parfumId, { verdict: data.verdict, rating: data.rating, notes: data.notes });
       if (data.addToWardrobe) {
-        await moveToWardrobe(selectedItem, 'sample');
+        await update(selectedItem.parfumId, { status: 'have' });
       }
       hapticsSuccess();
     } catch (e: unknown) {
@@ -91,7 +90,7 @@ export default function ScentListContent({ scrollY }: Props) {
       setTrySheetSaving(false);
       handleCloseTrySheet();
     }
-  }, [selectedItem, markTried, moveToWardrobe, handleCloseTrySheet]);
+  }, [selectedItem, markTried, update, handleCloseTrySheet]);
 
   const handleTrySheetRemove = useCallback(async () => {
     if (!selectedItem) return;
@@ -107,19 +106,6 @@ export default function ScentListContent({ scrollY }: Props) {
     }
   }, [selectedItem, remove, handleCloseTrySheet]);
 
-  const handleWardrobeAdd = useCallback(async (ownership: WardrobeItem['ownership'], sizeMl?: number | null) => {
-    if (!wardrobeTarget) return;
-    try {
-      await moveToWardrobe(wardrobeTarget, ownership, sizeMl ?? null);
-      hapticsSuccess();
-    } catch (e: unknown) {
-      console.warn('[scentlist] moveToWardrobe failed:', (e as Error)?.message ?? String(e));
-    } finally {
-      setShowWardrobeSheet(false);
-      setWardrobeTarget(null);
-    }
-  }, [wardrobeTarget, moveToWardrobe]);
-
   const handleLongPressAction = useCallback((key: string) => {
     if (!selectedItem || !uid) { setSelectedItem(null); return; }
     const item = selectedItem;
@@ -133,17 +119,13 @@ export default function ScentListContent({ scrollY }: Props) {
         handleOpenTrySheet(item);
         break;
       case 'wardrobe':
-        setWardrobeTarget(item);
-        setShowWardrobeSheet(true);
-        break;
-      case 'favoris':
-        moveFavori(uid, 'scentlist', item.parfumId, item.parfumId, item.nom ?? null, item.marque ?? null, item.imageUrl ?? null, item.familleOlactive ?? null).catch(() => {});
+        update(item.parfumId, { status: 'have' }).catch(() => {});
         break;
       case 'remove':
         remove(item.parfumId).catch(() => {});
         break;
     }
-  }, [selectedItem, uid, handleGoDetail, handleOpenTrySheet, remove]);
+  }, [selectedItem, uid, handleGoDetail, handleOpenTrySheet, remove, update]);
 
   const sheetActions = useMemo<ActionItem[]>(() => {
     if (!selectedItem) return [];
@@ -172,11 +154,6 @@ export default function ScentListContent({ scrollY }: Props) {
       onPress: () => handleLongPressAction('wardrobe'),
     });
     base.push({
-      icon: 'heart-outline',
-      label: 'Ajouter aux Favoris',
-      onPress: () => handleLongPressAction('favoris'),
-    });
-    base.push({
       icon: 'trash-outline',
       label: 'Retirer du carnet',
       destructive: true,
@@ -185,7 +162,7 @@ export default function ScentListContent({ scrollY }: Props) {
     return base;
   }, [selectedItem, handleLongPressAction]);
 
-  const renderItem = useCallback(({ item }: { item: UserScentItem }) => (
+  const renderItem = useCallback(({ item }: { item: UserParfum }) => (
     <ScentCard
       item={item}
       onPress={() => handleGoDetail(item)}
@@ -225,7 +202,7 @@ export default function ScentListContent({ scrollY }: Props) {
     );
   }
 
-  if (items.length === 0) {
+  if (scentItems.length === 0) {
     return (
       <SafeAreaView edges={[]} style={s.container}>
         <EmptyState variant="scentlist" onAction={() => router.push('/(tabs)')} />
@@ -238,7 +215,7 @@ export default function ScentListContent({ scrollY }: Props) {
       <SafeAreaView edges={[]} style={s.container}>
         <AnimatedSectionList
           sections={sections}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.parfumId}
           renderItem={renderItem}
           renderSectionHeader={renderSectionHeader}
           stickySectionHeadersEnabled
@@ -271,14 +248,6 @@ export default function ScentListContent({ scrollY }: Props) {
         onRemove={handleTrySheetRemove}
       />
 
-      <WardrobeAddSheet
-        visible={showWardrobeSheet}
-        parfumName={wardrobeTarget?.nom ?? ''}
-        parfumBrand={wardrobeTarget?.marque ?? null}
-        parfumImageUrl={wardrobeTarget?.imageUrl ?? null}
-        onClose={() => { setShowWardrobeSheet(false); setWardrobeTarget(null); }}
-        onSelect={handleWardrobeAdd}
-      />
     </>
   );
 }

@@ -43,7 +43,7 @@ function encodeWav(samples: number[], sampleRate: number): string {
   return `data:audio/wav;base64,${b64}`;
 }
 
-function generateSweep(freqStart: number, freqEnd: number, duration: number, sampleRate = 8000): string {
+function generateSweep(freqStart: number, freqEnd: number, duration: number, sampleRate = 11025): string {
   const n = Math.floor(sampleRate * duration);
   const samples: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -55,7 +55,7 @@ function generateSweep(freqStart: number, freqEnd: number, duration: number, sam
   return encodeWav(samples, sampleRate);
 }
 
-function generateDualTone(f1: number, d1: number, f2: number, d2: number, sampleRate = 8000): string {
+function generateDualTone(f1: number, d1: number, f2: number, d2: number, sampleRate = 11025): string {
   const n1 = Math.floor(sampleRate * d1);
   const n2 = Math.floor(sampleRate * d2);
   const samples: number[] = [];
@@ -83,9 +83,9 @@ export function useRunnerSounds() {
   const recordPlayer = useAudioPlayer(RECORD_WAV);
 
   return useMemo(() => ({
-    playJump: () => { jumpPlayer.play(); },
-    playPickup: () => { pickupPlayer.play(); },
-    playDeath: () => { deathPlayer.play(); },
-    playRecord: () => { recordPlayer.play(); },
+    playJump: () => { jumpPlayer.seekTo(0); jumpPlayer.play(); },
+    playPickup: () => { pickupPlayer.seekTo(0); pickupPlayer.play(); },
+    playDeath: () => { deathPlayer.seekTo(0); deathPlayer.play(); },
+    playRecord: () => { recordPlayer.seekTo(0); recordPlayer.play(); },
   }), [jumpPlayer, pickupPlayer, deathPlayer, recordPlayer]);
 }

@@ -2,10 +2,11 @@
 
 import { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { formatPrice } from '../../utils/format-price';
-import type { UserScentItem, ScentVerdict } from '../../models';
+import type { UserParfum, ScentVerdict } from '../../models/user-parfum.interface';
 
 const VERDICT_META: Record<ScentVerdict, { label: string; token: string }> = {
   love:    { label: 'Coup de cœur', token: 'secondary' },
@@ -26,7 +27,7 @@ function formatDate(d: unknown): string {
 }
 
 interface Props {
-  item: UserScentItem;
+  item: UserParfum;
   onPress: () => void;
   onLongPress: () => void;
   onTryPress?: () => void;
@@ -52,9 +53,14 @@ export default function ScentCard({ item, onPress, onLongPress, onTryPress }: Pr
       <View style={s.row}>
         <View style={s.imgWrap}>
           {item.imageUrl ? (
-            <View style={s.imgPlaceholder} />
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={s.imgPlaceholder}
+              contentFit="contain"
+              transition={200}
+            />
           ) : (
-            <View style={[s.imgPlaceholder, { backgroundColor: theme.colors.surface2, justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={[s.imgPlaceholder, { justifyContent: 'center', alignItems: 'center' }]}>
               <Ionicons name="eyedrop-outline" size={24} color={theme.colors.textMuted} />
             </View>
           )}

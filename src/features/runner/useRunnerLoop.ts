@@ -33,6 +33,7 @@ import {
   FLYING_OBSTACLE_Y_OFFSET,
   FLYING_OBSTACLE_MIN_SCORE,
   PALETTE_INTERVAL,
+  PICKUP_SIZE,
 } from './runner-types';
 
 interface ObsData { active: SharedValue<boolean>; x: SharedValue<number>; type: SharedValue<number>; }
@@ -219,7 +220,7 @@ export function useRunnerLoop(dims: GameDimensions) {
         if (!pkpActive[i].value) continue;
         pkpX[i].value -= scrollDist;
         if (state === 'playing') {
-          if (checkAABB(bx, by, bw, bh, pkpX[i].value, pkpY[i].value, 38, 38)) {
+          if (checkAABB(bx, by, bw, bh, pkpX[i].value, pkpY[i].value, PICKUP_SIZE, PICKUP_SIZE)) {
             const def = PICKUP_DEFS[pkpType[i].value];
             if (def) {
               if (airCombo.value < MAX_COMBO) airCombo.value += 1;
@@ -262,7 +263,9 @@ export function useRunnerLoop(dims: GameDimensions) {
             let s2 = -1;
             for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) { if (i !== freeSlot && !obsActive[i].value) { s2 = i; break; } }
             if (s2 >= 0) {
-              obsType[s2].value = Math.floor(Math.random() * OBSTACLE_DEFS.length);
+              const canFly2 = score.value > FLYING_OBSTACLE_MIN_SCORE && Math.random() < 0.3;
+              const poolLen2 = OBSTACLE_DEFS.length;
+              obsType[s2].value = canFly2 ? poolLen2 - 1 : Math.floor(Math.random() * (poolLen2 - 1));
               obsX[s2].value = obsX[freeSlot].value + OBSTACLE_DEFS[typeIdx].width + 80 + Math.random() * 60;
               obsActive[s2].value = true;
               nearMissState[s2].value = 0;

@@ -7,11 +7,12 @@ import Reanimated, { useAnimatedScrollHandler, type SharedValue } from 'react-na
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { useFavoris } from '../../hooks/useFavoris';
+import { useFavorisContext } from '../../contexts/FavorisContext';
 import { getParfumById } from '../../services/catalog';
-import { moveToCollection, moveToScentList } from '../../services/user-data';
-import { addToWardrobe } from '../../services/wardrobe';
 import { setPendingParfum } from '../../services/catalog-bridge';
+import { useSaveController } from '../catalog/useSaveController';
+import SaveSheet from '../catalog/SaveSheet';
+import TrySheet from '../scentlist/TrySheet';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useDensityPreference, GRID_MODES } from '../../hooks/useDensityPreference';
 import type { CardMode } from '../../components/ParfumCard';
@@ -56,8 +57,11 @@ export default function FavoritesPage({ scrollY }: Props) {
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
   const uid = user?.uid ?? null;
-  const { favoris, loading, removeFavori } = useFavoris(uid);
+  const { favoris, loading, removeFavori } = useFavorisContext();
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
+
+  const [defineParfum, setDefineParfum] = useState<Parfum | null>(null);
+  const save = useSaveController(defineParfum);
   const { density: gridDensity, setDensity: setGridDensity } = useDensityPreference();
 
   const scrollHandler = useAnimatedScrollHandler((e) => {
@@ -183,27 +187,15 @@ export default function FavoritesPage({ scrollY }: Props) {
         onPress: () => { setSelectedItem(null); goToDetail(item.parfumId); },
       },
       {
-        icon: 'shirt-outline',
-        label: 'Ajouter à ma parfumerie',
+        icon: 'bookmark-outline',
+        label: 'Définir',
         onPress: () => {
           setSelectedItem(null);
-          addToWardrobe(uid, item.parfumId, 'have', item.nom ?? undefined, item.marque ?? undefined, item.imageUrl ?? undefined).catch(() => {});
-        },
-      },
-      {
-        icon: 'swap-horizontal-outline',
-        label: 'Déplacer vers Parfumerie',
-        onPress: () => {
-          setSelectedItem(null);
-          moveToCollection(uid, 'favoris', item.id, item.parfumId, item.nom ?? null, item.marque ?? null, item.imageUrl ?? null).catch(() => {});
-        },
-      },
-      {
-        icon: 'eyedrop-outline',
-        label: 'Déplacer vers le carnet',
-        onPress: () => {
-          setSelectedItem(null);
-          moveToScentList(uid, 'favoris', item.id, item.parfumId, item.nom ?? null, item.marque ?? null, item.imageUrl ?? null, item.familleOlactive ?? null).catch(() => {});
+          void (async () => {
+            const full = await getParfumById(item.parfumId).catch(() => null);
+            setDefineParfum(full ?? favoriToCardItem(item));
+            save.openSaveSheet();
+          })();
         },
       },
       {
@@ -213,11 +205,11 @@ export default function FavoritesPage({ scrollY }: Props) {
         onPress: () => {
           setSelectedItem(null);
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          removeFavori(item.id).catch(() => {});
+          removeFavori(item.parfumId);
         },
       },
     ];
-  }, [selectedItem, uid]);
+  }, [selectedItem, uid, removeFavori, save.openSaveSheet]);
 
   const gridNumCols = gridDensity === 'list' ? 1 : 2;
   const gridKey = `${gridNumCols}col-${resolvedMode}`;
@@ -425,6 +417,31 @@ export default function FavoritesPage({ scrollY }: Props) {
         onFiltersChange={handleFiltersChange}
         onReset={handleResetFilters}
         onClose={handleCloseFilterSheet}
+      />
+      <SaveSheet
+        visible={save.showSaveSheet}
+        parfumName={defineParfum?.nom ?? ''}
+        parfumBrand={defineParfum?.marque ?? ''}
+        parfumImageUrl={defineParfum?.imageUrl ?? null}
+        item={save.item}
+        onClose={save.closeSaveSheet}
+        onSetStatus={save.setStatus}
+        onSetVerdict={save.setVerdict}
+        onRemove={save.remove}
+        onOpenWardrobe={save.openWardrobe}
+        onOpenFullNotes={save.openFullNotes}
+        onAddPossession={save.addPoss}
+      />
+      <TrySheet
+        visible={save.showTrySheet}
+        parfumName={defineParfum?.nom ?? ''}
+        parfumBrand={defineParfum?.marque ?? ''}
+        parfumImageUrl={defineParfum?.imageUrl ?? null}
+        existingItem={save.item}
+        saving={save.trySheetSaving}
+        onClose={save.closeTrySheet}
+        onSave={save.handleTrySheetSave}
+        onRemove={save.item ? save.remove : undefined}
       />
     </>
   );

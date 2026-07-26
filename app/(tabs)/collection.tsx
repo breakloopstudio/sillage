@@ -6,12 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
-import { useWardrobe } from '../../src/hooks/useWardrobe';
+import { useUserParfum } from '../../src/hooks/useUserParfum';
 import { useShelves } from '../../src/hooks/useShelves';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useWeather } from '../../src/hooks/useWeather';
 import { useNetwork } from '../../src/hooks/useNetwork';
-import { useScentList } from '../../src/hooks/useScentList';
+
 import { scoreWardrobeItemForWeather } from '../../src/utils/weather-scoring';
 import { saveWeatherCoords } from '../../src/services/user-data';
 import { hapticsLight } from '../../src/services/haptics';
@@ -36,7 +36,7 @@ import {
   type FavoritesFilters,
 } from '../../src/utils/favori-filters';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
-import type { WardrobeItem } from '../../src/models/wardrobe.interface';
+import type { UserParfum, UserParfumStatus } from '../../src/models/user-parfum.interface';
 
 export default function WardrobePage() {
   const { theme } = useTheme();
@@ -45,12 +45,12 @@ export default function WardrobePage() {
   const router = useRouter();
   const uid = user?.uid ?? null;
 
-  const { items, loading, update, remove } = useWardrobe(uid);
+  const { items: allItems, loading, update, remove } = useUserParfum(uid);
+  const items = useMemo(() => allItems.filter(i => i.status === 'have' || i.status === 'had'), [allItems]);
   const { shelves, create: createShelf, update: updateShelf, remove: removeShelf } = useShelves(uid);
   const { sotd, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
   const { weather, loading: weatherLoading, coords } = useWeather(isAuthenticated && isOnline);
-  const { items: scentItems } = useScentList(uid);
   const { scrollY } = useNavigationChrome();
 
   const sotdScore = useMemo(() => {
@@ -58,11 +58,11 @@ export default function WardrobePage() {
     const sotdItem = items.find(i => i.parfumId === sotd.parfumId);
     return sotdItem ? scoreWardrobeItemForWeather(sotdItem, weather) : null;
   }, [items, weather, sotd]);
-  const sotdEligible = useMemo(() => items.filter(i => i.ownership === 'have'), [items]);
+  const sotdEligible = useMemo(() => items.filter(i => i.status === 'have'), [items]);
 
   const ownershipCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const item of items) counts[item.ownership] = (counts[item.ownership] ?? 0) + 1;
+    for (const item of items) counts[item.status] = (counts[item.status] ?? 0) + 1;
     return counts;
   }, [items]);
 
@@ -72,7 +72,7 @@ export default function WardrobePage() {
   const [activeSort, setActiveSort] = useState<string>('recent');
   const [attrFilters, setAttrFilters] = useState<FavoritesFilters>(EMPTY_FAVORI_FILTERS);
   const [showAttrSheet, setShowAttrSheet] = useState(false);
-  const [quickSheetItem, setQuickSheetItem] = useState<WardrobeItem | null>(null);
+  const [quickSheetItem, setQuickSheetItem] = useState<UserParfum | null>(null);
   const [shelfManagerVisible, setShelfManagerVisible] = useState(false);
   const [sotdPickerVisible, setSotdPickerVisible] = useState(false);
   const [sotdCardAnchor, setSotdCardAnchor] = useState<number>(0);
@@ -106,7 +106,7 @@ export default function WardrobePage() {
 
   const filtered = useMemo(() => {
     let result = [...items];
-    if (activeOwnership) result = result.filter(i => i.ownership === activeOwnership);
+    if (activeOwnership) result = result.filter(i => i.status === activeOwnership);
     if (activeShelfId) result = result.filter(i => i.shelfIds.includes(activeShelfId));
     result = result.filter(i => matchesFavoriFilters(i, attrFilters));
     if (searchQuery.trim()) {
@@ -128,10 +128,10 @@ export default function WardrobePage() {
     return result;
   }, [items, activeOwnership, activeShelfId, attrFilters, searchQuery, activeSort, weather]);
 
-  const handleQuickOwnership = useCallback((ownership: WardrobeItem['ownership']) => {
+  const handleQuickOwnership = useCallback((status: UserParfumStatus) => {
     if (!quickSheetItem) return;
-    update(quickSheetItem.parfumId, { ownership }).catch(() => {});
-    setQuickSheetItem(prev => prev ? { ...prev, ownership } : null);
+    update(quickSheetItem.parfumId, { status }).catch(() => {});
+    setQuickSheetItem(prev => prev ? { ...prev, status } : null);
   }, [quickSheetItem, update]);
 
   const handleQuickRating = useCallback((rating: number) => {
@@ -241,10 +241,10 @@ export default function WardrobePage() {
         />
       </View>
 
-      {scentItems.length > 0 && (
+      {allItems.filter(i => i.status === 'to_try' || i.status === 'tried').length > 0 && (
         <ScentListEntry
-          toTryCount={scentItems.filter(i => i.status === 'to_try').length}
-          triedCount={scentItems.filter(i => i.status === 'tried').length}
+          toTryCount={allItems.filter(i => i.status === 'to_try').length}
+          triedCount={allItems.filter(i => i.status === 'tried').length}
           onPress={handleScentListPress}
         />
       )}
@@ -292,7 +292,7 @@ export default function WardrobePage() {
         shelves={shelves}
         signatureCount={signatureCount}
         onClose={handleCloseQuickSheet}
-        onOwnershipChange={handleQuickOwnership}
+        onStatusChange={handleQuickOwnership}
         onRatingChange={handleQuickRating}
         onToggleShelf={handleQuickToggleShelf}
         onToggleSignature={handleQuickToggleSignature}

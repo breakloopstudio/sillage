@@ -12,6 +12,7 @@ import { setPendingParfum } from '../services/catalog-bridge';
 import { translateNote } from '../utils/translate-note';
 import { textOn } from '../utils/contrast';
 import { formatPrice } from '../utils/format-price';
+import FavButton from './FavButton';
 
 export type CardMode = 'compact' | 'comfortable' | 'compactPlus' | 'list';
 
@@ -87,10 +88,12 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
             <Image source={imageSource!} style={s.imgCompact} contentFit="contain" transition={300} onError={handleImgError} />
             {discount !== null && <View style={s.dealBadgeCompact}><Text style={s.dealBadgeTextCompact}>-{discount}%</Text></View>}
+            <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
           <View style={[s.imgPlaceholderCompact, { backgroundColor: tint }]}>
             <Text style={s.placeholderInitCompact}>{parfum.marque.charAt(0).toUpperCase()}</Text>
+            <FavButton parfum={parfum} size="sm" />
           </View>
         )}
         <View style={s.headerCompact}>
@@ -131,10 +134,12 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
             <Image source={imageSource!} style={s.imgComfortable} contentFit="contain" transition={300} onError={handleImgError} />
             {discount !== null && <View style={s.dealBadge}><Text style={s.dealBadgeText}>-{discount}%</Text></View>}
+            <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
           <View style={[s.imgPlaceholderComfortable, { backgroundColor: tint }]}>
             <Text style={s.placeholderInitComfortable}>{parfum.marque.charAt(0).toUpperCase()}</Text>
+            <FavButton parfum={parfum} size="sm" />
           </View>
         )}
         <View style={s.bodyComfortable}>
@@ -188,10 +193,12 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
             <Image source={imageSource!} style={s.imgCompactPlus} contentFit="contain" transition={300} onError={handleImgError} />
             {discount !== null && <View style={s.dealBadgeCompactPlus}><Text style={s.dealBadgeTextCompactPlus}>-{discount}%</Text></View>}
+            <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
           <View style={[s.imgPlaceholderCompactPlus, { backgroundColor: tint }]}>
             <Text style={s.placeholderInitCompactPlus}>{parfum.marque.charAt(0).toUpperCase()}</Text>
+            <FavButton parfum={parfum} size="sm" />
           </View>
         )}
         <View style={s.bodyCompactPlus}>
@@ -238,10 +245,12 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           <View style={s.imgWrapList}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
             <Image source={imageSource!} style={s.imgList} contentFit="contain" transition={300} onError={handleImgError} />
+            <FavButton parfum={parfum} size="xs" />
           </View>
         ) : (
           <View style={[s.imgPlaceholderList, { backgroundColor: tint }]}>
             <Text style={s.placeholderInitList}>{parfum.marque.charAt(0).toUpperCase()}</Text>
+            <FavButton parfum={parfum} size="xs" />
           </View>
         )}
         <View style={s.bodyList}>
@@ -294,7 +303,7 @@ function getStyles(t: Theme) {
     },
     imgWrapCompact: { position: 'relative', height: 186, overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
     imgCompact: { width: '100%', height: '100%', backgroundColor: t.colors.surface },
-    imgPlaceholderCompact: { width: '100%', height: 186, justifyContent: 'center', alignItems: 'center' },
+    imgPlaceholderCompact: { position: 'relative', width: '100%', height: 186, justifyContent: 'center', alignItems: 'center' },
     placeholderInitCompact: { fontSize: 48, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
     dealBadgeCompact: { position: 'absolute', top: 8, left: 8, backgroundColor: t.colors.deal, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
     dealBadgeTextCompact: { color: textOn(t.colors.deal), fontFamily: 'Inter_600SemiBold', fontSize: 10 },
@@ -313,7 +322,7 @@ function getStyles(t: Theme) {
     },
     imgWrapComfortable: { position: 'relative', aspectRatio: 3/4, overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
     imgComfortable: { width: '100%', height: '100%', backgroundColor: t.colors.surface },
-    imgPlaceholderComfortable: { aspectRatio: 3/4, justifyContent: 'center', alignItems: 'center' },
+    imgPlaceholderComfortable: { position: 'relative', aspectRatio: 3/4, justifyContent: 'center', alignItems: 'center' },
     placeholderInitComfortable: { fontSize: 56, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
     dealBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: t.colors.deal, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     dealBadgeText: { color: textOn(t.colors.deal), fontFamily: 'Inter_600SemiBold', fontSize: 11 },
@@ -334,7 +343,7 @@ function getStyles(t: Theme) {
     },
     imgWrapCompactPlus: { position: 'relative', height: 90, overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
     imgCompactPlus: { width: '100%', height: '100%', backgroundColor: t.colors.surface },
-    imgPlaceholderCompactPlus: { width: '100%', height: 90, justifyContent: 'center', alignItems: 'center' },
+    imgPlaceholderCompactPlus: { position: 'relative', width: '100%', height: 90, justifyContent: 'center', alignItems: 'center' },
     placeholderInitCompactPlus: { fontSize: 32, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
     dealBadgeCompactPlus: { position: 'absolute', top: 4, left: 4, backgroundColor: t.colors.deal, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
     dealBadgeTextCompactPlus: { color: textOn(t.colors.deal), fontFamily: 'Inter_600SemiBold', fontSize: 9 },
@@ -356,7 +365,7 @@ function getStyles(t: Theme) {
     },
     imgWrapList: { width: 56, height: 74, borderRadius: t.radius.sm, overflow: 'hidden' },
     imgList: { width: '100%', height: '100%', backgroundColor: t.colors.surface },
-    imgPlaceholderList: { width: 56, height: 74, borderRadius: t.radius.sm, justifyContent: 'center', alignItems: 'center' },
+    imgPlaceholderList: { position: 'relative', width: 56, height: 74, borderRadius: t.radius.sm, justifyContent: 'center', alignItems: 'center' },
     placeholderInitList: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
     bodyList: { flex: 1, minWidth: 0 },
     brandList: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: t.colors.textMuted, fontFamily: 'Inter_400Regular' },
