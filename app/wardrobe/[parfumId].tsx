@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useUserParfum } from '../../src/hooks/useUserParfum';
+import { usePossessions } from '../../src/hooks/usePossessions';
 import { useShelves } from '../../src/hooks/useShelves';
 import { useSotd } from '../../src/hooks/useSotd';
 import { getParfumById } from '../../src/services/catalog';
@@ -31,6 +32,7 @@ export default function WardrobeDetailPage() {
   const { user, authReady, isAuthenticated } = useAuthContext();
   const uid = user?.uid ?? null;
   const { items, update, remove } = useUserParfum(uid);
+  const { items: possessions, add: addPoss, remove: removePoss } = usePossessions(uid, parfumId ?? null);
   const { shelves } = useShelves(uid);
   const { sotd, setTodaySotd } = useSotd(uid);
 
@@ -186,6 +188,38 @@ export default function WardrobeDetailPage() {
             </Pressable>
           </View>
 
+
+          <Text style={s.sectionLabel}>Mes possessions</Text>
+          {possessions.length === 0 ? (
+            <Text style={s.emptyPossessions}>Aucun objet enregistré.</Text>
+          ) : (
+            possessions.map(p => (
+              <View key={p.id} style={s.possessionRow}>
+                <Ionicons
+                  name={p.type === 'bottle' ? 'flask-outline' : p.type === 'decant' ? 'water-outline' : 'eyedrop-outline'}
+                  size={18}
+                  color={theme.colors.textMuted}
+                />
+                <Text style={s.possessionLabel}>
+                  {p.type === 'bottle' ? 'Flacon' : p.type === 'decant' ? 'Décant' : 'Échantillon'}
+                  {p.sizeMl ? ` · ${p.sizeMl} ml` : ''}
+                  {p.quantity > 1 ? ` ×${p.quantity}` : ''}
+                  {p.forSale ? ' · à vendre' : ''}
+                </Text>
+                <Pressable onPress={() => removePoss(p.id)} hitSlop={8} accessibilityLabel="Supprimer">
+                  <Ionicons name="close" size={16} color={theme.colors.overpriced} />
+                </Pressable>
+              </View>
+            ))
+          )}
+          <View style={s.chips}>
+            {(['bottle', 'decant', 'sample'] as const).map(t => (
+              <Pressable key={t} style={s.chip} onPress={() => addPoss(t)}>
+                <Ionicons name="add" size={12} color={theme.colors.textMuted} />
+                <Text style={s.chipText}>{t === 'bottle' ? 'Flacon' : t === 'decant' ? 'Décant' : 'Échantillon'}</Text>
+              </Pressable>
+            ))}
+          </View>
 
           {shelves.length > 0 && (
             <>
@@ -386,6 +420,26 @@ function getStyles(t: Theme) {
       fontFamily: 'Inter_400Regular',
       fontSize: 12,
       color: t.colors.textMuted,
+    },
+    emptyPossessions: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      color: t.colors.textMuted,
+      marginBottom: 8,
+    },
+    possessionRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+      paddingVertical: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.colors.border,
+    },
+    possessionLabel: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      color: t.colors.text,
     },
     chip: {
       flexDirection: 'row',

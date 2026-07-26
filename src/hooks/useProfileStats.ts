@@ -59,7 +59,7 @@ export function useProfileStats(uid: string | null): {
     try {
       const [favRes, wardRes, scanRes] = await Promise.all([
         supabase.from('favoris').select('*', { count: 'exact', head: true }).eq('user_id', uid),
-        supabase.from('user_parfum').select('*').eq('user_id', uid),
+        supabase.from('user_parfum').select('*').eq('user_id', uid).in('status', ['have', 'had']),
         supabase.from('scans').select('*', { count: 'exact', head: true }).eq('user_id', uid),
       ]);
       setStats({

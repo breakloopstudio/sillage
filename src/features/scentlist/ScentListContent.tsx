@@ -9,6 +9,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useUserParfum } from '../../hooks/useUserParfum';
 import { getParfumById } from '../../services/catalog';
 import { setPendingParfum } from '../../services/catalog-bridge';
+import { addPossession } from '../../services/possessions';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsSuccess, hapticsLight } from '../../services/haptics';
 import EmptyState from '../../components/EmptyState';
@@ -44,16 +45,18 @@ export default function ScentListContent({ scrollY }: Props) {
   const [showTrySheet, setShowTrySheet] = useState(false);
   const [trySheetSaving, setTrySheetSaving] = useState(false);
 
-  const scentItems = useMemo(() => items.filter(i => i.status === 'to_try' || i.status === 'tried'), [items]);
+  const scentItems = useMemo(() => items.filter(i => i.status === 'to_try' || i.status === 'tried' || i.status === 'want'), [items]);
+  const want = useMemo(() => scentItems.filter(i => i.status === 'want'), [scentItems]);
   const toTry = useMemo(() => scentItems.filter(i => i.status === 'to_try'), [scentItems]);
   const tried = useMemo(() => scentItems.filter(i => i.status === 'tried'), [scentItems]);
 
   const sections = useMemo<SectionData[]>(() => {
     const out: SectionData[] = [];
+    if (want.length > 0) out.push({ title: 'Envie d\u2019acheter', data: want });
     if (toTry.length > 0) out.push({ title: 'À sentir', data: toTry });
     if (tried.length > 0) out.push({ title: 'Sentis', data: tried });
     return out;
-  }, [toTry, tried]);
+  }, [want, toTry, tried]);
 
   const handleGoDetail = useCallback(async (item: UserParfum) => {
     try {
@@ -81,6 +84,7 @@ export default function ScentListContent({ scrollY }: Props) {
     try {
       await markTried(selectedItem.parfumId, { verdict: data.verdict, rating: data.rating, notes: data.notes });
       if (data.addToWardrobe) {
+        await addPossession(uid!, selectedItem.parfumId, 'sample');
         await update(selectedItem.parfumId, { status: 'have' });
       }
       hapticsSuccess();
@@ -119,6 +123,7 @@ export default function ScentListContent({ scrollY }: Props) {
         handleOpenTrySheet(item);
         break;
       case 'wardrobe':
+        addPossession(uid!, item.parfumId, 'bottle').catch(() => {});
         update(item.parfumId, { status: 'have' }).catch(() => {});
         break;
       case 'remove':

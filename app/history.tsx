@@ -12,6 +12,7 @@ import { useScans } from '../src/hooks/useScans';
 import { getParfumById } from '../src/services/catalog';
 import { setPendingParfum } from '../src/services/catalog-bridge';
 import { addUserParfum } from '../src/services/user-parfum';
+import { addPossession } from '../src/services/possessions';
 import { hapticsLight } from '../src/services/haptics';
 import { translateNote } from '../src/utils/translate-note';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
@@ -271,6 +272,7 @@ export default function HistoryPage() {
         icon: 'add-circle-outline',
         label: 'Ajouter à ma parfumerie',
         onPress: () => {
+          addPossession(uid!, selectedScan.parfumId!, 'bottle').catch(() => {});
           addUserParfum(uid!, selectedScan.parfumId!, 'have').catch(() => {});
           setSelectedScan(null);
         },
