@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { getParfumVerdicts, type ParfumVerdict } from '../../services/community';
@@ -83,6 +85,7 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
   const { theme } = useTheme();
   const s = useMemo(() => getSheetStyles(theme), [theme]);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleProfilePress = useCallback((pseudo: string) => {
     hapticsLight();
@@ -93,9 +96,9 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
   if (!visible) return null;
 
   return (
-    <View style={s.backdrop}>
+    <Animated.View entering={FadeIn.duration(200)} style={s.backdrop}>
       <Pressable style={s.backdropPress} onPress={onClose} />
-      <View style={s.sheet}>
+      <Animated.View entering={SlideInDown.duration(250)} style={[s.sheet, { paddingBottom: insets.bottom + 12 }]}>
         <View style={s.handle} />
         <Text style={s.sheetTitle}>Verdicts de la communauté</Text>
         <ScrollView style={s.sheetScroll} showsVerticalScrollIndicator={false}>
@@ -120,8 +123,8 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
             );
           })}
         </ScrollView>
-      </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -143,7 +146,7 @@ function getSheetStyles(t: Theme) {
   return {
     backdrop: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' as const, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100 },
     backdropPress: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 },
-    sheet: { backgroundColor: t.colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%', paddingBottom: 24 },
+    sheet: { backgroundColor: t.colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%' },
     handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: t.colors.textMuted, opacity: 0.4, alignSelf: 'center' as const, marginTop: 8, marginBottom: 12 },
     sheetTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text, paddingHorizontal: 20, marginBottom: 12 },
     sheetScroll: { paddingHorizontal: 20 },

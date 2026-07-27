@@ -36,7 +36,7 @@ export function isValidPseudo(pseudo: string): boolean {
   return PSEUDO_RE.test(pseudo);
 }
 
-/** Normalise la saisie : trim, minuscules, espaces → underscore. */
+/** Normalise la saisie : trim, minuscules, espaces → underscore, strip caractères invalides. */
 export function normalizePseudo(input: string): string {
-  return input.trim().toLowerCase().replace(/\s+/g, '_');
+  return input.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
 }

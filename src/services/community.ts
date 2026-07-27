@@ -37,23 +37,33 @@ export interface CommunityHighlights {
 
 const CACHE_TTL = 60 * 60 * 1000;
 let cached: { data: CommunityHighlights; at: number } | null = null;
+let pending: Promise<CommunityHighlights> | null = null;
 
 export async function getCommunityHighlights(): Promise<CommunityHighlights> {
   if (cached && Date.now() - cached.at < CACHE_TTL) return cached.data;
+  if (pending) return pending;
 
-  const { data, error } = await supabase.rpc('community_highlights');
-  if (error) throw error;
+  pending = (async () => {
+    const { data, error } = await supabase.rpc('community_highlights');
+    if (error) throw error;
 
-  const raw = (data ?? {}) as Record<string, unknown>;
-  const result: CommunityHighlights = {
-    top_loved: (raw.top_loved ?? []) as CommunityParfum[],
-    trending: (raw.trending ?? []) as CommunityParfum[],
-    public_profiles: (raw.public_profiles ?? []) as CommunityProfile[],
-    sotd_today: (raw.sotd_today ?? []) as CommunitySotd[],
-  };
+    const raw = (data ?? {}) as Record<string, unknown>;
+    const result: CommunityHighlights = {
+      top_loved: (raw.top_loved ?? []) as CommunityParfum[],
+      trending: (raw.trending ?? []) as CommunityParfum[],
+      public_profiles: (raw.public_profiles ?? []) as CommunityProfile[],
+      sotd_today: (raw.sotd_today ?? []) as CommunitySotd[],
+    };
 
-  cached = { data: result, at: Date.now() };
-  return result;
+    cached = { data: result, at: Date.now() };
+    return result;
+  })();
+
+  try {
+    return await pending;
+  } finally {
+    pending = null;
+  }
 }
 
 export function clearCommunityCache(): void {
@@ -70,11 +80,13 @@ export async function getParfumVerdicts(parfumId: string): Promise<ParfumVerdict
   try {
     const { data, error } = await supabase.rpc('parfum_verdicts', { p_parfum_id: parfumId });
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
-      pseudo: (row.pseudo as string) ?? '',
-      avatar_url: (row.avatar_url as string) ?? null,
-      verdict: (row.verdict as ParfumVerdict['verdict']) ?? 'like',
-    }));
+    return ((data ?? []) as Record<string, unknown>[])
+      .filter((row) => row.verdict != null)
+      .map((row) => ({
+        pseudo: (row.pseudo as string) ?? '',
+        avatar_url: (row.avatar_url as string) ?? null,
+        verdict: row.verdict as ParfumVerdict['verdict'],
+      }));
   } catch (e: unknown) {
     console.warn('[community] getParfumVerdicts failed:', (e as Error)?.message ?? String(e));
     return [];

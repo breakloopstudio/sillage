@@ -11,6 +11,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { usePublicProfile } from '../../src/hooks/usePublicProfile';
+import { useMyProfile } from '../../src/hooks/useMyProfile';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { followByPseudo, unfollowByPseudo, isFollowing } from '../../src/services/community';
 import { hapticsLight, hapticsSuccess } from '../../src/services/haptics';
@@ -33,8 +34,10 @@ export default function PublicProfilePage() {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
-  const { isAuthenticated } = useAuthContext();
-  const { profile, collection, loading } = usePublicProfile(pseudo ?? null);
+  const { isAuthenticated, user } = useAuthContext();
+  const { profile, collection, loading, error } = usePublicProfile(pseudo ?? null);
+  const { profile: myProfile } = useMyProfile(user?.uid ?? null);
+  const isOwnProfile = !!myProfile?.pseudo && myProfile.pseudo === pseudo;
   const [imgFailed, setImgFailed] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -115,10 +118,14 @@ export default function PublicProfilePage() {
         {header}
         <View style={s.stateWrap}>
           <View style={s.stateIcon}>
-            <Ionicons name="lock-closed-outline" size={28} color={theme.colors.textMuted} />
+            <Ionicons name={error ? 'cloud-offline-outline' : 'lock-closed-outline'} size={28} color={theme.colors.textMuted} />
           </View>
-          <Text style={s.stateTitle}>Profil privé ou introuvable</Text>
-          <Text style={s.stateDesc}>Ce membre n&#8217;existe pas ou a choisi de garder sa collection privée.</Text>
+          <Text style={s.stateTitle}>{error ? 'Erreur de connexion' : 'Profil privé ou introuvable'}</Text>
+          <Text style={s.stateDesc}>
+            {error
+              ? 'Vérifie ta connexion et réessaie.'
+              : 'Ce membre n\u2019existe pas ou a choisi de garder sa collection privée.'}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -147,7 +154,7 @@ export default function PublicProfilePage() {
           <Text style={s.statDot}>·</Text>
           <Text style={s.statItem} allowFontScaling={false}>{profile.followingCount} suivi{profile.followingCount > 1 ? 's' : ''}</Text>
         </View>
-        {isAuthenticated ? (
+        {isAuthenticated && !isOwnProfile ? (
           <Pressable
             style={[s.followBtn, following && s.followBtnActive]}
             onPress={handleFollow}
@@ -231,7 +238,7 @@ function getStyles(t: Theme) {
 
     content: { paddingHorizontal: 16, paddingBottom: 40 },
     row: { gap: 8, marginBottom: 8 },
-    gridItem: { flex: 1 },
+    gridItem: { flex: 1, maxWidth: '50%' },
     emptyWrap: { alignItems: 'center' as const, paddingVertical: 24 },
     emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted },
   } as const;

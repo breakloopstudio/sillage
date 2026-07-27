@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, TextInput, Platform, Share, ActivityIndicator } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, useReducedMotion } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
@@ -36,6 +36,7 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Prop
   const [error, setError] = useState<string | null>(null);
 
   const knobX = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
   useEffect(() => {
@@ -51,8 +52,10 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Prop
   }, [loading, profile, initialized, defaultPseudo]);
 
   useEffect(() => {
-    knobX.value = withSpring(isPublic ? 20 : 0, { stiffness: 300, damping: 20 });
-  }, [isPublic]);
+    knobX.value = reduceMotion
+      ? withTiming(isPublic ? 20 : 0, { duration: 0 })
+      : withSpring(isPublic ? 20 : 0, { stiffness: 300, damping: 20 });
+  }, [isPublic, reduceMotion]);
 
   const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateX: knobX.value }] }));
 
@@ -74,6 +77,7 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Prop
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (saving) return;
     if (!pseudoValid) {
       setError('Pseudo : 3 à 20 caractères (lettres, chiffres, _ ou -).');
       return;

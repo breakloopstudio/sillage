@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -34,7 +34,7 @@ export default function CommunautePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthContext();
   const { scrollY } = useNavigationChrome();
-  const { top_loved, trending, public_profiles, sotd_today, loading, error } = useCommunityHighlights();
+  const { top_loved, trending, public_profiles, sotd_today, loading, error, refresh } = useCommunityHighlights();
 
   const [pseudoQuery, setPseudoQuery] = useState('');
   const [followedVerdicts, setFollowedVerdicts] = useState<FollowedVerdict[]>([]);
@@ -83,6 +83,7 @@ export default function CommunautePage() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.content}
         keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={theme.colors.primary} />}
       >
         <View style={s.header}>
           <Text style={s.title}>Communauté</Text>
@@ -103,7 +104,7 @@ export default function CommunautePage() {
             keyboardAppearance={keyboardAppearance}
           />
           {pseudoQuery.length > 0 ? (
-            <Pressable onPress={() => setPseudoQuery('')} hitSlop={8}>
+            <Pressable onPress={() => setPseudoQuery('')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Ionicons name="close-circle" size={16} color={theme.colors.textMuted} />
             </Pressable>
           ) : null}
@@ -146,17 +147,19 @@ export default function CommunautePage() {
               </View>
             ) : null}
 
-            {!hasContent && !isAuthenticated ? (
+            {!hasContent ? (
           <View style={s.stateWrap}>
             <View style={s.iconCircle}>
               <Ionicons name="people-outline" size={32} color={theme.colors.primary} />
             </View>
             <Text style={s.stateHeading}>Les membres arrivent</Text>
             <Text style={s.stateText}>
-              Rends ton profil visible pour être parmi les premiers nez de la communauté.
+              {isAuthenticated
+                ? 'Suis des nez pour voir leur activité ici, et rends ton profil visible pour être découvert.'
+                : 'Rends ton profil visible pour être parmi les premiers nez de la communauté.'}
             </Text>
             <Pressable style={s.ctaBtn} onPress={() => router.push('/profile')} accessibilityRole="button">
-              <Text style={s.ctaBtnText}>Créer mon profil</Text>
+              <Text style={s.ctaBtnText}>{isAuthenticated ? 'Mon profil public' : 'Créer mon profil'}</Text>
             </Pressable>
           </View>
         ) : (
@@ -268,7 +271,7 @@ function getStyles(t: Theme) {
     container: { flex: 1, backgroundColor: t.colors.background },
     content: { paddingBottom: 40 },
     header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-    title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text },
+    title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 28, color: t.colors.text },
 
     searchRow: {
       flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
