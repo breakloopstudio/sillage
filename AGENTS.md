@@ -342,7 +342,7 @@ Le catalogue est importé depuis un scrape Fragrantica Apify, puis nettoyé et h
 Zéro dépendance à l'API Fragella pour les données de base.
 
 ```
-data/raw/ (1.27 GB, non versionné) → data/clean/ (31 MB) → Firestore parfums/{id}
+data/raw/ (1.27 GB, non versionné) → data/clean/ (31 MB) → Postgres parfums + Storage parfum-images
 ```
 
 ### Scripts
@@ -350,15 +350,19 @@ data/raw/ (1.27 GB, non versionné) → data/clean/ (31 MB) → Firestore parfum
 | Commande | Fichier | Rôle |
 |---|---|---|
 | `npm run clean-data` | `scripts/clean-apify.ts` | Nettoie les 193 JSON scrapés : débruite, déduplique, strip champs traçants |
-| `npm run import-data` | `scripts/import-firestore.ts` | Import Firestore + upload images → Firebase Storage |
-| `npm run clean-fragella` | `scripts/clean-fragella.ts` | Supprime tous les parfums importés via l'ancienne API Fragella (`source: 'fragella-cached'`) |
+| `npm run export-firestore` | `scripts/export-firestore.ts` | Dump NDJSON depuis l'ancien backend Firestore |
+| `npm run import-supabase` | `scripts/import-supabase.ts` | Upsert Postgres (local ou `--target=cloud`) |
+| `npm run migrate-storage` | `scripts/migrate-storage.ts` | Firebase Storage → bucket `parfum-images`, réécriture `image_url` |
+| `npm run migrate-upscale` | `scripts/migrate-upscale.ts` | **Upscale HD ×4** — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` + `image_url_2x` (fiche détail/lightbox), resumable |
+| `npm run generate-notes` / `upload-notes` | `scripts/generate-note-images.ts` / `upload-note-images.ts` | Images de notes olfactives (DashScope Wanx) + upload Storage |
+| `npm run clean-fragella` | `scripts/clean-fragella.ts` | Supprime les parfums importés via l'ancienne API Fragella (`source: 'fragella-cached'`) |
 
 ### Authentification import
 
-Nécessite un compte de service Firebase :
-1. Console Firebase → Project Settings → Service Accounts → Generate key
-2. Sauvegarder le JSON → `service-account.json` à la racine (gitignoré)
-3. Le script le lit via `firebase-admin` (v13+, API modulaire)
+Nécessite la clé service_role Supabase (scripts d'import/migration uniquement) :
+1. Renseigner `SUPABASE_SERVICE_ROLE_KEY` dans `.env` (gitignoré)
+2. Les scripts lisent `.env` (`EXPO_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`)
+3. `migrate-upscale` nécessite en plus le venv `scripts/upscale/venv` (voir `scripts/upscale/README.md`)
 
 ### Décisions clés
 

@@ -185,6 +185,7 @@ Le catalogue est importé depuis un scrape Fragrantica (239 marques), nettoyé e
 data/raw/              data/clean/            Postgres + Supabase Storage
 239 JSON (1.27 GB)  →  239 JSON (31 MB)   →  parfums (table) + parfum-images (bucket)
 scrape Fragrantica      données factuelles     recherche tsvector + pg_trgm
+                                               image_url (1x) + image_url_2x (HD ×4)
 ```
 
 | Étape | Script | Action |
@@ -194,11 +195,13 @@ scrape Fragrantica      données factuelles     recherche tsvector + pg_trgm
 | 3. Import Supabase | `npm run import-supabase` | `scripts/import-supabase.ts` — upsert Postgres (local ou `--target=cloud`) |
 | 4. Images | `npm run migrate-storage` | `scripts/migrate-storage.ts` — Firebase Storage → bucket `parfum-images`, réécriture `image_url` |
 | 5. WebP / BG removal | `npm run migrate-webp` / `migrate-bg` | conversion + suppression de fond (historique) |
+| 6. **Upscale HD ×4** | `npm run migrate-upscale` | `scripts/migrate-upscale.ts` — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` (1500×2000) + `image_url_2x`. Fiche détail/lightbox uniquement, resumable |
 
 ### Images
 
-- **Format** : WebP 375×500 (converti depuis les vignettes scrape JPG)
-- **Stockage** : Supabase Storage (bucket public `parfum-images`) → `parfums/{id}_{ts}_{name}`
+- **Format** : WebP 375×500 (1x, converti depuis les vignettes scrape JPG) + WebP 1500×2000 (2x HD, upscale Real-ESRGAN)
+- **Stockage** : Supabase Storage (bucket public `parfum-images`) → `parfums/{id}/primary.webp` (1x) + `primary_2x.webp` (HD)
+- **Affichage** : listes/grilles en 1x ; fiche détail + lightbox fondent de la 1x vers la 2x (`image_url_2x`)
 - **Fallback UI** : initiale de la marque sur fond coloré (si image absente)
 
 ### Mapping des données
