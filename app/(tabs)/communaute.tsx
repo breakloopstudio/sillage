@@ -11,6 +11,7 @@ import { useNavigationChrome } from '../../src/features/navigation/NavigationChr
 import { useCommunityHighlights } from '../../src/hooks/useCommunityHighlights';
 import { getFollowedHighlights, type CommunityParfum, type CommunityProfile, type CommunitySotd, type FollowedVerdict } from '../../src/services/community';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
+import { normalizePseudo } from '../../src/utils/share';
 import { hapticsLight } from '../../src/services/haptics';
 import ParfumCard from '../../src/components/ParfumCard';
 import SectionHeader from '../../src/components/SectionHeader';
@@ -65,7 +66,7 @@ export default function CommunautePage() {
   }, [router]);
 
   const handlePseudoSearch = useCallback(() => {
-    const q = pseudoQuery.trim().toLowerCase();
+    const q = normalizePseudo(pseudoQuery);
     if (q.length >= 3) {
       hapticsLight();
       router.push(`/u/${q}`);
