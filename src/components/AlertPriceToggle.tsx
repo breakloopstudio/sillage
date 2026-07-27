@@ -1,61 +1,69 @@
-// src/components/AlertPriceToggle.tsx — Toggle alerte prix sur fiche détail
+// src/components/AlertPriceToggle.tsx — Row alerte prix sur fiche détail
+// Ouvre la PriceAlertSheet (surface d'alerte unique, partagée avec le tab Favoris).
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
-import { isPriceAlertActive, setPriceAlert } from '../services/user-data';
+import { usePriceAlerts } from '../hooks/usePriceAlerts';
+import { formatPrice } from '../utils/format-price';
+import PriceAlertSheet from './PriceAlertSheet';
 
 interface Props {
   parfumId: string;
   uid: string;
   currentPrice?: number;
+  referencePrice?: number;
+  nom: string;
+  marque: string;
+  imageUrl?: string;
 }
 
-export default function AlertPriceToggle({ parfumId, uid, currentPrice }: Props) {
+export default function AlertPriceToggle({ parfumId, uid, currentPrice, referencePrice, nom, marque, imageUrl }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
-  const [active, setActive] = useState(false);
-  const knobX = useSharedValue(0);
+  const { byParfumId, setAlert } = usePriceAlerts(uid);
+  const [sheetVisible, setSheetVisible] = useState(false);
 
-  useEffect(() => {
-    isPriceAlertActive(uid, parfumId).then(setActive);
-  }, [uid, parfumId]);
+  const alert = byParfumId.get(parfumId) ?? null;
+  const active = alert !== null;
 
-  useEffect(() => {
-    knobX.value = withSpring(active ? 20 : 0, { stiffness: 300, damping: 20 });
-  }, [active]);
+  const openSheet = useCallback(() => setSheetVisible(true), []);
+  const closeSheet = useCallback(() => setSheetVisible(false), []);
+  const handleSave = useCallback((next: boolean, targetPrice: number | null) => {
+    setAlert(parfumId, next, { currentPrice, targetPrice }).catch(() => {});
+    setSheetVisible(false);
+  }, [parfumId, currentPrice, setAlert]);
 
-  const knobStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: knobX.value }],
-  }));
-
-  const toggle = () => {
-    const next = !active;
-    setActive(next);
-    setPriceAlert(uid, parfumId, next, currentPrice).catch(() => setActive(!next));
-  };
+  const desc = active
+    ? (alert?.targetPrice != null ? `Cible ${formatPrice(alert.targetPrice, { decimals: 0 })} — tu seras notifié` : 'Activée — tu seras notifié')
+    : 'Sois prévenu quand le prix baisse';
 
   return (
-    <Pressable onPress={toggle} style={s.row}>
-      <View style={s.left}>
-        <Ionicons
-          name={active ? 'notifications' : 'notifications-outline'}
-          size={20}
-          color={active ? theme.colors.primary : theme.colors.textMuted}
-        />
-        <View>
-          <Text style={s.label}>Alerte prix</Text>
-          <Text style={s.desc}>
-            {active ? 'Activée — tu seras notifié' : 'Sois prévenu quand le prix baisse'}
-          </Text>
+    <>
+      <Pressable onPress={openSheet} style={s.row} accessibilityRole="button" accessibilityLabel="Alerte prix">
+        <View style={s.left}>
+          <Ionicons name={active ? 'notifications' : 'notifications-outline'} size={20} color={active ? theme.colors.primary : theme.colors.textMuted} />
+          <View style={s.textWrap}>
+            <Text style={s.label}>Alerte prix</Text>
+            <Text style={s.desc}>{desc}</Text>
+          </View>
         </View>
-      </View>
-      <Pressable onPress={toggle} style={[s.track, active && s.trackActive]}>
-        <Animated.View style={[s.knob, { backgroundColor: active ? theme.colors.primary : theme.colors.textMuted }, knobStyle]} />
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
       </Pressable>
-    </Pressable>
+      <PriceAlertSheet
+        visible={sheetVisible}
+        parfumId={parfumId}
+        nom={nom}
+        marque={marque}
+        imageUrl={imageUrl ?? null}
+        bestPrice={currentPrice}
+        referencePrice={referencePrice}
+        existingAlert={alert}
+        onClose={closeSheet}
+        onSave={handleSave}
+      />
+    </>
   );
 }
 
@@ -76,6 +84,7 @@ function getStyles(t: Theme) {
       gap: 10,
       flex: 1,
     },
+    textWrap: { flex: 1 },
     label: {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 14,
@@ -86,23 +95,6 @@ function getStyles(t: Theme) {
       fontSize: 12,
       color: t.colors.textMuted,
       marginTop: 1,
-    },
-    track: {
-      width: 48,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: t.colors.border,
-      justifyContent: 'center',
-      paddingHorizontal: 3,
-    },
-    trackActive: {
-      backgroundColor: t.colors.primarySoft,
-    },
-    knob: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      backgroundColor: t.colors.textMuted,
     },
   } as const;
 }

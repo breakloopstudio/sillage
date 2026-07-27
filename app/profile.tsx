@@ -12,6 +12,8 @@ import { useSotd } from '../src/hooks/useSotd';
 import { useProfileStats } from '../src/hooks/useProfileStats';
 import { STATUS_CHIPS, chipForStatus, type StatusChipId } from '../src/utils/status-chips';
 import AuthGate from '../src/components/AuthGate';
+import PublicProfileCard from '../src/components/PublicProfileCard';
+import { normalizePseudo } from '../src/utils/share';
 
 const NAV_ROWS = [
   { key: 'parfumerie', icon: 'flask-outline', label: 'Ma Parfumerie', route: '/(tabs)/collection' },
@@ -176,6 +178,9 @@ export default function ProfilePage() {
             <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
           </Pressable>
         ) : null}
+
+        <Text style={s.sectionTitle}>PROFIL PUBLIC</Text>
+        <PublicProfileCard uid={user.uid} photoUrl={user.photoURL ?? null} defaultPseudo={normalizePseudo(displayName)} />
 
         <Text style={s.sectionTitle}>EXPLORER</Text>
 

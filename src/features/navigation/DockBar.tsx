@@ -31,14 +31,19 @@ const PULSE_MAX = 1.18;
 
 export function getIndicatorLeft(screenWidth: number, tabVisualIndex: number): number {
   const barW = Math.min(screenWidth * 0.88, 380);
-  const tabW = (barW - FAB_SPACE) / 2;
-  if (tabVisualIndex <= 0) return tabW / 2 - INDICATOR_W / 2;
-  return tabW + FAB_SPACE + tabW / 2 - INDICATOR_W / 2;
+  const tabW = (barW - FAB_SPACE) / 4;
+  // [tab0][tab1][FAB][tab2][tab3] — le FAB sépare les tabs 1 et 2
+  const center = tabVisualIndex < 2
+    ? (tabVisualIndex + 0.5) * tabW
+    : 2 * tabW + FAB_SPACE + (tabVisualIndex - 2 + 0.5) * tabW;
+  return center - INDICATOR_W / 2;
 }
 
 const TAB_MAP = {
   index:      { iconActive: 'book',  iconInactive: 'book-outline',  label: 'Catalogue' },
+  favoris:    { iconActive: 'heart', iconInactive: 'heart-outline', label: 'Favoris' },
   collection: { iconActive: 'flask', iconInactive: 'flask-outline', label: 'Parfumerie' },
+  communaute: { iconActive: 'people', iconInactive: 'people-outline', label: 'Communauté' },
 } as const;
 
 export default function DockBar({ state, navigation }: BottomTabBarProps) {
@@ -52,7 +57,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
 
   const pulseScale = useSharedValue(PULSE_MIN);
   const indicatorLeft = useSharedValue(
-    getIndicatorLeft(windowWidth, Math.min(state.index, 1)),
+    getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
   );
 
   useEffect(() => {
@@ -67,9 +72,9 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
 
   useEffect(() => {
     indicatorLeft.value = reduceMotion
-      ? getIndicatorLeft(windowWidth, Math.min(state.index, 1))
+      ? getIndicatorLeft(windowWidth, Math.min(state.index, 3))
       : withSpring(
-          getIndicatorLeft(windowWidth, Math.min(state.index, 1)),
+          getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
           { damping: 22, stiffness: 280, mass: 0.7 },
         );
   }, [state.index, windowWidth, reduceMotion]);
@@ -132,6 +137,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
         <Animated.View style={[s.indicator, m.indicator, { left: 0 }, indicatorStyle]} />
 
         {state.routes[0] && renderTab(state.routes[0].key, state.routes[0].name, 0)}
+        {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
 
         <View style={s.fabSlot}>
           <View style={s.fabOuter}>
@@ -149,7 +155,8 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
           </View>
         </View>
 
-        {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
+        {state.routes[2] && renderTab(state.routes[2].key, state.routes[2].name, 2)}
+        {state.routes[3] && renderTab(state.routes[3].key, state.routes[3].name, 3)}
       </View>
     </Animated.View>
   );

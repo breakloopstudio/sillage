@@ -15,6 +15,7 @@ import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import type { Parfum } from '../../src/models';
 import { translateNote } from '../../src/utils/translate-note';
 import { formatPrice } from '../../src/utils/format-price';
+import { parfumShareUrl } from '../../src/utils/share';
 import OlfactoryPyramid from '../../src/features/catalog/OlfactoryPyramid';
 import PriceDisplay from '../../src/components/PriceDisplay';
 import Button from '../../src/components/Button';
@@ -287,10 +288,14 @@ export default function CatalogDetailPage() {
   const handleShare = useCallback(async () => {
     if (!parfum) return;
     hapticsLight();
+    const url = parfumShareUrl(parfum.id);
+    const text = `Découvre ${parfum.marque} – ${parfum.nom} sur ParfumScan`;
     try {
-      await Share.share({
-        message: `Découvre ${parfum.marque} – ${parfum.nom} sur ParfumScan\nparfumscan://catalog/${parfum.id}`,
-      });
+      if (Platform.OS === 'ios') {
+        await Share.share({ url, message: text });
+      } else {
+        await Share.share({ message: `${text}\n${url}` });
+      }
     } catch { /* annulation utilisateur */ }
   }, [parfum]);
   const handlePurchasePress = useCallback(() => {
@@ -440,7 +445,15 @@ export default function CatalogDetailPage() {
               {!save.item ? <SaveButton label={save.saveLabel} onPress={save.openSaveSheet} variant="flow" /> : null}
 
               {isAuthenticated && user?.uid && id ? (
-                <AlertPriceToggle parfumId={id} uid={user.uid} currentPrice={parfum.bestPrice} />
+                <AlertPriceToggle
+                  parfumId={id}
+                  uid={user.uid}
+                  currentPrice={parfum.bestPrice}
+                  referencePrice={parfum.referencePrice}
+                  nom={parfum.nom}
+                  marque={parfum.marque}
+                  imageUrl={parfum.imageUrl}
+                />
               ) : null}
 
               {/* ─── Comparer les marchands ─── */}

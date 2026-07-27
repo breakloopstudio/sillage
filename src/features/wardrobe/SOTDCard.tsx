@@ -21,6 +21,8 @@ interface Props {
   sotdScore?: number | null;
   onPress: () => void;
   onChangePress: () => void;
+  /** Long-press sur le segment SOTD → partager « Aujourd'hui je porte… ». */
+  onShare?: () => void;
 }
 
 function scoreColor(score: number | null | undefined, t: Theme) {
@@ -37,7 +39,7 @@ function scoreBg(score: number | null | undefined, t: Theme) {
   return t.colors.surface2;
 }
 
-export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, onPress, onChangePress }: Props) {
+export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, onPress, onChangePress, onShare }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const [imgFailed, setImgFailed] = useState(false);
@@ -79,7 +81,7 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, onP
         )}
 
         {sotd ? (
-          <Pressable style={s.sotdSeg} onPress={onPress}>
+          <Pressable style={s.sotdSeg} onPress={onPress} onLongPress={onShare} delayLongPress={400} accessibilityHint="Appuyez longuement pour partager votre parfum du jour">
             {sotd.imageUrl && !imgFailed ? (
               <Image
                 source={{ uri: sotd.imageUrl }}

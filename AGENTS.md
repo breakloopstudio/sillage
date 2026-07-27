@@ -458,3 +458,61 @@ Nécessite un compte de service Firebase :
 **Docs** : `rules.md` (§2 arborescence + components), `reference.md` (§5 `my-parfums`/`PillId`/`pillOfItem`, §6 `StatuerSheet`/`ParfumCard.hidePrice`), `README.md` (tableau + arborescence + components + récap v8.1) resynchronisés.
 
 **Tests** : 19 suites, 218 tests. `tsc --noEmit` : 0 erreur app/ + src/.
+
+## Notes v8.3 — Tab Favoris restauré + Alertes prix v2 (4 onglets) (22/08/2026)
+
+**Refonte navigation + alertes** (aucun changement du modèle `user_parfum`/`favoris` v8.0 — les deux tables restent orthogonales). Objectif : redonner aux favoris leur rôle de couche *intention* (convoitise + alertes) et faire de la Parfumerie la couche *collection* (organisation à la Fragrantica). La fusion v8.1 (favoris ⊂ Ma Parfumerie) est revenue en arrière : elle mélangeait deux concepts que la v8.2 a dû patcher, et masquait les alertes prix (aucun écran de gestion).
+
+**Navigation : 2 onglets → 4 onglets + FAB.**
+- **Catalogue | Favoris [FAB] Parfumerie | Communauté** — géométrie symétrique 2+2, FAB Scan centré (mémoire du geste préservée). `DockBar.getIndicatorLeft` réécrit (4 slots), `TAB_MAP` 4 entrées (`book`/`heart`/`flask`/`people`).
+- **Communauté = placeholder** « Bientôt » (`app/(tabs)/communaute.tsx`, sans auth) — le slot est prêt ; l'aspect communautaire (follow, partage de collection, « nez compatibles » via overlap des verdicts) est brainstormé mais non construit.
+
+**Tab Favoris restauré** (`app/(tabs)/favoris.tsx`) — tous les ❤️, rien ne disparaît jamais (modèle orthogonal v8.0 enfin reflété en UI) :
+- Grille `ParfumCard` (densité partagée, **prix visibles** — couche intention = achat) + badges **statut** (si statué) et **🔔 −X%** (si alerte).
+- Section **« Tes alertes »** en haut (si ≥ 1) : rangée horizontale, prix actuel vs prix à l'activation, variation, cible, tri par plus grosse baisse, toggle off rapide.
+- Pills **Tous · À traiter · Alertes** (« À traiter » = l'inbox en *filtre*, pas en règle structurelle) + recherche.
+- Long-press → `FavoriSheet` : **Voir la fiche · Alerte prix · Envoyer dans ma parfumerie** (chips statut ; graduation = set statut, l'item *reste* dans Favoris avec son badge) **· Retirer des favoris**.
+
+**Alertes prix v2 :**
+- **Prix cible custom pré-rempli** : `price_alerts.target_price` (nullable ; null = logique historique −10%/−5€) + `initial_price` (ancre « −X% depuis l'alerte »). `suggestTargetPrice()` : proche de l'officiel → `référence × 0.75`, déjà en promo → `best_price × 0.9`, arrondi au palier de 5 €.
+- **`price_history`** (1 ligne/parfum/jour, alimentée par le cron) — ancre « Plus bas constaté : X € » dans la sheet, futur graphe d'évolution.
+- **`onPriceAlerts(uid)`** : subscription realtime (la table rejoint la publication `supabase_realtime`), hook `usePriceAlerts` (`byParfumId` Map).
+- **`PriceAlertSheet`** (composant canonique) : toggle + mode « Une baisse / Sous X € » + stepper ±5 € + plus bas constaté. **Surface d'alerte unique** — utilisée par le tab Favoris ET la fiche détail (`AlertPriceToggle` devient une row qui l'ouvre).
+- **Edge Function `check-price-alerts`** : déclenche si `best_price ≤ target_price` (sinon baisse ≥10%/≥5€), écrit `price_history`, push différencié (« 🎯 Prix cible atteint » vs « 💰 Baisse de prix »). Helper `targetReached()`.
+
+**Tab Parfumerie simplifié** (`collection.tsx` réécrit) : source = `user_parfum` uniquement (**fin de l'union `buildMyParfums`**), pills statut (Tous · À sentir · Je l'ai · Fini), filtre ♥ conservé (coups de cœur de la collection), badge 🔔 ajouté, SOTD/météo/étagères/FilterSheet/tri préservés. `my-parfums.ts` + son test supprimés.
+
+**Fichiers créés** : `supabase/migrations/0022_price_alerts_v2.sql`, `src/models/user-price-alert.interface.ts`, `src/hooks/usePriceAlerts.ts`, `src/utils/price-alerts.ts`, `src/components/PriceAlertSheet.tsx`, `src/components/FavoriSheet.tsx`, `app/(tabs)/favoris.tsx`, `app/(tabs)/communaute.tsx`, `__tests__/utils/price-alerts.test.ts`.
+**Fichiers modifiés** : `check-price-alerts/index.ts`, `_shared/helpers.ts`, `user-data.supabase.ts` (`onPriceAlerts`/`setPriceAlert` étendu/`getLowestObservedPrice`), `models/index.ts`, `DockBar.tsx`, `(tabs)/_layout.tsx`, `collection.tsx`, `ParfumCard.tsx` (prop `priceAlert`), `AlertPriceToggle.tsx`, `catalog/[id].tsx`.
+**Fichiers supprimés** : `src/utils/my-parfums.ts`, `__tests__/utils/my-parfums.test.ts`.
+
+**⚠️ Migration à appliquer** : `supabase db push` (0022 — `target_price`, `initial_price`, `price_history`, publication realtime de `price_alerts`).
+
+**Tests** : 19 suites, 215 tests. `tsc --noEmit` : 0 erreur app/ + src/.
+
+## Notes v8.4 — Communauté Phase 1 : profils publics & partage (landing SSR) (15/09/2026)
+
+**Amorce de l'aspect communautaire** (aucun changement du modèle `user_parfum`/`favoris`). Parti pris : commencer par la brique la plus sûre — **pas de feed, pas d'UGC modéré, pas de follow** — profils publics opt-in + partage via un landing SSR qui fait l'acquisition (aperçu riche + store). Les agrégats anonymes et les « nez compatibles » (taste twins) sont reportés (cold-start : 0 utilisateur réel, pas encore de matière).
+
+**Profils publics (opt-in)** :
+- Table `profiles` (migration 0023) : `pseudo` unique (slug 3-20 car., `^[a-z0-9][a-z0-9_-]{1,18}[a-z0-9]$`), `avatar_url` (photo Google — **pas d'upload**, zéro modération image), `bio` (≤ 140), `is_public` (défaut `false`). RLS : owner-all + lecture publique des profils publics uniquement.
+- RPC `public_profile(pseudo)` + `public_collection(pseudo)` (`SECURITY DEFINER`, filtrées `is_public = true`) : identité + statut + verdict + rating + best_price, **notes personnelles exclues**.
+- Service `profile.ts` (`getMyProfile`, `upsertMyProfile`, `getPublicProfile`, `getPublicCollection`), hooks `useMyProfile` / `usePublicProfile`, modèle `profile.interface.ts`.
+
+**Partage & landing** :
+- Edge Function `share` (`--no-verify-jwt`, publique) : `?type=parfum&id=` / `?type=profile&pseudo=` → HTML SSR on-brand + **balises OG/Twitter** (aperçu riche iMessage/WhatsApp/Instagram) + bouton « Ouvrir dans ParfumScan » (deep link `parfumscan://`) + mention store. Valeurs échappées (anti-XSS), données publiques uniquement. **Déployée + testée** (404 brandé pour un profil privé/introuvable).
+- Util `share.ts` : `parfumShareUrl` / `profileShareUrl` (landing https), `parfumDeepLink` / `profileDeepLink`, `isValidPseudo` / `normalizePseudo`.
+- 3 surfaces de partage : **fiche détail** (`handleShare` → landing, remplace l'ancien deep link brut qui ne touchait que les installés) · **Ma Parfumerie** (bouton header, visible seulement si profil public) · **SOTD** (long-press sur la bannière, message « Aujourd'hui je porte… »).
+
+**UI** :
+- `PublicProfileCard` (section « PROFIL PUBLIC » de `profile.tsx`) : pseudo + bio + toggle « Collection publique » + validation (code 23505 → « Ce pseudo est déjà pris ») + boutons Partager / Voir mon profil.
+- Route publique `app/u/[pseudo].tsx` (lecture seule, **accessible sans auth**) : en-tête profil + grille `ParfumCard` (statut/rating du propriétaire ; le cœur reste l'action du visiteur), état « Profil privé ou introuvable ». Cible du deep link `parfumscan://u/<pseudo>`.
+
+**Fichiers créés** : `supabase/migrations/0023_public_profiles.sql`, `src/models/profile.interface.ts`, `src/services/impl/profile.supabase.ts` + `src/services/profile.ts`, `src/hooks/useMyProfile.ts`, `src/hooks/usePublicProfile.ts`, `src/utils/share.ts` (+test), `src/components/PublicProfileCard.tsx`, `app/u/[pseudo].tsx`, `supabase/functions/share/index.ts`.
+**Fichiers modifiés** : `models/index.ts`, `profile.tsx`, `collection.tsx` (partage collection + SOTD), `catalog/[id].tsx` (`handleShare` landing), `SOTDCard.tsx` (prop `onShare`), `_layout.tsx` (route `u/[pseudo]`).
+
+**⚠️ Déploiement** (fait en session) : `supabase db push` (0023) + `supabase functions deploy share --no-verify-jwt`.
+
+**Note cold-start** : le partage sert d'abord l'acquisition (boucle virale au lancement). Le bouton « Télécharger » du landing est un placeholder tant que l'app n'est pas en store ; les URLs store réelles seront à renseigner dans `share/index.ts` (`STORE_NOTE`).
+
+**Tests** : 20 suites, 222 tests. `tsc --noEmit` : 0 erreur app/ + src/.

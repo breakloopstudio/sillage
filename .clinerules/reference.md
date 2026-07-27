@@ -75,7 +75,13 @@ export function getUserSettings(uid: string): Promise<{ priceAlerts: boolean; pu
 export function updateUserSetting(uid: string, key: 'priceAlerts' | 'pushNotifs' | 'weatherNotifs', value: boolean): Promise<void>;
 export function saveWeatherCoords(uid: string, lat: number, lon: number): Promise<void>;
 export function isPriceAlertActive(uid: string, parfumId: string): Promise<boolean>;
-export function setPriceAlert(uid: string, parfumId: string, active: boolean, currentPrice?: number): Promise<void>;
+export function onPriceAlerts(uid: string, cb: (alerts: UserPriceAlert[]) => void): () => void;
+// Subscription temps réel (table price_alerts publiée v8.3) — même contrat qu'onSnapshot
+export function setPriceAlert(uid: string, parfumId: string, active: boolean, opts?: PriceAlertOptions): Promise<void>;
+// PriceAlertOptions = { currentPrice?: number; targetPrice?: number | null }
+// currentPrice → initial_price (ancre « −X% ») ; targetPrice → seuil custom (null = baisse ≥10%/≥5€)
+export function getLowestObservedPrice(parfumId: string): Promise<number | null>;
+// Plus bas prix constaté (price_history) — ancre de suggestion du prix cible
 export function moveToCollection(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null): Promise<void>;
 export function moveToWishlist(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null, familleOlactive?: string | null): Promise<void>;
 export function moveFavori(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null, familleOlactive?: string | null): Promise<void>;
@@ -111,6 +117,16 @@ export async function getAllPossessions(uid: string): Promise<Possession[]>;
 export async function addPossession(uid: string, parfumId: string, type: PossessionType, sizeMl?: number | null, quantity?: number, forSale?: boolean, notes?: string | null): Promise<string>;
 export async function updatePossession(uid: string, possessionId: string, data: Partial<Pick<Possession, 'type' | 'sizeMl' | 'quantity' | 'forSale' | 'notes'>>): Promise<void>;
 export async function removePossession(uid: string, possessionId: string): Promise<void>;
+```
+
+### `src/services/profile.ts`
+```ts
+// Profils publics (communauté Phase 1) — table profiles + RPC publiques
+export interface ProfileInput { pseudo: string; bio?: string | null; isPublic?: boolean; avatarUrl?: string | null; }
+export function getMyProfile(uid: string): Promise<MyProfile | null>;
+export function upsertMyProfile(uid: string, input: ProfileInput): Promise<void>;   // throw (code 23505 = pseudo pris)
+export function getPublicProfile(pseudo: string): Promise<PublicProfile | null>;    // RPC public_profile (null si privé/introuvable)
+export function getPublicCollection(pseudo: string): Promise<PublicCollectionItem[]>; // RPC public_collection (notes perso exclues)
 ```
 
 ### `src/services/theme-storage.ts`
@@ -304,6 +320,38 @@ export function useSotd(uid: string | null): {
   refresh: () => Promise<void>;
 };
 ```
+```
+
+### `usePriceAlerts(uid)` — `src/hooks/usePriceAlerts.ts`
+```ts
+// Hook alertes prix (temps réel) — badges 🔔 + section « Tes alertes »
+export function usePriceAlerts(uid: string | null): {
+  alerts: UserPriceAlert[];
+  byParfumId: Map<string, UserPriceAlert>;
+  loading: boolean;
+  setAlert: (parfumId: string, active: boolean, opts?: PriceAlertOptions) => Promise<void>;
+};
+```
+
+### `useMyProfile(uid)` — `src/hooks/useMyProfile.ts`
+```ts
+// Mon profil public (fetch + save)
+export function useMyProfile(uid: string | null): {
+  profile: MyProfile | null;
+  loading: boolean;
+  save: (input: ProfileInput) => Promise<void>;  // throw (code 23505 = pseudo pris)
+  refresh: () => Promise<void>;
+};
+```
+
+### `usePublicProfile(pseudo)` — `src/hooks/usePublicProfile.ts`
+```ts
+// Profil public d'un membre + sa collection (lecture seule, accessible sans auth)
+export function usePublicProfile(pseudo: string | null): {
+  profile: PublicProfile | null;
+  collection: PublicCollectionItem[];
+  loading: boolean;
+};
 ```
 
 ### `useDensityPreference()` — `src/hooks/useDensityPreference.ts`
@@ -510,6 +558,29 @@ interface SotdEntry {
 }
 ```
 
+### `src/models/user-price-alert.interface.ts`
+```ts
+interface UserPriceAlert {
+  parfumId: string;
+  targetPrice: number | null;   // seuil custom (null = logique baisse ≥10%/≥5€)
+  initialPrice: number | null;  // prix à l'activation (ancre « −X% depuis l'alerte »)
+  lastPrice: number | null;     // prix au dernier contrôle (écrasé par le cron)
+  lastChecked: Date | null;
+  addedAt: Date;
+}
+```
+
+### `src/models/profile.interface.ts`
+```ts
+interface MyProfile { pseudo: string; avatarUrl: string | null; bio: string | null; isPublic: boolean; createdAt: Date; }
+interface PublicProfile { pseudo: string; avatarUrl: string | null; bio: string | null; createdAt: Date; collectionCount: number; }
+interface PublicCollectionItem {
+  parfumId: string; nom: string | null; marque: string | null; imageUrl: string | null;
+  familleOlactive: string | null; status: UserParfumStatus; verdict: ScentVerdict | null;
+  rating: number | null; bestPrice?: number; addedAt: Date;   // notes personnelles exclues
+}
+```
+
 ### `src/models/user-scent.interface.ts`
 ```ts
 type ScentVerdict = 'love' | 'like' | 'meh' | 'dislike';
@@ -626,16 +697,26 @@ export const VERDICT_OPTIONS: VerdictOption[];  // love / like / meh / dislike
 export function verdictLabel(v: ScentVerdict | null | undefined): string | null;
 ```
 
-### `src/utils/my-parfums.ts`
+### `src/utils/price-alerts.ts`
 ```ts
-// Union favoris + user_parfum pour l'onglet Ma Parfumerie (compatible FilterableItem)
-export interface MyParfum { parfumId; nom; marque; imageUrl; status: UserParfumStatus | null; rating; isFav; /* + champs display/filtre */ };
-export type PillId = 'all' | StatusChipId;  // cœur (favori sans statut) absorbé dans À sentir (plus de to_stat)
-export const MY_PARFUM_PILLS: { id: PillId; label: string; icon: string }[];
-export function buildMyParfums(favoris: UserFavori[], ups: UserParfum[]): MyParfum[];  // dédup par parfumId
-export function pillOfItem(m: MyParfum): Exclude<PillId, 'all'>;  // status null (cœur) → to_try
-export function filterByPill(items: MyParfum[], pill: PillId): MyParfum[];
-export function myParfumToCard(m: MyParfum): Parfum;  // pour ParfumCard
+// Helpers purs pour les alertes prix (suggestion + variation)
+export function suggestTargetPrice(bestPrice?: number | null, referencePrice?: number | null): number | null;
+// Proche de l'officiel (≥90%) → référence × 0.75 ; déjà en promo → best_price × 0.9 ; arrondi au palier de 5 €
+export function alertVariation(initialPrice: number | null, currentPrice: number | null): number | null;
+// Variation vs prix à l'activation (négatif = baisse). null si données manquantes
+export function formatVariation(variation: number): string;  // « −18 % » / « +5 % » (minus U+2212 + espace fine)
+```
+
+### `src/utils/share.ts`
+```ts
+// URLs de partage (landing + deep links) & identité publique (pseudo)
+export const APP_SCHEME: string;                              // 'parfumscan'
+export function parfumShareUrl(parfumId: string): string;     // landing https (?type=parfum&id=)
+export function profileShareUrl(pseudo: string): string;      // landing https (?type=profile&pseudo=)
+export function parfumDeepLink(parfumId: string): string;     // parfumscan://catalog/<id>
+export function profileDeepLink(pseudo: string): string;      // parfumscan://u/<pseudo>
+export function isValidPseudo(pseudo: string): boolean;       // ^[a-z0-9][a-z0-9_-]{1,18}[a-z0-9]$
+export function normalizePseudo(input: string): string;       // trim + lowercase + espaces → _
 ```
 
 ---
@@ -771,6 +852,64 @@ interface Props {
 }
 ```
 
+### `FavoriSheet` — `src/components/FavoriSheet.tsx`
+
+Sheet de long-press du tab Favoris : entête du parfum, « Voir la fiche », « Alerte prix » (dot si active),
+section statut (`STATUS_CHIPS` — « Envoyer dans ma parfumerie » si aucun statut, « Ton statut » sinon),
+« Retirer des favoris ». La graduation pose un statut sans retirer le ❤️ (modèle orthogonal v8.0).
+
+```ts
+interface Props {
+  visible: boolean;
+  nom: string;
+  marque: string;
+  imageUrl: string | null;
+  status: UserParfumStatus | null;
+  hasAlert: boolean;
+  onClose: () => void;
+  onView: () => void;
+  onAlerte: () => void;
+  onSetStatus: (status: UserParfumStatus) => void;
+  onRemove: () => void;
+}
+```
+
+### `PriceAlertSheet` — `src/components/PriceAlertSheet.tsx`
+
+Sheet canonique de gestion d'une alerte prix (§4.16 content sheet). Toggle on/off, deux modes
+(« Une baisse » = seuil historique 10%/5€, « Sous un prix » = cible custom), stepper ±5 € pré-rempli
+par `suggestTargetPrice()`, ligne « Plus bas constaté » (`price_history`). Surface unique : utilisée
+par le tab Favoris ET la fiche détail (`AlertPriceToggle` l'ouvre).
+
+```ts
+interface Props {
+  visible: boolean;
+  parfumId: string;
+  nom: string;
+  marque: string;
+  imageUrl: string | null;
+  bestPrice?: number;
+  referencePrice?: number;
+  existingAlert: UserPriceAlert | null;
+  onClose: () => void;
+  onSave: (active: boolean, targetPrice: number | null) => void;
+}
+```
+
+### `PublicProfileCard` — `src/components/PublicProfileCard.tsx`
+
+Carte « Profil public » (section PROFIL PUBLIC de `profile.tsx`). Pseudo + bio + toggle
+« Collection publique » (opt-in) + validation (code 23505 → « Ce pseudo est déjà pris ») +
+boutons Partager / Voir mon profil (visibles une fois le profil public enregistré).
+
+```ts
+interface Props {
+  uid: string;
+  photoUrl: string | null;   // avatar (photo Google ; pas d'upload custom)
+  defaultPseudo: string;     // suggestion initiale (normalisée depuis le displayName)
+}
+```
+
 ### `ParfumCard` — `src/components/ParfumCard.tsx`
 
 Carte parfum 4 modes — point d'entree unique pour l'affichage catalogue, recherche, favoris, historique, wardrove.
@@ -785,6 +924,7 @@ interface Props {
   status?: UserParfumStatus | null;  // badge statut dans le body (Ma Parfumerie)
   rating?: number | null;            // pastille ★ dans le body
   hidePrice?: boolean;               // masque prix + badge -X% (contexte perso Ma Parfumerie)
+  priceAlert?: { variation: number | null } | null;  // badge 🔔 + variation depuis l'activation
 }
 ```
 

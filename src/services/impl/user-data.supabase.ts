@@ -2,7 +2,7 @@
 // (Favoris + scans + collection + settings + alertes prix).
 // Appelée par le dispatcher user-data.ts quand USE_SUPABASE=true.
 
-import type { Parfum, UserFavori, UserScan } from '../../models';
+import type { Parfum, UserFavori, UserScan, UserPriceAlert } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate } from './sql-utils';
@@ -239,6 +239,29 @@ export async function saveWeatherCoords(uid: string, lat: number, lon: number): 
 
 // ─── Alertes prix ────────────────────────────────────────────────────────────
 
+function rowToPriceAlert(row: Record<string, unknown>): UserPriceAlert {
+  return {
+    parfumId: row.parfum_id as string,
+    targetPrice: typeof row.target_price === 'number' ? row.target_price : null,
+    initialPrice: typeof row.initial_price === 'number' ? row.initial_price : null,
+    lastPrice: typeof row.last_price === 'number' ? row.last_price : null,
+    lastChecked: toDate(row.last_checked) ?? null,
+    addedAt: toDate(row.added_at) ?? new Date(),
+  };
+}
+
+export function onPriceAlerts(uid: string, cb: (alerts: UserPriceAlert[]) => void): () => void {
+  return subscribeUserTable<UserPriceAlert>({
+    table: 'price_alerts',
+    userId: uid,
+    order: { column: 'added_at', ascending: false },
+    mapRow: rowToPriceAlert,
+    keyOf: (row) => row.parfum_id as string,
+    cb,
+    onError: (msg) => console.warn('[user-data] onPriceAlerts error:', msg),
+  });
+}
+
 export async function isPriceAlertActive(uid: string, parfumId: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
@@ -254,16 +277,26 @@ export async function isPriceAlertActive(uid: string, parfumId: string): Promise
   }
 }
 
-export async function setPriceAlert(uid: string, parfumId: string, active: boolean, currentPrice?: number): Promise<void> {
+export interface PriceAlertOptions {
+  /** Prix courant au moment de l'activation — ancre « −X% depuis l'alerte ». */
+  currentPrice?: number;
+  /** Seuil custom. null/absent = logique baisse ≥ 10% / ≥ 5€. */
+  targetPrice?: number | null;
+}
+
+export async function setPriceAlert(uid: string, parfumId: string, active: boolean, opts?: PriceAlertOptions): Promise<void> {
   if (active) {
     try {
       const now = new Date().toISOString();
+      const current = opts?.currentPrice ?? null;
       const { error } = await supabase.from('price_alerts').upsert({
         user_id: uid,
         parfum_id: parfumId,
         added_at: now,
-        last_price: currentPrice ?? null,
+        last_price: current,
         last_checked: now,
+        initial_price: current,
+        target_price: opts?.targetPrice ?? null,
       } as never);
       if (error) throw error;
     } catch (e: unknown) {
@@ -280,5 +313,22 @@ export async function setPriceAlert(uid: string, parfumId: string, active: boole
     } catch {
       // silencieux — parité firebase setPriceAlert deleteDoc().catch(() => {})
     }
+  }
+}
+
+/** Plus bas prix constaté (price_history) — ancre de suggestion du prix cible. */
+export async function getLowestObservedPrice(parfumId: string): Promise<number | null> {
+  try {
+    const { data, error } = await supabase
+      .from('price_history')
+      .select('best_price')
+      .eq('parfum_id', parfumId)
+      .order('best_price', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return typeof data?.best_price === 'number' ? data.best_price : null;
+  } catch {
+    return null;
   }
 }

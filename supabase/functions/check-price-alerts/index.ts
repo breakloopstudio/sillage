@@ -3,7 +3,7 @@
 // Appelée par pg_cron → pg_net avec Authorization Bearer <service_role_key>.
 
 import { createAdminClient, verifyCronAuth } from '../_shared/supabase.ts';
-import { evaluatePriceDrop, priceAlertRunId } from '../_shared/helpers.ts';
+import { evaluatePriceDrop, targetReached, priceAlertRunId } from '../_shared/helpers.ts';
 import { sendPush, purgeDeadTokens } from '../_shared/expo-push.ts';
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -17,19 +17,19 @@ Deno.serve(async (req: Request) => {
   const runId = priceAlertRunId(now);
 
   // 1. Toutes les alertes (pagination par chunks de 1000)
-  const alerts: { user_id: string; parfum_id: string; last_price: number | null }[] = [];
+  const alerts: { user_id: string; parfum_id: string; last_price: number | null; target_price: number | null }[] = [];
   const PAGE = 1000;
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await supabase
       .from('price_alerts')
-      .select('user_id, parfum_id, last_price')
+      .select('user_id, parfum_id, last_price, target_price')
       .range(offset, offset + PAGE - 1);
     if (error) {
       console.error('[checkPriceAlerts] fetch alerts error:', error.message);
       return jsonResponse({ ok: false }, 500);
     }
     if (!data || data.length === 0) break;
-    alerts.push(...(data as { user_id: string; parfum_id: string; last_price: number | null }[]));
+    alerts.push(...(data as { user_id: string; parfum_id: string; last_price: number | null; target_price: number | null }[]));
     if (data.length < PAGE) break;
   }
   if (alerts.length === 0) {
@@ -52,18 +52,31 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // 2b. Historique de prix — 1 ligne/parfum/jour pour les parfums suivis
+  const capturedOn = now.toISOString().slice(0, 10);
+  const historyRows = [...parfumMap.entries()]
+    .filter(([, p]) => p.bestPrice !== null)
+    .map(([id, p]) => ({ parfum_id: id, captured_on: capturedOn, best_price: p.bestPrice }));
+  for (let i = 0; i < historyRows.length; i += 500) {
+    const { error: hErr } = await supabase
+      .from('price_history')
+      .upsert(historyRows.slice(i, i + 500) as never, { onConflict: 'parfum_id,captured_on' });
+    if (hErr) console.warn('[checkPriceAlerts] price_history upsert error:', hErr.message);
+  }
+
   // 3. Évaluation + regroupement par user + collecte des mises à jour last_price
-  interface TriggeredItem { displayName: string; parfumId: string; currentPrice: number; dropPct: number; }
+  interface TriggeredItem { displayName: string; parfumId: string; currentPrice: number; dropPct: number; isTarget: boolean; }
   const byUser = new Map<string, TriggeredItem[]>();
   const priceUpdates: { user_id: string; parfum_id: string; last_price: number; last_checked: string }[] = [];
   let checked = 0;
 
-  for (const a of alerts as { user_id: string; parfum_id: string; last_price: number | null }[]) {
+  for (const a of alerts) {
     const parfum = parfumMap.get(a.parfum_id);
     if (!parfum || parfum.bestPrice === null) continue;
     checked++;
 
     const drop = evaluatePriceDrop(a.last_price, parfum.bestPrice);
+    const isTarget = targetReached(a.target_price, parfum.bestPrice);
 
     // Toujours mettre à jour last_price (parité Firebase : évite les re-notifications)
     priceUpdates.push({
@@ -73,13 +86,14 @@ Deno.serve(async (req: Request) => {
       last_checked: now.toISOString(),
     });
 
-    if (!drop.triggered) continue;
+    if (!drop.triggered && !isTarget) continue;
     const arr = byUser.get(a.user_id) ?? [];
     arr.push({
       displayName: `${parfum.marque} ${parfum.nom}`,
       parfumId: a.parfum_id,
       currentPrice: parfum.bestPrice,
       dropPct: drop.dropPct,
+      isTarget,
     });
     byUser.set(a.user_id, arr);
   }
@@ -109,8 +123,11 @@ Deno.serve(async (req: Request) => {
       const tokenList = (tokens as { token: string }[]).map(t => t.token);
 
       for (const item of items) {
-        const body = `${item.displayName} est passé à ${item.currentPrice.toFixed(0)} € (-${Math.round(item.dropPct * 100)}%)`;
-        const { successCount, deadTokens } = await sendPush(tokenList, '💰 Baisse de prix !', body, {
+        const title = item.isTarget ? '🎯 Prix cible atteint' : '💰 Baisse de prix !';
+        const body = item.isTarget
+          ? `${item.displayName} est à ${item.currentPrice.toFixed(0)} € — ton objectif est atteint.`
+          : `${item.displayName} est passé à ${item.currentPrice.toFixed(0)} € (-${Math.round(item.dropPct * 100)}%)`;
+        const { successCount, deadTokens } = await sendPush(tokenList, title, body, {
           type: 'price_alert',
           parfumId: item.parfumId,
           newPrice: String(item.currentPrice),

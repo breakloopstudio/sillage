@@ -28,7 +28,9 @@ function TabsNavigator() {
       screenListeners={screenListeners}
     >
       <TopTabs.Screen name="index" />
+      <TopTabs.Screen name="favoris" />
       <TopTabs.Screen name="collection" />
+      <TopTabs.Screen name="communaute" />
     </TopTabs>
   );
 }

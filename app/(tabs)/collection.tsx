@@ -1,7 +1,7 @@
-// app/(tabs)/collection.tsx — Ma Parfumerie (vue unifiée : favoris + user_parfum)
+// app/(tabs)/collection.tsx — Ma Parfumerie (collection : user_parfum uniquement)
 
 import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, type LayoutChangeEvent } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Share, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -9,18 +9,22 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useFavorisContext } from '../../src/contexts/FavorisContext';
 import { useUserParfum } from '../../src/hooks/useUserParfum';
+import { usePriceAlerts } from '../../src/hooks/usePriceAlerts';
+import { useMyProfile } from '../../src/hooks/useMyProfile';
 import { useShelves } from '../../src/hooks/useShelves';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useWeather } from '../../src/hooks/useWeather';
 import { useNetwork } from '../../src/hooks/useNetwork';
 import { useDensityPreference, GRID_MODES } from '../../src/hooks/useDensityPreference';
-import { buildMyParfums, filterByPill, pillOfItem, myParfumToCard, MY_PARFUM_PILLS, type MyParfum, type PillId } from '../../src/utils/my-parfums';
 import { scoreWardrobeItemForWeather } from '../../src/utils/weather-scoring';
 import { saveWeatherCoords } from '../../src/services/user-data';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
+import { STATUS_CHIPS, chipForStatus, type StatusChipId } from '../../src/utils/status-chips';
+import { alertVariation } from '../../src/utils/price-alerts';
+import { profileShareUrl, parfumShareUrl } from '../../src/utils/share';
 import EmptyState from '../../src/components/EmptyState';
 import AuthGate from '../../src/components/AuthGate';
 import FilterSheet from '../../src/components/FilterSheet';
@@ -39,7 +43,14 @@ import {
   removeActiveChip,
   type FavoritesFilters,
 } from '../../src/utils/favori-filters';
-import type { UserParfumStatus } from '../../src/models/user-parfum.interface';
+import type { UserParfum, UserParfumStatus, Parfum } from '../../src/models';
+
+type ParfPillId = 'all' | StatusChipId;
+
+const PARF_PILLS: { id: ParfPillId; label: string; icon: string }[] = [
+  { id: 'all', label: 'Tous', icon: 'apps-outline' },
+  ...STATUS_CHIPS.map(c => ({ id: c.id as ParfPillId, label: c.label, icon: c.icon })),
+];
 
 const SORT_OPTIONS: { key: string; label: string }[] = [
   { key: 'recent', label: 'Récents' },
@@ -54,6 +65,18 @@ const DENSITY_ICON: Record<string, string> = {
   list: 'list-outline',
 };
 
+function userParfumToCard(up: UserParfum): Parfum {
+  return {
+    id: up.parfumId,
+    nom: up.nom ?? '',
+    marque: up.marque ?? '',
+    imageUrl: up.imageUrl ?? undefined,
+    familleOlactive: up.familleOlactive ?? '',
+    bestPrice: up.bestPrice,
+    referencePrice: up.referencePrice,
+  } as Parfum;
+}
+
 export default function MaParfumeriePage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -62,8 +85,10 @@ export default function MaParfumeriePage() {
   const uid = user?.uid ?? null;
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
-  const { favoris, removeFavori } = useFavorisContext();
-  const { items, loading, add, update, remove } = useUserParfum(uid);
+  const { favIds } = useFavorisContext();
+  const { items, loading, update, remove } = useUserParfum(uid);
+  const { byParfumId } = usePriceAlerts(uid);
+  const { profile } = useMyProfile(uid);
   const { shelves, create: createShelf, update: updateShelf, remove: removeShelf } = useShelves(uid);
   const { sotd, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
@@ -73,9 +98,7 @@ export default function MaParfumeriePage() {
 
   const scrollHandler = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
 
-  const myParfums = useMemo(() => buildMyParfums(favoris, items), [favoris, items]);
-
-  const [activePill, setActivePill] = useState<PillId>('all');
+  const [activePill, setActivePill] = useState<ParfPillId>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeShelfId, setActiveShelfId] = useState<string | null>(null);
   const [activeSort, setActiveSort] = useState('recent');
@@ -85,7 +108,7 @@ export default function MaParfumeriePage() {
   const [shelfManagerVisible, setShelfManagerVisible] = useState(false);
   const [sotdPickerVisible, setSotdPickerVisible] = useState(false);
   const [sotdCardAnchor, setSotdCardAnchor] = useState(0);
-  const [statuerItem, setStatuerItem] = useState<MyParfum | null>(null);
+  const [statuerItem, setStatuerItem] = useState<UserParfum | null>(null);
   const sotdCardRef = useRef<View>(null);
 
   const sotdEligible = useMemo(() => items.filter(i => i.status === 'have'), [items]);
@@ -105,17 +128,20 @@ export default function MaParfumeriePage() {
   }, [isAuthenticated, coords, uid]);
 
   const pillCounts = useMemo(() => {
-    const counts: Record<PillId, number> = { all: myParfums.length, to_try: 0, have: 0, had: 0 };
-    for (const m of myParfums) counts[pillOfItem(m)] += 1;
+    const counts: Record<ParfPillId, number> = { all: items.length, to_try: 0, have: 0, had: 0 };
+    for (const up of items) counts[chipForStatus(up.status) ?? 'to_try'] += 1;
     return counts;
-  }, [myParfums]);
+  }, [items]);
 
-  const pillFiltered = useMemo(() => filterByPill(myParfums, activePill), [myParfums, activePill]);
+  const pillFiltered = useMemo(() => {
+    if (activePill === 'all') return items;
+    return items.filter(up => (chipForStatus(up.status) ?? 'to_try') === activePill);
+  }, [items, activePill]);
 
   const filtered = useMemo(() => {
     let result = pillFiltered;
     if (activeShelfId) result = result.filter(m => m.shelfIds.includes(activeShelfId));
-    if (favOnly) result = result.filter(m => m.isFav);
+    if (favOnly) result = result.filter(m => favIds.has(m.parfumId));
     result = result.filter(m => matchesFavoriFilters(m, attrFilters));
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
@@ -129,17 +155,17 @@ export default function MaParfumeriePage() {
         default: return b.addedAt.getTime() - a.addedAt.getTime();
       }
     });
-  }, [pillFiltered, activeShelfId, favOnly, attrFilters, searchQuery, activeSort]);
+  }, [pillFiltered, activeShelfId, favOnly, favIds, attrFilters, searchQuery, activeSort]);
 
   const activeAttrCount = useMemo(() => countActiveFilters(attrFilters), [attrFilters]);
   const activeChips = useMemo(() => buildActiveChips(attrFilters), [attrFilters]);
 
-  const handleCardPress = useCallback((m: MyParfum) => {
-    setPendingParfum(myParfumToCard(m));
-    router.push(`/catalog/${m.parfumId}`);
+  const handleCardPress = useCallback((up: UserParfum) => {
+    setPendingParfum(userParfumToCard(up));
+    router.push(`/catalog/${up.parfumId}`);
   }, [router]);
 
-  const handleLongPress = useCallback((m: MyParfum) => setStatuerItem(m), []);
+  const handleLongPress = useCallback((up: UserParfum) => setStatuerItem(up), []);
 
   const handleStatuerView = useCallback(() => {
     if (statuerItem) handleCardPress(statuerItem);
@@ -147,26 +173,15 @@ export default function MaParfumeriePage() {
   }, [statuerItem, handleCardPress]);
 
   const handleStatuerStatus = useCallback((status: UserParfumStatus) => {
-    if (!statuerItem || !uid) { setStatuerItem(null); return; }
-    if (statuerItem.status === null) {
-      add(statuerItem.parfumId, status, myParfumToCard(statuerItem)).catch(() => {});
-    } else {
-      update(statuerItem.parfumId, { status }).catch(() => {});
-    }
+    if (!statuerItem) { setStatuerItem(null); return; }
+    update(statuerItem.parfumId, { status }).catch(() => {});
     setStatuerItem(null);
-  }, [statuerItem, uid, add, update]);
+  }, [statuerItem, update]);
 
   const handleStatuerRemove = useCallback(() => {
-    if (!statuerItem) return;
-    if (statuerItem.status === null) {
-      removeFavori(statuerItem.parfumId);
-    } else {
-      remove(statuerItem.parfumId).catch(() => {});
-    }
+    if (statuerItem) remove(statuerItem.parfumId).catch(() => {});
     setStatuerItem(null);
-  }, [statuerItem, removeFavori, remove]);
-
-  const statuerRemoveLabel = statuerItem !== null && statuerItem.status === null ? 'Retirer des favoris' : 'Retirer de ma parfumerie';
+  }, [statuerItem, remove]);
 
   const handleSotdCardLayout = useCallback((e: LayoutChangeEvent) => {
     setSotdCardAnchor(e.nativeEvent.layout.y + e.nativeEvent.layout.height);
@@ -186,6 +201,23 @@ export default function MaParfumeriePage() {
   const handleRenameShelf = useCallback((id: string, name: string) => { updateShelf(id, { name }); }, [updateShelf]);
 
   const handleToggleFavOnly = useCallback(() => { hapticsLight(); setFavOnly(v => !v); }, []);
+  const canShareCollection = !!profile?.isPublic && !!profile?.pseudo;
+  const handleShareCollection = useCallback(() => {
+    if (!profile?.pseudo) return;
+    hapticsLight();
+    const url = profileShareUrl(profile.pseudo);
+    const text = 'Ma parfumerie sur ParfumScan';
+    if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
+    else Share.share({ message: `${text} ${url}` }).catch(() => {});
+  }, [profile]);
+  const handleShareSotd = useCallback(() => {
+    if (!sotd) return;
+    hapticsLight();
+    const url = parfumShareUrl(sotd.parfumId);
+    const text = `Aujourd'hui je porte ${sotd.marque} – ${sotd.nom}`;
+    if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
+    else Share.share({ message: `${text}\n${url}` }).catch(() => {});
+  }, [sotd]);
   const handleOpenAttrSheet = useCallback(() => setShowAttrSheet(true), []);
   const handleCloseAttrSheet = useCallback(() => setShowAttrSheet(false), []);
   const handleAttrFiltersChange = useCallback((next: FavoritesFilters) => setAttrFilters(next), []);
@@ -197,7 +229,7 @@ export default function MaParfumeriePage() {
   }, [activeSort]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.key === activeSort)?.label ?? 'Tri';
 
-  const handlePillTap = useCallback((pill: PillId) => { hapticsLight(); setActivePill(pill); }, []);
+  const handlePillTap = useCallback((pill: ParfPillId) => { hapticsLight(); setActivePill(pill); }, []);
   const handleShelfTap = useCallback((id: string) => { hapticsLight(); setActiveShelfId(prev => (prev === id ? null : id)); }, []);
   const handleGlobalReset = useCallback(() => {
     setAttrFilters(EMPTY_FAVORI_FILTERS);
@@ -210,22 +242,27 @@ export default function MaParfumeriePage() {
   const gridNumCols = density === 'list' ? 1 : 2;
   const gridKey = `${gridNumCols}col-${resolvedMode}`;
 
-  const renderItem = useCallback(({ item }: { item: MyParfum }) => (
-    <Pressable
-      onLongPress={() => handleLongPress(item)}
-      delayLongPress={400}
-      style={gridNumCols === 2 ? s.gridItemWrap : s.listItemWrap}
-    >
-      <ParfumCard
-        parfum={myParfumToCard(item)}
-        mode={density}
-        status={item.status ?? (item.isFav ? 'to_try' : null)}
-        rating={item.rating}
-        hidePrice
-        onPressOverride={() => handleCardPress(item)}
-      />
-    </Pressable>
-  ), [density, gridNumCols, handleCardPress, handleLongPress, s]);
+  const renderItem = useCallback(({ item }: { item: UserParfum }) => {
+    const alert = byParfumId.get(item.parfumId) ?? null;
+    const variation = alert ? alertVariation(alert.initialPrice, alert.lastPrice ?? item.bestPrice ?? null) : null;
+    return (
+      <Pressable
+        onLongPress={() => handleLongPress(item)}
+        delayLongPress={400}
+        style={gridNumCols === 2 ? s.gridItemWrap : s.listItemWrap}
+      >
+        <ParfumCard
+          parfum={userParfumToCard(item)}
+          mode={density}
+          status={item.status}
+          rating={item.rating}
+          hidePrice
+          priceAlert={alert ? { variation } : null}
+          onPressOverride={() => handleCardPress(item)}
+        />
+      </Pressable>
+    );
+  }, [density, gridNumCols, byParfumId, handleCardPress, handleLongPress, s]);
 
   if (!authReady) {
     return <View style={s.center}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
@@ -248,7 +285,7 @@ export default function MaParfumeriePage() {
     );
   }
 
-  if (myParfums.length === 0) {
+  if (items.length === 0) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
         <View style={s.header}><Text style={s.title}>Ma Parfumerie</Text></View>
@@ -276,7 +313,12 @@ export default function MaParfumeriePage() {
         ListHeaderComponent={
           <View>
             <View style={s.header}>
-              <Text style={s.title}>Ma Parfumerie{'\u00A0'}·{'\u00A0'}{myParfums.length}</Text>
+              <Text style={s.title}>Ma Parfumerie{'\u00A0'}·{'\u00A0'}{items.length}</Text>
+              {canShareCollection ? (
+                <Pressable style={s.shareHeaderBtn} onPress={handleShareCollection} hitSlop={6} accessibilityRole="button" accessibilityLabel="Partager ma collection">
+                  <Ionicons name="share-social-outline" size={18} color={theme.colors.primary} />
+                </Pressable>
+              ) : null}
             </View>
 
             <View ref={sotdCardRef} onLayout={handleSotdCardLayout}>
@@ -287,6 +329,7 @@ export default function MaParfumeriePage() {
                 sotdScore={sotdScore}
                 onPress={handleSotdPress}
                 onChangePress={handleSotdChangePress}
+                onShare={handleShareSotd}
               />
             </View>
 
@@ -318,7 +361,7 @@ export default function MaParfumeriePage() {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
-              {MY_PARFUM_PILLS.map(pill => {
+              {PARF_PILLS.map(pill => {
                 const active = activePill === pill.id;
                 return (
                   <Pressable
@@ -414,7 +457,7 @@ export default function MaParfumeriePage() {
         marque={statuerItem?.marque ?? ''}
         imageUrl={statuerItem?.imageUrl ?? null}
         status={statuerItem?.status ?? null}
-        removeLabel={statuerRemoveLabel}
+        removeLabel="Retirer de ma parfumerie"
         onClose={() => setStatuerItem(null)}
         onView={handleStatuerView}
         onSetStatus={handleStatuerStatus}
@@ -466,6 +509,7 @@ function getStyles(t: Theme) {
 
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text, flex: 1 },
+    shareHeaderBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: t.colors.surface2, justifyContent: 'center', alignItems: 'center' },
 
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
     searchWrap: {

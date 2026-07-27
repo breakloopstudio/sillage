@@ -15,6 +15,7 @@ import { formatPrice } from '../utils/format-price';
 import FavButton from './FavButton';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { statusChipMeta, type StatusChipId } from '../utils/status-chips';
+import { formatVariation } from '../utils/price-alerts';
 import type { UserParfumStatus } from '../models/user-parfum.interface';
 
 export type CardMode = 'compact' | 'comfortable' | 'compactPlus' | 'list';
@@ -26,6 +27,8 @@ interface Props {
   status?: UserParfumStatus | null;
   rating?: number | null;
   hidePrice?: boolean;
+  /** Alerte prix active — badge 🔔 + variation depuis l'activation. */
+  priceAlert?: { variation: number | null } | null;
 }
 
 function getDiscount(p: Parfum): number | null {
@@ -60,7 +63,7 @@ function resolveImageUrl(p: Parfum): string | null {
   return p.imageUrl ?? null;
 }
 
-export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, status, rating, hidePrice = false }: Props) {
+export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, status, rating, hidePrice = false, priceAlert = null }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -86,10 +89,15 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
 
   const statusMeta = status != null ? statusChipMeta(status) : null;
   const showRating = typeof rating === 'number' && rating > 0;
+  const alertVariation = priceAlert?.variation ?? null;
+  const showAlert = priceAlert != null;
+  const alertIsDrop = alertVariation != null && alertVariation < 0;
 
   const renderBadges = () => {
-    if (!statusMeta && !showRating) return null;
+    if (!statusMeta && !showRating && !showAlert) return null;
     const bs = statusMeta ? s.statusColors[statusMeta.id] : null;
+    const alertBg = alertIsDrop ? theme.colors.dealSoft : theme.colors.primarySoft;
+    const alertInk = alertIsDrop ? theme.colors.dealInk : theme.colors.primaryInk;
     return (
       <View style={s.statusRow}>
         {statusMeta && bs ? (
@@ -102,6 +110,14 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           <View style={[s.statusBadge, { backgroundColor: theme.colors.secondarySoft }]}>
             <Ionicons name="star" size={10} color={theme.colors.secondaryInk} />
             <Text style={[s.statusBadgeText, { color: theme.colors.secondaryInk }]} allowFontScaling={false}>{rating}</Text>
+          </View>
+        ) : null}
+        {showAlert ? (
+          <View style={[s.statusBadge, { backgroundColor: alertBg }]}>
+            <Ionicons name="notifications" size={10} color={alertInk} />
+            {alertVariation != null ? (
+              <Text style={[s.statusBadgeText, { color: alertInk }]} allowFontScaling={false}>{formatVariation(alertVariation)}</Text>
+            ) : null}
           </View>
         ) : null}
       </View>

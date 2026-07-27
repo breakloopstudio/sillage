@@ -31,3 +31,9 @@ export function evaluatePriceDrop(lastPrice: number | null, currentPrice: number
   const dropPct = dropAbs / lastPrice;
   return { triggered: dropPct >= 0.10 || dropAbs >= 5, dropPct, dropAbs };
 }
+
+/** Seuil custom atteint : le prix courant est ≤ à la cible définie par l'utilisateur. */
+export function targetReached(targetPrice: number | null, currentPrice: number | null): boolean {
+  if (targetPrice === null || currentPrice === null || targetPrice <= 0 || currentPrice <= 0) return false;
+  return currentPrice <= targetPrice;
+}

@@ -13,9 +13,11 @@ app/
 ├── _layout.tsx               # Root : ThemeProvider → GestureHandlerRootView → AuthProvider → AuthGuard → ErrorBoundary
 ├── index.tsx                 # Splash → redirection tabs
 ├── (tabs)/
-│   ├── _layout.tsx           # TopTabs (2 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond en haut à droite) + NavigationChromeProvider
+│   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond en haut à droite) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
-│   └── collection.tsx        # Ma Parfumerie (union favoris + user_parfum, 4 pills + filtre ♥ coups de cœur, grille ParfumCard prix masqué, long-press StatuerSheet)
+│   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills Tous/À traiter/Alertes, long-press FavoriSheet, prix visibles)
+│   ├── collection.tsx        # Ma Parfumerie (user_parfum uniquement, pills statut + filtre ♥, grille ParfumCard prix masqué + badge 🔔, long-press StatuerSheet)
+│   └── communaute.tsx        # Communauté (placeholder « Bientôt », sans auth)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
@@ -28,6 +30,7 @@ app/
 ├── history.tsx               # Historique des scans (route racine, poussée depuis Profil)
 ├── profile.tsx               # Profil (route racine, poussée depuis l'avatar en haut à droite dans SearchChrome — identité, stats, SOTD, navigation, déconnexion)
 ├── scentlist.tsx             # Redirection /scentlist → /(tabs)/collection (deep links ; JAMAIS dans (tabs)/ — cf. §5)
+├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, cible du deep link parfumscan://u/<pseudo>)
 ├── legal.tsx                 # Mentions légales
 ├── privacy.tsx               # Politique de confidentialité
 ├── privacy-center.tsx        # Centre de confidentialité
@@ -35,15 +38,15 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (14)        # supabase, catalog, user-data, user-parfum, possessions, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/     (15)        # supabase, catalog, user-data, user-parfum, possessions, profile, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (15)        # useAuth, useCatalog, useDensityPreference, useNetwork, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── hooks/        (18)        # useAuth, useCatalog, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
 ├── contexts/     (2)         # AuthContext, FavorisContext (source de vérité favoris temps réel partagée — ThemeContext est dans src/theme/)
-├── components/   (16)        # ParfumCard (badges statut/rating optionnels, hidePrice), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press universel)
+├── components/   (19)        # ParfumCard (badges statut/rating/🔔 optionnels, hidePrice), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in)
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
 │   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
-│   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 2 onglets + FAB Scan central) + NavigationChromeContext
+│   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 4 onglets + FAB Scan central) + NavigationChromeContext
 │   ├── runner/               # Flacon Runner (easter egg, cf. §17)
 │   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
 │   ├── scentlist/            # TrySheet (éditeur « Notes détaillées » de la fiche unifiée)
@@ -51,12 +54,12 @@ src/
 │   └── wardrobe/             # SOTDCard, SOTDPicker, StarRating, ShelfManager
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (2)         # env, index (firebase.config supprimé — migration Supabase)
-├── models/       (6)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf, SotdEntry), UserFavori, UserScan, ScanResult, index
-└── utils/        (15)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, my-parfums (union favoris + user_parfum)
+├── models/       (8)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem, UserFavori, UserScan, ScanResult, index
+└── utils/        (16)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo)
 
 supabase/                     # Backend Supabase (versionné)
 ├── migrations/   (0001→0019) # extensions, types, tables, index (trgm/FTS), RLS+publication, fonctions SQL (RPC search_parfums, seasonal_parfums, family_overviews…), cron pg_cron, image_url_2x
-├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account + _shared/
+├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
 ```
@@ -85,12 +88,13 @@ supabase/                     # Backend Supabase (versionné)
 ## §5 — Navigation
 
 - Expo Router file-based, **TopTabs + custom tabBar** (DockBar en verre dépoli)
-- Navigation : swipe horizontal natif entre les 2 onglets (TopTabs = material-top-tabs vendored, react-native-tab-view + pager-view 8.0.2)
-- IA : 2 onglets — Catalogue | Ma Parfumerie — + FAB central Scan. Accès profil = avatar rond en haut à droite (dans SearchChrome → route racine /profile)
+- Navigation : swipe horizontal natif entre les 4 onglets (TopTabs = material-top-tabs vendored, react-native-tab-view + pager-view 8.0.2)
+- IA : 4 onglets — Catalogue | Favoris | Ma Parfumerie | Communauté (placeholder) — + FAB central Scan. Accès profil = avatar rond en haut à droite (dans SearchChrome → route racine /profile)
 - **Règle d'or (v6.23)** : aucun fichier-route utilitaire (redirect, stub, shim) dans `app/(tabs)/` — expo-router auto-enregistre tout fichier du groupe comme écran du TopTabs, donc comme page swipeable du pager. Les redirects vivent à la racine `app/` (Stack, non swipeable)
 - Scan/Recherche : routes racine (`slide_from_bottom` / `fade`), pas des onglets
 - Historique : route racine, poussée depuis Profil
 - Perfumer : route racine, poussée depuis la signature nez de la fiche détail (slide_from_right)
+- Profil public `/u/[pseudo]` : route racine en lecture seule, accessible sans auth (cible du deep link de partage `parfumscan://u/<pseudo>`)
 - `NavigationChromeContext` pour le hide-on-scroll du dock — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes
 - Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs (le profil est une route racine, hors tabs)
 - Swipe-back : natif (React Navigation), pas de geste custom → **0 conflit de swipe**
@@ -211,7 +215,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 209 tests, 18 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 222 tests, 20 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique

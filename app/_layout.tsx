@@ -91,6 +91,7 @@ function RootLayoutInner() {
             <Stack.Screen name="perfumer/[name]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="u/[pseudo]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="scan" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
