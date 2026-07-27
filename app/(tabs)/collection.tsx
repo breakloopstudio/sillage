@@ -368,6 +368,7 @@ export default function MaParfumeriePage() {
                     key={pill.id}
                     style={[s.pill, active && s.pillActive]}
                     onPress={() => handlePillTap(pill.id)}
+                    hitSlop={{ top: 2, bottom: 2 }}
                     accessibilityRole="button"
                     accessibilityLabel={`${pill.label}, ${pillCounts[pill.id]}`}
                   >
@@ -385,6 +386,7 @@ export default function MaParfumeriePage() {
                   key={m.key}
                   style={[s.densityIconBtn, density === m.key && s.densityIconBtnActive]}
                   onPress={() => setDensity(m.key)}
+                  hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                   accessibilityRole="button"
                   accessibilityLabel={m.label}
                 >

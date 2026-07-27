@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 222](https://img.shields.io/badge/Tests-222%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 259](https://img.shields.io/badge/Tests-259%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -24,6 +24,7 @@
 | 📸 **Scan intelligent** | Burst 3 photos → GPT-4o Vision (adaptatif : 70% en 1 appel, 30% en cross-ref 2 photos) → searchParfumsCached() |
 | 🖼️ **Import galerie** | Photo existante → même pipeline IA, sans permissions supplémentaires |
 | 📚 **Catalogue** | Catalogue ~25K parfums (seed Postgres), taxonomie 6 familles olfactives (cartes d'ambiance data-driven), rangées éditoriales (« Parfaits pour {saison} », « Les mieux notés »), capsules marques, grille 3 densités + persistance, recherche RPC Postgres (tsvector + pg_trgm) avec cache + prefix cache |
+| 🏛️ **Page marque** | Catalogue complet d'une maison (depuis la fiche détail, les capsules et le sheet marques) : tri cyclique (populaires · prix · nouveautés), filtre par famille olfactive (6 familles, compteurs), densité partagée |
 | 🧪 **Ma Parfumerie** | Collection (`user_parfum` uniquement), pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ coups de cœur + badge 🔔 alerte, modèle 3 statuts, cartes sans prix, long-press (`StatuerSheet`), possessions (flacon/décant/échantillon), étagères custom, parfum signature (max 3), SOTD + météo, partage de collection |
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
 | ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix (cible custom + historique) |
@@ -52,7 +53,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 222 tests, 20 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 259 tests, 24 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -143,6 +144,7 @@ app/
 ├── catalog/[id].tsx          # Fiche unifiée v8.1 (DetailHero + section « Ma relation », pyramide, « Quand le porter »)
 ├── wardrobe/[parfumId].tsx   # Redirect vers /catalog/[parfumId] (fiche unifiée)
 ├── perfumer/[name].tsx       # Créations d'un nez
+├── brand/[name].tsx          # Catalogue d'une maison (tri cyclique + filtre famille)
 ├── profile.tsx               # Profil (route racine, poussée depuis l'avatar — identité, stats, SOTD, profil public, déconnexion)
 ├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, cible du deep link de partage)
 ├── settings.tsx              # Paramètres
@@ -166,7 +168,7 @@ src/
 └── utils/        (16)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0023) # extensions, types, tables, index trgm/FTS, RLS, RPC (search_parfums, seasonal_parfums, family_overviews, public_profile/public_collection…), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles
+├── migrations/   (0001→0026) # extensions, types, tables, index trgm/FTS, RLS, RPC (search_parfums, seasonal_parfums, family_overviews, public_profile/public_collection…), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles, grants + RLS admins, index marque
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 └── config.toml               # config projet (secrets via env(...))
 ```
@@ -280,6 +282,13 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.5 — Page marque + cibles tactiles ≥ 44 px (27/07/2026)
+
+- **Page marque** (`app/brand/[name].tsx`) : catalogue complet d'une maison, accessible depuis la chip « La maison » de la fiche détail et les sélecteurs de marques (`BrandCapsules`, `BrandSheet` → `/brand/` au lieu de la recherche). Tri cyclique (Populaires · Prix croissant · Prix décroissant · Nouveautés), filtre par famille olfactive (6 familles, compteurs, couleurs sémantiques), densité partagée. Service `getParfumsByMarque` (`.eq('marque')`, limit 1000) + helper `getFamilyByValue`. Index b-tree `marque` (migration 0026).
+- **Fiche détail** : la signature « Le nez » devient une ligne maison + nez (chip marque violette `storefront-outline` avant les chips nez dorés).
+- **Cibles tactiles (§6.2)** : `hitSlop` ≥ 44 px (visuels inchangés) sur les icônes de densité et chips/pills de brand, collection et favoris (search déjà conforme).
+- **Tests** : 259 tests, 24 suites.
+
 ## v8.4 — Communauté Phase 1 : profils publics & partage (15/09/2026)
 
 - **Profils publics (opt-in)** : table `profiles` (migration 0023 — pseudo unique + bio + `is_public`), RPC `public_profile`/`public_collection` (`SECURITY DEFINER`, **notes perso exclues**), service `profile.ts` + hooks `useMyProfile`/`usePublicProfile`.

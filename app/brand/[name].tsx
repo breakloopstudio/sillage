@@ -160,6 +160,7 @@ export default function BrandPage() {
                       key={m.key}
                       style={[s.densityIconBtn, gridDensity === m.key && s.densityIconBtnActive]}
                       onPress={() => { hapticsLight(); setGridDensity(m.key); }}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       accessibilityRole="button"
                       accessibilityLabel={m.label}
                     >
@@ -173,6 +174,7 @@ export default function BrandPage() {
                 <Pressable
                   style={[s.familyChip, activeFamily === null && s.familyChipAllActive]}
                   onPress={() => handleFamilyTap(null)}
+                  hitSlop={{ top: 2, bottom: 2 }}
                   accessibilityRole="button"
                   accessibilityLabel="Toutes les familles"
                 >
@@ -189,6 +191,7 @@ export default function BrandPage() {
                       key={fam.key}
                       style={[s.familyChip, active && { backgroundColor: accentSoft, borderColor: accent }]}
                       onPress={() => handleFamilyTap(fam.key)}
+                      hitSlop={{ top: 2, bottom: 2 }}
                       accessibilityRole="button"
                       accessibilityLabel={`${fam.label}, ${familyCounts.get(fam.key) ?? 0}`}
                     >

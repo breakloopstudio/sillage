@@ -217,7 +217,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 222 tests, 20 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 259 tests, 24 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique

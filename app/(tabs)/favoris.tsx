@@ -325,6 +325,7 @@ export default function FavorisPage() {
                   key={m.key}
                   style={[s.densityIconBtn, density === m.key && s.densityIconBtnActive]}
                   onPress={() => setDensity(m.key)}
+                  hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
                   accessibilityRole="button"
                   accessibilityLabel={m.label}
                 >
@@ -341,6 +342,7 @@ export default function FavorisPage() {
                     key={pill.id}
                     style={[s.pill, active && s.pillActive]}
                     onPress={() => handlePillTap(pill.id)}
+                    hitSlop={{ top: 2, bottom: 2 }}
                     accessibilityRole="button"
                     accessibilityLabel={`${pill.label}, ${pillCounts[pill.id]}`}
                   >

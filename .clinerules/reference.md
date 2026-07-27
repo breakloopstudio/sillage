@@ -617,6 +617,7 @@ export interface OlfactoryFamily {
 }
 export const OLFACTORY_FAMILIES: OlfactoryFamily[];
 export function getFamilyByKey(key: string | null | undefined): OlfactoryFamily | undefined;
+export function getFamilyByValue(value: string | null | undefined): OlfactoryFamily | undefined;  // mappe une valeur anglaise brute de famille_olfactive → famille FR
 ```
 
 ### `src/utils/favori-filters.ts`
