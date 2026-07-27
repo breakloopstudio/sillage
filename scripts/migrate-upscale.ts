@@ -12,6 +12,11 @@
  *   npm run migrate-upscale -- --limit=50    Test sur 50 images
  *   npm run migrate-upscale -- --fresh       Ignore le checkpoint
  *   npm run migrate-upscale -- --scale=2     Upscale ×2 au lieu de ×4
+ *   npm run migrate-upscale -- --ids=a,b,c   Re-upscale des parfums précis (ignore image_url_2x)
+ *   npm run migrate-upscale -- --force       Régénère TOUT (ignore image_url_2x et le checkpoint)
+ *
+ * Les nouveaux parfums (image_url_2x IS NULL) sont pris automatiquement au run suivant.
+ * Remplacer l'image 1x d'un parfum (updateParfum) remet image_url_2x à null → régénéré au prochain run.
  *
  * Prérequis : venv scripts/upscale/venv (Python 3.10 + torch CUDA + realesrgan)
  * Voir scripts/upscale/README.md
@@ -273,19 +278,33 @@ async function processOne(
 
 const PAGE_SIZE = 1000;
 
-async function fetchAllCandidates(supabase: SupabaseClient): Promise<Candidate[]> {
+interface FetchOptions {
+  ids?: string[];
+  force?: boolean;
+}
+
+async function fetchAllCandidates(supabase: SupabaseClient, opts: FetchOptions = {}): Promise<Candidate[]> {
   const out: Candidate[] = [];
-  let from = 0;
-  for (;;) {
+
+  // Mode --ids : liste explicite (re-upscale même si image_url_2x existe déjà)
+  if (opts.ids && opts.ids.length > 0) {
     const { data, error } = await supabase
       .from('parfums')
       .select('id, image_url')
       .not('image_url', 'is', null)
-      .is('image_url_2x', null)
-      .order('id')
-      .range(from, from + PAGE_SIZE - 1);
+      .in('id', opts.ids);
     if (error) throw new Error(`requete: ${error.message}`);
+    for (const r of data ?? []) out.push({ id: r.id as string, imageUrl: r.image_url as string });
+    return out;
+  }
 
+  // Mode paginé : défaut = image_url_2x manquant uniquement ; --force = tous les parfums imagés
+  let from = 0;
+  for (;;) {
+    const { data, error } = opts.force
+      ? await supabase.from('parfums').select('id, image_url').not('image_url', 'is', null).order('id').range(from, from + PAGE_SIZE - 1)
+      : await supabase.from('parfums').select('id, image_url').not('image_url', 'is', null).is('image_url_2x', null).order('id').range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`requete: ${error.message}`);
     const rows = data ?? [];
     for (const r of rows) out.push({ id: r.id as string, imageUrl: r.image_url as string });
     if (rows.length < PAGE_SIZE) break;
@@ -302,10 +321,14 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const fresh = args.includes('--fresh');
+  const force = args.includes('--force');
   const limitArg = args.find((a) => a.startsWith('--limit='));
   const limit = limitArg ? Number(limitArg.split('=')[1]) : null;
   const scaleArg = args.find((a) => a.startsWith('--scale='));
   const scale = scaleArg ? Number(scaleArg.split('=')[1]) : 4;
+  const idsArg = args.find((a) => a.startsWith('--ids='));
+  const ids = idsArg ? idsArg.split('=')[1].split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+  const reprocess = force || (ids !== undefined && ids.length > 0);
 
   if (!fs.existsSync(PYTHON_BIN) || !fs.existsSync(UPSCALE_WORKER)) {
     console.error(`Worker Python introuvable : ${UPSCALE_WORKER}`);
@@ -327,19 +350,22 @@ async function main(): Promise<void> {
   console.log(`Échelle    : ×${scale}`);
   console.log(`Parallèle  : ${CONCURRENCY}`);
   console.log(`Qualité    : WebP ${WEBP_QUALITY}`);
+  if (ids) console.log(`Mode       : --ids (${ids.length} parfums ciblés)`);
+  else if (force) console.log('Mode       : --force (régénère tout)');
   if (dryRun) console.log('*** DRY RUN — aucune écriture ***');
   console.log('');
 
   console.log('Requête catalogue (pagination)...');
-  const all = await fetchAllCandidates(supabase);
-  console.log(`${all.length} parfums sans image_2x.\n`);
+  const all = await fetchAllCandidates(supabase, { ids, force });
+  console.log(`${all.length} parfums candidats.\n`);
 
   const progress = loadProgress(fresh);
   const doneSet = new Set(progress.done);
-  let todo = all.filter((c) => !doneSet.has(c.id));
+  // --force / --ids : on retraite même si déjà dans le checkpoint
+  let todo = reprocess ? all : all.filter((c) => !doneSet.has(c.id));
   if (limit !== null) todo = todo.slice(0, limit);
 
-  console.log(`${todo.length} à traiter (${doneSet.size} déjà faites).\n`);
+  console.log(`${todo.length} à traiter${reprocess ? '' : ` (${doneSet.size} déjà faites)`}.\n`);
   if (todo.length === 0) {
     console.log('Rien à faire.');
     return;

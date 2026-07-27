@@ -32,6 +32,30 @@ au premier run dans `scripts/upscale/weights/`.
 scripts/upscale/venv/Scripts/python.exe scripts/upscale/upscale.py input.webp output.png --scale 4
 ```
 
+## Workflows (migrate-upscale)
+
+```powershell
+# Batch standard : tous les parfums dont image_url_2x est NULL (reprend au checkpoint)
+npm run migrate-upscale
+
+# Simulation / test
+npm run migrate-upscale -- --dry-run
+npm run migrate-upscale -- --limit=20
+
+# Régénérer des parfums précis (ex. après remplacement de leur image 1x)
+npm run migrate-upscale -- --ids=marque_nom_1,marque_nom_2
+
+# Tout régénérer (ex. changement de modèle/qualité) — ignore image_url_2x et le checkpoint
+npm run migrate-upscale -- --force
+```
+
+- **Nouveaux parfums** : ajoutés avec `image_url_2x = NULL` → pris automatiquement au
+  prochain `npm run migrate-upscale` (batch standard).
+- **Remplacement d'image** : `updateParfum(id, { imageUrl })` remet `image_url_2x` à
+  `NULL` (invalidation auto du dérivé) → régénéré au prochain batch, ou immédiatement
+  via `--ids=<id>`.
+- En attendant la 2x, la fiche détail affiche la 1x (fallback transparent).
+
 ## Modèle & débit
 
 `RealESRGAN_x4plus` (RRDBNet) — upscale ×4, optimisé photos réelles.

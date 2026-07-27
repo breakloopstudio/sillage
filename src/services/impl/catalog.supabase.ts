@@ -111,6 +111,11 @@ export async function getParfumById(id: string): Promise<Parfum | undefined> {
 
 export async function updateParfum(id: string, fragranceData: Partial<Omit<Parfum, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
   const row = parfumToRow({ ...fragranceData, updatedAt: new Date() });
+  // Changer l'image source invalide la version HD upscalée (dérivée de l'ancienne image).
+  // Le batch `migrate-upscale` la régénérera au prochain run (image_url_2x IS NULL).
+  if (fragranceData.imageUrl !== undefined) {
+    row.image_url_2x = null;
+  }
   const { error } = await supabase.from('parfums').update(row as Database['public']['Tables']['parfums']['Update']).eq('id', id);
   if (error) throw error;
 }
