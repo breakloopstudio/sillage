@@ -206,6 +206,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §12 — Catalogue de données
 
 - Catalogue 100% autonome : ~25 100 parfums dans la table Postgres `parfums` (migrés depuis Firestore via `scripts/export-firestore.ts` + `scripts/import-supabase.ts`)
+- **Import de nouveaux scrapes** : `scripts/import-fresh.ts` (`npm run import-fresh`) — depuis `data/clean/`, transforme + télécharge l'image + WebP + upload Storage + upsert Postgres en une passe (idempotent, resumable, bg removal optionnel `--bg`). Laisse `image_url_2x` NULL → `migrate-upscale` prend le relais
 - Recherche plein texte : colonnes générées `search_text` (index GIN `pg_trgm`) + `search_vector` (tsvector, config `french_unaccent`)
 - `src/utils/normalize.ts` — `normalize()`, `normalizeId()` (utilisés par le dédoublonnage et le rescoring scan)
 - RLS : `parfums` en lecture publique, écriture réservée aux admins (table `admins`)

@@ -191,11 +191,22 @@ scrape Fragrantica      données factuelles     recherche tsvector + pg_trgm
 | Étape | Script | Action |
 |---|---|---|
 | 1. Nettoyage | `npm run clean-data` | `scripts/clean-apify.ts` — débruite, déduplique, strip les champs traçants |
-| 2. Export Firestore | `npm run export-firestore` | `scripts/export-firestore.ts` — dump NDJSON depuis l'ancien backend |
-| 3. Import Supabase | `npm run import-supabase` | `scripts/import-supabase.ts` — upsert Postgres (local ou `--target=cloud`) |
-| 4. Images | `npm run migrate-storage` | `scripts/migrate-storage.ts` — Firebase Storage → bucket `parfum-images`, réécriture `image_url` |
-| 5. WebP / BG removal | `npm run migrate-webp` / `migrate-bg` | conversion + suppression de fond (historique) |
-| 6. **Upscale HD ×4** | `npm run migrate-upscale` | `scripts/migrate-upscale.ts` — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` (1500×2000) + `image_url_2x`. Fiche détail/lightbox uniquement, resumable |
+| 2. **Import frais** ⭐ | `npm run import-fresh -- --target=cloud` | `scripts/import-fresh.ts` — depuis `data/clean/` : transforme, télécharge l'image (URL Fragrantica), bg removal optionnel (`--bg`), WebP, upload Storage + upsert Postgres. Idempotent, resumable. Laisse `image_url_2x` NULL |
+| 3. **Upscale HD ×4** | `npm run migrate-upscale` | `scripts/migrate-upscale.ts` — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` (1500×2000) + `image_url_2x`. Fiche détail/lightbox uniquement, resumable |
+
+**Flux pour un nouveau scrape** : `npm run clean-data && npm run import-fresh -- --target=cloud && npm run migrate-upscale`
+
+<details>
+<summary>Étapes historiques (migration Firebase → Supabase, non réutilisables)</summary>
+
+| Étape | Script | Action |
+|---|---|---|
+| Export Firestore | `npm run export-firestore` | dump NDJSON depuis l'ancien backend Firebase |
+| Import Supabase | `npm run import-supabase` | upsert Postgres depuis `parfums.ndjson` |
+| Images | `npm run migrate-storage` | Firebase Storage → bucket `parfum-images` |
+| WebP / BG removal | `npm run migrate-webp` / `migrate-bg` | conversion + suppression de fond |
+
+</details>
 
 ### Images
 

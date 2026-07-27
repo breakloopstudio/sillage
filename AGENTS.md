@@ -350,12 +350,15 @@ data/raw/ (1.27 GB, non versionné) → data/clean/ (31 MB) → Postgres parfums
 | Commande | Fichier | Rôle |
 |---|---|---|
 | `npm run clean-data` | `scripts/clean-apify.ts` | Nettoie les 193 JSON scrapés : débruite, déduplique, strip champs traçants |
+| `npm run import-fresh` | `scripts/import-fresh.ts` | **Import frais** (depuis `data/clean/`) : transforme, télécharge l'image (URL Fragrantica), bg removal optionnel (`--bg`), WebP, upload Storage + upsert Postgres. Idempotent/resumable. Laisse `image_url_2x` NULL |
 | `npm run export-firestore` | `scripts/export-firestore.ts` | Dump NDJSON depuis l'ancien backend Firestore |
 | `npm run import-supabase` | `scripts/import-supabase.ts` | Upsert Postgres (local ou `--target=cloud`) |
 | `npm run migrate-storage` | `scripts/migrate-storage.ts` | Firebase Storage → bucket `parfum-images`, réécriture `image_url` |
 | `npm run migrate-upscale` | `scripts/migrate-upscale.ts` | **Upscale HD ×4** — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` + `image_url_2x` (fiche détail/lightbox), resumable |
 | `npm run generate-notes` / `upload-notes` | `scripts/generate-note-images.ts` / `upload-note-images.ts` | Images de notes olfactives (DashScope Wanx) + upload Storage |
 | `npm run clean-fragella` | `scripts/clean-fragella.ts` | Supprime les parfums importés via l'ancienne API Fragella (`source: 'fragella-cached'`) |
+
+**Flux nouveau scrape** : `clean-data` → `import-fresh --target=cloud` → `migrate-upscale`.
 
 ### Authentification import
 

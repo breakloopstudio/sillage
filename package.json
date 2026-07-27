@@ -82,6 +82,7 @@
     "audit-search": "tsx scripts/audit-search-fields.ts",
     "export-firestore": "tsx scripts/export-firestore.ts",
     "import-supabase": "tsx scripts/import-supabase.ts",
+    "import-fresh": "tsx scripts/import-fresh.ts",
     "migrate-storage": "tsx scripts/migrate-storage.ts",
     "migrate-upscale": "tsx scripts/migrate-upscale.ts",
     "generate-notes": "tsx scripts/generate-note-images.ts",
