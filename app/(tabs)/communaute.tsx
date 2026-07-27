@@ -75,6 +75,9 @@ export default function CommunautePage() {
 
   const hasContent = top_loved.length > 0 || trending.length > 0 || public_profiles.length > 0 || sotd_today.length > 0;
 
+  const topLovedParfums = useMemo(() => top_loved.map(toParfum), [top_loved]);
+  const trendingParfums = useMemo(() => trending.map(toParfum), [trending]);
+
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
       <Animated.ScrollView
@@ -179,9 +182,9 @@ export default function CommunautePage() {
               <View style={s.section}>
                 <SectionHeader title="Les plus aimés" subtitle="Par la communauté" />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                  {top_loved.map((cp) => (
-                    <View key={cp.parfum_id} style={s.cardWrap}>
-                      <ParfumCard parfum={toParfum(cp)} mode="compact" onPressOverride={() => handleParfumPress(cp)} />
+                  {topLovedParfums.map((p, i) => (
+                    <View key={p.id} style={s.cardWrap}>
+                      <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(top_loved[i])} />
                     </View>
                   ))}
                 </ScrollView>
@@ -192,9 +195,9 @@ export default function CommunautePage() {
               <View style={s.section}>
                 <SectionHeader title="Tendances" subtitle="Cette semaine" />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                  {trending.map((cp) => (
-                    <View key={cp.parfum_id} style={s.cardWrap}>
-                      <ParfumCard parfum={toParfum(cp)} mode="compact" onPressOverride={() => handleParfumPress(cp)} />
+                  {trendingParfums.map((p, i) => (
+                    <View key={p.id} style={s.cardWrap}>
+                      <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(trending[i])} />
                     </View>
                   ))}
                 </ScrollView>

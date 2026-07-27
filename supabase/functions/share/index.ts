@@ -26,7 +26,7 @@ function escapeHtml(s: string): string {
 }
 
 function formatPrice(v: number): string {
-  return `${Math.round(v)}\u00A0€`;
+  return `${v.toFixed(2).replace('.', ',')}\u00A0€`;
 }
 
 const CSS = `
@@ -205,12 +205,13 @@ Deno.serve(async (req: Request) => {
   if (type === 'profile') {
     const pseudo = url.searchParams.get('pseudo');
     if (!pseudo) return notFoundPage();
-    // Les RPC filtrent sur is_public = true → un profil privé renvoie vide (404).
-    const { data: profData } = await supabase.rpc('public_profile', { p_pseudo: pseudo });
-    const prof = (Array.isArray(profData) ? profData[0] : profData) as ProfileRow | null;
+    const [profRes, colRes] = await Promise.all([
+      supabase.rpc('public_profile', { p_pseudo: pseudo }),
+      supabase.rpc('public_collection', { p_pseudo: pseudo }),
+    ]);
+    const prof = (Array.isArray(profRes.data) ? profRes.data[0] : profRes.data) as ProfileRow | null;
     if (!prof) return notFoundPage();
-    const { data: colData } = await supabase.rpc('public_collection', { p_pseudo: pseudo });
-    const items = ((colData ?? []) as CollectionRow[]).slice(0, 8);
+    const items = ((colRes.data ?? []) as CollectionRow[]).slice(0, 8);
     const title = `${prof.pseudo} · ParfumScan`;
     const desc = prof.bio || `${Number(prof.collection_count ?? 0)} parfums dans sa parfumerie sur ParfumScan`;
     return htmlResponse(page({ title, description: desc, image: prof.avatar_url, url: req.url }, profileBody(prof, items)));
