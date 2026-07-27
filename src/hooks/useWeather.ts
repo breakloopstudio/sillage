@@ -90,10 +90,11 @@ export function useWeather(enabled = true): UseWeatherResult {
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => {
-    setTimeout(() => resolve(null), ms);
+    timer = setTimeout(() => resolve(null), ms);
   });
-  return Promise.race([promise, timeout]);
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 

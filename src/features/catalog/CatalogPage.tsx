@@ -188,7 +188,7 @@ export default function CatalogPage({ scrollY }: Props) {
   }, [topRated, seasonal]);
 
   const handleBrandTap = useCallback((brand: string) => {
-    router.push(`/search?q=${encodeURIComponent(brand)}`);
+    router.push(`/brand/${encodeURIComponent(brand)}`);
   }, [router]);
 
   const handleFamilyTap = useCallback((familyKey: string) => {

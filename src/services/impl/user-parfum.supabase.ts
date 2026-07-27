@@ -3,26 +3,26 @@ import type { Parfum } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
 import { getParfumById } from '../catalog';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
-import { toDate, today } from './sql-utils';
+import { toDate, today, toNum } from './sql-utils';
 
-function rowToUserParfum(row: Record<string, unknown>): UserParfum {
+export function rowToUserParfum(row: Record<string, unknown>): UserParfum {
   const addedAt = toDate(row.added_at) ?? new Date();
   return {
     parfumId: row.parfum_id as string,
     status: (row.status as UserParfumStatus) ?? 'to_try',
     verdict: (row.verdict as ScentVerdict) ?? null,
-    rating: typeof row.rating === 'number' ? row.rating : null,
+    rating: toNum(row.rating),
     notes: (row.notes as string) ?? null,
     triedAt: toDate(row.tried_at) ?? null,
     shelfIds: Array.isArray(row.shelf_ids) ? row.shelf_ids as string[] : [],
-    sotdCount: typeof row.sotd_count === 'number' ? row.sotd_count : 0,
+    sotdCount: toNum(row.sotd_count) ?? 0,
     isSignature: row.is_signature === true,
     nom: (row.nom as string) ?? null,
     marque: (row.marque as string) ?? null,
     imageUrl: (row.image_url as string) ?? null,
     familleOlactive: (row.famille_olfactive as string) ?? null,
-    bestPrice: typeof row.best_price === 'number' ? row.best_price : undefined,
-    referencePrice: typeof row.reference_price === 'number' ? row.reference_price : undefined,
+    bestPrice: toNum(row.best_price) ?? undefined,
+    referencePrice: toNum(row.reference_price) ?? undefined,
     longevity: (row.longevity as string) ?? null,
     sillage: (row.sillage as string) ?? null,
     seasonScores: (row.season_scores as UserParfum['seasonScores']) ?? null,
@@ -94,6 +94,7 @@ export async function addUserParfum(
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] addUserParfum failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -119,6 +120,7 @@ export async function updateUserParfum(
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] updateUserParfum failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -143,6 +145,7 @@ export async function markTried(
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] markTried failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -156,6 +159,7 @@ export async function removeUserParfum(uid: string, parfumId: string): Promise<v
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] removeUserParfum failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -278,5 +282,6 @@ export async function setSotd(uid: string, parfumId: string, nom: string, marque
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] setSotd failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }

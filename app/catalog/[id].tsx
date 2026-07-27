@@ -390,12 +390,23 @@ export default function CatalogDetailPage() {
               )}
             </View>
 
-            {/* ─── La signature (nez) ─── */}
-            {parfum.perfumers && parfum.perfumers.filter(Boolean).length > 0 ? (
-              <View style={s.signatureBlock}>
-                <Text style={s.signatureLabel}>Le nez</Text>
-                <View style={s.noseRow}>
-                  {[...new Set(parfum.perfumers.filter(Boolean))].map(name => (
+            {/* ─── La signature (maison + nez) ─── */}
+            <View style={s.signatureRow}>
+              <Pressable
+                style={({ pressed }) => [s.brandChip, pressed && { opacity: 0.7 }]}
+                hitSlop={{ top: 5, bottom: 5 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Voir la maison ${parfum.marque}`}
+                onPress={() => {
+                  hapticsLight();
+                  router.push(`/brand/${encodeURIComponent(parfum.marque)}`);
+                }}
+              >
+                <Ionicons name="storefront-outline" size={12} color={t.colors.primaryInk} />
+                <Text style={s.brandChipText} allowFontScaling={false}>{parfum.marque}</Text>
+              </Pressable>
+              {parfum.perfumers && parfum.perfumers.filter(Boolean).length > 0
+                ? [...new Set(parfum.perfumers.filter(Boolean))].map(name => (
                     <Pressable
                       key={name}
                       style={({ pressed }) => [s.noseChip, pressed && { opacity: 0.7 }]}
@@ -410,10 +421,9 @@ export default function CatalogDetailPage() {
                       <Ionicons name="finger-print-outline" size={12} color={t.colors.secondaryInk} />
                       <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
                     </Pressable>
-                  ))}
-                </View>
-              </View>
-            ) : null}
+                  ))
+                : null}
+            </View>
 
             {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) ─── */}
             {topSeasonKey || topOccasions.length > 0 ? (
@@ -687,10 +697,10 @@ function getStyles(t: Theme) {
   occasionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   occasionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: t.colors.surface2 },
   occasionChipText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
-  // ─── La signature (nez) ───
-  signatureBlock: { marginTop: 4, marginBottom: 6, gap: 5 },
-  signatureLabel: { fontSize: 10, fontFamily: 'Inter_400Regular', color: t.colors.textMuted, textTransform: 'uppercase', letterSpacing: 1.5 },
-  noseRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // ─── La signature (maison + nez) ───
+  signatureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 6 },
+  brandChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.primarySoft },
+  brandChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.primaryInk },
   noseChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.secondarySoft },
   noseChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.secondaryInk },
   // ─── Accords ───

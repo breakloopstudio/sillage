@@ -5,6 +5,17 @@ export function toDate(v: unknown): Date | undefined {
   return typeof v === 'string' ? new Date(v) : undefined;
 }
 
+/**
+ * Valeur numérique → number. PostgREST sérialise les colonnes `numeric`/`decimal`
+ * en STRING (préservation de précision) ; les `int` arrivent en number. Ce helper
+ * accepte les deux et renvoie null si absent/invalide.
+ */
+export function toNum(v: unknown): number | null {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string' && v.length > 0 && !Number.isNaN(Number(v))) return Number(v);
+  return null;
+}
+
 /** Date du jour au format YYYY-MM-DD (heure locale) — clé de la table sotd. */
 export function today(): string {
   const d = new Date();

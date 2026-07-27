@@ -109,7 +109,7 @@ export async function getAccountDataSummary(uid: string): Promise<AccountDataSum
   };
   const [favoris, wardrobe, scans, shelves, priceAlerts, sotdEntries] = await Promise.all([
     count('favoris'),
-    count('wardrobe'),
+    count('user_parfum'),
     count('scans'),
     count('shelves'),
     count('price_alerts'),

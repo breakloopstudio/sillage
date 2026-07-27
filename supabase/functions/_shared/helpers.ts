@@ -1,5 +1,16 @@
 // supabase/functions/_shared/helpers.ts — Utilitaires (logique météo/géo/prix)
 
+/**
+ * Valeur numérique → number. PostgREST sérialise les colonnes `numeric`/`decimal`
+ * en STRING ; ce helper accepte string et number (évite les comparaisons lexicales
+ * de prix, ex. "10.00" <= "9.00").
+ */
+export function toNum(v: unknown): number | null {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string' && v.length > 0 && !Number.isNaN(Number(v))) return Number(v);
+  return null;
+}
+
 export function coordsKey(lat: number, lon: number): string {
   return `${lat.toFixed(1)},${lon.toFixed(1)}`;
 }

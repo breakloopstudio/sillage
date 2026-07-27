@@ -31,6 +31,11 @@ export default function SearchChrome() {
   const voiceRequestIdRef = useRef(0);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
+  const handleSettingsPress = useCallback(() => {
+    hapticsLight();
+    router.push('/settings');
+  }, [router]);
+
   const handleAvatarPress = useCallback(() => {
     hapticsLight();
     router.push('/profile');
@@ -116,20 +121,6 @@ export default function SearchChrome() {
     voiceSearch.stop();
   }, [voiceSearch]);
 
-  const handleSearchMicToggle = useCallback(() => {
-    if (!isOnline) {
-      handleVoiceError('Recherche vocale indisponible hors-ligne.');
-      return;
-    }
-    if (voiceSearch.state === 'listening' || voiceSearch.state === 'processing') {
-      voiceSearch.stop();
-    } else {
-      setVoiceTranscript('');
-      setVoicePhase({ type: 'listening', transcript: '' });
-      voiceSearch.start({ continuous: true });
-    }
-  }, [isOnline, voiceSearch, handleVoiceError]);
-
   const handleSearchPress = useCallback(() => {
     if (overlayVisible) return;
     router.push('/search');
@@ -190,19 +181,10 @@ export default function SearchChrome() {
               <Text style={s.searchPlaceholder} numberOfLines={1}>Rechercher un parfum...</Text>
             )}
           </Pressable>
-          <Pressable
-            onPress={handleSearchMicToggle}
-            style={s.micBtn}
-            hitSlop={4}
-            accessibilityLabel="Recherche vocale"
-          >
-            <Ionicons
-              name={showVoiceTranscript ? 'mic' : 'mic-outline'}
-              size={20}
-              color={showVoiceTranscript ? theme.colors.primary : theme.colors.textMuted}
-            />
-          </Pressable>
         </View>
+        <Pressable onPress={handleSettingsPress} style={s.settingsBtn} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres">
+          <Ionicons name="settings-outline" size={18} color={theme.colors.textMuted} />
+        </Pressable>
         <Pressable onPress={handleAvatarPress} style={s.avatarBtn} accessibilityRole="button" accessibilityLabel="Ouvrir le profil">
           {user?.photoURL && !avatarFailed ? (
             <Image source={{ uri: user.photoURL }} style={s.avatarImg} onError={() => setAvatarFailed(true)} />
@@ -259,6 +241,16 @@ function getSearchStyles(t: Theme, safeTop: number) {
     },
     searchRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
     searchBarFlex: { flex: 1 },
+    settingsBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: t.colors.surface2,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.colors.border,
+    },
     avatarBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center' as const, alignItems: 'center' as const },
     avatarImg: { width: 36, height: 36, borderRadius: 18 },
     avatarPlaceholder: {
@@ -276,7 +268,7 @@ function getSearchStyles(t: Theme, safeTop: number) {
       alignItems: 'center' as const,
       borderRadius: 20,
       paddingLeft: 14,
-      paddingRight: 4,
+      paddingRight: 14,
       height: 44,
       overflow: 'hidden' as const,
       borderWidth: StyleSheet.hairlineWidth,
@@ -308,12 +300,6 @@ function getSearchStyles(t: Theme, safeTop: number) {
       fontSize: 15,
       color: t.colors.text,
       flex: 1,
-    },
-    micBtn: {
-      width: 44,
-      height: 44,
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
     },
     micFabWrap: {
       position: 'absolute' as const,

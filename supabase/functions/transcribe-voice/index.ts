@@ -46,7 +46,12 @@ Deno.serve(async (req: Request) => {
   if (!apiKey) return new Response(JSON.stringify({ error: 'Clé API OpenAI non configurée.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
 
   const openai = new OpenAI({ apiKey, timeout: 60_000 });
-  const buffer = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0));
+  let buffer: Uint8Array;
+  try {
+    buffer = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0));
+  } catch {
+    return new Response(JSON.stringify({ error: 'Audio base64 invalide.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
   const ext = mimeType === 'audio/wav' ? '.wav' : mimeType === 'audio/mp4' ? '.m4a' : '.audio';
   const file = new File([buffer], `audio${ext}`, { type: mimeType });
 

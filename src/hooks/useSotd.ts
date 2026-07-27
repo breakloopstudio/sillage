@@ -1,15 +1,19 @@
 // src/hooks/useSotd.ts
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getTodaySotd, setSotd } from '../services/user-parfum';
 import type { SotdEntry, UserParfum } from '../models/user-parfum.interface';
 
 export function useSotd(uid: string | null) {
   const [sotd, setSotdState] = useState<SotdEntry | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const refresh = useCallback(async () => {
     if (!uid) { setSotdState(null); return; }
     const entry = await getTodaySotd(uid);
+    if (!mountedRef.current) return;
     setSotdState(entry);
   }, [uid]);
 
@@ -30,7 +34,7 @@ export function useSotd(uid: string | null) {
       await setSotd(uid, item.parfumId, item.nom ?? item.parfumId, item.marque ?? '', item.imageUrl);
     } catch (e) {
       console.warn('[sotd] setTodaySotd failed:', (e as Error)?.message ?? String(e));
-      setSotdState(prev);
+      if (mountedRef.current) setSotdState(prev);
     }
   }, [uid, sotd]);
 

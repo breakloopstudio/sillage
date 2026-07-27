@@ -31,21 +31,6 @@ export async function getPossessions(uid: string, parfumId: string): Promise<Pos
   }
 }
 
-export async function getAllPossessions(uid: string): Promise<Possession[]> {
-  try {
-    const { data, error } = await supabase
-      .from('possessions')
-      .select('*')
-      .eq('user_id', uid)
-      .order('added_at', { ascending: true });
-    if (error) throw error;
-    return (data ?? []).map((r) => rowToPossession(r as Record<string, unknown>));
-  } catch (e: unknown) {
-    console.warn('[possessions] getAllPossessions failed:', (e as Error)?.message ?? String(e));
-    return [];
-  }
-}
-
 export async function addPossession(
   uid: string,
   parfumId: string,

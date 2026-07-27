@@ -76,3 +76,9 @@ export function getFamilyByKey(key: string | null | undefined): OlfactoryFamily 
   if (!key) return undefined;
   return OLFACTORY_FAMILIES.find(f => f.key === key);
 }
+
+export function getFamilyByValue(value: string | null | undefined): OlfactoryFamily | undefined {
+  if (!value) return undefined;
+  const v = value.toLowerCase().trim();
+  return OLFACTORY_FAMILIES.find(f => f.values.includes(v));
+}

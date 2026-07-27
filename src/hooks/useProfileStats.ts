@@ -1,39 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../services/supabase';
-import type { UserParfum, UserParfumStatus } from '../models/user-parfum.interface';
-import { toDate } from '../services/impl/sql-utils';
+import type { UserParfum } from '../models/user-parfum.interface';
+import { rowToUserParfum } from '../services/user-parfum';
 
 interface ProfileStats {
   favorisCount: number | null;
   wardrobeItems: UserParfum[];
   scansCount: number | null;
   loading: boolean;
-}
-
-function rowToUserParfum(row: Record<string, unknown>): UserParfum {
-  const addedAt = toDate(row.added_at) ?? new Date();
-  return {
-    parfumId: row.parfum_id as string,
-    nom: (row.nom as string) ?? null,
-    marque: (row.marque as string) ?? null,
-    imageUrl: (row.image_url as string) ?? null,
-    familleOlactive: (row.famille_olfactive as string) ?? null,
-    status: (row.status as UserParfumStatus) ?? 'have',
-    verdict: (row.verdict as UserParfum['verdict']) ?? null,
-    triedAt: row.tried_at ? new Date(row.tried_at as string) : null,
-    rating: typeof row.rating === 'number' ? row.rating : null,
-    notes: (row.notes as string) ?? null,
-    shelfIds: Array.isArray(row.shelf_ids) ? row.shelf_ids as string[] : [],
-    sotdCount: typeof row.sotd_count === 'number' ? row.sotd_count : 0,
-    isSignature: row.is_signature === true,
-    longevity: (row.longevity as string) ?? null,
-    sillage: (row.sillage as string) ?? null,
-    seasonScores: (row.season_scores as UserParfum['seasonScores']) ?? null,
-    allNotes: Array.isArray(row.all_notes) ? row.all_notes as string[] : null,
-    addedAt,
-    updatedAt: toDate(row.updated_at) ?? addedAt,
-  };
 }
 
 export function useProfileStats(uid: string | null): {
@@ -49,6 +24,9 @@ export function useProfileStats(uid: string | null): {
     scansCount: null,
     loading: true,
   });
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const fetchStats = useCallback(async () => {
     if (!uid) {
@@ -62,6 +40,7 @@ export function useProfileStats(uid: string | null): {
         supabase.from('user_parfum').select('*').eq('user_id', uid).in('status', ['have', 'had']),
         supabase.from('scans').select('*', { count: 'exact', head: true }).eq('user_id', uid),
       ]);
+      if (!mountedRef.current) return;
       setStats({
         favorisCount: favRes.count ?? 0,
         wardrobeItems: ((wardRes.data ?? []) as Record<string, unknown>[]).map(rowToUserParfum),
@@ -70,7 +49,7 @@ export function useProfileStats(uid: string | null): {
       });
     } catch (e: unknown) {
       console.warn('[useProfileStats] fetch failed:', (e as Error)?.message ?? String(e));
-      setStats({ favorisCount: null, wardrobeItems: [], scansCount: null, loading: false });
+      if (mountedRef.current) setStats({ favorisCount: null, wardrobeItems: [], scansCount: null, loading: false });
     }
   }, [uid]);
 

@@ -24,6 +24,7 @@ app/
 ├── catalog/[id].tsx          # Fiche unifiée v8.1 (DetailHero + section « Ma relation » via RelationSection, CollapsingHeader, StickyBottomBar, pyramide, prix, signature nez, « Quand le porter », « Dans le même esprit »)
 ├── wardrobe/[parfumId].tsx   # Redirect vers /catalog/[parfumId] (fiche unifiée v8.1)
 ├── perfumer/[name].tsx       # Créations d'un nez (signature dorée de la fiche détail, grille densité partagée)
+├── brand/[name].tsx          # Catalogue d'une maison (chip « La maison » de la fiche détail ; tri cyclique + filtre famille + densité partagée)
 ├── settings.tsx              # Paramètres (notifications, devise, apparence, soutien, légal, compte)
 ├── scan.tsx                  # Scan (slide_from_bottom)
 ├── search.tsx                # Recherche (fade)
@@ -94,6 +95,7 @@ supabase/                     # Backend Supabase (versionné)
 - Scan/Recherche : routes racine (`slide_from_bottom` / `fade`), pas des onglets
 - Historique : route racine, poussée depuis Profil
 - Perfumer : route racine, poussée depuis la signature nez de la fiche détail (slide_from_right)
+- Brand : route racine, poussée depuis la chip « La maison » de la fiche détail et les sélecteurs de marques (BrandCapsules, BrandSheet) (slide_from_right)
 - Profil public `/u/[pseudo]` : route racine en lecture seule, accessible sans auth (cible du deep link de partage `parfumscan://u/<pseudo>`)
 - `NavigationChromeContext` pour le hide-on-scroll du dock — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes
 - Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs (le profil est une route racine, hors tabs)

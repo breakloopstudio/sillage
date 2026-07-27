@@ -246,6 +246,16 @@ export default function SearchScreen() {
     router.push(`/catalog/${item.id}`);
   }, [persistRecent, searchText, router]);
 
+  const renderResult = useCallback(({ item }: { item: Parfum }) => (
+    <View style={searchDensity === 'list' ? s.resultCardWrapFull : s.resultCardWrap}>
+      <ParfumCard
+        parfum={item}
+        mode={searchDensity}
+        onPressOverride={() => handleResultPress(item)}
+      />
+    </View>
+  ), [searchDensity, s, handleResultPress]);
+
   const handleSubmitEditing = useCallback(() => {
     persistRecent(searchText);
     inputRef.current?.blur();
@@ -478,15 +488,7 @@ export default function SearchScreen() {
                 data={displayParfums}
                 numColumns={searchDensity === 'list' ? 1 : 2}
                 keyExtractor={(p, i) => `${p.id}_${i}`}
-                renderItem={({ item }) => (
-                  <View style={searchDensity === 'list' ? s.resultCardWrapFull : s.resultCardWrap}>
-                    <ParfumCard
-                      parfum={item}
-                      mode={searchDensity}
-                      onPressOverride={() => handleResultPress(item)}
-                    />
-                  </View>
-                )}
+                renderItem={renderResult}
                 columnWrapperStyle={searchDensity !== 'list' ? s.resultRow : undefined}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
                 showsVerticalScrollIndicator={false}

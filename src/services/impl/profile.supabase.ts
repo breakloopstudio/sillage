@@ -3,13 +3,7 @@
 import type { MyProfile, PublicProfile, PublicCollectionItem } from '../../models/profile.interface';
 import type { UserParfumStatus, ScentVerdict } from '../../models/user-parfum.interface';
 import { supabase } from '../supabase';
-import { toDate } from './sql-utils';
-
-function toNum(v: unknown): number | null {
-  if (typeof v === 'number') return v;
-  if (typeof v === 'string' && v.length > 0 && !Number.isNaN(Number(v))) return Number(v);
-  return null;
-}
+import { toDate, toNum } from './sql-utils';
 
 function rowToMyProfile(row: Record<string, unknown>): MyProfile {
   return {

@@ -44,6 +44,9 @@ export function getSimilarParfums(mainAccords: string[], excludeId: string, limi
 ```ts
 export function getParfumsByPerfumer(name: string): Promise<Parfum[]>;
 // PostgREST .contains('perfumers', [name]) + order('popularity_score') DESC, limit 50
+
+export function getParfumsByMarque(marque: string): Promise<Parfum[]>;
+// PostgREST .eq('marque', marque) + order('popularity_score') DESC, limit 1000 (catalogue complet de la maison ; index b-tree `marque`, migration 0026)
 ```
 
 ### `src/utils/normalize.ts`
@@ -54,27 +57,19 @@ export function normalizeId(s: string): string;
 
 ### `src/services/user-data.ts`
 ```ts
-// Supabase — données utilisateur (favoris, collection, scans, settings)
+// Supabase — données utilisateur (favoris, scans, settings, alertes prix)
 // PK = (user_id, parfum_id) déterministe → upsert ON CONFLICT
 export function onFavoris(uid: string, cb: (f: UserFavori[]) => void): () => void;
 export function addFavori(uid: string, parfum: Parfum): Promise<string>;
 // Prend un objet Parfum complet — dénormalise tous les champs d'affichage ET de filtrage
 // (longevity, sillage, seasonScores, notes) dans le document favori
 export function removeFavori(uid: string, parfumId: string): Promise<void>;
-export function isParfumFavori(uid: string, parfumId: string): Promise<{ isFavori: boolean; favoriId: string | null }>;
-export function onCollection(uid: string, cb: (items: UserCollectionItem[]) => void): () => void;
-export function addToCollection(uid: string, parfumId: string, nom?: string, marque?: string, imageUrl?: string): Promise<string>;
-export function removeFromCollection(uid: string, parfumId: string): Promise<void>;
-export function onWishlist(uid: string, cb: (items: UserWishlistItem[]) => void): () => void;
-export function addToWishlist(uid: string, parfumId: string, nom?: string, marque?: string, imageUrl?: string, familleOlactive?: string): Promise<string>;
-export function removeFromWishlist(uid: string, parfumId: string): Promise<void>;
 export function onScans(uid: string, cb: (s: UserScan[]) => void): () => void;
 export function saveScan(uid: string, data: Omit<UserScan, 'id' | 'scannedAt'> & { status?: 'success' | 'no-result' | 'error'; bestPrice?: number; annee?: number }): Promise<void>;
 export function removeScan(uid: string, scanId: string): Promise<void>;
 export function getUserSettings(uid: string): Promise<{ priceAlerts: boolean; pushNotifs: boolean; weatherNotifs: boolean; weatherLat: number | null; weatherLon: number | null }>;
 export function updateUserSetting(uid: string, key: 'priceAlerts' | 'pushNotifs' | 'weatherNotifs', value: boolean): Promise<void>;
 export function saveWeatherCoords(uid: string, lat: number, lon: number): Promise<void>;
-export function isPriceAlertActive(uid: string, parfumId: string): Promise<boolean>;
 export function onPriceAlerts(uid: string, cb: (alerts: UserPriceAlert[]) => void): () => void;
 // Subscription temps réel (table price_alerts publiée v8.3) — même contrat qu'onSnapshot
 export function setPriceAlert(uid: string, parfumId: string, active: boolean, opts?: PriceAlertOptions): Promise<void>;
@@ -82,10 +77,6 @@ export function setPriceAlert(uid: string, parfumId: string, active: boolean, op
 // currentPrice → initial_price (ancre « −X% ») ; targetPrice → seuil custom (null = baisse ≥10%/≥5€)
 export function getLowestObservedPrice(parfumId: string): Promise<number | null>;
 // Plus bas prix constaté (price_history) — ancre de suggestion du prix cible
-export function moveToCollection(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null): Promise<void>;
-export function moveToWishlist(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null, familleOlactive?: string | null): Promise<void>;
-export function moveFavori(uid: string, from: string, itemId: string, parfumId: string, nom: string | null, marque: string | null, imageUrl: string | null, familleOlactive?: string | null): Promise<void>;
-// Best-effort : fetch le parfum pour inclure les champs de filtrage (longevity, sillage...)
 ```
 
 ### `src/services/user-parfum.ts`
@@ -246,16 +237,6 @@ interface FavorisContextValue {
   removeFavori: (parfumId: string) => void;
 }
 export function useFavorisContext(): FavorisContextValue;
-```
-
-### `useWishlist(uid)` — `src/hooks/useWishlist.ts`
-```ts
-// Hook Firestore temps réel pour la wishlist
-export function useWishlist(uid: string | null): {
-  items: UserWishlistItem[];
-  loading: boolean;
-  remove: (id: string) => Promise<void>;
-};
 ```
 
 ### `useScans(uid)` — `src/hooks/useScans.ts`
@@ -451,31 +432,6 @@ interface Parfum {
   imageUrl2x?: string;       // URL WebP upscale ×4 (fiche détail / lightbox uniquement)
   perfumers?: string[];      // nez — signature dorée sous le badgeRow de la fiche détail
   // ...
-}
-```
-
-### `src/models/user-collection.interface.ts`
-```ts
-interface UserCollectionItem {
-  id: string;
-  parfumId: string;
-  marque?: string;
-  nom?: string;
-  imageUrl?: string;
-  addedAt: Date;
-}
-```
-
-### `src/models/user-wishlist.interface.ts`
-```ts
-interface UserWishlistItem {
-  id: string;
-  parfumId: string;
-  marque?: string;
-  nom?: string;
-  imageUrl?: string;
-  familleOlactive?: string;
-  addedAt: Date;
 }
 ```
 
@@ -1100,3 +1056,4 @@ Bonus marque partiel = +8    (l'un contient l'autre)
 - `getSimilarParfums` → RPC `similar_parfums` (cardinalité de l'intersection `main_accords` × 10 + popularité/100, shuffle journalier via `setseed(hashtext(current_date))`).
 - `getPersonalizedSuggestions` → RPC `personalized_suggestions` (scores famille × 3 + marque × 2 + popularité/20 calculés en SQL sur favoris+scans, exclus déjà vus).
 - `getParfumsByPerfumer` → PostgREST `.contains('perfumers', [name])` + `order('popularity_score')` (index GIN `perfumers`).
+- `getParfumsByMarque` → PostgREST `.eq('marque', marque)` + `order('popularity_score')` (index b-tree `marque`, migration 0026).

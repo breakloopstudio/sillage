@@ -5,6 +5,7 @@ import { supabase } from '../../src/services/supabase';
 import {
   addFavori, removeFavori, saveScan, removeScan,
   getUserSettings, updateUserSetting,
+  setPriceAlert, getLowestObservedPrice,
 } from '../../src/services/user-data';
 import type { Parfum } from '../../src/models';
 
@@ -128,5 +129,55 @@ describe('updateUserSetting', () => {
     mockFrom.mockReturnValue(chain);
     await updateUserSetting('uid1', 'weatherNotifs', true);
     expect(chain.upsert).toHaveBeenCalledWith(expect.objectContaining({ user_id: 'uid1', weather_notifs: true }));
+  });
+});
+
+describe('setPriceAlert', () => {
+  it('upserts with initial_price + target_price when activating with opts', async () => {
+    const chain = chainMock();
+    mockFrom.mockReturnValue(chain);
+    await setPriceAlert('uid1', 'p1', true, { currentPrice: 80, targetPrice: 70 });
+    expect(mockFrom).toHaveBeenCalledWith('price_alerts');
+    const arg = chain.upsert.mock.calls[0][0];
+    expect(arg.user_id).toBe('uid1');
+    expect(arg.parfum_id).toBe('p1');
+    expect(arg.initial_price).toBe(80);
+    expect(arg.last_price).toBe(80);
+    expect(arg.target_price).toBe(70);
+  });
+
+  it('upserts with null target/initial when no opts', async () => {
+    const chain = chainMock();
+    mockFrom.mockReturnValue(chain);
+    await setPriceAlert('uid1', 'p1', true);
+    const arg = chain.upsert.mock.calls[0][0];
+    expect(arg.target_price).toBeNull();
+    expect(arg.initial_price).toBeNull();
+  });
+
+  it('deletes when deactivating', async () => {
+    const chain = chainMock();
+    mockFrom.mockReturnValue(chain);
+    await setPriceAlert('uid1', 'p1', false);
+    expect(chain.delete).toHaveBeenCalled();
+    expect(chain.eq).toHaveBeenCalledWith('user_id', 'uid1');
+    expect(chain.eq).toHaveBeenCalledWith('parfum_id', 'p1');
+  });
+});
+
+describe('getLowestObservedPrice', () => {
+  it('returns the lowest price as a number (PostgREST numeric string coerced)', async () => {
+    const chain = chainMock({ data: { best_price: '64.5' }, error: null });
+    mockFrom.mockReturnValue(chain);
+    const result = await getLowestObservedPrice('p1');
+    expect(result).toBe(64.5);
+    expect(chain.order).toHaveBeenCalledWith('best_price', { ascending: true });
+    expect(chain.limit).toHaveBeenCalledWith(1);
+  });
+
+  it('returns null when no history', async () => {
+    const chain = chainMock({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+    expect(await getLowestObservedPrice('p1')).toBeNull();
   });
 });

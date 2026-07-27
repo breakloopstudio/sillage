@@ -8,6 +8,7 @@
 //   ?type=profile&pseudo=<pseudo>   → profil public + aperçu collection
 
 import { createAdminClient } from '../_shared/supabase.ts';
+import { toNum } from '../_shared/helpers.ts';
 
 const APP_SCHEME = 'parfumscan';
 const FOOTER = 'ParfumScan · l\u2019expertise parfum, le bon prix';
@@ -123,7 +124,8 @@ function parfumBody(p: ParfumRow): string {
     ? `<img class="hero" src="${escapeHtml(p.image_url)}" alt="">`
     : `<div class="hero-ph">${initial}</div>`;
   const family = p.famille_olfactive ? `<div class="meta">${escapeHtml(p.famille_olfactive)}</div>` : '';
-  const price = typeof p.best_price === 'number' ? `<div class="price">dès ${formatPrice(p.best_price)}</div>` : '';
+  const bestPrice = toNum(p.best_price);
+  const price = bestPrice !== null ? `<div class="price">dès ${formatPrice(bestPrice)}</div>` : '';
   return `
 <div class="wrap">
   <div class="card">

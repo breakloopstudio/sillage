@@ -5,7 +5,7 @@
 import type { Parfum, UserFavori, UserScan, UserPriceAlert } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
-import { toDate } from './sql-utils';
+import { toDate, toNum } from './sql-utils';
 
 // ─── Mappers snake_case → modèles ────────────────────────────────────────────
 
@@ -17,9 +17,9 @@ function rowToFavori(row: Record<string, unknown>): UserFavori {
     marque: (row.marque as string) ?? undefined,
     imageUrl: (row.image_url as string) ?? undefined,
     familleOlactive: (row.famille_olfactive as string) ?? undefined,
-    bestPrice: (row.best_price as number) ?? undefined,
-    referencePrice: (row.reference_price as number) ?? undefined,
-    annee: (row.annee as number) ?? undefined,
+    bestPrice: toNum(row.best_price) ?? undefined,
+    referencePrice: toNum(row.reference_price) ?? undefined,
+    annee: toNum(row.annee) ?? undefined,
     longevity: (row.longevity as string | null) ?? undefined,
     sillage: (row.sillage as string | null) ?? undefined,
     seasonScores: (row.season_scores as UserFavori['seasonScores']) ?? undefined,
@@ -101,22 +101,7 @@ export async function removeFavori(uid: string, favoriId: string): Promise<void>
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] removeFavori failed:', (e as Error)?.message ?? String(e));
-  }
-}
-
-export async function isParfumFavori(uid: string, parfumId: string): Promise<{ isFavori: boolean; favoriId: string | null }> {
-  try {
-    const { data, error } = await supabase
-      .from('favoris')
-      .select('parfum_id')
-      .eq('user_id', uid)
-      .eq('parfum_id', parfumId)
-      .maybeSingle();
-    if (error) throw error;
-    if (data) return { isFavori: true, favoriId: parfumId };
-    return { isFavori: false, favoriId: null };
-  } catch {
-    return { isFavori: false, favoriId: null };
+    throw e;
   }
 }
 
@@ -242,9 +227,9 @@ export async function saveWeatherCoords(uid: string, lat: number, lon: number): 
 function rowToPriceAlert(row: Record<string, unknown>): UserPriceAlert {
   return {
     parfumId: row.parfum_id as string,
-    targetPrice: typeof row.target_price === 'number' ? row.target_price : null,
-    initialPrice: typeof row.initial_price === 'number' ? row.initial_price : null,
-    lastPrice: typeof row.last_price === 'number' ? row.last_price : null,
+    targetPrice: toNum(row.target_price),
+    initialPrice: toNum(row.initial_price),
+    lastPrice: toNum(row.last_price),
     lastChecked: toDate(row.last_checked) ?? null,
     addedAt: toDate(row.added_at) ?? new Date(),
   };
@@ -260,21 +245,6 @@ export function onPriceAlerts(uid: string, cb: (alerts: UserPriceAlert[]) => voi
     cb,
     onError: (msg) => console.warn('[user-data] onPriceAlerts error:', msg),
   });
-}
-
-export async function isPriceAlertActive(uid: string, parfumId: string): Promise<boolean> {
-  try {
-    const { data, error } = await supabase
-      .from('price_alerts')
-      .select('parfum_id')
-      .eq('user_id', uid)
-      .eq('parfum_id', parfumId)
-      .maybeSingle();
-    if (error) throw error;
-    return data !== null;
-  } catch {
-    return false;
-  }
 }
 
 export interface PriceAlertOptions {
@@ -327,7 +297,7 @@ export async function getLowestObservedPrice(parfumId: string): Promise<number |
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    return typeof data?.best_price === 'number' ? data.best_price : null;
+    return toNum(data?.best_price);
   } catch {
     return null;
   }

@@ -1,15 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getPossessions, addPossession, updatePossession, removePossession } from '../services/possessions';
 import type { Possession, PossessionType } from '../models/user-parfum.interface';
 
 export function usePossessions(uid: string | null, parfumId: string | null) {
   const [items, setItems] = useState<Possession[]>([]);
   const [loading, setLoading] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const refresh = useCallback(async () => {
     if (!uid || !parfumId) { setItems([]); return; }
     setLoading(true);
     const data = await getPossessions(uid, parfumId);
+    if (!mountedRef.current) return;
     setItems(data);
     setLoading(false);
   }, [uid, parfumId]);

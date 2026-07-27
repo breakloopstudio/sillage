@@ -3,7 +3,7 @@
 // Appelée par pg_cron → pg_net avec Authorization Bearer <service_role_key>.
 
 import { createAdminClient, verifyCronAuth } from '../_shared/supabase.ts';
-import { evaluatePriceDrop, targetReached, priceAlertRunId } from '../_shared/helpers.ts';
+import { evaluatePriceDrop, targetReached, priceAlertRunId, toNum } from '../_shared/helpers.ts';
 import { sendPush, purgeDeadTokens } from '../_shared/expo-push.ts';
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
       .in('id', chunk);
     if (pErr) { console.warn('[checkPriceAlerts] parfums chunk error:', pErr.message); continue; }
     for (const p of (parfums ?? []) as { id: string; best_price: number | null; nom: string; marque: string }[]) {
-      parfumMap.set(p.id, { bestPrice: p.best_price, nom: p.nom, marque: p.marque });
+      parfumMap.set(p.id, { bestPrice: toNum(p.best_price), nom: p.nom, marque: p.marque });
     }
   }
 
@@ -75,8 +75,8 @@ Deno.serve(async (req: Request) => {
     if (!parfum || parfum.bestPrice === null) continue;
     checked++;
 
-    const drop = evaluatePriceDrop(a.last_price, parfum.bestPrice);
-    const isTarget = targetReached(a.target_price, parfum.bestPrice);
+    const drop = evaluatePriceDrop(toNum(a.last_price), parfum.bestPrice);
+    const isTarget = targetReached(toNum(a.target_price), parfum.bestPrice);
 
     // Toujours mettre à jour last_price (parité Firebase : évite les re-notifications)
     priceUpdates.push({

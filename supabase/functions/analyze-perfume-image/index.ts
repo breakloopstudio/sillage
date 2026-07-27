@@ -60,9 +60,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'Maximum 5 images par requête.' }, 400);
   }
   const MAX_IMG_B64 = 5 * 1024 * 1024;
+  const MIME_OK = /^data:image\/(jpeg|jpg|png|webp)/;
   for (const img of images) {
-    if (typeof img !== 'string' || !img.startsWith('data:image/')) {
-      return jsonResponse({ error: "Chaque image doit être en base64 avec préfixe \"data:image/\"." }, 400);
+    if (typeof img !== 'string' || !MIME_OK.test(img)) {
+      return jsonResponse({ error: 'Chaque image doit être en base64 (JPEG, PNG ou WebP).' }, 400);
     }
     if (img.length > MAX_IMG_B64) {
       return jsonResponse({ error: 'Image trop volumineuse (max 5 Mo par image).' }, 400);

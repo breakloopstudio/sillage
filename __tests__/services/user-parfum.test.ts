@@ -124,4 +124,22 @@ describe('getUserParfum', () => {
     const result = await getUserParfum('uid1', 'unknown');
     expect(result).toBeNull();
   });
+
+  it('maps PostgREST numeric strings (rating/best_price/sotd_count) to numbers', async () => {
+    const row = {
+      parfum_id: 'p1', status: 'have', verdict: 'love', rating: '4.5',
+      notes: null, tried_at: null, shelf_ids: [], sotd_count: '3', is_signature: false,
+      nom: 'Sauvage', marque: 'Dior', image_url: null, famille_olfactive: null,
+      best_price: '89.99', reference_price: '120',
+      longevity: null, sillage: null, season_scores: null, all_notes: null,
+      added_at: '2026-06-01T10:00:00Z', updated_at: '2026-06-01T10:00:00Z',
+    };
+    const chain = chainMock({ data: row, error: null });
+    mockFrom.mockReturnValue(chain);
+    const result = await getUserParfum('uid1', 'p1');
+    expect(result!.rating).toBe(4.5);
+    expect(result!.bestPrice).toBe(89.99);
+    expect(result!.referencePrice).toBe(120);
+    expect(result!.sotdCount).toBe(3);
+  });
 });

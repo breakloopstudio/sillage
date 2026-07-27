@@ -8,6 +8,7 @@ import type { SeasonKey } from '../../utils/season';
 import type { SuggestionRow } from '../../utils/suggest';
 import { supabase } from '../supabase';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
+import { toNum } from './sql-utils';
 
 export { SearchError };
 
@@ -22,15 +23,15 @@ function rowToParfum(row: Record<string, unknown>): Parfum {
     id: row.id as string,
     nom: row.nom as string,
     marque: row.marque as string,
-    annee: (row.annee as number) ?? undefined,
+    annee: toNum(row.annee) ?? undefined,
     familleOlactive: row.famille_olfactive as string,
     notesTete: (row.notes_tete as string[]) ?? [],
     notesCoeur: (row.notes_coeur as string[]) ?? [],
     notesFond: (row.notes_fond as string[]) ?? [],
     imageUrl: (row.image_url as string) ?? undefined,
     imageUrl2x: (row.image_url_2x as string) ?? undefined,
-    bestPrice: (row.best_price as number) ?? undefined,
-    referencePrice: (row.reference_price as number) ?? undefined,
+    bestPrice: toNum(row.best_price) ?? undefined,
+    referencePrice: toNum(row.reference_price) ?? undefined,
     offers: (row.offers as Parfum['offers']) ?? [],
     typeParfum: (row.type_parfum as string | null) ?? undefined,
     source: row.source as Parfum['source'],
@@ -44,10 +45,10 @@ function rowToParfum(row: Record<string, unknown>): Parfum {
     gender: (row.gender as string | null) ?? undefined,
     rating: (row.rating as string | null) ?? undefined,
     popularity: (row.popularity as string | null) ?? undefined,
-    popularityScore: (row.popularity_score as number) ?? undefined,
-    ratingScore: (row.rating_score as number) ?? undefined,
-    reviewCount: (row.review_count as number) ?? undefined,
-    ratingCount: (row.rating_count as number) ?? undefined,
+    popularityScore: toNum(row.popularity_score) ?? undefined,
+    ratingScore: toNum(row.rating_score) ?? undefined,
+    reviewCount: toNum(row.review_count) ?? undefined,
+    ratingCount: toNum(row.rating_count) ?? undefined,
     priceValue: (row.price_value as string | null) ?? undefined,
     country: (row.country as string) ?? undefined,
     mainAccordsPercentage: (row.main_accords_percentage as Record<string, string>) ?? undefined,
@@ -367,6 +368,17 @@ export async function getParfumsByPerfumer(name: string): Promise<Parfum[]> {
     .contains('perfumers', [name])
     .order('popularity_score', { ascending: false, nullsFirst: false })
     .limit(50);
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+}
+
+export async function getParfumsByMarque(marque: string): Promise<Parfum[]> {
+  const { data, error } = await supabase
+    .from('parfums')
+    .select('*')
+    .eq('marque', marque)
+    .order('popularity_score', { ascending: false, nullsFirst: false })
+    .limit(1000);
   if (error) throw error;
   return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
 }
