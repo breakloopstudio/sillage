@@ -6,7 +6,7 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
-import { supabase } from '../supabase';
+import { supabase, type UserTableName } from '../supabase';
 import { translateSupabaseError } from '../../utils/error-translator';
 
 export interface AccountDataSummary {
@@ -95,7 +95,7 @@ export async function shareAccountData(): Promise<void> {
 // ─── Résumé des données ──────────────────────────────────────────────────────
 
 export async function getAccountDataSummary(uid: string): Promise<AccountDataSummary> {
-  const count = async (table: string): Promise<number> => {
+  const count = async (table: UserTableName): Promise<number> => {
     try {
       const { count: n, error } = await supabase
         .from(table)
@@ -120,7 +120,7 @@ export async function getAccountDataSummary(uid: string): Promise<AccountDataSum
 
 // ─── Suppressions ciblées ────────────────────────────────────────────────────
 
-async function deleteAllFrom(table: string, uid: string): Promise<number> {
+async function deleteAllFrom(table: UserTableName, uid: string): Promise<number> {
   try {
     const { count } = await supabase
       .from(table)
@@ -153,7 +153,7 @@ export async function clearWeatherCoords(uid: string): Promise<void> {
   try {
     const { error } = await supabase
       .from('user_settings')
-      .update({ weather_lat: null, weather_lon: null } as never)
+      .update({ weather_lat: null, weather_lon: null })
       .eq('user_id', uid);
     if (error) throw error;
   } catch (e: unknown) {

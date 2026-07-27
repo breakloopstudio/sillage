@@ -68,7 +68,7 @@ async function saveTokenToDB(uid: string, token: string): Promise<void> {
       token,
       platform: Platform.OS,
       created_at: new Date().toISOString(),
-    } as never);
+    });
     if (error) console.warn('[push] saveTokenToDB error:', error.message);
   } catch (e: unknown) {
     console.warn('[push] saveTokenToDB failed:', (e as Error)?.message ?? String(e));

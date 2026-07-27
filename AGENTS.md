@@ -516,3 +516,24 @@ Nécessite un compte de service Firebase :
 **Note cold-start** : le partage sert d'abord l'acquisition (boucle virale au lancement). Le bouton « Télécharger » du landing est un placeholder tant que l'app n'est pas en store ; les URLs store réelles seront à renseigner dans `share/index.ts` (`STORE_NOTE`).
 
 **Tests** : 20 suites, 222 tests. `tsc --noEmit` : 0 erreur app/ + src/.
+
+## Notes v8.6 — Durcissement post-audit + typage Supabase (M4) (16/09/2026)
+
+**Audit du projet** (4 agents en parallèle + vérifs mécaniques grep/tsc) → correction des problèmes trouvés.
+
+**Critiques** :
+- **C1** — `0024_missing_grants.sql` : GRANTs client omis sur `profiles`/`price_history` (création de profil public + « plus bas constaté » cassés en fresh DB ; l'auto-exposition des tables est désactivée au niveau projet).
+- **C2** — helper `toNum` (sql-utils côté app + `_shared/helpers` côté Deno) généralisé : tous les mappers `numeric`→string corrigés. PostgREST renvoie les colonnes `numeric` en **string** ; `typeof === 'number'` retournait toujours null (rating, prix, scores, `targetPrice`/`initialPrice`/`lastPrice` cassés silencieusement).
+- **C3** — rethrow des écritures `user-parfum`/`user-data` (`addUserParfum`, `updateUserParfum`, `markTried`, `removeUserParfum`, `removeFavori`, `setSotd`) → les rollbacks optimistes de `useSaveController`, `FavorisContext`, `useSotd` (qui étaient du code mort) fonctionnent à nouveau.
+
+**Moyen** : **M1** compte RGPD `wardrobe`→`user_parfum` (table morte) · **M3** guards de démontage (`mountedRef`) sur `usePossessions`/`useMyProfile`/`useSotd`/`useProfileStats` · **M5** `renderItem` de `search.tsx` mémoïsé (`useCallback`) · **M6** `rowToUserParfum` dédoublonné (`useProfileStats` réutilise le mapper exporté du service) · **M2** `reference.md` purgé (9 fonctions + 2 modèles + hook `useWishlist` morts retirés).
+
+**Faible** : **F1** 3 exports orphelins supprimés (`isParfumFavori`, `isPriceAlertActive`, `getAllPossessions`) · **F2** `transcribe-voice` (`atob` déplacé dans un try → 400 sur base64 invalide) + `analyze-perfume-image` (whitelist MIME stricte jpeg/png/webp, plus de svg) · **F3** `0025_admins_rls_self_only.sql` (lecture `admins` restreinte à `auth.uid() = user_id`, la liste des admins n'est plus exposée à tout authentifié) · **F6** timer `useWeather` nettoyé (`clearTimeout` via `.finally`). **F7** (hex hardcodés `#0B0712` + PALETTE placeholder) accepté — exceptions invariantes documentées §2.3/§4.1.
+
+**M4 — Typage Supabase** : `src/types/database.types.ts` généré via `supabase gen types typescript --linked`, client typé `createClient<Database>`. Helpers à table dynamique (`subscribeUserTable`, `count`/`deleteAllFrom` d'account) typés via `UserTableName` (type dérivé = tables possédant `user_id`). `as never` retiré de tous les payloads d'écriture : littéraux vérifiés contre `Insert`/`Update` (détection des typos de colonne à la compilation), variables `row` typées (`updateUserParfum`, `updatePossession`), casts précis `as Tables[...]['Insert'/'Update']` pour les cas dynamiques (`addUserParfum`, `saveScan`, `updateParfum`). Param RPC `set_sotd` `p_image_url` null→undefined (défaut NULL équivalent). Ne restent que **4 `as never` justifiés** (3 casts auth-user dans `useAuth` + 1 upsert à clé dynamique `[SETTING_KEY_MAP[key]]`).
+
+**Déploiement** : migrations 0024/0025 appliquées (`db push`) · Edge Functions `check-price-alerts`, `share`, `transcribe-voice`, `analyze-perfume-image` redéployées (`--no-verify-jwt`, vérification JWT interne via `verifyUserToken`).
+
+**Tests** : 24 suites, 259 tests (+ `status-chips`/`verdicts`, service `profile`, hook `usePriceAlerts`, `price-alert-helpers`). `tsc --noEmit` : 0 erreur app/ + src/.
+
+**Reporté** (risque faible / by-design) : **F4** comparaison de secrets constant-time (timing attack théorique sur HTTP, Deno n'a pas de `timingSafeEqual` natif) · **F5** rate-limit sur `share` (mitigé par `Cache-Control` + limites Edge).

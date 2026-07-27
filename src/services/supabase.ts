@@ -6,6 +6,7 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from '../config/env';
+import type { Database } from '../types/database.types';
 
 const useLocal = env.USE_SUPABASE_LOCAL;
 const url = useLocal ? env.SUPABASE_LOCAL_URL : env.SUPABASE_URL;
@@ -14,7 +15,7 @@ const hasConfig = url.length > 0 && anonKey.length > 0;
 
 // Placeholder pour ne pas crasher si le .env est absent (Expo Go, tests) —
 // le client n'est jamais utilisé tant que isSupabaseReady() est false.
-export const supabase: SupabaseClient = createClient(
+export const supabase: SupabaseClient<Database> = createClient<Database>(
   hasConfig ? url : 'https://placeholder.supabase.co',
   hasConfig ? anonKey : 'placeholder-anon-key',
   {
@@ -47,9 +48,14 @@ supabase.auth.onAuthStateChange((_event, session) => {
 // Cet adaptateur maintient un cache clé→item (fetch initial + deltas)
 // et réémet une copie triée à chaque changement — signature identique.
 
+/** Noms des tables possédant une colonne user_id (helpers génériques : subscribeUserTable, count/delete). */
+export type UserTableName = {
+  [K in keyof Database['public']['Tables']]: 'user_id' extends keyof Database['public']['Tables'][K]['Row'] ? K : never;
+}[keyof Database['public']['Tables']];
+
 export interface SubscribeUserTableOptions<T> {
   /** Table publique (ex: 'favoris', 'wardrobe') */
-  table: string;
+  table: UserTableName;
   /** UUID Supabase du user (auth.uid()) */
   userId: string;
   /** Tri du fetch initial (le tri final est reappliqué via `sort` si fourni) */

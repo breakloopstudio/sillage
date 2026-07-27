@@ -5,8 +5,9 @@
 ### `src/services/supabase.ts`
 ```ts
 // Client Supabase + adaptateur realtime (remplace firebase.ts + onSnapshot)
-export const supabase: SupabaseClient;
+export const supabase: SupabaseClient<Database>;  // typé via src/types/database.types.ts (M4)
 export function isSupabaseReady(): boolean;
+export type UserTableName;  // type dérivé = tables possédant une colonne user_id (helpers génériques)
 export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () => void;
 // fetch initial (SELECT) + canal postgres_changes (INSERT/UPDATE/DELETE) → cb(items) triés
 // Même contrat qu'onSnapshot. setAuth realtime synchro via onAuthStateChange.

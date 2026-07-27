@@ -4,6 +4,7 @@
 
 import type { Parfum, UserFavori, UserScan, UserPriceAlert } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
+import type { Database } from '../../types/database.types';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate, toNum } from './sql-utils';
 
@@ -82,7 +83,7 @@ export async function addFavori(uid: string, parfum: Parfum): Promise<string> {
       season_scores: f.seasonScores,
       notes: f.notes,
       added_at: new Date().toISOString(),
-    } as never);
+    });
     if (error) throw error;
     return parfum.id;
   } catch (e: unknown) {
@@ -122,7 +123,7 @@ export function onScans(uid: string, cb: (scans: UserScan[]) => void): () => voi
 
 export async function saveScan(uid: string, scanData: Omit<UserScan, 'id' | 'scannedAt'>): Promise<void> {
   try {
-    const raw: Record<string, unknown> = {
+    const raw: Database['public']['Tables']['scans']['Insert'] = {
       user_id: uid,
       parfum_id: scanData.parfumId ?? null,
       raw_text: scanData.rawText ?? null,
@@ -138,7 +139,7 @@ export async function saveScan(uid: string, scanData: Omit<UserScan, 'id' | 'sca
       scanned_at: new Date().toISOString(),
     };
     const clean = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined));
-    const { error } = await supabase.from('scans').insert(clean as never);
+    const { error } = await supabase.from('scans').insert(clean as Database['public']['Tables']['scans']['Insert']);
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] saveScan failed:', (e as Error)?.message ?? String(e));
@@ -215,7 +216,7 @@ export async function saveWeatherCoords(uid: string, lat: number, lon: number): 
       user_id: uid,
       weather_lat: Math.round(lat * 100) / 100,
       weather_lon: Math.round(lon * 100) / 100,
-    } as never);
+    });
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] saveWeatherCoords failed:', (e as Error)?.message ?? String(e));
@@ -267,7 +268,7 @@ export async function setPriceAlert(uid: string, parfumId: string, active: boole
         last_checked: now,
         initial_price: current,
         target_price: opts?.targetPrice ?? null,
-      } as never);
+      });
       if (error) throw error;
     } catch (e: unknown) {
       console.warn('[user-data] setPriceAlert upsert failed:', (e as Error)?.message ?? String(e));

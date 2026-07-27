@@ -1,5 +1,6 @@
 import type { Possession, PossessionType } from '../../models/user-parfum.interface';
 import { supabase } from '../supabase';
+import type { Database } from '../../types/database.types';
 import { toDate } from './sql-utils';
 
 function rowToPossession(row: Record<string, unknown>): Possession {
@@ -52,7 +53,7 @@ export async function addPossession(
         for_sale: forSale ?? false,
         notes: notes ?? null,
         added_at: new Date().toISOString(),
-      } as never)
+      })
       .select('id')
       .single();
     if (error) throw error;
@@ -69,7 +70,7 @@ export async function updatePossession(
   data: Partial<Pick<Possession, 'type' | 'sizeMl' | 'quantity' | 'forSale' | 'notes'>>,
 ): Promise<void> {
   try {
-    const row: Record<string, unknown> = {};
+    const row: Database['public']['Tables']['possessions']['Update'] = {};
     if (data.type !== undefined) row.type = data.type;
     if (data.sizeMl !== undefined) row.size_ml = data.sizeMl;
     if (data.quantity !== undefined) row.quantity = data.quantity;
@@ -77,7 +78,7 @@ export async function updatePossession(
     if (data.notes !== undefined) row.notes = data.notes;
     const { error } = await supabase
       .from('possessions')
-      .update(row as never)
+      .update(row)
       .eq('user_id', uid)
       .eq('id', possessionId);
     if (error) throw error;

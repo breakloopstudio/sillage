@@ -7,6 +7,7 @@ import { normalize } from '../../utils/normalize';
 import type { SeasonKey } from '../../utils/season';
 import type { SuggestionRow } from '../../utils/suggest';
 import { supabase } from '../supabase';
+import type { Database } from '../../types/database.types';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
 import { toNum } from './sql-utils';
 
@@ -110,7 +111,7 @@ export async function getParfumById(id: string): Promise<Parfum | undefined> {
 
 export async function updateParfum(id: string, fragranceData: Partial<Omit<Parfum, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
   const row = parfumToRow({ ...fragranceData, updatedAt: new Date() });
-  const { error } = await supabase.from('parfums').update(row as never).eq('id', id);
+  const { error } = await supabase.from('parfums').update(row as Database['public']['Tables']['parfums']['Update']).eq('id', id);
   if (error) throw error;
 }
 

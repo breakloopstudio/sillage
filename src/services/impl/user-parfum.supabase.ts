@@ -1,6 +1,7 @@
 import type { UserParfum, UserParfumStatus, ScentVerdict, Shelf, SotdEntry } from '../../models/user-parfum.interface';
 import type { Parfum } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
+import type { Database } from '../../types/database.types';
 import { getParfumById } from '../catalog';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate, today, toNum } from './sql-utils';
@@ -90,7 +91,7 @@ export async function addUserParfum(
       ...filterFields,
       added_at: now,
       updated_at: now,
-    } as never, { onConflict: 'user_id,parfum_id' });
+    } as Database['public']['Tables']['user_parfum']['Insert'], { onConflict: 'user_id,parfum_id' });
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] addUserParfum failed:', (e as Error)?.message ?? String(e));
@@ -104,7 +105,7 @@ export async function updateUserParfum(
   data: Partial<Pick<UserParfum, 'status' | 'verdict' | 'rating' | 'notes' | 'triedAt' | 'shelfIds' | 'isSignature'>>,
 ): Promise<void> {
   try {
-    const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const row: Database['public']['Tables']['user_parfum']['Update'] = { updated_at: new Date().toISOString() };
     if (data.status !== undefined) row.status = data.status;
     if (data.verdict !== undefined) row.verdict = data.verdict;
     if (data.rating !== undefined) row.rating = data.rating;
@@ -114,7 +115,7 @@ export async function updateUserParfum(
     if (data.isSignature !== undefined) row.is_signature = data.isSignature;
     const { error } = await supabase
       .from('user_parfum')
-      .update(row as never)
+      .update(row)
       .eq('user_id', uid)
       .eq('parfum_id', parfumId);
     if (error) throw error;
@@ -139,7 +140,7 @@ export async function markTried(
         notes: data.notes,
         tried_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      } as never)
+      })
       .eq('user_id', uid)
       .eq('parfum_id', parfumId);
     if (error) throw error;
@@ -212,7 +213,7 @@ export async function createShelf(uid: string, name: string, icon?: string, colo
         color: color ?? null,
         order: nextOrder,
         created_at: new Date().toISOString(),
-      } as never)
+      })
       .select('id')
       .single();
     if (error) throw error;
@@ -227,7 +228,7 @@ export async function updateShelf(uid: string, shelfId: string, data: Partial<Pi
   try {
     const { error } = await supabase
       .from('shelves')
-      .update(data as never)
+      .update(data)
       .eq('user_id', uid)
       .eq('id', shelfId);
     if (error) throw error;
@@ -277,7 +278,7 @@ export async function setSotd(uid: string, parfumId: string, nom: string, marque
       p_parfum_id: parfumId,
       p_nom: nom,
       p_marque: marque,
-      p_image_url: imageUrl ?? null,
+      p_image_url: imageUrl ?? undefined,
     });
     if (error) throw error;
   } catch (e: unknown) {

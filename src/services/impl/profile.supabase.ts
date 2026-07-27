@@ -48,7 +48,7 @@ export async function upsertMyProfile(uid: string, input: ProfileInput): Promise
     bio: input.bio ?? null,
     is_public: input.isPublic ?? false,
     avatar_url: input.avatarUrl ?? null,
-  } as never);
+  });
   if (error) throw error;
 }
 
