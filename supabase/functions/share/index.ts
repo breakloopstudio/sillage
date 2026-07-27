@@ -83,6 +83,8 @@ function page(meta: Meta, bodyHtml: string): string {
 <meta property="og:type" content="website">
 <meta property="og:url" content="${escapeHtml(meta.url)}">
 <meta property="og:site_name" content="ParfumScan">
+<meta property="og:locale" content="fr_FR">
+<link rel="canonical" href="${escapeHtml(meta.url)}">
 ${img}
 <meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}">
 <meta name="twitter:title" content="${escapeHtml(meta.title)}">

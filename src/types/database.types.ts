@@ -923,6 +923,10 @@ export type Database = {
         Args: { p_pseudo: string; lim?: number }
         Returns: { pseudo: string; avatar_url: string }[]
       }
+      search_profiles: {
+        Args: { p_prefix: string; lim?: number }
+        Returns: { pseudo: string; avatar_url: string; collection_count: number }[]
+      }
       search_parfums: {
         Args: { max_results?: number; q: string }
         Returns: {

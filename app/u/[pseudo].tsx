@@ -3,8 +3,8 @@
 // Accessible sans authentification (données publiques uniquement).
 
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, ActivityIndicator, FlatList } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, Pressable, ActivityIndicator, FlatList, Modal, ScrollView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
@@ -13,7 +13,7 @@ import { useAuthContext } from '../../src/contexts/AuthContext';
 import { usePublicProfile } from '../../src/hooks/usePublicProfile';
 import { useMyProfile } from '../../src/hooks/useMyProfile';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
-import { followByPseudo, unfollowByPseudo, isFollowing } from '../../src/services/community';
+import { followByPseudo, unfollowByPseudo, isFollowing, getPublicFollowers, getPublicFollowing, type FollowEntry } from '../../src/services/community';
 import { hapticsLight, hapticsSuccess } from '../../src/services/haptics';
 import ParfumCard from '../../src/components/ParfumCard';
 import type { PublicCollectionItem, Parfum } from '../../src/models';
@@ -41,7 +41,10 @@ export default function PublicProfilePage() {
   const [imgFailed, setImgFailed] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [followList, setFollowList] = useState<FollowEntry[] | null>(null);
+  const [followListTitle, setFollowListTitle] = useState('');
   const mountedRef = useRef(true);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     mountedRef.current = true;
@@ -54,6 +57,20 @@ export default function PublicProfilePage() {
   }, [pseudo, isAuthenticated]);
 
   const handleBack = useCallback(() => { router.back(); }, [router]);
+
+  const handleShowFollowers = useCallback(async () => {
+    if (!pseudo) return;
+    hapticsLight();
+    const list = await getPublicFollowers(pseudo);
+    if (mountedRef.current) { setFollowList(list); setFollowListTitle('Abonnés'); }
+  }, [pseudo]);
+
+  const handleShowFollowing = useCallback(async () => {
+    if (!pseudo) return;
+    hapticsLight();
+    const list = await getPublicFollowing(pseudo);
+    if (mountedRef.current) { setFollowList(list); setFollowListTitle('Suivis'); }
+  }, [pseudo]);
 
   const handleFollow = useCallback(async () => {
     if (!pseudo) return;
@@ -150,9 +167,13 @@ export default function PublicProfilePage() {
             {profile.collectionCount} parfum{profile.collectionCount > 1 ? 's' : ''}
           </Text>
           <Text style={s.statDot}>·</Text>
-          <Text style={s.statItem} allowFontScaling={false}>{profile.followerCount} abonné{profile.followerCount > 1 ? 's' : ''}</Text>
+          <Pressable onPress={handleShowFollowers} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={`${profile.followerCount} abonnés`}>
+            <Text style={s.statItemLink} allowFontScaling={false}>{profile.followerCount} abonné{profile.followerCount > 1 ? 's' : ''}</Text>
+          </Pressable>
           <Text style={s.statDot}>·</Text>
-          <Text style={s.statItem} allowFontScaling={false}>{profile.followingCount} suivi{profile.followingCount > 1 ? 's' : ''}</Text>
+          <Pressable onPress={handleShowFollowing} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={`${profile.followingCount} suivis`}>
+            <Text style={s.statItemLink} allowFontScaling={false}>{profile.followingCount} suivi{profile.followingCount > 1 ? 's' : ''}</Text>
+          </Pressable>
         </View>
         {isAuthenticated && !isOwnProfile ? (
           <Pressable
@@ -193,6 +214,31 @@ export default function PublicProfilePage() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={profileHeader}
       />
+      <Modal visible={followList !== null} transparent animationType="fade" onRequestClose={() => setFollowList(null)}>
+        <Pressable style={s.followListBackdrop} onPress={() => setFollowList(null)} />
+        <View style={[s.followListSheet, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={s.followListHandle} />
+          <Text style={s.followListTitle}>{followListTitle}</Text>
+          <ScrollView style={s.followListScroll} showsVerticalScrollIndicator={false}>
+            {(followList ?? []).length === 0 ? (
+              <Text style={s.followListEmpty}>Personne pour l&#8217;instant.</Text>
+            ) : (
+              (followList ?? []).map((entry, i) => (
+                <Pressable key={`${entry.pseudo}-${i}`} style={s.followListRow} onPress={() => { setFollowList(null); router.push(`/u/${entry.pseudo}`); }} accessibilityRole="button">
+                  {entry.avatar_url ? (
+                    <Image source={{ uri: entry.avatar_url }} style={s.followListAvatar} contentFit="cover" transition={200} />
+                  ) : (
+                    <View style={[s.followListAvatar, s.followListAvatarPlaceholder]}>
+                      <Text allowFontScaling={false} style={s.followListInitial}>{entry.pseudo.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <Text style={s.followListPseudo}>@{entry.pseudo}</Text>
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -241,5 +287,19 @@ function getStyles(t: Theme) {
     gridItem: { flex: 1, maxWidth: '50%' },
     emptyWrap: { alignItems: 'center' as const, paddingVertical: 24 },
     emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted },
+
+    statItemLink: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.primary },
+
+    followListBackdrop: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
+    followListSheet: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, backgroundColor: t.colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%' },
+    followListHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: t.colors.textMuted, opacity: 0.4, alignSelf: 'center' as const, marginTop: 8, marginBottom: 12 },
+    followListTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text, paddingHorizontal: 20, marginBottom: 12 },
+    followListScroll: { paddingHorizontal: 20 },
+    followListEmpty: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, paddingVertical: 16 },
+    followListRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, paddingVertical: 10 },
+    followListAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: t.colors.surface2 },
+    followListAvatarPlaceholder: { justifyContent: 'center' as const, alignItems: 'center' as const, backgroundColor: t.colors.primarySoft },
+    followListInitial: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.primaryInk },
+    followListPseudo: { fontFamily: 'Inter_500Medium', fontSize: 14, color: t.colors.text },
   } as const;
 }

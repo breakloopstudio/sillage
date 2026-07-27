@@ -9,7 +9,7 @@ import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import { useCommunityHighlights } from '../../src/hooks/useCommunityHighlights';
-import { getFollowedHighlights, type CommunityParfum, type CommunityProfile, type CommunitySotd, type FollowedVerdict } from '../../src/services/community';
+import { getFollowedHighlights, searchProfiles, type CommunityParfum, type CommunityProfile, type CommunitySotd, type FollowedVerdict, type FollowedHave, type ProfileSearchResult } from '../../src/services/community';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { normalizePseudo } from '../../src/utils/share';
 import { hapticsLight } from '../../src/services/haptics';
@@ -37,9 +37,12 @@ export default function CommunautePage() {
   const { top_loved, trending, public_profiles, sotd_today, loading, error, refresh } = useCommunityHighlights();
 
   const [pseudoQuery, setPseudoQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<ProfileSearchResult[]>([]);
   const [followedVerdicts, setFollowedVerdicts] = useState<FollowedVerdict[]>([]);
   const [followedSotd, setFollowedSotd] = useState<CommunitySotd[]>([]);
+  const [followedHave, setFollowedHave] = useState<FollowedHave[]>([]);
   const mountedRef = useRef(true);
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export default function CommunautePage() {
       if (!mountedRef.current || !d) return;
       setFollowedVerdicts(d.recent_verdicts);
       setFollowedSotd(d.sotd_today);
+      setFollowedHave(d.new_have);
     });
     return () => { mountedRef.current = false; };
   }, [isAuthenticated]);
@@ -65,13 +69,31 @@ export default function CommunautePage() {
     router.push(`/u/${pseudo}`);
   }, [router]);
 
+  const handlePseudoChange = useCallback((text: string) => {
+    setPseudoQuery(text);
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    const q = normalizePseudo(text);
+    if (q.length < 2) { setSuggestions([]); return; }
+    suggestTimer.current = setTimeout(() => {
+      searchProfiles(q).then((r) => { if (mountedRef.current) setSuggestions(r); });
+    }, 250);
+  }, []);
+
   const handlePseudoSearch = useCallback(() => {
     const q = normalizePseudo(pseudoQuery);
     if (q.length >= 3) {
       hapticsLight();
+      setSuggestions([]);
       router.push(`/u/${q}`);
     }
   }, [pseudoQuery, router]);
+
+  const handleSuggestionPress = useCallback((pseudo: string) => {
+    hapticsLight();
+    setSuggestions([]);
+    setPseudoQuery('');
+    router.push(`/u/${pseudo}`);
+  }, [router]);
 
   const hasContent = top_loved.length > 0 || trending.length > 0 || public_profiles.length > 0 || sotd_today.length > 0;
 
@@ -97,7 +119,7 @@ export default function CommunautePage() {
           <TextInput
             style={s.searchInput}
             value={pseudoQuery}
-            onChangeText={setPseudoQuery}
+            onChangeText={handlePseudoChange}
             placeholder="Chercher un pseudo…"
             placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
@@ -107,11 +129,29 @@ export default function CommunautePage() {
             keyboardAppearance={keyboardAppearance}
           />
           {pseudoQuery.length > 0 ? (
-            <Pressable onPress={() => setPseudoQuery('')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Pressable onPress={() => { setPseudoQuery(''); setSuggestions([]); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Ionicons name="close-circle" size={16} color={theme.colors.textMuted} />
             </Pressable>
           ) : null}
         </View>
+
+        {suggestions.length > 0 ? (
+          <View style={s.suggestionsBox}>
+            {suggestions.map((sg) => (
+              <Pressable key={sg.pseudo} style={s.suggestionRow} onPress={() => handleSuggestionPress(sg.pseudo)} accessibilityRole="button">
+                {sg.avatar_url ? (
+                  <Image source={{ uri: sg.avatar_url }} style={s.suggestionAvatar} contentFit="cover" transition={200} />
+                ) : (
+                  <View style={[s.suggestionAvatar, s.suggestionAvatarPlaceholder]}>
+                    <Text allowFontScaling={false} style={s.suggestionInitial}>{sg.pseudo.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                <Text style={s.suggestionPseudo}>@{sg.pseudo}</Text>
+                <Text style={s.suggestionCount} allowFontScaling={false}>{sg.collection_count}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator style={s.loader} color={theme.colors.primary} />
@@ -121,7 +161,7 @@ export default function CommunautePage() {
           </View>
         ) : (
           <>
-            {isAuthenticated && (followedVerdicts.length > 0 || followedSotd.length > 0) ? (
+            {isAuthenticated && (followedVerdicts.length > 0 || followedSotd.length > 0 || followedHave.length > 0) ? (
               <View style={s.section}>
                 <SectionHeader title="Nez que tu suis" subtitle="Cette semaine" />
                 {followedSotd.length > 0 ? (
@@ -144,6 +184,23 @@ export default function CommunautePage() {
                       <Text style={s.activityPseudo}>@{v.pseudo}</Text>
                       {v.verdict === 'love' ? ' adore ' : v.verdict === 'like' ? ' aime ' : v.verdict === 'meh' ? ' mitigé sur ' : ' n\u2019aime pas '}
                       <Text style={s.activityParfum}>{v.marque} {v.nom}</Text>
+                    </Text>
+                  </Pressable>
+                ))}
+                {followedHave.map((h, i) => (
+                  <Pressable key={`h-${h.pseudo}-${h.parfum_id}-${i}`} style={s.activityRow} onPress={() => handleParfumPress({ parfum_id: h.parfum_id, nom: h.nom, marque: h.marque, image_url: h.image_url, famille_olfactive: null, best_price: null })} accessibilityRole="button">
+                    {h.avatar_url ? (
+                      <Image source={{ uri: h.avatar_url }} style={s.activityAvatar} contentFit="cover" transition={200} />
+                    ) : (
+                      <View style={[s.activityAvatar, s.activityAvatarPlaceholder]}>
+                        <Text allowFontScaling={false} style={s.activityInitial}>{h.pseudo.charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <Text style={s.activityText} numberOfLines={2} maxFontSizeMultiplier={1.3}>
+                      <Text style={s.activityPseudo}>@{h.pseudo}</Text>
+                      {' a ajouté '}
+                      <Text style={s.activityParfum}>{h.marque} {h.nom}</Text>
+                      {' à sa parfumerie'}
                     </Text>
                   </Pressable>
                 ))}
@@ -329,5 +386,13 @@ function getStyles(t: Theme) {
     activityText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, lineHeight: 18 },
     activityPseudo: { fontFamily: 'Inter_600SemiBold', color: t.colors.text },
     activityParfum: { fontFamily: 'Inter_500Medium', color: t.colors.text },
+
+    suggestionsBox: { marginHorizontal: 16, marginTop: 4, backgroundColor: t.colors.surface, borderRadius: t.radius.base, borderWidth: 1, borderColor: t.colors.border, overflow: 'hidden' as const },
+    suggestionRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
+    suggestionAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: t.colors.surface2 },
+    suggestionAvatarPlaceholder: { justifyContent: 'center' as const, alignItems: 'center' as const, backgroundColor: t.colors.primarySoft },
+    suggestionInitial: { fontFamily: 'Inter_700Bold', fontSize: 12, color: t.colors.primaryInk },
+    suggestionPseudo: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14, color: t.colors.text },
+    suggestionCount: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted },
   } as const;
 }

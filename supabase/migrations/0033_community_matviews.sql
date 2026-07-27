@@ -17,6 +17,7 @@ select
   f.best_price,
   count(*)::int as love_count
 from public.favoris f
+where f.added_at > now() - interval '90 days'
 group by f.parfum_id, f.nom, f.marque, f.image_url, f.famille_olfactive, f.best_price
 having count(*) >= 3
 order by count(*) desc

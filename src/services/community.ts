@@ -189,3 +189,24 @@ export async function getFollowedHighlights(): Promise<FollowedHighlights | null
     return null;
   }
 }
+
+export interface ProfileSearchResult {
+  pseudo: string;
+  avatar_url: string | null;
+  collection_count: number;
+}
+
+export async function searchProfiles(prefix: string, limit = 5): Promise<ProfileSearchResult[]> {
+  try {
+    const { data, error } = await supabase.rpc('search_profiles', { p_prefix: prefix, lim: limit });
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      pseudo: (row.pseudo as string) ?? '',
+      avatar_url: (row.avatar_url as string) ?? null,
+      collection_count: Number(row.collection_count ?? 0),
+    }));
+  } catch (e: unknown) {
+    console.warn('[community] searchProfiles failed:', (e as Error)?.message ?? String(e));
+    return [];
+  }
+}
