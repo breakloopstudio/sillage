@@ -121,6 +121,23 @@ export function getPublicProfile(pseudo: string): Promise<PublicProfile | null>;
 export function getPublicCollection(pseudo: string): Promise<PublicCollectionItem[]>; // RPC public_collection (notes perso exclues)
 ```
 
+### `src/services/community.ts`
+```ts
+// Communauté — vitrine, verdicts publics, follow (RPC + cache mémoire 1h)
+export function getCommunityHighlights(): Promise<CommunityHighlights>;
+// RPC community_highlights : top_loved, trending, public_profiles, sotd_today
+export function clearCommunityCache(): void;
+export function getParfumVerdicts(parfumId: string): Promise<ParfumVerdict[]>;
+// RPC parfum_verdicts : profils publics ayant un verdict sur ce parfum
+export function followByPseudo(pseudo: string): Promise<void>;
+export function unfollowByPseudo(pseudo: string): Promise<void>;
+export function isFollowing(pseudo: string): Promise<boolean>;
+export function getPublicFollowers(pseudo: string, limit?: number): Promise<FollowEntry[]>;
+export function getPublicFollowing(pseudo: string, limit?: number): Promise<FollowEntry[]>;
+export function getFollowedHighlights(): Promise<FollowedHighlights | null>;
+// RPC followed_highlights (authenticated) : SOTD + verdicts + nouveaux « have » des suivis
+```
+
 ### `src/services/theme-storage.ts`
 ```ts
 // Persistance de la préférence de thème dans AsyncStorage
@@ -333,6 +350,15 @@ export function usePublicProfile(pseudo: string | null): {
   profile: PublicProfile | null;
   collection: PublicCollectionItem[];
   loading: boolean;
+};
+```
+
+### `useCommunityHighlights()` — `src/hooks/useCommunityHighlights.ts`
+```ts
+// Vitrine communauté (cache mémoire 1h) — top aimés, tendances, profils, SOTD
+export function useCommunityHighlights(): CommunityHighlights & {
+  loading: boolean;
+  error: string | null;
 };
 ```
 

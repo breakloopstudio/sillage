@@ -2,15 +2,18 @@
 // Cible du deep link parfumscan://u/<pseudo> et du partage de collection.
 // Accessible sans authentification (données publiques uniquement).
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, ActivityIndicator, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
+import { useAuthContext } from '../../src/contexts/AuthContext';
 import { usePublicProfile } from '../../src/hooks/usePublicProfile';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
+import { followByPseudo, unfollowByPseudo, isFollowing } from '../../src/services/community';
+import { hapticsLight, hapticsSuccess } from '../../src/services/haptics';
 import ParfumCard from '../../src/components/ParfumCard';
 import type { PublicCollectionItem, Parfum } from '../../src/models';
 
@@ -30,10 +33,44 @@ export default function PublicProfilePage() {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
+  const { isAuthenticated } = useAuthContext();
   const { profile, collection, loading } = usePublicProfile(pseudo ?? null);
   const [imgFailed, setImgFailed] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!pseudo || !isAuthenticated) return;
+    isFollowing(pseudo).then((v) => { if (mountedRef.current) setFollowing(v); });
+  }, [pseudo, isAuthenticated]);
 
   const handleBack = useCallback(() => { router.back(); }, [router]);
+
+  const handleFollow = useCallback(async () => {
+    if (!pseudo) return;
+    hapticsLight();
+    setFollowLoading(true);
+    try {
+      if (following) {
+        await unfollowByPseudo(pseudo);
+        setFollowing(false);
+      } else {
+        await followByPseudo(pseudo);
+        setFollowing(true);
+        hapticsSuccess();
+      }
+    } catch (e: unknown) {
+      console.warn('[u/pseudo] follow failed:', (e as Error)?.message ?? String(e));
+    } finally {
+      if (mountedRef.current) setFollowLoading(false);
+    }
+  }, [pseudo, following]);
 
   const handleCardPress = useCallback((item: PublicCollectionItem) => {
     setPendingParfum(publicItemToCard(item));
@@ -101,9 +138,32 @@ export default function PublicProfilePage() {
         )}
         <Text style={s.pseudo}>@{profile.pseudo}</Text>
         {profile.bio ? <Text style={s.bio}>{profile.bio}</Text> : null}
-        <Text style={s.count} allowFontScaling={false}>
-          {profile.collectionCount} parfum{profile.collectionCount > 1 ? 's' : ''}
-        </Text>
+        <View style={s.statsRow}>
+          <Text style={s.statItem} allowFontScaling={false}>
+            {profile.collectionCount} parfum{profile.collectionCount > 1 ? 's' : ''}
+          </Text>
+          <Text style={s.statDot}>·</Text>
+          <Text style={s.statItem} allowFontScaling={false}>{profile.followerCount} abonné{profile.followerCount > 1 ? 's' : ''}</Text>
+          <Text style={s.statDot}>·</Text>
+          <Text style={s.statItem} allowFontScaling={false}>{profile.followingCount} suivi{profile.followingCount > 1 ? 's' : ''}</Text>
+        </View>
+        {isAuthenticated ? (
+          <Pressable
+            style={[s.followBtn, following && s.followBtnActive]}
+            onPress={handleFollow}
+            disabled={followLoading}
+            accessibilityRole="button"
+            accessibilityLabel={following ? 'Ne plus suivre' : 'Suivre'}
+          >
+            {followLoading ? (
+              <ActivityIndicator size="small" color={following ? theme.colors.primary : '#FFFFFF'} />
+            ) : (
+              <Text style={[s.followBtnText, following && s.followBtnTextActive]} allowFontScaling={false}>
+                {following ? 'Suivi' : 'Suivre'}
+              </Text>
+            )}
+          </Pressable>
+        ) : null}
       </View>
       {collection.length === 0 ? (
         <View style={s.emptyWrap}>
@@ -158,7 +218,16 @@ function getStyles(t: Theme) {
     avatarInitial: { fontFamily: 'Inter_700Bold', fontSize: 34, color: t.colors.primaryInk },
     pseudo: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text, marginTop: 12 },
     bio: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, textAlign: 'center' as const, marginTop: 4, paddingHorizontal: 32 },
-    count: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.textMuted, marginTop: 8 },
+    statsRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginTop: 8 },
+    statItem: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted },
+    statDot: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.border },
+    followBtn: {
+      marginTop: 14, paddingHorizontal: 28, paddingVertical: 10, minHeight: 44,
+      borderRadius: 22, backgroundColor: t.colors.primary, justifyContent: 'center' as const, alignItems: 'center' as const,
+    },
+    followBtnActive: { backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.border },
+    followBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#FFFFFF' },
+    followBtnTextActive: { color: t.colors.text },
 
     content: { paddingHorizontal: 16, paddingBottom: 40 },
     row: { gap: 8, marginBottom: 8 },

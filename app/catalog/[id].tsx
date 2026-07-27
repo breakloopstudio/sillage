@@ -31,6 +31,8 @@ import ParfumCard from '../../src/components/ParfumCard';
 import DetailHero from '../../src/features/catalog/DetailHero';
 import CollapsingHeader from '../../src/features/catalog/CollapsingHeader';
 import StickyBottomBar from '../../src/features/catalog/StickyBottomBar';
+import CommunityVerdicts, { VerdictProfilesSheet } from '../../src/features/catalog/CommunityVerdicts';
+import type { ParfumVerdict } from '../../src/services/community';
 
 import { SEASON_ORDER, SEASON_META, normalizeSeasonKey, type SeasonKey } from '../../src/utils/season';
 
@@ -178,6 +180,8 @@ export default function CatalogDetailPage() {
   const [imgFailed, setImgFailed] = useState(false);
   const [similars, setSimilars] = useState<Parfum[]>([]);
   const [similarsLoading, setSimilarsLoading] = useState(false);
+  const [verdictProfiles, setVerdictProfiles] = useState<ParfumVerdict[]>([]);
+  const [showVerdictSheet, setShowVerdictSheet] = useState(false);
   const loadingRef = useRef(false);
   const scrollY = useSharedValue(0);
   const priceSectionY = useSharedValue(9999);
@@ -304,6 +308,8 @@ export default function CatalogDetailPage() {
   const handleNotePress = useCallback((note: string, layer?: 'top' | 'heart' | 'base' | null) => setSelectedNote({ name: note, layer: layer ?? null }), []);
   const handleNotePopupClose = useCallback(() => setSelectedNote(null), []);
   const handleImageViewerClose = useCallback(() => setShowImageViewer(false), []);
+  const handleOpenVerdictProfiles = useCallback((v: ParfumVerdict[]) => { setVerdictProfiles(v); setShowVerdictSheet(true); }, []);
+  const handleCloseVerdictSheet = useCallback(() => setShowVerdictSheet(false), []);
 
   const heroUrl = parfum?.imageUrl ?? null;
   const heroUrl2x = parfum?.imageUrl2x ?? null;
@@ -570,6 +576,9 @@ export default function CatalogDetailPage() {
                   </View>
                 ) : null}
 
+                {/* ─── La communauté (verdicts publics) ─── */}
+                {parfum ? <CommunityVerdicts parfumId={parfum.id} onOpenProfiles={handleOpenVerdictProfiles} /> : null}
+
                 {/* ─── Dans le même esprit (recommandations) ─── */}
                 {similars.length > 0 ? (
                   <View style={s.infoZone}>
@@ -646,6 +655,11 @@ export default function CatalogDetailPage() {
         brand={parfum?.marque ?? ''}
         name={parfum?.nom ?? ''}
         onClose={handleImageViewerClose}
+      />
+      <VerdictProfilesSheet
+        visible={showVerdictSheet}
+        verdicts={verdictProfiles}
+        onClose={handleCloseVerdictSheet}
       />
     </>
   );

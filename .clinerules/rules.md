@@ -17,11 +17,11 @@ app/
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
 │   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills Tous/À traiter/Alertes, long-press FavoriSheet, prix visibles)
 │   ├── collection.tsx        # Ma Parfumerie (user_parfum uniquement, pills statut + filtre ♥, grille ParfumCard prix masqué + badge 🔔, long-press StatuerSheet)
-│   └── communaute.tsx        # Communauté (placeholder « Bientôt », sans auth)
+│   └── communaute.tsx        # Communauté (vitrine publique : top aimés, tendances, collections, SOTD, recherche pseudo + « Nez que tu suis » si connecté)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
-├── catalog/[id].tsx          # Fiche unifiée v8.1 (DetailHero + section « Ma relation » via RelationSection, CollapsingHeader, StickyBottomBar, pyramide, prix, signature nez, « Quand le porter », « Dans le même esprit »)
+├── catalog/[id].tsx          # Fiche unifiée v8.1 (DetailHero + section « Ma relation » via RelationSection, section « La communauté » via CommunityVerdicts, CollapsingHeader, StickyBottomBar, pyramide, prix, signature nez, « Quand le porter », « Dans le même esprit »)
 ├── wardrobe/[parfumId].tsx   # Redirect vers /catalog/[parfumId] (fiche unifiée v8.1)
 ├── perfumer/[name].tsx       # Créations d'un nez (signature dorée de la fiche détail, grille densité partagée)
 ├── brand/[name].tsx          # Catalogue d'une maison (chip « La maison » de la fiche détail ; tri cyclique + filtre famille + densité partagée)
@@ -31,7 +31,7 @@ app/
 ├── history.tsx               # Historique des scans (route racine, poussée depuis Profil)
 ├── profile.tsx               # Profil (route racine, poussée depuis l'avatar en haut à droite dans SearchChrome — identité, stats, SOTD, navigation, déconnexion)
 ├── scentlist.tsx             # Redirection /scentlist → /(tabs)/collection (deep links ; JAMAIS dans (tabs)/ — cf. §5)
-├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, cible du deep link parfumscan://u/<pseudo>)
+├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, bouton Suivre si connecté, cible du deep link parfumscan://u/<pseudo>)
 ├── legal.tsx                 # Mentions légales
 ├── privacy.tsx               # Politique de confidentialité
 ├── privacy-center.tsx        # Centre de confidentialité
@@ -39,14 +39,14 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (15)        # supabase, catalog, user-data, user-parfum, possessions, profile, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/     (16)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (18)        # useAuth, useCatalog, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── hooks/        (19)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
 ├── contexts/     (2)         # AuthContext, FavorisContext (source de vérité favoris temps réel partagée — ThemeContext est dans src/theme/)
 ├── components/   (19)        # ParfumCard (badges statut/rating/🔔 optionnels, hidePrice), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in)
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
-│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
+│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
 │   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 4 onglets + FAB Scan central) + NavigationChromeContext
 │   ├── runner/               # Flacon Runner (easter egg, cf. §17)
 │   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)

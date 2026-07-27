@@ -64,6 +64,8 @@ export async function getPublicProfile(pseudo: string): Promise<PublicProfile | 
       bio: (row.bio as string) ?? null,
       createdAt: toDate(row.created_at) ?? new Date(),
       collectionCount: toNum(row.collection_count) ?? 0,
+      followerCount: toNum(row.follower_count) ?? 0,
+      followingCount: toNum(row.following_count) ?? 0,
     };
   } catch (e: unknown) {
     console.warn('[profile] getPublicProfile failed:', (e as Error)?.message ?? String(e));

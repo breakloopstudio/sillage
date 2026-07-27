@@ -18,6 +18,8 @@ export interface PublicProfile {
   bio: string | null;
   createdAt: Date;
   collectionCount: number;
+  followerCount: number;
+  followingCount: number;
 }
 
 /** Item de la collection publique (RPC `public_collection`) — notes perso exclues. */

@@ -29,7 +29,7 @@
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
 | ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix (cible custom + historique) |
 | ❤️ **Favoris** | Onglet dédié (couche intention) : tous les coups de cœur, section « Tes alertes », pills (Tous · À traiter · Alertes), alertes prix v2 (cible custom pré-remplie, badge 🔔), long-press `FavoriSheet` (fiche · alerte · graduation vers la Parfumerie) |
-| 👥 **Communauté (Phase 1)** | Profils publics opt-in (pseudo + bio + collection visible), partage fiches/collection/SOTD via landing SSR (aperçu riche + store), route publique `/u/[pseudo]` — feed & follow à venir |
+| 👥 **Communauté** | Vitrine publique (top aimés, tendances 7j, collections à découvrir, SOTD du jour, recherche pseudo), verdicts publics sur la fiche (« Adoré par @x, @y »), follow asymétrique (bouton Suivre + compteurs), activité des suivis (« Nez que tu suis »), profils publics opt-in, partage landing SSR (OG + deep link) |
 | ⚙️ **Paramètres** | Alertes prix, devise EUR, notifs push, mentions légales |
 | 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (swap progressif image HD upscale ×4), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
 | 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |

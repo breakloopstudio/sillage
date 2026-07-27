@@ -803,7 +803,16 @@ export type Database = {
         Args: { p_kind: string; p_max: number }
         Returns: undefined
       }
+      community_highlights: { Args: never; Returns: Json }
       delete_shelf: { Args: { p_shelf_id: string }; Returns: undefined }
+      parfum_verdicts: {
+        Args: { p_parfum_id: string }
+        Returns: {
+          pseudo: string
+          avatar_url: string
+          verdict: Database["public"]["Enums"]["scent_verdict"]
+        }[]
+      }
       export_user_data: { Args: never; Returns: Json }
       family_overviews: {
         Args: { p_buckets: Json; p_top?: number }
@@ -897,8 +906,22 @@ export type Database = {
           bio: string
           collection_count: number
           created_at: string
+          follower_count: number
+          following_count: number
           pseudo: string
         }[]
+      }
+      follow_by_pseudo: { Args: { p_pseudo: string }; Returns: undefined }
+      followed_highlights: { Args: never; Returns: Json }
+      unfollow_by_pseudo: { Args: { p_pseudo: string }; Returns: undefined }
+      is_following: { Args: { p_pseudo: string }; Returns: boolean }
+      public_followers: {
+        Args: { p_pseudo: string; lim?: number }
+        Returns: { pseudo: string; avatar_url: string }[]
+      }
+      public_following: {
+        Args: { p_pseudo: string; lim?: number }
+        Returns: { pseudo: string; avatar_url: string }[]
       }
       search_parfums: {
         Args: { max_results?: number; q: string }
