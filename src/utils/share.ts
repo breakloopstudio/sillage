@@ -19,6 +19,10 @@ export function profileShareUrl(pseudo: string): string {
   return `${landingBase()}?type=profile&pseudo=${encodeURIComponent(pseudo)}`;
 }
 
+export function shelfShareUrl(pseudo: string, shelfId: string): string {
+  return `${landingBase()}?type=shelf&pseudo=${encodeURIComponent(pseudo)}&shelf=${encodeURIComponent(shelfId)}`;
+}
+
 // Deep links — embarqués dans la page landing (ouverture de l'app installée).
 export function parfumDeepLink(parfumId: string): string {
   return `${APP_SCHEME}://catalog/${encodeURIComponent(parfumId)}`;
@@ -26,6 +30,10 @@ export function parfumDeepLink(parfumId: string): string {
 
 export function profileDeepLink(pseudo: string): string {
   return `${APP_SCHEME}://u/${encodeURIComponent(pseudo)}`;
+}
+
+export function shelfDeepLink(pseudo: string, shelfId: string): string {
+  return `${APP_SCHEME}://u/${encodeURIComponent(pseudo)}/shelf/${encodeURIComponent(shelfId)}`;
 }
 
 // ── Identité publique (pseudo) ──────────────────────────────────────────────

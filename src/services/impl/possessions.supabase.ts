@@ -60,7 +60,7 @@ export async function addPossession(
     return (data as { id: string }).id;
   } catch (e: unknown) {
     console.warn('[possessions] addPossession failed:', (e as Error)?.message ?? String(e));
-    return '';
+    throw e;
   }
 }
 
@@ -84,6 +84,7 @@ export async function updatePossession(
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[possessions] updatePossession failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -97,5 +98,6 @@ export async function removePossession(uid: string, possessionId: string): Promi
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[possessions] removePossession failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }

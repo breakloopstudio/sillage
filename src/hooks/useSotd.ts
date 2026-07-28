@@ -8,7 +8,7 @@ export function useSotd(uid: string | null) {
   const [sotd, setSotdState] = useState<SotdEntry | null>(null);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
     if (!uid) { setSotdState(null); return; }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { addUserParfum, updateUserParfum, markTried as markTriedService, removeUserParfum, getUserParfum } from '../../services/user-parfum';
@@ -31,6 +31,8 @@ export function useSaveController(parfum: Parfum | null) {
   const [showSaveSheet, setShowSaveSheet] = useState(false);
   const [showTrySheet, setShowTrySheet] = useState(false);
   const [trySheetSaving, setTrySheetSaving] = useState(false);
+  const itemRef = useRef<UserParfum | null>(null);
+  itemRef.current = item;
 
   useEffect(() => {
     if (!uid || !id) { setItem(null); return; }
@@ -61,7 +63,7 @@ export function useSaveController(parfum: Parfum | null) {
 
   const setStatus = useCallback(async (status: UserParfumStatus) => {
     if (!uid || !id || !parfum) return;
-    const prev = item;
+    const prev = itemRef.current;
     setItem(p => p
       ? { ...p, status, updatedAt: new Date() }
       : {
@@ -76,28 +78,27 @@ export function useSaveController(parfum: Parfum | null) {
     } else {
       await addUserParfum(uid, id, status, parfum).catch(() => setItem(prev));
     }
-  }, [uid, id, parfum, item]);
+  }, [uid, id, parfum]);
 
   const setVerdict = useCallback((verdict: ScentVerdict) => {
     if (!uid || !id) return;
-    const prev = item;
-    if (!item) return;
-    const wasTried = item.status === 'tried' || item.status === 'want' || item.status === 'have' || item.status === 'had';
+    const prev = itemRef.current;
+    if (!prev) return;
     setItem(p => (p ? { ...p, verdict, triedAt: p.triedAt ?? new Date(), status: p.status === 'to_try' ? 'tried' : p.status } : p));
-    if (item.status === 'to_try') {
-      markTriedService(uid, id, { verdict, rating: item.rating, notes: item.notes }).catch(() => setItem(prev));
+    if (prev.status === 'to_try') {
+      markTriedService(uid, id, { verdict, rating: prev.rating, notes: prev.notes }).catch(() => setItem(prev));
     } else {
       updateUserParfum(uid, id, { verdict }).catch(() => setItem(prev));
     }
-  }, [uid, id, item]);
+  }, [uid, id]);
 
   const remove = useCallback(() => {
     if (!uid || !id) return;
-    const prev = item;
+    const prev = itemRef.current;
     setItem(null);
     setShowTrySheet(false);
     removeUserParfum(uid, id).catch(() => setItem(prev));
-  }, [uid, id, item]);
+  }, [uid, id]);
 
   const addToTry = useCallback(() => {
     if (!uid || !id || !parfum) return;
@@ -107,42 +108,43 @@ export function useSaveController(parfum: Parfum | null) {
   const addPoss = useCallback(async (type: PossessionType, sizeMl?: number | null) => {
     if (!uid || !id) return;
     await addPossession(uid, id, type, sizeMl);
-    if (!item || item.status === 'to_try' || item.status === 'tried' || item.status === 'want') {
+    const cur = itemRef.current;
+    if (!cur || cur.status === 'to_try' || cur.status === 'tried' || cur.status === 'want') {
       await setStatus('have');
     }
-  }, [uid, id, item, setStatus]);
+  }, [uid, id, setStatus]);
 
   const setRating = useCallback((rating: number | null) => {
-    if (!uid || !id || !item) return;
-    const prev = item;
+    if (!uid || !id || !itemRef.current) return;
+    const prev = itemRef.current;
     setItem(p => (p ? { ...p, rating, updatedAt: new Date() } : p));
     updateUserParfum(uid, id, { rating }).catch(() => setItem(prev));
-  }, [uid, id, item]);
+  }, [uid, id]);
 
   const setNotes = useCallback((notes: string | null) => {
-    if (!uid || !id || !item) return;
-    const prev = item;
+    if (!uid || !id || !itemRef.current) return;
+    const prev = itemRef.current;
     setItem(p => (p ? { ...p, notes, updatedAt: new Date() } : p));
     updateUserParfum(uid, id, { notes }).catch(() => setItem(prev));
-  }, [uid, id, item]);
+  }, [uid, id]);
 
   const toggleShelf = useCallback((shelfId: string) => {
-    if (!uid || !id || !item) return;
-    const prev = item;
-    const next = item.shelfIds.includes(shelfId)
-      ? item.shelfIds.filter(s => s !== shelfId)
-      : [...item.shelfIds, shelfId];
+    if (!uid || !id || !itemRef.current) return;
+    const prev = itemRef.current;
+    const next = prev.shelfIds.includes(shelfId)
+      ? prev.shelfIds.filter(s => s !== shelfId)
+      : [...prev.shelfIds, shelfId];
     setItem(p => (p ? { ...p, shelfIds: next, updatedAt: new Date() } : p));
     updateUserParfum(uid, id, { shelfIds: next }).catch(() => setItem(prev));
-  }, [uid, id, item]);
+  }, [uid, id]);
 
   const toggleSignature = useCallback(() => {
-    if (!uid || !id || !item) return;
-    const prev = item;
-    const next = !item.isSignature;
+    if (!uid || !id || !itemRef.current) return;
+    const prev = itemRef.current;
+    const next = !prev.isSignature;
     setItem(p => (p ? { ...p, isSignature: next, updatedAt: new Date() } : p));
     updateUserParfum(uid, id, { isSignature: next }).catch(() => setItem(prev));
-  }, [uid, id, item]);
+  }, [uid, id]);
 
   const openFullNotes = useCallback(() => {
     setShowSaveSheet(false);
@@ -152,8 +154,9 @@ export function useSaveController(parfum: Parfum | null) {
   const handleTrySheetSave = useCallback(async (data: TrySheetSaveData) => {
     if (!uid || !id) return;
     setTrySheetSaving(true);
+    const cur = itemRef.current;
     try {
-      if (item && (item.status === 'tried' || item.status === 'want' || item.status === 'have' || item.status === 'had')) {
+      if (cur && (cur.status === 'tried' || cur.status === 'want' || cur.status === 'have' || cur.status === 'had')) {
         await updateUserParfum(uid, id, { verdict: data.verdict, rating: data.rating, notes: data.notes });
         setItem(prev => (prev ? { ...prev, verdict: data.verdict, rating: data.rating, notes: data.notes } : null));
       } else {
@@ -171,7 +174,7 @@ export function useSaveController(parfum: Parfum | null) {
       setTrySheetSaving(false);
       setShowTrySheet(false);
     }
-  }, [uid, id, item]);
+  }, [uid, id]);
 
   return {
     item, saveLabel,

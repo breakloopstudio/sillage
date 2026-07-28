@@ -24,6 +24,7 @@ interface Props {
   parfum: Parfum;
   mode?: CardMode;
   onPressOverride?: () => void;
+  onLongPress?: () => void;
   status?: UserParfumStatus | null;
   rating?: number | null;
   hidePrice?: boolean;
@@ -39,38 +40,21 @@ function getDiscount(p: Parfum): number | null {
   return null;
 }
 
-type PriceTier = 'deal' | 'fair' | 'overpriced' | null;
-function getPriceTier(p: Parfum): PriceTier {
-  if (typeof p.bestPrice !== 'number' || p.bestPrice <= 0) return null;
-  if (typeof p.referencePrice === 'number' && p.referencePrice > 0) {
-    const ratio = p.bestPrice / p.referencePrice;
-    if (ratio <= 0.8) return 'deal';
-    if (ratio >= 1.15) return 'overpriced';
-    if (ratio <= 0.95) return 'fair';
-  }
-  return null;
-}
-
-const PALETTE = ['#5B21B6','#1E40AF','#065F46','#92400E','#991B1B','#9D174D','#3730A3','#854D0E'];
-
-function brandColor(brand: string): string {
-  let hash = 0;
-  for (let i = 0; i < brand.length; i++) hash = brand.charCodeAt(i) + ((hash << 5) - hash);
-  return PALETTE[Math.abs(hash) % PALETTE.length];
-}
+import { priceTier } from '../utils/price-tier';
+import { brandColor } from '../utils/brand-color';
 
 function resolveImageUrl(p: Parfum): string | null {
   return p.imageUrl ?? null;
 }
 
-export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, status, rating, hidePrice = false, priceAlert = null }: Props) {
+export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress, status, rating, hidePrice = false, priceAlert = null }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const [imgFailed, setImgFailed] = useState(false);
 
   const discount = hidePrice ? null : getDiscount(parfum);
-  const priceTier = getPriceTier(parfum);
+  const tier = priceTier(parfum.bestPrice, parfum.referencePrice);
   const bestPrice = parfum.bestPrice ?? null;
   const imageUrl = resolveImageUrl(parfum);
   const hasImage = imageUrl !== null;
@@ -128,7 +112,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
   if (mode === 'compact') {
     const a11yLabelCompact = [parfum.nom, parfum.marque, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : ''].filter(Boolean).join(', ');
     return (
-      <Pressable style={s.cardCompact} onPress={goToDetail} accessible={true} accessibilityLabel={a11yLabelCompact} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
+      <Pressable style={s.cardCompact} onPress={goToDetail} onLongPress={onLongPress} delayLongPress={400} accessible={true} accessibilityLabel={a11yLabelCompact} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
         {showImage ? (
           <View style={s.imgWrapCompact}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
@@ -147,7 +131,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
           <Text style={s.titleCompact} numberOfLines={2} ellipsizeMode="tail">{parfum.nom}</Text>
         </View>
         {!hidePrice ? (<View style={s.priceRowCompact}>
-          {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
+          {tier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[tier] }]} />}
           {bestPrice !== null ? (
             <>
               <Text style={s.priceCompact}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
@@ -170,6 +154,8 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
       <Pressable
         style={s.cardComfortable}
         onPress={goToDetail}
+        onLongPress={onLongPress}
+        delayLongPress={400}
         accessible={true}
         accessibilityLabel={a11yLabel}
         accessibilityHint="Appuyez pour voir le détail du parfum"
@@ -206,7 +192,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             <Text style={s.notesText} numberOfLines={1}>{parfum.notesTete!.slice(0, 3).map(translateNote).join(' · ')}</Text>
           )}
           {!hidePrice ? (<View style={s.priceRowComfortable}>
-            {priceTier && <View style={[s.priceDot, { backgroundColor: theme.colors[priceTier] }]} />}
+            {tier && <View style={[s.priceDot, { backgroundColor: theme.colors[tier] }]} />}
             {bestPrice !== null ? (
               <>
                 <Text style={s.priceComfortable} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
@@ -230,6 +216,8 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
       <Pressable
         style={s.cardCompactPlus}
         onPress={goToDetail}
+        onLongPress={onLongPress}
+        delayLongPress={400}
         accessible={true}
         accessibilityLabel={a11yLabelCompact}
         accessibilityHint="Appuyez pour voir le détail du parfum"
@@ -260,7 +248,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             <View style={s.tagsCompact} />
           )}
           {!hidePrice ? (<View style={s.priceRowCompactPlus}>
-            {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
+            {tier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[tier] }]} />}
             {bestPrice !== null ? (
               <>
                 <Text style={s.priceCompactPlus} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
@@ -284,6 +272,8 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
       <Pressable
         style={s.cardList}
         onPress={goToDetail}
+        onLongPress={onLongPress}
+        delayLongPress={400}
         accessible={true}
         accessibilityLabel={a11yLabelList}
         accessibilityHint="Appuyez pour voir le détail du parfum"
@@ -316,7 +306,7 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         </View>
         {!hidePrice ? (<View style={s.priceColList}>
           <View style={s.priceRowList}>
-            {priceTier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[priceTier] }]} />}
+            {tier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[tier] }]} />}
             {bestPrice !== null ? (
               <Text style={s.priceList} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
             ) : (

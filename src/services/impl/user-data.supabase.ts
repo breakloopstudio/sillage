@@ -143,6 +143,7 @@ export async function saveScan(uid: string, scanData: Omit<UserScan, 'id' | 'sca
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] saveScan failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -156,6 +157,7 @@ export async function removeScan(uid: string, scanId: string): Promise<void> {
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] removeScan failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -207,6 +209,7 @@ export async function updateUserSetting(uid: string, key: 'priceAlerts' | 'pushN
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] updateUserSetting failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -220,6 +223,7 @@ export async function saveWeatherCoords(uid: string, lat: number, lon: number): 
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-data] saveWeatherCoords failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -272,6 +276,7 @@ export async function setPriceAlert(uid: string, parfumId: string, active: boole
       if (error) throw error;
     } catch (e: unknown) {
       console.warn('[user-data] setPriceAlert upsert failed:', (e as Error)?.message ?? String(e));
+      throw e;
     }
   } else {
     try {
@@ -280,9 +285,10 @@ export async function setPriceAlert(uid: string, parfumId: string, active: boole
         .delete()
         .eq('user_id', uid)
         .eq('parfum_id', parfumId);
-      if (error) console.warn('[user-data] setPriceAlert delete:', error.message);
-    } catch {
-      // silencieux — parité firebase setPriceAlert deleteDoc().catch(() => {})
+      if (error) throw error;
+    } catch (e: unknown) {
+      console.warn('[user-data] setPriceAlert delete failed:', (e as Error)?.message ?? String(e));
+      throw e;
     }
   }
 }

@@ -49,7 +49,7 @@ export function ScanScreen() {
   }, []);
 
   // Pipeline métier : GPT-4o → recherche → résultats → historique
-  const { startAnalysis } = useScanPipeline(dispatch, user?.uid ?? null, mountedRef);
+  const { startAnalysis, cancelAnalysis } = useScanPipeline(dispatch, user?.uid ?? null, mountedRef);
 
   const guardOnline = useCallback((): boolean => {
     if (isOnline) return true;
@@ -65,8 +65,8 @@ export function ScanScreen() {
   }, [dispatch]);
 
   const handleCancelScan = useCallback(() => {
-    dispatch({ type: 'RESET' });
-  }, [dispatch]);
+    cancelAnalysis();
+  }, [cancelAnalysis]);
 
   const handleOpenCamera = useCallback(async () => {
     if (!guardOnline()) return;

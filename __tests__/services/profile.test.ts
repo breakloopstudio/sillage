@@ -1,6 +1,7 @@
 import { supabase } from '../../src/services/supabase';
 import {
   getMyProfile, upsertMyProfile, getPublicProfile, getPublicCollection,
+  getPublicShelf, getPublicShelfItems,
 } from '../../src/services/profile';
 
 const mockFrom = supabase.from as jest.Mock;
@@ -106,5 +107,42 @@ describe('getPublicCollection', () => {
   it('returns [] on error', async () => {
     mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
     expect(await getPublicCollection('john')).toEqual([]);
+  });
+});
+
+describe('getPublicShelf', () => {
+  it('maps the RPC row (item_count numeric string coerced)', async () => {
+    mockRpc.mockResolvedValue({ data: [{ shelf_id: 's1', name: 'Boisés', description: 'd', color: '#fff', icon: 'leaf', item_count: '7', pseudo: 'john', avatar_url: null, bio: 'b' }], error: null });
+    const sh = await getPublicShelf('john', 's1');
+    expect(mockRpc).toHaveBeenCalledWith('public_shelf', { p_pseudo: 'john', p_shelf_id: 's1' });
+    expect(sh?.shelfId).toBe('s1');
+    expect(sh?.name).toBe('Boisés');
+    expect(sh?.itemCount).toBe(7);
+    expect(sh?.pseudo).toBe('john');
+  });
+
+  it('returns null for a private/unknown shelf (empty RPC result)', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    expect(await getPublicShelf('john', 'nope')).toBeNull();
+  });
+});
+
+describe('getPublicShelfItems', () => {
+  it('maps RPC rows (best_price numeric string coerced; notes perso absentes)', async () => {
+    mockRpc.mockResolvedValue({ data: [
+      { parfum_id: 'p1', nom: 'Sauvage', marque: 'Dior', image_url: null, famille_olfactive: 'woody', best_price: '89.99' },
+    ], error: null });
+    const items = await getPublicShelfItems('john', 's1');
+    expect(mockRpc).toHaveBeenCalledWith('public_shelf_items', { p_pseudo: 'john', p_shelf_id: 's1' });
+    expect(items).toHaveLength(1);
+    expect(items[0].parfumId).toBe('p1');
+    expect(items[0].nom).toBe('Sauvage');
+    expect(items[0].familleOlactive).toBe('woody');
+    expect(items[0].bestPrice).toBe(89.99);
+  });
+
+  it('returns [] on error', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    expect(await getPublicShelfItems('john', 's1')).toEqual([]);
   });
 });

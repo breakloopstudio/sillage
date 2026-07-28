@@ -1,6 +1,6 @@
 // src/services/impl/profile.supabase.ts — Profils publics (Supabase)
 
-import type { MyProfile, PublicProfile, PublicCollectionItem } from '../../models/profile.interface';
+import type { MyProfile, PublicProfile, PublicCollectionItem, PublicShelf, PublicShelfItem } from '../../models/profile.interface';
 import type { UserParfumStatus, ScentVerdict } from '../../models/user-parfum.interface';
 import { supabase } from '../supabase';
 import { toDate, toNum } from './sql-utils';
@@ -91,6 +91,47 @@ export async function getPublicCollection(pseudo: string): Promise<PublicCollect
     }));
   } catch (e: unknown) {
     console.warn('[profile] getPublicCollection failed:', (e as Error)?.message ?? String(e));
+    return [];
+  }
+}
+
+export async function getPublicShelf(pseudo: string, shelfId: string): Promise<PublicShelf | null> {
+  try {
+    const { data, error } = await supabase.rpc('public_shelf', { p_pseudo: pseudo, p_shelf_id: shelfId });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+    if (!row) return null;
+    return {
+      shelfId: (row.shelf_id as string) ?? shelfId,
+      name: (row.name as string) ?? '',
+      description: (row.description as string) ?? null,
+      color: (row.color as string) ?? null,
+      icon: (row.icon as string) ?? null,
+      itemCount: toNum(row.item_count) ?? 0,
+      pseudo: (row.pseudo as string) ?? pseudo,
+      avatarUrl: (row.avatar_url as string) ?? null,
+      bio: (row.bio as string) ?? null,
+    };
+  } catch (e: unknown) {
+    console.warn('[profile] getPublicShelf failed:', (e as Error)?.message ?? String(e));
+    return null;
+  }
+}
+
+export async function getPublicShelfItems(pseudo: string, shelfId: string): Promise<PublicShelfItem[]> {
+  try {
+    const { data, error } = await supabase.rpc('public_shelf_items', { p_pseudo: pseudo, p_shelf_id: shelfId });
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      parfumId: row.parfum_id as string,
+      nom: (row.nom as string) ?? null,
+      marque: (row.marque as string) ?? null,
+      imageUrl: (row.image_url as string) ?? null,
+      familleOlactive: (row.famille_olfactive as string) ?? null,
+      bestPrice: toNum(row.best_price) ?? undefined,
+    }));
+  } catch (e: unknown) {
+    console.warn('[profile] getPublicShelfItems failed:', (e as Error)?.message ?? String(e));
     return [];
   }
 }

@@ -49,6 +49,8 @@ body {
 .avatar { width: 88px; height: 88px; border-radius: 44px; object-fit: cover; margin: 4px auto 12px; display: block; background: #F3F1ED; }
 .avatar-ph { width: 88px; height: 88px; border-radius: 44px; margin: 4px auto 12px; display: flex; align-items: center; justify-content: center; background: #EDE7FB; color: #6C3ED9; font-size: 34px; font-weight: 700; }
 .bio { font-size: 14px; color: #6E6963; margin-bottom: 8px; }
+.author { font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: #6E6963; margin-bottom: 4px; }
+.tagline { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 15px; color: #6E6963; margin-bottom: 10px; }
 .count { font-size: 13px; color: #6E6963; margin-bottom: 16px; }
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 18px; }
 .gi { text-align: center; min-width: 0; }
@@ -180,6 +182,45 @@ function profileBody(prof: ProfileRow, items: CollectionRow[]): string {
 </div>`;
 }
 
+interface ShelfRow { shelf_id: string; name: string; description: string | null; item_count: number | string | null; pseudo: string; avatar_url: string | null; bio: string | null; }
+interface ShelfItemRow { parfum_id: string; nom: string | null; marque: string | null; image_url: string | null; }
+
+function shelfBody(shelf: ShelfRow, items: ShelfItemRow[]): string {
+  const initial = escapeHtml((shelf.pseudo || 'P').charAt(0).toUpperCase());
+  const avatar = shelf.avatar_url
+    ? `<img class="avatar" src="${escapeHtml(shelf.avatar_url)}" alt="">`
+    : `<div class="avatar-ph">${initial}</div>`;
+  const author = shelf.pseudo ? `<div class="author">@${escapeHtml(shelf.pseudo)}</div>` : '';
+  const tagline = shelf.description ? `<div class="tagline">${escapeHtml(shelf.description)}</div>` : '';
+  const bio = shelf.bio ? `<div class="bio">${escapeHtml(shelf.bio)}</div>` : '';
+  const count = Number(shelf.item_count ?? 0);
+  const grid = items.length > 0
+    ? `<div class="grid">${items.map((it) => `
+        <div class="gi">
+          ${it.image_url ? `<img src="${escapeHtml(it.image_url)}" alt="">` : '<div class="gi-ph"></div>'}
+          <span>${escapeHtml(it.nom || it.marque || '')}</span>
+        </div>`).join('')}
+      </div>`
+    : '';
+  return `
+<div class="wrap">
+  <div class="card">
+    <div class="body">
+      ${avatar}
+      ${author}
+      <h1 class="name">${escapeHtml(shelf.name)}</h1>
+      ${tagline}
+      ${bio}
+      <div class="count">${count} parfum${count > 1 ? 's' : ''} dans cette étagère</div>
+      ${grid}
+      <a class="cta" href="${APP_SCHEME}://u/${encodeURIComponent(shelf.pseudo)}/shelf/${encodeURIComponent(shelf.shelf_id)}">Voir sur ParfumScan</a>
+      <div class="store">${STORE_NOTE}</div>
+    </div>
+  </div>
+  <div class="footer">${FOOTER}</div>
+</div>`;
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -201,7 +242,8 @@ Deno.serve(async (req: Request) => {
     const desc = p.famille_olfactive
       ? `${p.famille_olfactive} — découvre ce parfum sur ParfumScan`
       : 'Découvre ce parfum sur ParfumScan';
-    return htmlResponse(page({ title, description: desc, image: p.image_url, url: req.url }, parfumBody(p)));
+    const canonical = `${url.origin}${url.pathname}?type=parfum&id=${encodeURIComponent(id)}`;
+    return htmlResponse(page({ title, description: desc, image: p.image_url, url: canonical }, parfumBody(p)));
   }
 
   if (type === 'profile') {
@@ -216,7 +258,26 @@ Deno.serve(async (req: Request) => {
     const items = ((colRes.data ?? []) as CollectionRow[]).slice(0, 8);
     const title = `${prof.pseudo} · ParfumScan`;
     const desc = prof.bio || `${Number(prof.collection_count ?? 0)} parfums dans sa parfumerie sur ParfumScan`;
-    return htmlResponse(page({ title, description: desc, image: prof.avatar_url, url: req.url }, profileBody(prof, items)));
+    const canonical = `${url.origin}${url.pathname}?type=profile&pseudo=${encodeURIComponent(pseudo)}`;
+    return htmlResponse(page({ title, description: desc, image: prof.avatar_url, url: canonical }, profileBody(prof, items)));
+  }
+
+  if (type === 'shelf') {
+    const pseudo = url.searchParams.get('pseudo');
+    const shelfId = url.searchParams.get('shelf');
+    if (!pseudo || !shelfId) return notFoundPage();
+    const [shelfRes, itemsRes] = await Promise.all([
+      supabase.rpc('public_shelf', { p_pseudo: pseudo, p_shelf_id: shelfId }),
+      supabase.rpc('public_shelf_items', { p_pseudo: pseudo, p_shelf_id: shelfId }),
+    ]);
+    const shelf = (Array.isArray(shelfRes.data) ? shelfRes.data[0] : shelfRes.data) as ShelfRow | null;
+    if (!shelf) return notFoundPage();
+    const items = ((itemsRes.data ?? []) as ShelfItemRow[]).slice(0, 12);
+    const title = `${shelf.name} · @${shelf.pseudo}`;
+    const desc = shelf.description || `${Number(shelf.item_count ?? 0)} parfums dans l\u2019étagère de @${shelf.pseudo}`;
+    const ogImage = items.find((i) => i.image_url)?.image_url ?? shelf.avatar_url;
+    const canonical = `${url.origin}${url.pathname}?type=shelf&pseudo=${encodeURIComponent(pseudo)}&shelf=${encodeURIComponent(shelfId)}`;
+    return htmlResponse(page({ title, description: desc, image: ogImage, url: canonical }, shelfBody(shelf, items)));
   }
 
   return notFoundPage();

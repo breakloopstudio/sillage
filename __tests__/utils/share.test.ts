@@ -1,5 +1,5 @@
 import {
-  parfumShareUrl, profileShareUrl, parfumDeepLink, profileDeepLink,
+  parfumShareUrl, profileShareUrl, shelfShareUrl, parfumDeepLink, profileDeepLink, shelfDeepLink,
   isValidPseudo, normalizePseudo, APP_SCHEME,
 } from '../../src/utils/share';
 
@@ -14,14 +14,24 @@ describe('share URLs', () => {
     expect(profileShareUrl('john')).toContain('type=profile&pseudo=john');
   });
 
+  it('builds a shelf landing URL', () => {
+    const url = shelfShareUrl('john', 'shelf-123');
+    expect(url).toContain('type=shelf');
+    expect(url).toContain('pseudo=john');
+    expect(url).toContain('shelf=shelf-123');
+  });
+
   it('URL-encodes parameters', () => {
     expect(parfumShareUrl('a b')).toContain('id=a%20b');
     expect(profileShareUrl('a b')).toContain('pseudo=a%20b');
+    expect(shelfShareUrl('a b', 'x y')).toContain('pseudo=a%20b');
+    expect(shelfShareUrl('a b', 'x y')).toContain('shelf=x%20y');
   });
 
   it('builds deep links with the app scheme', () => {
     expect(parfumDeepLink('xyz')).toBe(`${APP_SCHEME}://catalog/xyz`);
     expect(profileDeepLink('john')).toBe(`${APP_SCHEME}://u/john`);
+    expect(shelfDeepLink('john', 's1')).toBe(`${APP_SCHEME}://u/john/shelf/s1`);
   });
 });
 

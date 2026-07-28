@@ -9,15 +9,11 @@ import type { SuggestionRow } from '../../utils/suggest';
 import { supabase } from '../supabase';
 import type { Database } from '../../types/database.types';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
-import { toNum } from './sql-utils';
+import { toNum, toDate } from './sql-utils';
 
 export { SearchError };
 
 // ─── Mappers snake_case → Parfum ─────────────────────────────────────────────
-
-function toDate(v: unknown): Date | undefined {
-  return typeof v === 'string' ? new Date(v) : undefined;
-}
 
 function rowToParfum(row: Record<string, unknown>): Parfum {
   return {

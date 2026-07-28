@@ -1,4 +1,4 @@
-import type { UserParfum, UserParfumStatus, ScentVerdict, Shelf, SotdEntry } from '../../models/user-parfum.interface';
+import type { UserParfum, UserParfumStatus, ScentVerdict, Shelf, ShelfItem, SotdEntry } from '../../models/user-parfum.interface';
 import type { Parfum } from '../../models';
 import { supabase, subscribeUserTable } from '../supabase';
 import type { Database } from '../../types/database.types';
@@ -39,6 +39,8 @@ function rowToShelf(row: Record<string, unknown>): Shelf {
     name: (row.name as string) ?? '',
     icon: (row.icon as string) ?? null,
     color: (row.color as string) ?? null,
+    description: typeof row.description === 'string' ? row.description : null,
+    isPublic: row.is_public === true,
     order: typeof row.order === 'number' ? row.order : 0,
     createdAt: toDate(row.created_at) ?? new Date(),
   };
@@ -195,7 +197,7 @@ export function onShelves(uid: string, cb: (shelves: Shelf[]) => void): () => vo
   });
 }
 
-export async function createShelf(uid: string, name: string, icon?: string, color?: string): Promise<string> {
+export async function createShelf(uid: string, name: string, icon?: string, color?: string, description?: string): Promise<string> {
   try {
     const { data: top } = await supabase
       .from('shelves')
@@ -211,6 +213,7 @@ export async function createShelf(uid: string, name: string, icon?: string, colo
         name,
         icon: icon ?? null,
         color: color ?? null,
+        description: description ?? null,
         order: nextOrder,
         created_at: new Date().toISOString(),
       })
@@ -220,20 +223,28 @@ export async function createShelf(uid: string, name: string, icon?: string, colo
     return (data as { id: string }).id;
   } catch (e: unknown) {
     console.warn('[user-parfum] createShelf failed:', (e as Error)?.message ?? String(e));
-    return '';
+    throw e;
   }
 }
 
-export async function updateShelf(uid: string, shelfId: string, data: Partial<Pick<Shelf, 'name' | 'icon' | 'color' | 'order'>>): Promise<void> {
+export async function updateShelf(uid: string, shelfId: string, data: Partial<Pick<Shelf, 'name' | 'icon' | 'color' | 'description' | 'isPublic' | 'order'>>): Promise<void> {
   try {
+    const row: Database['public']['Tables']['shelves']['Update'] = {};
+    if (data.name !== undefined) row.name = data.name;
+    if (data.icon !== undefined) row.icon = data.icon;
+    if (data.color !== undefined) row.color = data.color;
+    if (data.description !== undefined) row.description = data.description;
+    if (data.isPublic !== undefined) row.is_public = data.isPublic;
+    if (data.order !== undefined) row.order = data.order;
     const { error } = await supabase
       .from('shelves')
-      .update(data)
+      .update(row)
       .eq('user_id', uid)
       .eq('id', shelfId);
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] updateShelf failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 
@@ -243,6 +254,88 @@ export async function deleteShelf(uid: string, shelfId: string): Promise<void> {
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[user-parfum] deleteShelf failed:', (e as Error)?.message ?? String(e));
+    throw e;
+  }
+}
+
+export async function reorderShelves(uid: string, items: { id: string; order: number }[]): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('reorder_shelves', { p_items: items });
+    if (error) throw error;
+  } catch (e: unknown) {
+    console.warn('[user-parfum] reorderShelves failed:', (e as Error)?.message ?? String(e));
+    throw e;
+  }
+}
+
+// ─── Shelf items (ordre + pin dans une étagère) ────────────────────────────
+
+function rowToShelfItem(row: Record<string, unknown>): ShelfItem {
+  return {
+    shelfId: row.shelf_id as string,
+    parfumId: row.parfum_id as string,
+    position: typeof row.position === 'number' ? row.position : 0,
+    pinned: row.pinned === true,
+    addedAt: toDate(row.added_at) ?? new Date(),
+  };
+}
+
+export function onShelfItems(uid: string, cb: (items: ShelfItem[]) => void): () => void {
+  return subscribeUserTable<ShelfItem>({
+    table: 'shelf_items',
+    userId: uid,
+    order: { column: 'position', ascending: true },
+    mapRow: rowToShelfItem,
+    keyOf: (row) => `${row.shelf_id as string}:${row.parfum_id as string}`,
+    cb,
+    onError: (msg) => console.warn('[user-parfum] onShelfItems error:', msg),
+  });
+}
+
+export async function addToShelf(uid: string, parfumId: string, shelfId: string): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('add_to_shelf', { p_shelf_id: shelfId, p_parfum_id: parfumId });
+    if (error) throw error;
+  } catch (e: unknown) {
+    console.warn('[user-parfum] addToShelf failed:', (e as Error)?.message ?? String(e));
+    throw e;
+  }
+}
+
+export async function removeFromShelf(uid: string, parfumId: string, shelfId: string): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('remove_from_shelf', { p_shelf_id: shelfId, p_parfum_id: parfumId });
+    if (error) throw error;
+  } catch (e: unknown) {
+    console.warn('[user-parfum] removeFromShelf failed:', (e as Error)?.message ?? String(e));
+    throw e;
+  }
+}
+
+export async function pinShelfItem(uid: string, shelfId: string, parfumId: string, pinned: boolean): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('pin_shelf_item', { p_shelf_id: shelfId, p_parfum_id: parfumId, p_pinned: pinned });
+    if (error) throw error;
+  } catch (e: unknown) {
+    console.warn('[user-parfum] pinShelfItem failed:', (e as Error)?.message ?? String(e));
+    throw e;
+  }
+}
+
+export async function reorderShelfItems(
+  uid: string,
+  shelfId: string,
+  items: { parfumId: string; position: number; pinned: boolean }[],
+): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('reorder_shelf_items', {
+      p_shelf_id: shelfId,
+      p_items: items.map((i) => ({ parfum_id: i.parfumId, position: i.position, pinned: i.pinned })),
+    });
+    if (error) throw error;
+  } catch (e: unknown) {
+    console.warn('[user-parfum] reorderShelfItems failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }
 

@@ -20,9 +20,11 @@ interface Props {
   uid: string;
   photoUrl: string | null;
   defaultPseudo: string;
+  embedded?: boolean;
+  onPublicSaved?: () => void;
 }
 
-export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Props) {
+export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedded = false, onPublicSaved }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -87,13 +89,14 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Prop
     try {
       await save({ pseudo, bio: bio.trim() || null, isPublic, avatarUrl: photoUrl });
       hapticsSuccess();
+      if (isPublic) onPublicSaved?.();
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
       setError(code === '23505' ? 'Ce pseudo est déjà pris.' : translateSupabaseError(e));
     } finally {
       setSaving(false);
     }
-  }, [pseudo, pseudoValid, bio, isPublic, photoUrl, save]);
+  }, [pseudo, pseudoValid, bio, isPublic, photoUrl, save, onPublicSaved]);
 
   const handleShare = useCallback(() => {
     if (!profile?.pseudo) return;
@@ -112,14 +115,14 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Prop
 
   if (loading) {
     return (
-      <View style={s.card}>
+      <View style={[s.card, embedded && s.cardEmbedded]}>
         <ActivityIndicator style={s.loading} color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={s.card}>
+    <View style={[s.card, embedded && s.cardEmbedded]}>
       <Text style={s.label}>Pseudo</Text>
       <View style={s.pseudoRow}>
         <Text style={s.pseudoPrefix}>@</Text>
@@ -180,7 +183,7 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Prop
         {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={s.saveBtnText}>Enregistrer</Text>}
       </Pressable>
 
-      {isSavedPublic ? (
+      {isSavedPublic && !embedded ? (
         <View style={s.shareRow}>
           <Pressable style={s.shareBtn} onPress={handleShare} accessibilityRole="button" accessibilityLabel="Partager mon profil">
             <Ionicons name="share-social-outline" size={16} color={theme.colors.primaryInk} />
@@ -199,6 +202,16 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo }: Prop
 function getStyles(t: Theme) {
   return {
     card: { backgroundColor: t.colors.surface, borderRadius: t.radius.card, marginHorizontal: 16, padding: 16, ...t.shadow.card },
+    cardEmbedded: {
+      marginHorizontal: 0,
+      paddingHorizontal: 0,
+      paddingTop: 0,
+      backgroundColor: 'transparent',
+      shadowColor: 'transparent',
+      shadowOpacity: 0,
+      elevation: 0,
+      borderWidth: 0,
+    },
     loading: { marginVertical: 20 },
     label: {
       fontFamily: 'Inter_600SemiBold', fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: 0.8,

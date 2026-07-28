@@ -182,7 +182,6 @@ export default function CatalogDetailPage() {
   const [similarsLoading, setSimilarsLoading] = useState(false);
   const [verdictProfiles, setVerdictProfiles] = useState<ParfumVerdict[]>([]);
   const [showVerdictSheet, setShowVerdictSheet] = useState(false);
-  const loadingRef = useRef(false);
   const scrollY = useSharedValue(0);
   const priceSectionY = useSharedValue(9999);
   const priceSectionRef = useRef<View>(null);
@@ -193,21 +192,18 @@ export default function CatalogDetailPage() {
   // Chargement auto-suffisant : bridge (preview) -> Firestore
   useEffect(() => {
     if (!id) return;
-    if (loadingRef.current) return;
-    loadingRef.current = true;
+    let cancelled = false;
     setLoading(true);
 
     const load = async () => {
       try {
-        // Step 1: Bridge data — affichage instantané si disponible
         if (pending && pending.id === id) {
-          setParfum(pending);
+          if (!cancelled) setParfum(pending);
         }
 
-        // Step 2: Toujours tenter Firestore (données plus complètes)
         try {
           const cached = await getParfumById(id);
-          if (cached) {
+          if (!cancelled && cached) {
             setParfum(cached);
             return;
           }
@@ -215,24 +211,22 @@ export default function CatalogDetailPage() {
           console.warn('[detail] Firestore fetch failed:', (e as Error)?.message);
         }
 
-        // Step 3: Si on a déjà le bridge, on s'arrête là
         if (pending && pending.id === id) {
           return;
         }
 
-        // Pas de fallback API — le catalogue est 100% Firestore
-        if (!parfum) setParfum(null);
+        if (!cancelled) setParfum(null);
       } catch (fatalErr) {
         console.error('[detail] FATAL load error:', fatalErr);
-        if (!parfum) setParfum(null);
+        if (!cancelled) setParfum(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     load();
 
-    return () => { loadingRef.current = false; };
+    return () => { cancelled = true; };
   }, [id]);
 
   // Recommandations — recherche Firestore par accords partagés
@@ -242,6 +236,8 @@ export default function CatalogDetailPage() {
 
   useEffect(() => {
     if (!simMainAccords || simMainAccords.length === 0 || !parfum?.id) return;
+
+    let cancelled = false;
 
     const loadSimilars = async () => {
       setSimilarsLoading(true);
@@ -255,8 +251,10 @@ export default function CatalogDetailPage() {
           )).filter(Boolean) as Parfum[];
 
           if (cached.length >= 3) {
-            setSimilars(cached);
-            setSimilarsLoading(false);
+            if (!cancelled) {
+              setSimilars(cached);
+              setSimilarsLoading(false);
+            }
             return;
           }
         }
@@ -266,7 +264,7 @@ export default function CatalogDetailPage() {
       try {
         const results = await getSimilarParfums(simMainAccords, parfum.id!, 6);
 
-        if (results.length > 0) {
+        if (!cancelled && results.length > 0) {
           setSimilars(results);
 
           // Persist similarIds + timestamp pour les prochains visiteurs
@@ -276,11 +274,12 @@ export default function CatalogDetailPage() {
       } catch {
         // silent fail
       } finally {
-        setSimilarsLoading(false);
+        if (!cancelled) setSimilarsLoading(false);
       }
     };
 
     loadSimilars();
+    return () => { cancelled = true; };
   }, [parfum?.id, simMainAccords, simSimilarIds, simCachedAt]);
 
   const scrollHandler = useAnimatedScrollHandler((e) => {

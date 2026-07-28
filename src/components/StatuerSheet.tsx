@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight } from '../services/haptics';
 import { STATUS_CHIPS, chipForStatus } from '../utils/status-chips';
-import type { UserParfumStatus } from '../models/user-parfum.interface';
+import type { UserParfumStatus, Shelf } from '../models/user-parfum.interface';
 
 interface Props {
   visible: boolean;
@@ -23,15 +23,20 @@ interface Props {
   imageUrl: string | null;
   status: UserParfumStatus | null;
   removeLabel: string;
+  shelves?: Shelf[];
+  shelfIds?: string[];
+  pinnedShelfIds?: string[];
   onClose: () => void;
   onView: () => void;
   onSetStatus: (status: UserParfumStatus) => void;
+  onToggleShelf?: (shelfId: string) => void;
+  onTogglePin?: (shelfId: string) => void;
   onRemove: () => void;
 }
 
 export default function StatuerSheet({
   visible, nom, marque, imageUrl, status, removeLabel,
-  onClose, onView, onSetStatus, onRemove,
+  shelves, shelfIds, pinnedShelfIds, onClose, onView, onSetStatus, onToggleShelf, onTogglePin, onRemove,
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -62,10 +67,17 @@ export default function StatuerSheet({
   const handleView = useCallback(() => { hapticsLight(); onView(); }, [onView]);
   const handleStatus = useCallback((st: UserParfumStatus) => { hapticsLight(); onSetStatus(st); }, [onSetStatus]);
   const handleRemove = useCallback(() => { hapticsLight(); onRemove(); }, [onRemove]);
+  const handleToggleShelf = useCallback((id: string) => { hapticsLight(); if (onToggleShelf) onToggleShelf(id); }, [onToggleShelf]);
+  const handleTogglePin = useCallback((id: string) => { hapticsLight(); if (onTogglePin) onTogglePin(id); }, [onTogglePin]);
 
   if (!visible) return null;
 
   const activeChip = chipForStatus(status);
+  const currentShelfIds = shelfIds ?? [];
+  const pinnedIds = pinnedShelfIds ?? [];
+  const showShelves = !!onToggleShelf && !!shelves && shelves.length > 0;
+  const activeShelves = (shelves ?? []).filter((sh) => currentShelfIds.includes(sh.id));
+  const showPin = !!onTogglePin && activeShelves.length > 0;
 
   return (
     <View style={s.wrapper}>
@@ -75,48 +87,99 @@ export default function StatuerSheet({
       <Animated.View style={[s.sheet, { paddingBottom: insets.bottom + 20 }, sheetStyle]}>
         <View style={s.handle} />
 
-        <View style={s.header}>
-          {imageUrl && !imgFailed ? (
-            <Image source={{ uri: imageUrl }} style={s.headerImg} contentFit="cover" transition={200} onError={() => setImgFailed(true)} />
-          ) : (
-            <View style={s.headerImgPlaceholder}>
-              <Ionicons name="bookmark-outline" size={20} color={theme.colors.textMuted} />
+        <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+          <View style={s.header}>
+            {imageUrl && !imgFailed ? (
+              <Image source={{ uri: imageUrl }} style={s.headerImg} contentFit="cover" transition={200} onError={() => setImgFailed(true)} />
+            ) : (
+              <View style={s.headerImgPlaceholder}>
+                <Ionicons name="bookmark-outline" size={20} color={theme.colors.textMuted} />
+              </View>
+            )}
+            <View style={s.headerText}>
+              <Text style={s.headerBrand} numberOfLines={1}>{marque}</Text>
+              <Text style={s.headerName} numberOfLines={2}>{nom}</Text>
             </View>
-          )}
-          <View style={s.headerText}>
-            <Text style={s.headerBrand} numberOfLines={1}>{marque}</Text>
-            <Text style={s.headerName} numberOfLines={2}>{nom}</Text>
           </View>
-        </View>
 
-        <Pressable style={s.actionRow} onPress={handleView} accessibilityRole="button" accessibilityLabel="Voir la fiche">
-          <Ionicons name="eye-outline" size={20} color={theme.colors.text} />
-          <Text style={s.actionLabel}>Voir la fiche</Text>
-        </Pressable>
+          <Pressable style={s.actionRow} onPress={handleView} accessibilityRole="button" accessibilityLabel="Voir la fiche">
+            <Ionicons name="eye-outline" size={20} color={theme.colors.text} />
+            <Text style={s.actionLabel}>Voir la fiche</Text>
+          </Pressable>
 
-        <Text style={s.sectionLabel}>Ton statut</Text>
-        <View style={s.chips}>
-          {STATUS_CHIPS.map(chip => {
-            const active = activeChip === chip.id;
-            return (
-              <Pressable
-                key={chip.id}
-                style={[s.chip, active && s.chipActive]}
-                onPress={() => handleStatus(chip.status)}
-                accessibilityRole="button"
-                accessibilityLabel={active ? `${chip.label} (sélectionné)` : chip.label}
-              >
-                <Ionicons name={chip.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
-                <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false}>{chip.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+          <Text style={s.sectionLabel}>Ton statut</Text>
+          <View style={s.chips}>
+            {STATUS_CHIPS.map(chip => {
+              const active = activeChip === chip.id;
+              return (
+                <Pressable
+                  key={chip.id}
+                  style={[s.chip, active && s.chipActive]}
+                  onPress={() => handleStatus(chip.status)}
+                  accessibilityRole="button"
+                  accessibilityLabel={active ? `${chip.label} (sélectionné)` : chip.label}
+                >
+                  <Ionicons name={chip.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
+                  <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false}>{chip.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
-        <Pressable style={s.actionRow} onPress={handleRemove} accessibilityRole="button" accessibilityLabel={removeLabel}>
-          <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
-          <Text style={s.actionLabelDanger}>{removeLabel}</Text>
-        </Pressable>
+          {showShelves ? (
+            <>
+              <Text style={s.sectionLabel}>Étagères</Text>
+              <View style={s.shelfChips}>
+                {shelves!.map(sh => {
+                  const active = currentShelfIds.includes(sh.id);
+                  return (
+                    <Pressable
+                      key={sh.id}
+                      style={[s.shelfChip, active && s.chipActive]}
+                      onPress={() => handleToggleShelf(sh.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={active ? `${sh.name} (dans l’étagère)` : sh.name}
+                      accessibilityState={{ checked: active }}
+                    >
+                      {sh.color ? <View style={[s.shelfDot, { backgroundColor: sh.color }]} /> : null}
+                      {sh.icon ? <Ionicons name={sh.icon as never} size={13} color={active ? theme.colors.primaryInk : theme.colors.textMuted} /> : null}
+                      <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false} numberOfLines={1}>{sh.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
+          {showPin ? (
+            <>
+              <Text style={s.sectionLabel}>Épinglé en tête de</Text>
+              <View style={s.shelfChips}>
+                {activeShelves.map(sh => {
+                  const pinned = pinnedIds.includes(sh.id);
+                  return (
+                    <Pressable
+                      key={sh.id}
+                      style={[s.shelfChip, pinned && s.pinChipActive]}
+                      onPress={() => handleTogglePin(sh.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={pinned ? `${sh.name} (épinglé)` : `Épingler dans ${sh.name}`}
+                      accessibilityState={{ checked: pinned }}
+                    >
+                      <Ionicons name={pinned ? 'star' : 'star-outline'} size={13} color={pinned ? theme.colors.secondaryInk : theme.colors.textMuted} />
+                      <Text style={[s.chipText, pinned && s.pinChipTextActive]} allowFontScaling={false} numberOfLines={1}>{sh.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
+          <Pressable style={s.actionRow} onPress={handleRemove} accessibilityRole="button" accessibilityLabel={removeLabel}>
+            <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
+            <Text style={s.actionLabelDanger}>{removeLabel}</Text>
+          </Pressable>
+        </ScrollView>
 
         <Pressable style={s.cancelBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Annuler">
           <Text style={s.cancelText}>Annuler</Text>
@@ -144,8 +207,11 @@ function getStyles(t: Theme) {
       borderTopRightRadius: 24,
       paddingTop: 12,
       paddingHorizontal: 16,
-      gap: 4,
+      maxHeight: '85%' as const,
       ...t.shadow.elevated,
+    },
+    scroll: {
+      flexShrink: 1,
     },
     handle: {
       alignSelf: 'center' as const,
@@ -218,7 +284,24 @@ function getStyles(t: Theme) {
       borderWidth: 1,
       borderColor: 'transparent',
     },
+    shelfChips: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, paddingHorizontal: 8, paddingBottom: 8 },
+    shelfChip: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 5,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      minHeight: 44,
+      borderRadius: 20,
+      backgroundColor: t.colors.surface2,
+      borderWidth: 1,
+      borderColor: 'transparent',
+      maxWidth: '100%' as const,
+    },
+    shelfDot: { width: 8, height: 8, borderRadius: 4 },
     chipActive: { backgroundColor: t.colors.primarySoft, borderColor: t.colors.primary },
+    pinChipActive: { backgroundColor: t.colors.secondarySoft, borderColor: t.colors.secondary },
+    pinChipTextActive: { color: t.colors.secondaryInk, fontFamily: 'Inter_600SemiBold' },
     chipText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.textMuted },
     chipTextActive: { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' },
     cancelBtn: {

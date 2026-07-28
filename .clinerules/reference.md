@@ -1085,3 +1085,50 @@ Bonus marque partiel = +8    (l'un contient l'autre)
 - `getPersonalizedSuggestions` → RPC `personalized_suggestions` (scores famille × 3 + marque × 2 + popularité/20 calculés en SQL sur favoris+scans, exclus déjà vus).
 - `getParfumsByPerfumer` → PostgREST `.contains('perfumers', [name])` + `order('popularity_score')` (index GIN `perfumers`).
 - `getParfumsByMarque` → PostgREST `.eq('marque', marque)` + `order('popularity_score')` (index b-tree `marque`, migration 0026).
+
+---
+
+## §8 — Étagères « meuble » & communauté d'étagères (v8.7)
+
+Couche d'organisation visuelle (étagères déjà en base) + couche communautaire par étagère. Modèle `user_parfum`/`favoris`/`possessions` (v8.0) inchangé.
+
+### Utils
+- `src/utils/shelf-grouping.ts` : `groupItemsByShelf`, `orphanItems`, `signatureItems`, `favoriteItems`, `hasShelfMatter`, `inspireMissing<T>(items, ownedIds)` (purs, testés).
+- `src/utils/alpha.ts` : `alpha(hex, ratio)`, `tintLuminous(hex, tier, mode)` (halo/voile, dark ÷2), `tintStructural(hex, tier)` (rayon/bordure, idem light/dark) — paliers §2.5.
+- `src/utils/brand-color.ts` : `brandColor(brand)` (extrait de `ParfumCard`, réutilisé par `BottleThumb`/`AddToShelfSheet`/`InspireShelfSheet`).
+
+### Hooks
+- `useParfumerieViewPreference()` → `{ view: 'collection' | 'shelves' | null, setView }` (AsyncStorage `@parfumscan/parfumerie-view` ; `null` = vue adaptative).
+- `useShelves(uid)` += `reorder(items: { id: string; order: number }[])` → RPC `reorder_shelves`.
+
+### Services
+- `updateShelf(uid, id, data)` : `data` accepte désormais `description` + `isPublic` (mapping snake explicite `isPublic → is_public`).
+- `reorderShelves(uid, items)` → RPC `reorder_shelves` (0038, transaction atomique).
+- `getPublicShelf(pseudo, shelfId)` → `PublicShelf | null` (RPC `public_shelf`, 0039).
+- `getPublicShelfItems(pseudo, shelfId)` → `PublicShelfItem[]` (RPC `public_shelf_items`, notes perso exclues).
+
+### Modèles
+- `Shelf` += `description: string | null`, `isPublic: boolean`.
+- `PublicShelf { shelfId, name, description, color, icon, itemCount, pseudo, avatarUrl, bio }`.
+- `PublicShelfItem { parfumId, nom, marque, imageUrl, familleOlactive, bestPrice? }`.
+
+### Composants
+- `ShelfCard` (`features/wardrobe`) : `name / icon / accent / tagline / items: ShelfCardItem[] / variant: 'user' | 'system' / expanded / isPublic / onToggleExpand / onPressBottle / onAdd? / onOpenMenu?`. Rayon teinté, collapse/expand, badge `globe`. `ShelfCardItem` = interface minimale (`parfumId / nom / marque / imageUrl`) satisfaite structurellement par `UserParfum` et `PublicShelfItem` (réutilisation privé/public sans cast).
+- `BottleThumb` (`features/wardrobe`) : vignette flacon nu (`contain`), placeholder couleur de marque, `accessibilityLabel = `${marque} ${nom}``.
+- `ShelfManager` (`features/wardrobe`) : modal centré sur `DraggableFlatList` (drag = long-press sur poignée), édition inline (nom + note + icône + couleur), création en `ListFooterComponent`.
+- `AddToShelfSheet` (`components`) : `onAdd: (id) => Promise<boolean>` + rollback du masquage optimiste.
+- `PublishShelfGateSheet` (`components`) : embarque `PublicProfileCard embedded` + `onPublicSaved` ; bouton « Publier l'étagère » gated (consentement explicite).
+- `InspireShelfSheet` (`components`) : liste transparente + ajout en lot (`onConfirm: () => Promise<number>`, `Promise.allSettled`) + écran de confirmation.
+
+### Partage (`share.ts`)
+- `shelfShareUrl(pseudo, shelfId)` → landing `?type=shelf&pseudo=&shelf=`.
+- `shelfDeepLink(pseudo, shelfId)` → `parfumscan://u/<pseudo>/shelf/<shelfId>`.
+- Edge Function `share` : branch `type=shelf` (SSR + balises OG = nom + ligne éditoriale + identité + grille de flacons).
+
+### Routes
+- `app/u/[pseudo]/shelf/[shelfId].tsx` : étagère publique (sans auth) + bouton « M'inspirer » à 4 états (primary / outline « se connecter » / disabled « déjà dans ta parfumerie » / masqué si own-profile). Déclarée dans `app/_layout.tsx` (`slide_from_right`).
+
+### Migrations
+- `0037_shelves_editorial.sql` : `shelves.description` + `shelves.is_public`.
+- `0038_reorder_shelves.sql` : RPC `reorder_shelves(jsonb)` (SECURITY DEFINER, check owner).
+- `0039_public_shelves.sql` : RPC `public_shelf` + `public_shelf_items` (double filtre `shelves.is_public AND profiles.is_public`, grants `anon`+`authenticated`).

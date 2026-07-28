@@ -5,7 +5,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
-import { usePriceAlerts } from '../hooks/usePriceAlerts';
+import { usePriceAlertsContext } from '../contexts/PriceAlertsContext';
 import { formatPrice } from '../utils/format-price';
 import PriceAlertSheet from './PriceAlertSheet';
 
@@ -22,7 +22,7 @@ interface Props {
 export default function AlertPriceToggle({ parfumId, uid, currentPrice, referencePrice, nom, marque, imageUrl }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
-  const { byParfumId, setAlert } = usePriceAlerts(uid);
+  const { byParfumId, setAlert } = usePriceAlertsContext();
   const [sheetVisible, setSheetVisible] = useState(false);
 
   const alert = byParfumId.get(parfumId) ?? null;

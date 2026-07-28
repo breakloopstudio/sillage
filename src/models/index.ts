@@ -7,4 +7,4 @@ export type {
   Shelf, SotdEntry,
 } from './user-parfum.interface';
 export type { UserPriceAlert } from './user-price-alert.interface';
-export type { MyProfile, PublicProfile, PublicCollectionItem } from './profile.interface';
+export type { MyProfile, PublicProfile, PublicCollectionItem, PublicShelf, PublicShelfItem } from './profile.interface';

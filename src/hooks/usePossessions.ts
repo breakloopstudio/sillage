@@ -7,7 +7,7 @@ export function usePossessions(uid: string | null, parfumId: string | null) {
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
     if (!uid || !parfumId) { setItems([]); return; }

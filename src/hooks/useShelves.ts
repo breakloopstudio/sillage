@@ -1,7 +1,7 @@
 // src/hooks/useShelves.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import { onShelves, createShelf, updateShelf, deleteShelf } from '../services/user-parfum';
+import { onShelves, createShelf, updateShelf, deleteShelf, reorderShelves } from '../services/user-parfum';
 import type { Shelf } from '../models/user-parfum.interface';
 
 export function useShelves(uid: string | null) {
@@ -13,9 +13,9 @@ export function useShelves(uid: string | null) {
     return () => unsub();
   }, [uid]);
 
-  const create = useCallback(async (name: string, icon?: string, color?: string) => {
+  const create = useCallback(async (name: string, icon?: string, color?: string, description?: string) => {
     if (!uid) return;
-    await createShelf(uid, name, icon, color);
+    await createShelf(uid, name, icon, color, description);
   }, [uid]);
 
   const update = useCallback(async (shelfId: string, data: Parameters<typeof updateShelf>[2]) => {
@@ -28,5 +28,10 @@ export function useShelves(uid: string | null) {
     await deleteShelf(uid, shelfId);
   }, [uid]);
 
-  return { shelves, create, update, remove };
+  const reorder = useCallback(async (items: { id: string; order: number }[]) => {
+    if (!uid) return;
+    await reorderShelves(uid, items);
+  }, [uid]);
+
+  return { shelves, create, update, remove, reorder };
 }

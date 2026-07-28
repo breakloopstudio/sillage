@@ -3,7 +3,7 @@ import { View, Text, Pressable, TextInput, Alert, StyleSheet } from 'react-nativ
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { useUserParfum } from '../../hooks/useUserParfum';
+import { useUserParfumContext } from '../../contexts/UserParfumContext';
 import { usePossessions } from '../../hooks/usePossessions';
 import { useShelves } from '../../hooks/useShelves';
 import { useSotd } from '../../hooks/useSotd';
@@ -37,7 +37,7 @@ export default function RelationSection({ parfum, save }: Props) {
 
   const { item, setStatus, setVerdict, setRating, setNotes, toggleShelf, toggleSignature, remove } = save;
 
-  const { items: allItems } = useUserParfum(uid);
+  const { items: allItems } = useUserParfumContext();
   const signatureCount = useMemo(() => allItems.filter(i => i.isSignature).length, [allItems]);
 
   const { items: possessions, add: addPossession, remove: removePossession } = usePossessions(uid, parfum.id);

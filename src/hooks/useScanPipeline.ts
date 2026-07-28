@@ -17,13 +17,14 @@ export function useScanPipeline(
   mountedRef: React.MutableRefObject<boolean>,
 ) {
   const inProgressRef = useRef(false);
+  const scanIdRef = useRef(0);
 
   // ── Helpers internes ──────────────────────────────────
 
-  async function searchAndShow(scanResult: ScanResult) {
+  async function searchAndShow(scanResult: ScanResult, scanId: number) {
     try {
       const parfums = await searchParfumFromScan(scanResult.marque, scanResult.nom);
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || scanIdRef.current !== scanId) return;
 
       if (parfums.length > 0) {
         hapticsSuccess();
@@ -42,7 +43,7 @@ export function useScanPipeline(
             status: 'success',
           }).catch(() => {});
         }
-        if (mountedRef.current) {
+        if (mountedRef.current && scanIdRef.current === scanId) {
           dispatch({ type: 'SCAN_SUCCESS', parfums });
         }
       } else {
@@ -55,7 +56,7 @@ export function useScanPipeline(
             status: 'no-result',
           }).catch(() => {});
         }
-        if (mountedRef.current) {
+        if (mountedRef.current && scanIdRef.current === scanId) {
           dispatch({ type: 'SCAN_NO_RESULT', scanResult });
         }
       }
@@ -69,36 +70,36 @@ export function useScanPipeline(
           status: 'error',
         }).catch(() => {});
       }
-      if (mountedRef.current) {
+      if (mountedRef.current && scanIdRef.current === scanId) {
         dispatch({ type: 'SCAN_ERROR', message: 'Connexion impossible. Vérifiez votre réseau.' });
         hapticsError();
       }
     }
   }
 
-  async function clarifyOrSearch(result: ScanResult) {
+  async function clarifyOrSearch(result: ScanResult, scanId: number) {
     if (!result.marque && !result.nom) {
-      if (mountedRef.current) {
+      if (mountedRef.current && scanIdRef.current === scanId) {
         dispatch({ type: 'SCAN_CLARIFY', scanResult: result, reason: 'empty-response' });
       }
       return;
     }
     if (result.confidence === 'low') {
-      if (mountedRef.current) {
+      if (mountedRef.current && scanIdRef.current === scanId) {
         dispatch({ type: 'SCAN_CLARIFY', scanResult: result, reason: 'low-confidence' });
       }
       return;
     }
-    await searchAndShow(result);
+    await searchAndShow(result, scanId);
   }
 
-  async function runBurstAnalysis(images: string[]) {
+  async function runBurstAnalysis(images: string[], scanId: number) {
     if (images.length >= 2) {
       const result = await analyzeMultipleImages(images);
-      await clarifyOrSearch(result);
+      await clarifyOrSearch(result, scanId);
     } else {
       const result = await analyzeImage(images[0]);
-      await clarifyOrSearch(result);
+      await clarifyOrSearch(result, scanId);
     }
   }
 
@@ -108,17 +109,19 @@ export function useScanPipeline(
     if (inProgressRef.current) return;
     inProgressRef.current = true;
 
+    const scanId = ++scanIdRef.current;
+
     dispatch({ type: 'START_SCAN', images: payload.images, scanResult: payload.scanResult });
 
     const started = Date.now();
 
     try {
       if (payload.images && payload.images.length > 0) {
-        await runBurstAnalysis(payload.images);
+        await runBurstAnalysis(payload.images, scanId);
       } else if (payload.scanResult) {
-        await searchAndShow(payload.scanResult);
+        await searchAndShow(payload.scanResult, scanId);
       } else {
-        if (mountedRef.current) {
+        if (mountedRef.current && scanIdRef.current === scanId) {
           dispatch({ type: 'SCAN_ERROR', message: 'Une erreur inattendue est survenue. Veuillez réessayer.' });
           hapticsError();
         }
@@ -127,13 +130,18 @@ export function useScanPipeline(
       }
     } catch (e: unknown) {
       console.warn('[scan] analysis failed:', e);
-      if (mountedRef.current) {
+      if (mountedRef.current && scanIdRef.current === scanId) {
         dispatch({
           type: 'SCAN_ERROR',
           message: e instanceof Error ? e.message : 'Échec de l\'analyse. Veuillez réessayer.',
         });
         hapticsError();
       }
+      inProgressRef.current = false;
+      return;
+    }
+
+    if (scanIdRef.current !== scanId) {
       inProgressRef.current = false;
       return;
     }
@@ -146,5 +154,11 @@ export function useScanPipeline(
     inProgressRef.current = false;
   }, [dispatch, uid, mountedRef]);
 
-  return { startAnalysis };
+  const cancelAnalysis = useCallback(() => {
+    scanIdRef.current++;
+    inProgressRef.current = false;
+    dispatch({ type: 'RESET' });
+  }, [dispatch]);
+
+  return { startAnalysis, cancelAnalysis };
 }

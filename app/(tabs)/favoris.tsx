@@ -9,13 +9,13 @@ import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useFavorisContext } from '../../src/contexts/FavorisContext';
-import { useUserParfum } from '../../src/hooks/useUserParfum';
-import { usePriceAlerts } from '../../src/hooks/usePriceAlerts';
+import { useUserParfumContext } from '../../src/contexts/UserParfumContext';
+import { usePriceAlertsContext } from '../../src/contexts/PriceAlertsContext';
 import { useDensityPreference, GRID_MODES } from '../../src/hooks/useDensityPreference';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
-import { hapticsLight } from '../../src/services/haptics';
+import { hapticsLight, hapticsError } from '../../src/services/haptics';
 import { favoriMatchesSearch } from '../../src/utils/favori-filters';
 import { alertVariation, formatVariation } from '../../src/utils/price-alerts';
 import { formatPrice } from '../../src/utils/format-price';
@@ -73,8 +73,8 @@ export default function FavorisPage() {
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
   const { favoris, removeFavori } = useFavorisContext();
-  const { items, loading: upLoading, add, update } = useUserParfum(uid);
-  const { alerts, byParfumId, setAlert } = usePriceAlerts(uid);
+  const { items, loading: upLoading, add, update, statusByParfumId } = useUserParfumContext();
+  const { alerts, byParfumId, setAlert } = usePriceAlertsContext();
   const { density, setDensity } = useDensityPreference();
   const { scrollY } = useNavigationChrome();
 
@@ -84,12 +84,6 @@ export default function FavorisPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sheetItem, setSheetItem] = useState<UserFavori | null>(null);
   const [alertTarget, setAlertTarget] = useState<UserFavori | null>(null);
-
-  const statusByParfumId = useMemo(() => {
-    const m = new Map<string, UserParfumStatus>();
-    for (const up of items) m.set(up.parfumId, up.status);
-    return m;
-  }, [items]);
 
   const displayMap = useMemo(() => {
     const m = new Map<string, { nom: string | null; marque: string | null; imageUrl: string | null; bestPrice?: number }>();
@@ -157,9 +151,9 @@ export default function FavorisPage() {
   const handleSheetStatus = useCallback((status: UserParfumStatus) => {
     if (!sheetItem) return;
     if (statusByParfumId.has(sheetItem.parfumId)) {
-      update(sheetItem.parfumId, { status }).catch(() => {});
+      update(sheetItem.parfumId, { status }).catch(() => { hapticsError(); });
     } else {
-      add(sheetItem.parfumId, status, favoriToCard(sheetItem)).catch(() => {});
+      add(sheetItem.parfumId, status, favoriToCard(sheetItem)).catch(() => { hapticsError(); });
     }
     setSheetItem(null);
   }, [sheetItem, statusByParfumId, add, update]);
@@ -171,7 +165,7 @@ export default function FavorisPage() {
 
   const handleAlertSave = useCallback((active: boolean, targetPrice: number | null) => {
     if (alertTarget) {
-      setAlert(alertTarget.parfumId, active, { currentPrice: alertTarget.bestPrice, targetPrice }).catch(() => {});
+      setAlert(alertTarget.parfumId, active, { targetPrice }).catch(() => { hapticsError(); });
     }
     setAlertTarget(null);
   }, [alertTarget, setAlert]);
@@ -182,7 +176,7 @@ export default function FavorisPage() {
 
   const handleAlertDisable = useCallback((parfumId: string) => {
     hapticsLight();
-    setAlert(parfumId, false).catch(() => {});
+    setAlert(parfumId, false).catch(() => { hapticsError(); });
   }, [setAlert]);
 
   const handlePillTap = useCallback((pill: FavPillId) => { hapticsLight(); setActivePill(pill); }, []);
@@ -196,19 +190,16 @@ export default function FavorisPage() {
     const alert = byParfumId.get(item.parfumId) ?? null;
     const variation = alert ? alertVariation(alert.initialPrice, alert.lastPrice ?? item.bestPrice ?? null) : null;
     return (
-      <Pressable
-        onLongPress={() => handleLongPress(item)}
-        delayLongPress={400}
-        style={gridNumCols === 2 ? s.gridItemWrap : s.listItemWrap}
-      >
+      <View style={gridNumCols === 2 ? s.gridItemWrap : s.listItemWrap}>
         <ParfumCard
           parfum={favoriToCard(item)}
           mode={density}
           status={status}
           priceAlert={alert ? { variation } : null}
           onPressOverride={() => handleCardPress(item)}
+          onLongPress={() => handleLongPress(item)}
         />
-      </Pressable>
+      </View>
     );
   }, [density, gridNumCols, statusByParfumId, byParfumId, handleCardPress, handleLongPress, s]);
 

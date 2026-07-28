@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 259](https://img.shields.io/badge/Tests-259%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 287](https://img.shields.io/badge/Tests-287%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -25,11 +25,11 @@
 | 🖼️ **Import galerie** | Photo existante → même pipeline IA, sans permissions supplémentaires |
 | 📚 **Catalogue** | Catalogue ~25K parfums (seed Postgres), taxonomie 6 familles olfactives (cartes d'ambiance data-driven), rangées éditoriales (« Parfaits pour {saison} », « Les mieux notés »), capsules marques, grille 3 densités + persistance, recherche RPC Postgres (tsvector + pg_trgm) avec cache + prefix cache |
 | 🏛️ **Page marque** | Catalogue complet d'une maison (depuis la fiche détail, les capsules et le sheet marques) : tri cyclique (populaires · prix · nouveautés), filtre par famille olfactive (6 familles, compteurs), densité partagée |
-| 🧪 **Ma Parfumerie** | Collection (`user_parfum` uniquement), pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ coups de cœur + badge 🔔 alerte, modèle 3 statuts, cartes sans prix, long-press (`StatuerSheet`), possessions (flacon/décant/échantillon), étagères custom, parfum signature (max 3), SOTD + météo, partage de collection |
+| 🧪 **Ma Parfumerie** | Meuble d'étagères (segmented Collection/Étagères, ShelfCard à rayons + flacons nus + tri ↕ + pin ★ + badge globe), CRUD enrichi avec drag (DraggableFlatList), édition inline, assignment long-press + ajout direct, visibilité publique + partage + « M'inspirer » (copie en lot). Pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ + badge 🔔, possessions, signature, SOTD+météo, partage collection, mode Collection (grille, statuts, filtres, ♥, densités) |
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
 | ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix (cible custom + historique) |
 | ❤️ **Favoris** | Onglet dédié (couche intention) : tous les coups de cœur, section « Tes alertes », pills (Tous · À traiter · Alertes), alertes prix v2 (cible custom pré-remplie, badge 🔔), long-press `FavoriSheet` (fiche · alerte · graduation vers la Parfumerie) |
-| 👥 **Communauté** | Vitrine publique (top aimés, tendances 7j, collections à découvrir, SOTD du jour, recherche pseudo), verdicts publics sur la fiche (« Adoré par @x, @y »), follow asymétrique (bouton Suivre + compteurs), activité des suivis (« Nez que tu suis »), profils publics opt-in, partage landing SSR (OG + deep link) |
+| 👥 **Communauté** | Vitrine publique (top aimés, tendances 7j, collections à découvrir, SOTD du jour, recherche pseudo), verdicts publics sur la fiche (« Adoré par @x, @y »), follow asymétrique (bouton Suivre + compteurs), activité des suivis (« Nez que tu suis »). **Étagères publiques** par étagère (visibilité `is_public`), landing SSR `type=shelf` (OG + deep link), page publique `/u/[pseudo]/shelf/[id]`, bouton « M'inspirer » (copie en lot → À sentir). Profils publics opt-in, partage landing SSR (OG + deep link) |
 | ⚙️ **Paramètres** | Alertes prix, devise EUR, notifs push, mentions légales |
 | 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (swap progressif image HD upscale ×4), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
 | 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |
@@ -49,11 +49,11 @@
 | **Frontend** | React Native 0.86, Expo SDK 57, Expo Router 57 |
 | **Langage** | TypeScript 6.0 (strict) |
 | **Navigation** | Expo Router (file-based) + react-native-pager-view (native pan) |
-| **Animations** | React Native Reanimated 4, Gesture Handler 2, react-native-svg |
+| **Animations** | React Native Reanimated 4, Gesture Handler 2, react-native-svg, react-native-draggable-flatlist 4 |
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 259 tests, 24 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 287 tests, 27 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -136,7 +136,7 @@ app/
 │   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
 │   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills, long-press FavoriSheet, prix visibles)
-│   ├── collection.tsx        # Ma Parfumerie (user_parfum uniquement, pills statut + filtre ♥, badge 🔔, long-press StatuerSheet)
+│   ├── collection.tsx        # Ma Parfumerie : segmented Collection|Étagères, mode Collection (grille, statuts, filtres, ♥, densités), mode Étagères (ShelfCard+rayons+tri/pin+Non classés), CRUD drag+édition, assignment long-press, ajout direct, visibilité publique + partage + gate, badge 🔔, vues système Signature/Cœurs, M'inspirer
 │   └── communaute.tsx        # Communauté (placeholder « Bientôt »)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
@@ -147,6 +147,7 @@ app/
 ├── brand/[name].tsx          # Catalogue d'une maison (tri cyclique + filtre famille)
 ├── profile.tsx               # Profil (route racine, poussée depuis l'avatar — identité, stats, SOTD, profil public, déconnexion)
 ├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, cible du deep link de partage)
+├── u/[pseudo]/shelf/[shelfId].tsx  # Étagère publique (lecture seule, sans auth, cible du deep link de partage d'étagère) + bouton « M'inspirer »
 ├── settings.tsx              # Paramètres
 ├── scan.tsx                  # Scan (slide_from_bottom)
 ├── search.tsx                # Recherche (texte + mode famille ?family=<key>)
@@ -158,17 +159,17 @@ app/
 src/
 ├── services/     (15)        # supabase, catalog, user-data, user-parfum, possessions, profile, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
 ├── services/impl/            # impl Supabase de chaque service + search-shared + sql-utils (service public = export * from impl/<x>.supabase)
-├── hooks/        (18)        # useAuth, useCatalog, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useSotd, useVoicePreference, useVoiceSearch, useWeather
-├── contexts/     (2)         # AuthContext, FavorisContext (source de vérité favoris temps réel — ThemeContext est dans src/theme/)
-├── components/   (19)        # ParfumCard (badges statut/rating/🔔, hidePrice), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard
+├── hooks/        (21)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useShelfItems, useParfumerieViewPreference, useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── contexts/     (4)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel) — ThemeContext est dans src/theme/
+├── components/   (22)        # ParfumCard (badges statut/rating/🔔, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard, AddToShelfSheet, PublishShelfGateSheet, InspireShelfSheet
 ├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx
-├── features/                 # scan, catalog (+ RelationSection), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner
-├── models/       (8)         # Parfum (+imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, Shelf, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem, UserFavori, UserScan, ScanResult, index
+├── features/                 # scan, catalog (+ RelationSection), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager/ShelfCard/BottleThumb), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner
+├── models/       (8)         # Parfum (+imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
 ├── config/       (2)         # env, index
-└── utils/        (16)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share
+└── utils/        (20)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share, alpha, brand-color, shelf-grouping, price-tier
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0026) # extensions, types, tables, index trgm/FTS, RLS, RPC (search_parfums, seasonal_parfums, family_overviews, public_profile/public_collection…), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles, grants + RLS admins, index marque
+├── migrations/   (0001→0040) # extensions, types, tables (dont shelf_items position+pin), index, RLS, RPC (search_parfums, reorder_shelves, public_shelf/public_shelf_items, add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items...), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles, public shelves, grants
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 └── config.toml               # config projet (secrets via env(...))
 ```
@@ -296,6 +297,14 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.7 — Étagères « meuble » + communauté d'étagères (28/07/2026)
+
+- **Meuble privé (P0–P1).** Segmented `Collection | Étagères` (vue adaptative), pile de `ShelfCard` (rayons + flacons nus) : vues système (Signature, Cœurs), étagères custom, Non classés. CRUD enrichi + drag (DraggableFlatList), édition inline. Assignment long-press, ajout direct, persistance du dépliage.
+- **Communauté d'étagères (P2–P3).** Visibilité `is_public` par étagère + badge globe ; gate d'activation inline du profil ; partage `shelfShareUrl`/`shelfDeepLink` + landing SSR `?type=shelf` ; page publique `/u/[pseudo]/shelf/[id]` ; « M'inspirer » (copie en lot vers `to_try`).
+- **Ordre & pin (B-réel).** Table `shelf_items` (position + pin), 4 RPC atomiques miroir `shelf_ids`, trigger nettoyage orphelins. Tri ↕ par étagère (Personnalisé/Nom/Maison/Famille/Récents). Pin ★ dans la StatuerSheet. Fallback si migration non poussée (rien ne casse).
+- **Migrations** : 0037 (description/is_public), 0038 (reorder_shelves), 0039 (public_shelf*), 0040 (shelf_items + RPC atomiques + trigger).
+- **Tests** : 287 tests, 27 suites (+23 tests). `tsc --noEmit` : 0 erreur app/ + src/.
+
 ## v8.5 — Page marque + cibles tactiles ≥ 44 px (27/07/2026)
 
 - **Page marque** (`app/brand/[name].tsx`) : catalogue complet d'une maison, accessible depuis la chip « La maison » de la fiche détail et les sélecteurs de marques (`BrandCapsules`, `BrandSheet` → `/brand/` au lieu de la recherche). Tri cyclique (Populaires · Prix croissant · Prix décroissant · Nouveautés), filtre par famille olfactive (6 familles, compteurs, couleurs sémantiques), densité partagée. Service `getParfumsByMarque` (`.eq('marque')`, limit 1000) + helper `getFamilyByValue`. Index b-tree `marque` (migration 0026).

@@ -573,8 +573,10 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          description: string | null
           icon: string | null
           id: string
+          is_public: boolean
           name: string
           order: number
           user_id: string
@@ -582,8 +584,10 @@ export type Database = {
         Insert: {
           color?: string | null
           created_at?: string
+          description?: string | null
           icon?: string | null
           id?: string
+          is_public?: boolean
           name: string
           order?: number
           user_id: string
@@ -591,10 +595,39 @@ export type Database = {
         Update: {
           color?: string | null
           created_at?: string
+          description?: string | null
           icon?: string | null
           id?: string
+          is_public?: boolean
           name?: string
           order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      shelf_items: {
+        Row: {
+          added_at: string
+          parfum_id: string
+          pinned: boolean
+          position: number
+          shelf_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          parfum_id: string
+          pinned?: boolean
+          position: number
+          shelf_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          parfum_id?: string
+          pinned?: boolean
+          position?: number
+          shelf_id?: string
           user_id?: string
         }
         Relationships: []
@@ -805,6 +838,39 @@ export type Database = {
       }
       community_highlights: { Args: never; Returns: Json }
       delete_shelf: { Args: { p_shelf_id: string }; Returns: undefined }
+      reorder_shelves: { Args: { p_items: Json }; Returns: undefined }
+      add_to_shelf: { Args: { p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
+      remove_from_shelf: { Args: { p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
+      pin_shelf_item: { Args: { p_pinned: boolean; p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
+      reorder_shelf_items: { Args: { p_items: Json; p_shelf_id: string }; Returns: undefined }
+      public_shelf: {
+        Args: { p_pseudo: string; p_shelf_id: string }
+        Returns: {
+          shelf_id: string
+          name: string
+          description: string | null
+          color: string | null
+          icon: string | null
+          item_count: number
+          pseudo: string
+          avatar_url: string | null
+          bio: string | null
+        }[]
+      }
+      public_shelf_items: {
+        Args: { p_pseudo: string; p_shelf_id: string }
+        Returns: {
+          parfum_id: string
+          nom: string | null
+          marque: string | null
+          image_url: string | null
+          famille_olfactive: string | null
+          status: Database["public"]["Enums"]["user_parfum_status"] | null
+          verdict: Database["public"]["Enums"]["scent_verdict"] | null
+          rating: number | null
+          best_price: number | null
+        }[]
+      }
       parfum_verdicts: {
         Args: { p_parfum_id: string }
         Returns: {

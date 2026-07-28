@@ -42,8 +42,19 @@ export interface Shelf {
   name: string;
   icon: string | null;
   color: string | null;
+  description: string | null;
+  isPublic: boolean;
   order: number;
   createdAt: Date;
+}
+
+/** Position + épinglage d'un flacon DANS une étagère (table `shelf_items`). */
+export interface ShelfItem {
+  shelfId: string;
+  parfumId: string;
+  position: number;
+  pinned: boolean;
+  addedAt: Date;
 }
 
 export interface SotdEntry {

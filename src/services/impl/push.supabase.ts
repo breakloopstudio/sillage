@@ -20,7 +20,10 @@ export async function requestFcmPermission(): Promise<boolean> {
   try {
     const { status } = await Notifications.requestPermissionsAsync();
     return status === 'granted';
-  } catch { return false; }
+  } catch (e) {
+    console.warn('[push] requestPermission failed:', e);
+    return false;
+  }
 }
 
 export async function getFcmToken(): Promise<string | null> {
@@ -30,7 +33,10 @@ export async function getFcmToken(): Promise<string | null> {
       projectId ? { projectId } : undefined,
     );
     return data;
-  } catch { return null; }
+  } catch (e) {
+    console.warn('[push] getFcmToken failed:', e);
+    return null;
+  }
 }
 
 export function onFcmTokenRefresh(cb: (token: string) => void): () => void {
@@ -63,12 +69,12 @@ export async function createNotificationChannels(): Promise<void> {
 
 async function saveTokenToDB(uid: string, token: string): Promise<void> {
   try {
-    const { error } = await supabase.from('push_tokens').insert({
+    const { error } = await supabase.from('push_tokens').upsert({
       user_id: uid,
       token,
       platform: Platform.OS,
       created_at: new Date().toISOString(),
-    });
+    }, { onConflict: 'user_id,token' });
     if (error) console.warn('[push] saveTokenToDB error:', error.message);
   } catch (e: unknown) {
     console.warn('[push] saveTokenToDB failed:', (e as Error)?.message ?? String(e));

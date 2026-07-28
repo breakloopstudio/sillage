@@ -6,16 +6,9 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-na
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { textOn } from '../utils/contrast';
 import { formatPrice } from '../utils/format-price';
+import { priceTier } from '../utils/price-tier';
 
 type PriceValue = 'deal' | 'fair' | 'overpriced' | 'unknown';
-
-function priceValueFromBestAndRef(bestPrice: number, referencePrice?: number): PriceValue {
-  if (!referencePrice || referencePrice <= 0) return 'unknown';
-  const ratio = bestPrice / referencePrice;
-  if (ratio < 0.8) return 'deal';
-  if (ratio < 1.05) return 'fair';
-  return 'overpriced';
-}
 
 interface Props {
   bestPrice: number;
@@ -36,7 +29,7 @@ export default function PriceDisplay({
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
-  const val = priceValue ?? priceValueFromBestAndRef(bestPrice, referencePrice);
+  const val: PriceValue = priceValue ?? (priceTier(bestPrice, referencePrice) ?? 'unknown');
   const color = priceColor(val, theme);
   const bg = priceBg(val, theme);
   const pct = referencePrice && referencePrice > 0
