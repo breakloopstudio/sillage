@@ -25,14 +25,12 @@ const POSTGREST_ERROR_MAP: Record<string, string> = {
 };
 
 export function translateSupabaseError(error: unknown): string {
-  if (error instanceof Error) {
-    const e = error as { code?: string; message?: string };
-    if (e.code) {
-      const message = SUPABASE_AUTH_MAP[e.code] ?? POSTGREST_ERROR_MAP[e.code];
-      if (message !== undefined) return message;
-      return 'Une erreur est survenue. Réessayez.';
-    }
-    return e.message ?? 'Une erreur inattendue est survenue.';
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  if (typeof code === 'string') {
+    const message = SUPABASE_AUTH_MAP[code] ?? POSTGREST_ERROR_MAP[code];
+    if (message !== undefined) return message;
+    return 'Une erreur est survenue. Réessayez.';
   }
+  if (error instanceof Error && error.message) return error.message;
   return 'Une erreur inattendue est survenue.';
 }

@@ -21,9 +21,11 @@ export function useDensityPreference() {
   const [density, setDensityState] = useState<CardMode>('comfortable');
 
   useEffect(() => {
+    let cancelled = false;
     AsyncStorage.getItem(KEY).then(v => {
-      if (isValid(v)) setDensityState(v);
+      if (!cancelled && isValid(v)) setDensityState(v);
     }).catch((e) => console.warn('[density] persist failed:', e));
+    return () => { cancelled = true; };
   }, []);
 
   const setDensity = useCallback((mode: CardMode) => {

@@ -9,6 +9,7 @@ import { AuthProvider, useAuthContext } from '../src/contexts/AuthContext';
 import { FavorisProvider } from '../src/contexts/FavorisContext';
 import { UserParfumProvider } from '../src/contexts/UserParfumContext';
 import { PriceAlertsProvider } from '../src/contexts/PriceAlertsContext';
+import { ShelvesProvider } from '../src/contexts/ShelvesContext';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import OfflineBanner from '../src/components/OfflineBanner';
@@ -84,6 +85,7 @@ function RootLayoutInner() {
         <FavorisProvider>
         <UserParfumProvider>
         <PriceAlertsProvider>
+        <ShelvesProvider>
         <AuthGuard>
           <ErrorBoundary>
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
@@ -99,6 +101,7 @@ function RootLayoutInner() {
             <Stack.Screen name="u/[pseudo]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="u/[pseudo]/shelf/[shelfId]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="scan" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="runner" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
@@ -110,6 +113,7 @@ function RootLayoutInner() {
           </Stack>
           </ErrorBoundary>
         </AuthGuard>
+        </ShelvesProvider>
         </PriceAlertsProvider>
         </UserParfumProvider>
         </FavorisProvider>

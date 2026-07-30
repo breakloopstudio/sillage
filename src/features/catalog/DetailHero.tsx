@@ -7,14 +7,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import FavButton from '../../components/FavButton';
 import type { Parfum } from '../../models';
-
-const PALETTE = ['#5B21B6', '#1E40AF', '#065F46', '#92400E', '#991B1B', '#9D174D', '#3730A3', '#854D0E'];
-
-function brandColor(brand: string): string {
-  let hash = 0;
-  for (let i = 0; i < brand.length; i++) hash = brand.charCodeAt(i) + ((hash << 5) - hash);
-  return PALETTE[Math.abs(hash) % PALETTE.length];
-}
+import { brandColor } from '../../utils/brand-color';
 
 interface Props {
   imageUrl: string | null;

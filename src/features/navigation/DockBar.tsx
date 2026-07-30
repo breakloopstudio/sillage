@@ -1,21 +1,23 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useReducedMotion,
-  withRepeat,
-  withTiming,
   withSpring,
-  Easing,
-  cancelAnimation,
+  withTiming,
+  withSequence,
+  interpolate,
+  Extrapolation,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
+import { tintLuminous } from '../../utils/alpha';
 import { hapticsLight } from '../../services/haptics';
 import { useNavigationChrome } from './NavigationChromeContext';
 
@@ -25,18 +27,44 @@ export interface BottomTabBarProps {
 }
 
 const FAB_SPACE = 64;
-const INDICATOR_W = 28;
-const PULSE_MIN = 1;
-const PULSE_MAX = 1.18;
+const FAB_SIZE = 56;
+const FAB_INNER = 30;
+const ICON_SIZE = 20;
 
-export function getIndicatorLeft(screenWidth: number, tabVisualIndex: number): number {
+const BAR_H_EXPANDED = 64;
+const BAR_H_COMPACT = 50;
+const LABEL_H = 12;
+const LABEL_GAP = 4;
+
+const PILL_W = 46;
+const PILL_H = 30;
+const HALO_OUTER = 44;
+const HALO_INNER = 26;
+
+const FAB_EMERGE = (FAB_SIZE - BAR_H_COMPACT) / 2;
+
+const TAB_CONTENT_H_EXPANDED = ICON_SIZE + LABEL_GAP + LABEL_H;
+const ICON_CENTER_EXPANDED = (BAR_H_EXPANDED - TAB_CONTENT_H_EXPANDED) / 2 + ICON_SIZE / 2;
+const ICON_CENTER_COMPACT = BAR_H_COMPACT / 2;
+
+const RIM_SHADE = [
+  'rgba(255,255,255,0.32)',
+  'rgba(255,255,255,0.08)',
+  'rgba(255,255,255,0)',
+  'rgba(0,0,0,0)',
+  'rgba(0,0,0,0.24)',
+] as const;
+const LENS_SHADE = [
+  'rgba(0,0,0,0.30)',
+  'rgba(0,0,0,0.06)',
+  'rgba(255,255,255,0.14)',
+] as const;
+
+export function getTabCenter(screenWidth: number, tabVisualIndex: number): number {
   const barW = Math.min(screenWidth * 0.88, 380);
   const tabW = (barW - FAB_SPACE) / 4;
-  // [tab0][tab1][FAB][tab2][tab3] — le FAB sépare les tabs 1 et 2
-  const center = tabVisualIndex < 2
-    ? (tabVisualIndex + 0.5) * tabW
-    : 2 * tabW + FAB_SPACE + (tabVisualIndex - 2 + 0.5) * tabW;
-  return center - INDICATOR_W / 2;
+  if (tabVisualIndex < 2) return (tabVisualIndex + 0.5) * tabW;
+  return 2 * tabW + FAB_SPACE + (tabVisualIndex - 2 + 0.5) * tabW;
 }
 
 const TAB_MAP = {
@@ -49,52 +77,106 @@ const TAB_MAP = {
 export default function DockBar({ state, navigation }: BottomTabBarProps) {
   const { theme, resolvedMode } = useTheme();
   const m = useMemo(() => getStyles(theme), [theme]);
+  const haloColors = useMemo(
+    () => ({
+      outer: tintLuminous(theme.colors.primary, 'hint', resolvedMode),
+      inner: tintLuminous(theme.colors.primary, 'veil', resolvedMode),
+    }),
+    [theme.colors.primary, resolvedMode],
+  );
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { dockTranslateY } = useNavigationChrome();
+  const { dockTranslateY, dockCompact } = useNavigationChrome();
   const { width: windowWidth } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
 
-  const pulseScale = useSharedValue(PULSE_MIN);
-  const indicatorLeft = useSharedValue(
-    getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
+  const fabScale = useSharedValue(1);
+  const indicatorCenter = useSharedValue(
+    getTabCenter(windowWidth, Math.min(state.index, 3)),
   );
+  const indicatorStretch = useSharedValue(1);
+  const prevIndexRef = useRef(state.index);
 
   useEffect(() => {
-    if (reduceMotion) return;
-    pulseScale.value = withRepeat(
-      withTiming(PULSE_MAX, { duration: 2500, easing: Easing.out(Easing.ease) }),
-      -1,
-      true,
-    );
-    return () => cancelAnimation(pulseScale);
-  }, [reduceMotion]);
-
-  useEffect(() => {
-    indicatorLeft.value = reduceMotion
-      ? getIndicatorLeft(windowWidth, Math.min(state.index, 3))
-      : withSpring(
-          getIndicatorLeft(windowWidth, Math.min(state.index, 3)),
-          { damping: 22, stiffness: 280, mass: 0.7 },
-        );
+    const idx = Math.min(state.index, 3);
+    const center = getTabCenter(windowWidth, idx);
+    indicatorCenter.value = reduceMotion
+      ? center
+      : withSpring(center, { damping: 22, stiffness: 280, mass: 0.7 });
+    if (!reduceMotion && prevIndexRef.current !== state.index) {
+      indicatorStretch.value = withSequence(
+        withSpring(1.25, { damping: 11, stiffness: 200 }),
+        withSpring(1, { damping: 13, stiffness: 170 }),
+      );
+    }
+    prevIndexRef.current = state.index;
   }, [state.index, windowWidth, reduceMotion]);
-
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: indicatorLeft.value }],
-  }));
 
   const dockStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: dockTranslateY.value }],
   }));
 
-  const pulseRingStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: reduceMotion ? 0 : 2 - pulseScale.value,
+  const barHeightStyle = useAnimatedStyle(() => ({
+    height: interpolate(dockCompact.value, [0, 1], [BAR_H_EXPANDED, BAR_H_COMPACT]),
+  }));
+
+  const labelWrapStyle = useAnimatedStyle(() => {
+    const c = dockCompact.value;
+    return {
+      opacity: interpolate(c, [0, 0.6], [1, 0], Extrapolation.CLAMP),
+      height: interpolate(c, [0, 1], [LABEL_H, 0], Extrapolation.CLAMP),
+      marginTop: interpolate(c, [0, 1], [LABEL_GAP, 0], Extrapolation.CLAMP),
+    };
+  });
+
+  const pillStyle = useAnimatedStyle(() => {
+    const c = dockCompact.value;
+    const sx = indicatorStretch.value;
+    const ic = interpolate(c, [0, 1], [ICON_CENTER_EXPANDED, ICON_CENTER_COMPACT]);
+    return {
+      opacity: interpolate(c, [0, 0.5], [1, 0], Extrapolation.CLAMP),
+      top: ic - PILL_H / 2,
+      transform: [
+        { translateX: indicatorCenter.value - (PILL_W * sx) / 2 },
+        { scaleX: sx },
+      ],
+    };
+  });
+
+  const haloStyle = useAnimatedStyle(() => {
+    const c = dockCompact.value;
+    const sx = indicatorStretch.value;
+    const ic = interpolate(c, [0, 1], [ICON_CENTER_EXPANDED, ICON_CENTER_COMPACT]);
+    return {
+      opacity: interpolate(c, [0.4, 1], [0, 1], Extrapolation.CLAMP),
+      top: ic - HALO_OUTER / 2,
+      transform: [
+        { translateX: indicatorCenter.value - (HALO_OUTER * sx) / 2 },
+        { scaleX: sx },
+      ],
+    };
+  });
+
+  const fabStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: interpolate(dockCompact.value, [0, 1], [0, -FAB_EMERGE]) },
+      { scale: fabScale.value },
+    ],
   }));
 
   const handleFabPress = useCallback(() => {
     router.push('/scan');
   }, [router]);
+
+  const handleFabIn = useCallback(() => {
+    fabScale.value = reduceMotion ? 0.94 : withSpring(0.9, { damping: 15, stiffness: 320 });
+  }, [reduceMotion]);
+
+  const handleFabOut = useCallback(() => {
+    fabScale.value = reduceMotion
+      ? withTiming(1, { duration: 0 })
+      : withSpring(1, { damping: 11, stiffness: 260 });
+  }, [reduceMotion]);
 
   const handleTabPress = useCallback((routeName: string) => {
     hapticsLight();
@@ -117,47 +199,65 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
       >
         <Ionicons
           name={isActive ? cfg.iconActive : cfg.iconInactive}
-          size={20}
+          size={ICON_SIZE}
           color={isActive ? theme.colors.primary : theme.colors.textMuted}
         />
-        <Text style={[m.label, isActive && m.labelOn]} allowFontScaling={false}>{cfg.label}</Text>
+        <Animated.View style={[s.labelWrap, labelWrapStyle]}>
+          <Text style={[m.label, isActive && m.labelOn]} allowFontScaling={false}>{cfg.label}</Text>
+        </Animated.View>
       </Pressable>
     );
   };
 
   return (
     <Animated.View style={[s.wrapper, { paddingBottom: 8 + insets.bottom }, dockStyle]} pointerEvents="box-none">
-      <View style={[s.bar, m.border, m.barShadow]}>
+      <Animated.View style={[s.bar, m.border, m.barShadow, barHeightStyle]}>
         <BlurView
           intensity={24}
           tint={resolvedMode === 'dark' ? 'dark' : 'light'}
           style={s.blur}
         />
         <View style={[s.overlay, m.overlay]} />
-        <Animated.View style={[s.indicator, m.indicator, { left: 0 }, indicatorStyle]} />
+
+        <Animated.View
+          style={[s.pill, m.pill, pillStyle]}
+          pointerEvents="none"
+          accessible={false}
+        />
+        <Animated.View
+          style={[s.halo, haloStyle]}
+          pointerEvents="none"
+          accessible={false}
+        >
+          <View style={[s.haloOuter, { backgroundColor: haloColors.outer }]} />
+          <View style={[s.haloInner, { backgroundColor: haloColors.inner }]} />
+        </Animated.View>
 
         {state.routes[0] && renderTab(state.routes[0].key, state.routes[0].name, 0)}
         {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
 
         <View style={s.fabSlot}>
-          <View style={s.fabOuter}>
-            {!reduceMotion && (
-              <Animated.View style={[s.pulseRing, m.pulseRing, pulseRingStyle]} />
-            )}
+          <Animated.View style={[s.fabOuter, fabStyle]}>
             <Pressable
-              style={[s.fab, m.fab, m.fabShadow]}
+              style={[s.fab, m.fabRing, m.fabShadow]}
+              onPressIn={handleFabIn}
+              onPressOut={handleFabOut}
               onPress={handleFabPress}
               accessibilityRole="button"
               accessibilityLabel="Scanner un parfum"
             >
-              <Ionicons name="camera" size={24} color={textOn(theme.colors.primary)} />
+              <LinearGradient style={s.fabShade} colors={RIM_SHADE} />
+              <View style={[s.fabInner, m.fabRing]}>
+                <LinearGradient style={s.fabInnerShade} colors={LENS_SHADE} />
+                <Ionicons name="camera" size={22} color={textOn(theme.colors.primary)} />
+              </View>
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
 
         {state.routes[2] && renderTab(state.routes[2].key, state.routes[2].name, 2)}
         {state.routes[3] && renderTab(state.routes[3].key, state.routes[3].name, 3)}
-      </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -173,11 +273,9 @@ const s = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 64,
     width: '88%',
     maxWidth: 380,
     borderRadius: 24,
-    overflow: 'hidden',
   },
   blur: {
     ...StyleSheet.absoluteFill,
@@ -187,21 +285,43 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     borderRadius: 24,
   },
-  indicator: {
+  pill: {
     position: 'absolute',
-    top: 6,
-    width: INDICATOR_W,
-    height: 3,
-    borderRadius: 2,
-    zIndex: 2,
+    left: 0,
+    width: PILL_W,
+    height: PILL_H,
+    borderRadius: PILL_H / 2,
+    zIndex: 1,
+  },
+  halo: {
+    position: 'absolute',
+    left: 0,
+    width: HALO_OUTER,
+    height: HALO_OUTER,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  haloOuter: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: HALO_OUTER / 2,
+  },
+  haloInner: {
+    width: HALO_INNER,
+    height: HALO_INNER,
+    borderRadius: HALO_INNER / 2,
   },
   tab: {
     flex: 1,
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingTop: 6,
     zIndex: 2,
+  },
+  labelWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   fabSlot: {
     flex: 0,
@@ -209,27 +329,37 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
-    zIndex: 2,
+    zIndex: 3,
   },
   fabOuter: {
-    width: 56,
-    height: 56,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
   },
   fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 3,
   },
-  pulseRing: {
-    position: 'absolute',
-    inset: -4,
-    borderRadius: 32,
-    borderWidth: 1.5,
+  fabShade: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: FAB_SIZE / 2,
+  },
+  fabInner: {
+    width: FAB_INNER,
+    height: FAB_INNER,
+    borderRadius: FAB_INNER / 2,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fabInnerShade: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: FAB_INNER / 2,
   },
 });
 
@@ -243,11 +373,10 @@ function getStyles(t: Theme) {
     overlay: {
       backgroundColor: t.colors.background + 'E0',
     },
-    indicator: { backgroundColor: t.colors.secondary },
-    label: { fontFamily: 'Inter_500Medium', fontSize: 10, color: t.colors.textMuted },
+    pill: { backgroundColor: t.colors.primarySoft },
+    label: { fontFamily: 'Inter_500Medium', fontSize: 10, lineHeight: 12, color: t.colors.textMuted },
     labelOn: { color: t.colors.primary },
-    fab: { backgroundColor: t.colors.primary },
+    fabRing: { backgroundColor: t.colors.primary },
     fabShadow: { ...t.shadow.scanCircle },
-    pulseRing: { borderColor: t.colors.primary + '4D' },
   } as const;
 }

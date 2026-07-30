@@ -7,11 +7,6 @@
     ".clinerules/design-guide.md"
   ],
   "mcp": {
-    "firebase": {
-      "type": "local",
-      "command": ["npx", "-y", "firebase-tools@latest", "mcp", "--dir", "C:\\dev\\ParfumScan_react", "--only", "auth,firestore,functions,storage,messaging"],
-      "enabled": true
-    },
     "supabase": {
       "type": "local",
       "command": ["npx", "-y", "@supabase/mcp-server-supabase", "--project-ref", "zrifarygomoljwhdjcbh"],

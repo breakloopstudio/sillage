@@ -843,6 +843,24 @@ export type Database = {
       remove_from_shelf: { Args: { p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
       pin_shelf_item: { Args: { p_pinned: boolean; p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
       reorder_shelf_items: { Args: { p_items: Json; p_shelf_id: string }; Returns: undefined }
+      submit_runner_score: {
+        Args: { p_score: number; p_distance?: number; p_max_combo?: number; p_skin?: string }
+        Returns: number
+      }
+      runner_leaderboard: {
+        Args: { lim?: number }
+        Returns: {
+          rank: number
+          is_me: boolean
+          pseudo: string | null
+          avatar_url: string | null
+          score: number
+          distance: number
+          max_combo: number
+          skin: string
+          created_at: string
+        }[]
+      }
       public_shelf: {
         Args: { p_pseudo: string; p_shelf_id: string }
         Returns: {

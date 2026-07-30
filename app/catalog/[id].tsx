@@ -24,6 +24,7 @@ import SaveSheet from '../../src/features/catalog/SaveSheet';
 import SaveButton from '../../src/features/catalog/SaveButton';
 import RelationSection from '../../src/features/catalog/RelationSection';
 import { useSaveController } from '../../src/features/catalog/useSaveController';
+import AccordProfile from '../../src/features/catalog/AccordProfile';
 import TrySheet from '../../src/features/scentlist/TrySheet';
 import NoteDetailPopup from '../../src/components/NoteDetailPopup';
 import ImageViewerPopup from '../../src/components/ImageViewerPopup';
@@ -94,15 +95,6 @@ function sillageMeta(v: string): { label: string; pct: number } {
 }
 
 
-function accordScore(pctStr: string): number {
-  const n = parseInt(pctStr.replace('%', ''), 10);
-  if (!isNaN(n)) return n;
-  const labels: Record<string, number> = { dominant: 95, prominent: 75, moderate: 50, soft: 30, subtle: 15, faint: 5 };
-  return labels[pctStr.toLowerCase().trim()] ?? 40;
-}
-
-
-
 function typeParfumLabel(v: string): string {
   const k = v.toLowerCase().replace(/[^a-z]/g, '');
   if (k.includes('extrait') || k.includes('pure')) return 'Extrait';
@@ -146,23 +138,6 @@ function GaugeRow({ icon, iconBg, iconColor, label, valueLabel, pct, barColor, v
   );
 }
 
-// ─── Barre d'accord (violet dégradé par rang) ────────────────
-
-const ACCORD_ALPHAS = ['FF', 'CC', '99', '73', '59'];
-
-function AccordBar({ name, pct, index, s, t }: { name: string; pct: number; index: number; s: ReturnType<typeof getStyles>; t: Theme }) {
-  const color = `${t.colors.primary}${ACCORD_ALPHAS[index % ACCORD_ALPHAS.length]}`;
-  return (
-    <View style={s.statBar}>
-      <Text style={s.statLabel} numberOfLines={1}>{name}</Text>
-      <View style={[s.statTrack, { backgroundColor: t.colors.primarySoft }]}>
-        <View style={[s.statFill, { width: `${pct}%`, backgroundColor: color }]} />
-      </View>
-      <Text style={[s.statPct, { color: t.colors.primaryInk }]}>{pct}%</Text>
-    </View>
-  );
-}
-
 export default function CatalogDetailPage() {
   const rawId = useLocalSearchParams<{ id: string }>().id;
   const id: string | undefined = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -171,7 +146,7 @@ export default function CatalogDetailPage() {
   const { theme: t } = useTheme();
   const s = useMemo(() => getStyles(t), [t]);
 
-  const { user, isAuthenticated } = useAuthContext();
+  const { user, isAuthenticated, isAdmin } = useAuthContext();
   const [parfum, setParfum] = useState<Parfum | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImageViewer, setShowImageViewer] = useState(false);
@@ -191,7 +166,7 @@ export default function CatalogDetailPage() {
 
   // Chargement auto-suffisant : bridge (preview) -> Firestore
   useEffect(() => {
-    if (!id) return;
+    if (!id) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
 
@@ -267,9 +242,11 @@ export default function CatalogDetailPage() {
         if (!cancelled && results.length > 0) {
           setSimilars(results);
 
-          // Persist similarIds + timestamp pour les prochains visiteurs
-          const ids = results.map((p: Parfum) => p.id);
-          updateParfum(parfum.id!, { similarIds: ids, similarIdsCachedAt: new Date() }).catch(() => {});
+          // Persist similarIds + timestamp pour les prochains visiteurs (admins uniquement — RLS)
+          if (isAdmin) {
+            const ids = results.map((p: Parfum) => p.id);
+            updateParfum(parfum.id!, { similarIds: ids, similarIdsCachedAt: new Date() }).catch(() => {});
+          }
         }
       } catch {
         // silent fail
@@ -505,20 +482,10 @@ export default function CatalogDetailPage() {
                   onNotePress={handleNotePress}
                 />
 
-                {/* ─── Accords principaux ─── */}
-                {parfum.mainAccords && parfum.mainAccords.length > 0 ? (
-                  <View style={s.infoZone}>
-                    <SectionTitle icon="color-filter-outline" title="Accords principaux" s={s} t={t} />
-                    {(parfum.mainAccordsPercentage
-                      ? Object.entries(parfum.mainAccordsPercentage)
-                          .sort(([, a], [, b]) => accordScore(b) - accordScore(a))
-                          .map(([name, pctStr]) => ({ name, pct: accordScore(pctStr) }))
-                      : parfum.mainAccords.map((name, i) => ({ name, pct: 100 - i * 12 }))
-                    ).slice(0, 5).map((a, i) => (
-                      <AccordBar key={a.name} name={translateNote(a.name)} pct={a.pct} index={i} s={s} t={t} />
-                    ))}
-                  </View>
-                ) : null}
+                <AccordProfile
+                  accords={parfum.mainAccords}
+                  percentages={parfum.mainAccordsPercentage}
+                />
 
                 {/* ─── Tenue & sillage ─── */}
                 {parfum.longevity || parfum.sillage ? (
@@ -717,11 +684,6 @@ function getStyles(t: Theme) {
   noseChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.secondarySoft },
   noseChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.secondaryInk },
   // ─── Accords ───
-  statBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 3 },
-  statLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: t.colors.text, width: 96 },
-  statTrack: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
-  statFill: { height: '100%', borderRadius: 3 },
-  statPct: { fontSize: 12, fontFamily: 'Inter_700Bold', width: 36, textAlign: 'right' },
   // ─── Recommandations ───
   similarRow: { gap: 12, paddingTop: 4 },
   similarCardWrap: { width: 160 },

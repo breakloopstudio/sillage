@@ -1,7 +1,7 @@
-import { useMemo, useEffect } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { useMemo, useEffect, useState } from 'react';
+import { View, Text, Pressable, BackHandler } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, useReducedMotion, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 
@@ -23,23 +23,34 @@ export default function ActionSheet({ visible, title, actions, onClose }: Props)
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
+  const [mounted, setMounted] = useState(visible);
 
   const translateY = useSharedValue(300);
   const backdropOpacity = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
-      backdropOpacity.value = withTiming(1, { duration: 200 });
-      translateY.value = withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
-    } else {
-      backdropOpacity.value = withTiming(0, { duration: 150 });
-      translateY.value = withTiming(300, { duration: 200 });
+      setMounted(true);
+      backdropOpacity.value = withTiming(1, { duration: reduced ? 0 : 200 });
+      translateY.value = reduced ? withTiming(0, { duration: 0 }) : withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
+    } else if (mounted) {
+      backdropOpacity.value = withTiming(0, { duration: reduced ? 0 : 150 });
+      translateY.value = withTiming(300, { duration: reduced ? 0 : 200 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
     }
     return () => {
       cancelAnimation(backdropOpacity);
       cancelAnimation(translateY);
     };
-  }, [visible]);
+  }, [visible, reduced]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
@@ -49,7 +60,7 @@ export default function ActionSheet({ visible, title, actions, onClose }: Props)
     transform: [{ translateY: translateY.value }],
   }));
 
-  if (!visible) return null;
+  if (!mounted) return null;
 
   const handleAction = (action: ActionItem) => {
     action.onPress();
@@ -71,7 +82,7 @@ export default function ActionSheet({ visible, title, actions, onClose }: Props)
 
         {actions.map((action, i) => (
           <Pressable
-            key={i}
+            key={action.label}
             style={[s.actionRow, i < actions.length - 1 && s.actionBorder]}
             onPress={() => handleAction(action)}
           >

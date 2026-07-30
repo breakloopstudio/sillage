@@ -14,11 +14,16 @@ export interface ObstacleDef {
 }
 
 export interface PickupDef {
-  discount: number;
+  key: string;
   label: string;
+  emoji: string;
+  color: string;
+  power: PowerType;
   altitude: 'low' | 'medium' | 'high' | 'very_high';
   scoreBonus: number;
 }
+
+export type PowerType = 'magnet' | 'shield' | 'double' | 'slow';
 
 export type GameStateValue = 'entering' | 'idle' | 'playing' | 'dying' | 'gameover' | 'exiting';
 
@@ -50,6 +55,13 @@ export const PICKUP_SIZE = 38;
 
 export const PALETTE_INTERVAL = 800;
 
+export const RUNNER_PHASES = [
+  { label: 'Boisée', emoji: '🌲' },
+  { label: 'Florale', emoji: '🌸' },
+  { label: 'Hespéridée', emoji: '🍋' },
+  { label: 'Ambrée', emoji: '🔥' },
+] as const;
+
 export const PALETTES = [
   { crystal: '#1D1728', crystal2: '#221930', crystal3: '#2A2238', crystal4: '#1A1420', bottle: '#6C3ED9', cap: '#D4A960' },
   { crystal: '#1A1525', crystal2: '#1F1035', crystal3: '#26183D', crystal4: '#150D22', bottle: '#5B21B6', cap: '#C8945A' },
@@ -68,12 +80,23 @@ export const NEAR_MISS_GAP = 30;
 export const NEAR_MISS_BONUS = 10;
 export const MAX_COMBO = 4;
 
+export const MAX_LIVES = 3;
+export const INVULN_DURATION = 1.2;
+
+// Distance (px) sur laquelle un objet qui entre par la droite se révèle en fondu,
+// à taille constante — donne la sensation de glisser depuis la droite (pas de zoom).
+export const SPAWN_ENTRY_DISTANCE = 140;
+
 export const PICKUP_DEFS: PickupDef[] = [
-  { discount: 10, label: '−10%', altitude: 'low', scoreBonus: 25 },
-  { discount: 20, label: '−20%', altitude: 'medium', scoreBonus: 50 },
-  { discount: 30, label: '−30%', altitude: 'high', scoreBonus: 100 },
-  { discount: 50, label: '−50%', altitude: 'very_high', scoreBonus: 200 },
+  { key: 'bergamote', label: 'Bergamote', emoji: '🍋', color: '#B5C334', power: 'magnet', altitude: 'low', scoreBonus: 25 },
+  { key: 'santal', label: 'Santal', emoji: '🪵', color: '#A9744F', power: 'shield', altitude: 'medium', scoreBonus: 50 },
+  { key: 'ambre', label: 'Ambre', emoji: '🔥', color: '#E8933A', power: 'double', altitude: 'high', scoreBonus: 100 },
+  { key: 'musc', label: 'Musc', emoji: '🌙', color: '#9A8FC0', power: 'slow', altitude: 'very_high', scoreBonus: 200 },
 ];
+
+export const POWER_DURATION: Record<PowerType, number> = { magnet: 5, shield: 0, double: 8, slow: 3 };
+export const SLOW_FACTOR = 0.45;
+export const MAGNET_RADIUS = 240;
 
 export function getSpawnDistance(score: number): number {
   'worklet';

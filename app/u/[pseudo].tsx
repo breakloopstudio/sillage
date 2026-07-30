@@ -30,7 +30,8 @@ function publicItemToCard(item: PublicCollectionItem): Parfum {
 }
 
 export default function PublicProfilePage() {
-  const { pseudo } = useLocalSearchParams<{ pseudo: string }>();
+  const searchParams = useLocalSearchParams<{ pseudo: string }>();
+  const pseudo = Array.isArray(searchParams.pseudo) ? searchParams.pseudo[0] : searchParams.pseudo;
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -61,15 +62,23 @@ export default function PublicProfilePage() {
   const handleShowFollowers = useCallback(async () => {
     if (!pseudo) return;
     hapticsLight();
-    const list = await getPublicFollowers(pseudo);
-    if (mountedRef.current) { setFollowList(list); setFollowListTitle('Abonnés'); }
+    try {
+      const list = await getPublicFollowers(pseudo);
+      if (mountedRef.current) { setFollowList(list); setFollowListTitle('Abonnés'); }
+    } catch (e: unknown) {
+      console.warn('[u] getPublicFollowers failed:', (e as Error)?.message ?? String(e));
+    }
   }, [pseudo]);
 
   const handleShowFollowing = useCallback(async () => {
     if (!pseudo) return;
     hapticsLight();
-    const list = await getPublicFollowing(pseudo);
-    if (mountedRef.current) { setFollowList(list); setFollowListTitle('Suivis'); }
+    try {
+      const list = await getPublicFollowing(pseudo);
+      if (mountedRef.current) { setFollowList(list); setFollowListTitle('Suivis'); }
+    } catch (e: unknown) {
+      console.warn('[u] getPublicFollowing failed:', (e as Error)?.message ?? String(e));
+    }
   }, [pseudo]);
 
   const handleFollow = useCallback(async () => {

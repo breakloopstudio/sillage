@@ -25,6 +25,9 @@ async function callAnalyze(payload: { imageBase64?: string; imagesBase64?: strin
       const msg = await readErrorMsg(error, "Échec de l'analyse IA.");
       throw new Error(msg);
     }
+    if (data == null || typeof data !== 'object') {
+      return { marque: null, nom: null, volumeMl: null, typeParfum: null, confidence: 'low', alternatives: [] } as unknown as ScanResult;
+    }
     return data as ScanResult;
   } catch (err: unknown) {
     const e = err as Error;

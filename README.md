@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 287](https://img.shields.io/badge/Tests-287%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 312](https://img.shields.io/badge/Tests-312%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -53,7 +53,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 287 tests, 27 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 312 tests, 33 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -153,15 +153,16 @@ app/
 ├── search.tsx                # Recherche (texte + mode famille ?family=<key>)
 ├── history.tsx               # Historique des scans
 ├── scentlist.tsx             # Redirection → /(tabs)/collection
+├── runner.tsx                # Flacon Runner (easter egg, slide_from_bottom)
 ├── legal.tsx / privacy.tsx / privacy-center.tsx / delete-account.tsx
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (15)        # supabase, catalog, user-data, user-parfum, possessions, profile, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/     (17)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner)
 ├── services/impl/            # impl Supabase de chaque service + search-shared + sql-utils (service public = export * from impl/<x>.supabase)
-├── hooks/        (21)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useShelfItems, useParfumerieViewPreference, useSotd, useVoicePreference, useVoiceSearch, useWeather
-├── contexts/     (4)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel) — ThemeContext est dans src/theme/
-├── components/   (22)        # ParfumCard (badges statut/rating/🔔, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard, AddToShelfSheet, PublishShelfGateSheet, InspireShelfSheet
+├── hooks/        (21)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference, useShelfItems, useParfumerieViewPreference, useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
+├── components/   (23)        # ParfumCard (badges statut/rating/🔔, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard, AddToShelfSheet, PublishShelfGateSheet, InspireShelfSheet, InfoPopup
 ├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx
 ├── features/                 # scan, catalog (+ RelationSection), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager/ShelfCard/BottleThumb), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner
 ├── models/       (8)         # Parfum (+imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
@@ -297,6 +298,21 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.9 — Accords olfactifs, Flacon Runner v2, contextes, performances (30/07/2026)
+
+- **Accords olfactifs (fiche détail)** : `AccordProfile` + `accord-profile.ts` remplacent l'ancienne `AccordBar` — 5 accords en barres colorées par famille (tokens `accord0–7`), qualificatif FR, expansion animée, aphorisme italique, haptique. 8 nouveaux tokens thème (light + dark).
+- **Flacon Runner v2** : 4 notes à pouvoirs (magnet/shield/double/slow-mo), 3 vies + invulnérabilité, 8 missions persistées, **classement mondial** (`runner_scores` + 2 RPC, service `runner.ts`), HUD/particles 100 % UI-thread, refonte visuelle, skins/pause/mute, route `/runner`. L'onglet Communauté affiche le leaderboard + SOTD + météo.
+- **Contextes** : `ShelvesContext` (remplace `useShelves`, 1 subscription partagée), `useFavorisViewPreference` (vue Favoris/Alertes persistée), `InfoPopup`. Tab Favoris : segmented Favoris / Alertes.
+- **Performances** : `ParfumCard` mémoïsé (`React.memo` + comparateur), images en `cachePolicy="memory-disk"` + `recyclingKey` (cartes + vignettes), `Image.prefetch` du pool catalogue, virtualisation recherche (`windowSize`/`maxToRenderPerBatch`, clés stables, plus de remount au changement de thème).
+- **Nettoyage** : suppression de l'héritage Firebase (`functions/`, `firebase.json`, `firestore.indexes.json`, 9 scripts).
+- **Tests** : 33 suites, 312 tests (+6 suites). `tsc --noEmit` : 0 erreur app/ + src/.
+
+## v8.8 — DockBar refonte : compact au scroll, indicateur pill/halo, FAB obturateur (29/07/2026)
+
+- **Comportement 3 états** : expanded (icônes + labels) → **compact** au scroll (labels effondrés, barre amincie, FAB qui émerge) → **hidden** (vélocité / profondeur). Reveal en compact, expanded seulement tout en haut. Machine à états dans `NavigationChromeContext` (`dockCompact` + `dockTranslateY`).
+- **Indicateur pill/halo** : le trait doré est retiré (conflit d'accent §2.4) au profit d'une pill `primarySoft` qui glisse au spring et se dissout en halo `tintLuminous` en compact. **FAB obturateur** : anneau `primary` à gradient (rim light + ombrage) cerclant un disque creux ; pulse perpétuel retiré → feedback au touch. Indicateur « stretchy » au changement d'onglet (coupé en Reduced Motion).
+- **Tests** : 27 suites, 287 tests (inchangés).
+
 ## v8.7 — Étagères « meuble » + communauté d'étagères (28/07/2026)
 
 - **Meuble privé (P0–P1).** Segmented `Collection | Étagères` (vue adaptative), pile de `ShelfCard` (rayons + flacons nus) : vues système (Signature, Cœurs), étagères custom, Non classés. CRUD enrichi + drag (DraggableFlatList), édition inline. Assignment long-press, ajout direct, persistance du dépliage.

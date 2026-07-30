@@ -1,7 +1,7 @@
 // src/components/ParfumCard.tsx — Carte parfum réutilisable (4 modes)
 // compact (rangées horizontales), comfortable (grille 2 col), compactPlus (grille dense), list
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, memo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -47,7 +47,7 @@ function resolveImageUrl(p: Parfum): string | null {
   return p.imageUrl ?? null;
 }
 
-export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress, status, rating, hidePrice = false, priceAlert = null }: Props) {
+function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress, status, rating, hidePrice = false, priceAlert = null }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -116,8 +116,8 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         {showImage ? (
           <View style={s.imgWrapCompact}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgCompact} contentFit="contain" transition={300} onError={handleImgError} />
-            {discount !== null && <View style={s.dealBadgeCompact}><Text style={s.dealBadgeTextCompact}>-{discount}%</Text></View>}
+            <Image source={imageSource!} style={s.imgCompact} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
+            {discount !== null && <View style={s.dealBadgeCompact}><Text style={s.dealBadgeTextCompact}>{`−${discount} %`}</Text></View>}
             <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
@@ -164,8 +164,8 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         {showImage ? (
           <View style={s.imgWrapComfortable}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgComfortable} contentFit="contain" transition={300} onError={handleImgError} />
-            {discount !== null && <View style={s.dealBadge}><Text style={s.dealBadgeText}>-{discount}%</Text></View>}
+            <Image source={imageSource!} style={s.imgComfortable} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
+            {discount !== null && <View style={s.dealBadge}><Text style={s.dealBadgeText}>{`−${discount} %`}</Text></View>}
             <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
@@ -226,8 +226,8 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         {showImage ? (
           <View style={s.imgWrapCompactPlus}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgCompactPlus} contentFit="contain" transition={300} onError={handleImgError} />
-            {discount !== null && <View style={s.dealBadgeCompactPlus}><Text style={s.dealBadgeTextCompactPlus}>-{discount}%</Text></View>}
+            <Image source={imageSource!} style={s.imgCompactPlus} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
+            {discount !== null && <View style={s.dealBadgeCompactPlus}><Text style={s.dealBadgeTextCompactPlus}>{`−${discount} %`}</Text></View>}
             <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
@@ -282,13 +282,11 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
         {showImage ? (
           <View style={s.imgWrapList}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgList} contentFit="contain" transition={300} onError={handleImgError} />
-            <FavButton parfum={parfum} size="xs" />
+            <Image source={imageSource!} style={s.imgList} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
           </View>
         ) : (
           <View style={[s.imgPlaceholderList, { backgroundColor: tint }]}>
             <Text style={s.placeholderInitList}>{parfum.marque.charAt(0).toUpperCase()}</Text>
-            <FavButton parfum={parfum} size="xs" />
           </View>
         )}
         <View style={s.bodyList}>
@@ -304,25 +302,46 @@ export default function ParfumCard({ parfum, mode = 'comfortable', onPressOverri
             ) : null}
           </View>
         </View>
-        {!hidePrice ? (<View style={s.priceColList}>
-          <View style={s.priceRowList}>
-            {tier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[tier] }]} />}
-            {bestPrice !== null ? (
-              <Text style={s.priceList} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
-            ) : (
-              <Text style={s.priceListMuted}>— €</Text>
+        <View style={s.trailingList}>
+          <FavButton parfum={parfum} inline />
+          {!hidePrice ? (<View style={s.priceColList}>
+            <View style={s.priceRowList}>
+              {tier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[tier] }]} />}
+              {bestPrice !== null ? (
+                <Text style={s.priceList} maxFontSizeMultiplier={1.3}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
+              ) : (
+                <Text style={s.priceListMuted}>— €</Text>
+              )}
+            </View>
+            {parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice && (
+              <Text style={s.priceRefList}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
             )}
-          </View>
-          {parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice && (
-            <Text style={s.priceRefList}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
-          )}
-        </View>) : null}
+          </View>) : null}
+        </View>
       </Pressable>
     );
   }
 
   return null;
 }
+
+function arePropsEqual(prev: Props, next: Props): boolean {
+  return (
+    prev.parfum.id === next.parfum.id &&
+    prev.parfum.nom === next.parfum.nom &&
+    prev.parfum.marque === next.parfum.marque &&
+    prev.parfum.imageUrl === next.parfum.imageUrl &&
+    prev.parfum.bestPrice === next.parfum.bestPrice &&
+    prev.parfum.referencePrice === next.parfum.referencePrice &&
+    prev.mode === next.mode &&
+    prev.status === next.status &&
+    prev.rating === next.rating &&
+    prev.hidePrice === next.hidePrice &&
+    (prev.priceAlert?.variation ?? null) === (next.priceAlert?.variation ?? null)
+  );
+}
+
+export default memo(ParfumCard, arePropsEqual);
 
 function getStyles(t: Theme) {
   return {
@@ -421,6 +440,7 @@ function getStyles(t: Theme) {
     titleList: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 15, color: t.colors.text, marginBottom: 4 },
     tagsList: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
     priceColList: { alignItems: 'flex-end', flexShrink: 0 },
+    trailingList: { flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 8, flexShrink: 0 },
     priceRowList: { flexDirection: 'row', alignItems: 'baseline' },
     priceList: { fontFamily: 'Inter_700Bold', fontSize: 16, color: t.colors.text },
     priceListMuted: { fontFamily: 'Inter_400Regular', fontSize: 16, color: t.colors.textMuted },

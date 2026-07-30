@@ -50,6 +50,10 @@ interface Props {
   onLongPressBottle?: (item: ShelfCardItem) => void;
   onAdd?: () => void;
   onOpenMenu?: () => void;
+  onPressEmblem?: () => void;
+  emblemAccessibilityLabel?: string;
+  drag?: () => void;
+  isDragging?: boolean;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -96,6 +100,10 @@ export default function ShelfCard({
   onLongPressBottle,
   onAdd,
   onOpenMenu,
+  onPressEmblem,
+  emblemAccessibilityLabel,
+  drag,
+  isDragging,
 }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -129,19 +137,40 @@ export default function ShelfCard({
   const toggleLabel = `${name}, ${items.length} parfum${items.length > 1 ? 's' : ''}${isPublic ? ', publique' : ''}, ${expanded ? 'réduire' : 'déplier'}`;
   const showSortBtn = showSort && !isPublic && options.length > 1;
   const sortActive = sortKey !== options[0];
+  const canCollapse = items.length > cols * ROWS_COLLAPSED;
+  const toggleA11yLabel = canCollapse ? toggleLabel : drag ? `Réorganiser ${name}` : undefined;
+
+  const emblemNode = (
+    <View style={[s.emblem, { backgroundColor: dyn.emblemBg }]}>
+      <Ionicons name={(icon ?? 'albums-outline') as never} size={15} color={dyn.emblemIcon} />
+    </View>
+  );
+  const emblemPressable = onPressEmblem ? (
+    <Pressable
+      onPress={onPressEmblem}
+      hitSlop={{ top: 9, bottom: 9, left: 9, right: 4 }}
+      style={s.emblemHit}
+      accessibilityRole="button"
+      accessibilityLabel={emblemAccessibilityLabel ?? name}
+    >
+      {emblemNode}
+    </Pressable>
+  ) : null;
 
   return (
     <View style={s.card}>
       <View style={[s.header, { backgroundColor: dyn.headerBg }]}>
+        {emblemPressable}
         <Pressable
           style={s.toggleZone}
-          onPress={onToggleExpand}
-          accessibilityRole="button"
-          accessibilityLabel={toggleLabel}
+          onPress={!isDragging && canCollapse ? onToggleExpand : undefined}
+          onLongPress={drag}
+          delayLongPress={250}
+          accessibilityRole={canCollapse || drag ? 'button' : undefined}
+          accessibilityLabel={toggleA11yLabel}
+          accessibilityHint={drag ? 'Maintiens pour réorganiser' : undefined}
         >
-          <View style={[s.emblem, { backgroundColor: dyn.emblemBg }]}>
-            <Ionicons name={(icon ?? 'albums-outline') as never} size={15} color={dyn.emblemIcon} />
-          </View>
+          {onPressEmblem ? null : emblemNode}
           <View style={s.titles}>
             <Text style={s.name} numberOfLines={1}>{name}</Text>
             {tagline ? <Text style={s.tagline} numberOfLines={1}>{tagline}</Text> : null}
@@ -185,13 +214,15 @@ export default function ShelfCard({
             <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textMuted} />
           </Pressable>
         ) : null}
-        <Pressable onPress={onToggleExpand} hitSlop={10} style={s.headerBtn} accessible={false}>
-          <Ionicons
-            name={expanded ? 'chevron-down' : 'chevron-forward'}
-            size={18}
-            color={theme.colors.textMuted}
-          />
-        </Pressable>
+        {canCollapse ? (
+          <Pressable onPress={isDragging ? undefined : onToggleExpand} hitSlop={10} style={s.headerBtn} accessible={false}>
+            <Ionicons
+              name={expanded ? 'chevron-down' : 'chevron-forward'}
+              size={18}
+              color={theme.colors.textMuted}
+            />
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={s.body}>
@@ -199,7 +230,7 @@ export default function ShelfCard({
           <Text style={s.empty}>{variant === 'system' ? 'Rien ici pour l’instant' : 'Étagère vide'}</Text>
         ) : (
           rows.map((row, ri) => (
-            <View key={ri} style={[s.rayRow, { borderBottomColor: dyn.ray }]}>
+            <View key={row.map((it) => it.parfumId).join('|')} style={[s.rayRow, { borderBottomColor: dyn.ray }]}>
               {row.map((item, bi) => {
                 const gi = ri * cols + bi;
                 return (
@@ -252,6 +283,9 @@ function getStyles(t: Theme) {
       borderRadius: 13,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
+    },
+    emblemHit: {
+      marginRight: 6,
     },
     titles: {
       flex: 1,

@@ -32,7 +32,9 @@ function publicItemToCard(item: PublicShelfItem): Parfum {
 }
 
 export default function PublicShelfPage() {
-  const { pseudo, shelfId } = useLocalSearchParams<{ pseudo: string; shelfId: string }>();
+  const searchParams = useLocalSearchParams<{ pseudo: string; shelfId: string }>();
+  const pseudo = Array.isArray(searchParams.pseudo) ? searchParams.pseudo[0] : searchParams.pseudo;
+  const shelfId = Array.isArray(searchParams.shelfId) ? searchParams.shelfId[0] : searchParams.shelfId;
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();

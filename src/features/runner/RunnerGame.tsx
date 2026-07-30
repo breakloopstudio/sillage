@@ -1,7 +1,7 @@
 // src/features/runner/RunnerGame.tsx — Composant principal du mini-jeu
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, useWindowDimensions, AppState } from 'react-native';
+import { View, Text, Pressable, StyleSheet, useWindowDimensions, AppState, Share } from 'react-native';
 import Animated, {
   useAnimatedReaction,
   useSharedValue,
@@ -16,7 +16,13 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { hapticsLight, hapticsSuccess, hapticsError } from '../../services/haptics';
-import { getHighScore, setHighScore, getSkinForScore, unlockSkin, getUnlockedSkins } from './runner-storage';
+import { useAuthContext } from '../../contexts/AuthContext';
+import { submitRunnerScore, clearRunnerLeaderboardCache } from '../../services/runner';
+import { runnerShareUrl } from '../../utils/share';
+import {
+  getHighScore, setHighScore, getSkinForScore, unlockSkin, getUnlockedSkins,
+  getSelectedSkinKey, setSelectedSkinKey, getMuted, setMuted,
+} from './runner-storage';
 import { SKINS } from './runner-storage';
 import { useRunnerLoop } from './useRunnerLoop';
 import RunnerBackground from './RunnerBackground';
@@ -25,12 +31,17 @@ import RunnerBottle from './RunnerBottle';
 import RunnerObstacles from './RunnerObstacles';
 import RunnerPickups from './RunnerPickups';
 import RunnerSpeedLines from './RunnerSpeedLines';
+import RunnerParticles from './RunnerParticles';
+import RunnerHud from './RunnerHud';
 import { useRunnerSounds } from './runner-sounds';
+import { getUnlockedMissions, unlockMissions, evaluateMissions, type Mission } from './runner-missions';
 import {
   type GameDimensions,
   JUMP_VELOCITY,
   DOUBLE_JUMP_VELOCITY,
   PALETTES,
+  PICKUP_DEFS,
+  RUNNER_PHASES,
 } from './runner-types';
 
 interface Props {
@@ -65,15 +76,27 @@ function getStyles() {
       color: '#988EA8',
       marginTop: 2,
     },
-    closeBtn: {
+    livesRow: {
+      position: 'absolute' as const,
+      top: 106,
+      right: 26,
+      flexDirection: 'row' as const,
+      gap: 5,
+      zIndex: 50,
+    },
+    topCluster: {
       position: 'absolute' as const,
       top: 55,
-      left: 16,
+      left: 12,
+      flexDirection: 'row' as const,
+      gap: 6,
+      zIndex: 100,
+    },
+    topBtn: {
       width: 36,
       height: 36,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
-      zIndex: 100,
     },
 
     startOverlay: {
@@ -99,6 +122,11 @@ function getStyles() {
       fontSize: 15,
       color: '#8B6CF6',
       marginTop: 36,
+    },
+    skinRow: {
+      flexDirection: 'row' as const,
+      gap: 14,
+      marginTop: 28,
     },
     hint: {
       fontFamily: 'Inter_400Regular',
@@ -184,6 +212,109 @@ function getStyles() {
       color: '#988EA8',
       marginTop: 12,
     },
+    goStats: {
+      flexDirection: 'row' as const,
+      gap: 28,
+      marginTop: 16,
+    },
+    goStat: {
+      alignItems: 'center' as const,
+      gap: 2,
+    },
+    goStatNum: {
+      fontFamily: 'Inter_800ExtraBold',
+      fontSize: 20,
+      color: '#EDE8F5',
+      fontVariant: ['tabular-nums'] as never,
+    },
+    goStatLabel: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10,
+      color: '#988EA8',
+      textTransform: 'uppercase' as const,
+      letterSpacing: 1,
+    },
+    newSkinBadge: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 6,
+      backgroundColor: '#D4A960',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginTop: 10,
+    },
+    newSkinText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      color: '#1F1A2E',
+    },
+    missionBadge: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 6,
+      backgroundColor: 'rgba(212,169,96,0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(212,169,96,0.4)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginTop: 8,
+    },
+    missionText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      color: '#D4A960',
+    },
+    rankText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 13,
+      color: '#8B6CF6',
+      marginTop: 12,
+      fontVariant: ['tabular-nums'] as never,
+    },
+    shareBtn: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      gap: 6,
+      marginTop: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 24,
+      borderWidth: 1,
+      borderColor: 'rgba(212,169,96,0.5)',
+      borderRadius: 12,
+    },
+    shareText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      color: '#D4A960',
+    },
+    phaseBanner: {
+      position: 'absolute' as const,
+      top: 152,
+      alignSelf: 'center' as const,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 6,
+      backgroundColor: 'rgba(21,16,30,0.85)',
+      borderWidth: 1,
+      borderColor: 'rgba(212,169,96,0.4)',
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 20,
+      zIndex: 45,
+    },
+    phaseBannerEmoji: {
+      fontSize: 13,
+    },
+    phaseBannerText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      color: '#D4A960',
+      letterSpacing: 1,
+      textTransform: 'uppercase' as const,
+    },
     goFlash: {
       fontFamily: 'PlayfairDisplay_700Bold',
       fontSize: 64,
@@ -197,6 +328,7 @@ interface PopupEntry {
   x: number;
   y: number;
   text: string;
+  combo: number;
 }
 
 const MILESTONE_LABELS: Record<number, string> = {
@@ -210,12 +342,15 @@ function FloatingPopup({ entry, onDone }: { entry: PopupEntry; onDone: (id: numb
   const opacity = useSharedValue(1);
   const ty = useSharedValue(0);
   const scale = useSharedValue(1);
+  const combo = entry.combo;
+  const peak = 1.15 + Math.min(combo, 4) * 0.12;
+  const fontSize = 15 + Math.min(combo, 4) * 2;
 
   useEffect(() => {
     opacity.value = withTiming(0, { duration: 800 });
     ty.value = withTiming(-70, { duration: 800 });
     scale.value = withSequence(
-      withSpring(1.3, { damping: 12, stiffness: 300 }),
+      withSpring(peak, { damping: 12, stiffness: 300 }),
       withTiming(1, { duration: 500 }),
     );
     const t = setTimeout(() => onDone(entry.id), 850);
@@ -234,16 +369,47 @@ function FloatingPopup({ entry, onDone }: { entry: PopupEntry; onDone: (id: numb
 
   return (
     <Animated.View style={s}>
-      <Text allowFontScaling={false} style={{fontFamily:'Inter_800ExtraBold',fontSize:16,color:'#D4A960',textShadowColor:'rgba(0,0,0,0.5)',textShadowOffset:{width:0,height:1},textShadowRadius:3}}>
+      <Text allowFontScaling={false} style={{fontFamily:'Inter_800ExtraBold',fontSize,color:'#D4A960',textShadowColor:'rgba(0,0,0,0.5)',textShadowOffset:{width:0,height:1},textShadowRadius:3}}>
         {entry.text}
       </Text>
+      {combo > 1 && (
+        <Text allowFontScaling={false} style={{fontFamily:'Inter_800ExtraBold',fontSize:13,color:'#8B6CF6',textShadowColor:'rgba(0,0,0,0.5)',textShadowOffset:{width:0,height:1},textShadowRadius:3}}>
+          ×{combo}
+        </Text>
+      )}
     </Animated.View>
+  );
+}
+
+function SkinSwatch({ def, unlocked, selected, onSelect }: { def: typeof SKINS[number]; unlocked: boolean; selected: boolean; onSelect: (key: string) => void }) {
+  return (
+    <Pressable
+      onPress={() => { if (unlocked) onSelect(def.key); }}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={unlocked ? `Skin ${def.label}` : `Skin ${def.label}, débloque à ${def.threshold} points`}
+      style={{ alignItems: 'center', gap: 4, opacity: unlocked ? 1 : 0.45 }}
+    >
+      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#15101E', borderWidth: 2, borderColor: selected ? '#D4A960' : 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+        <View style={{ width: 16, height: 22, backgroundColor: def.bottle, borderRadius: 3 }} />
+        <View style={{ position: 'absolute', top: 7, width: 8, height: 5, backgroundColor: def.cap, borderRadius: 2 }} />
+        {!unlocked && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(11,7,18,0.6)' }}>
+            <Ionicons name="lock-closed" size={13} color="#988EA8" />
+          </View>
+        )}
+      </View>
+      <Text allowFontScaling={false} style={{ fontFamily: 'Inter_500Medium', fontSize: 9, color: selected ? '#D4A960' : '#988EA8' }}>
+        {unlocked ? def.label : `${def.threshold}`}
+      </Text>
+    </Pressable>
   );
 }
 
 export default function RunnerGame({ onClose }: Props) {
   const s = useMemo(() => getStyles(), []);
   const reduceMotion = useReducedMotion();
+  const { isAuthenticated } = useAuthContext();
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const dims: GameDimensions = useMemo(() => ({
@@ -261,11 +427,25 @@ export default function RunnerGame({ onClose }: Props) {
     bgOffset, midOffset, groundOffset,
     speedLineOffset, palettePhase,
     frameCallback, resetGame,
-    lastCollectedDiscount,
+    lastCollectedPickup,
     airCombo,
     nearMissTrigger,
     popupTrigger,
     popupBonus,
+    popupCombo,
+    distance,
+    maxCombo,
+    nearMissCount,
+    collectBurstTrigger,
+    gameTime,
+    shieldActive,
+    magnetUntil,
+    doubleUntil,
+    slowUntil,
+    shieldBreakTrigger,
+    lives,
+    invulnUntil,
+    crackTrigger,
   } = useRunnerLoop(dims);
 
   const [uiState, setUiState] = useState('idle');
@@ -279,17 +459,50 @@ export default function RunnerGame({ onClose }: Props) {
   const countdownScale = useSharedValue(1);
 
   const sounds = useRunnerSounds();
+  const mutedRef = useRef(false);
+  const playJump = useCallback(() => { if (!mutedRef.current) sounds.playJump(); }, [sounds]);
+  const playPickup = useCallback(() => { if (!mutedRef.current) sounds.playPickup(); }, [sounds]);
+  const playDeath = useCallback(() => { if (!mutedRef.current) sounds.playDeath(); }, [sounds]);
+  const playRecord = useCallback(() => { if (!mutedRef.current) sounds.playRecord(); }, [sounds]);
+  const playCrack = useCallback(() => { if (!mutedRef.current) sounds.playCrack(); }, [sounds]);
 
-  const collectedCounts = useMemo(() => ({ 10: 0, 20: 0, 30: 0, 50: 0 } as Record<number, number>), []);
+  const [muted, setMutedState] = useState(false);
+  const toggleMute = useCallback(() => {
+    setMutedState(prev => {
+      const next = !prev;
+      mutedRef.current = next;
+      setMuted(next).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const collectedCounts = useMemo(() => ({ bergamote: 0, santal: 0, ambre: 0, musc: 0 } as Record<string, number>), []);
   const [popups, setPopups] = useState<PopupEntry[]>([]);
   const popupIdRef = useRef(0);
 
   const [milestone, setMilestone] = useState('');
   const milestoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [skin, setSkin] = useState<typeof SKINS[number]>(SKINS[0]);
+  const [unlockedKeys, setUnlockedKeys] = useState<string[]>(['default']);
+  const [selectedKey, setSelectedKeyState] = useState<string>('default');
+  const skin = useMemo(() => SKINS.find(sk => sk.key === selectedKey) ?? SKINS[0], [selectedKey]);
+  const selectSkin = useCallback((key: string) => {
+    setSelectedKeyState(key);
+    setSelectedSkinKey(key).catch(() => {});
+    hapticsLight();
+  }, []);
+
   const [paletteIdx, setPaletteIdx] = useState(0);
   const [showGo, setShowGo] = useState(false);
+  const [finalStats, setFinalStats] = useState({ distance: 0, maxCombo: 0, nearMiss: 0 });
+  const [newSkinLabel, setNewSkinLabel] = useState('');
+  const [phaseBanner, setPhaseBanner] = useState<{ label: string; emoji: string } | null>(null);
+  const phaseBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [unlockedMissions, setUnlockedMissions] = useState<string[]>([]);
+  const [newMissions, setNewMissions] = useState<Mission[]>([]);
+  const [worldRank, setWorldRank] = useState<number | null>(null);
+  const [livesDisplay, setLivesDisplay] = useState(3);
+  const shieldBreaksRef = useRef(0);
 
   const shakeX = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
@@ -336,14 +549,22 @@ export default function RunnerGame({ onClose }: Props) {
 
   useEffect(() => {
     getHighScore().then(v => setHighScoreState(v)).catch(() => {});
+    getMuted().then(m => { mutedRef.current = m; setMutedState(m); }).catch(() => {});
+    getUnlockedMissions().then(keys => setUnlockedMissions(keys)).catch(() => {});
     getUnlockedSkins().then(keys => {
-      const best = [...keys].sort((a, b) => {
-        const sa = SKINS.find(sk => sk.key === a);
-        const sb = SKINS.find(sk => sk.key === b);
-        return (sb?.threshold ?? 0) - (sa?.threshold ?? 0);
-      })[0];
-      const found = SKINS.find(sk => sk.key === best);
-      if (found) setSkin(found);
+      setUnlockedKeys(keys);
+      getSelectedSkinKey().then(saved => {
+        if (saved && keys.includes(saved)) {
+          setSelectedKeyState(saved);
+          return;
+        }
+        const best = [...keys].sort((a, b) => {
+          const sa = SKINS.find(sk => sk.key === a);
+          const sb = SKINS.find(sk => sk.key === b);
+          return (sb?.threshold ?? 0) - (sa?.threshold ?? 0);
+        })[0];
+        if (best) setSelectedKeyState(best);
+      }).catch(() => {});
     }).catch(() => {});
   }, []);
 
@@ -373,7 +594,7 @@ export default function RunnerGame({ onClose }: Props) {
       scheduleOnRN(setUiState, state);
       if (state === 'dying') {
         scheduleOnRN(hapticsError);
-        scheduleOnRN(sounds.playDeath);
+        scheduleOnRN(playDeath);
         if (!reduceMotion) {
           shakeX.value = withSequence(
             withTiming(7, { duration: 35 }),
@@ -414,42 +635,97 @@ export default function RunnerGame({ onClose }: Props) {
     },
   );
 
-  const handlePopupTrigger = useCallback((bonus: number) => {
+  const handlePopupTrigger = useCallback((bonus: number, combo: number) => {
     const id = ++popupIdRef.current;
-    setPopups(prev => [...prev, { id, x: dims.bottleX, y: dims.groundY - 120, text: `+${bonus}` }]);
-  }, []);
+    setPopups(prev => [...prev, { id, x: dims.bottleX, y: dims.groundY - 120, text: `+${bonus}`, combo }]);
+  }, [dims]);
 
   useAnimatedReaction(
     () => popupTrigger.value,
     () => {
       const bonus = popupBonus.value;
       if (bonus > 0) {
-        scheduleOnRN(handlePopupTrigger, bonus);
+        scheduleOnRN(handlePopupTrigger, bonus, popupCombo.value);
       }
     },
   );
+
+  const showPhaseBanner = useCallback((idx: number) => {
+    const phase = RUNNER_PHASES[idx % RUNNER_PHASES.length];
+    setPhaseBanner({ label: phase.label, emoji: phase.emoji });
+    if (phaseBannerTimer.current) clearTimeout(phaseBannerTimer.current);
+    phaseBannerTimer.current = setTimeout(() => setPhaseBanner(null), 1600);
+  }, []);
 
   useAnimatedReaction(
     () => palettePhase.value,
-    (phase) => {
+    (phase, prev) => {
       const idx = phase % PALETTES.length;
       scheduleOnRN(setPaletteIdx, idx);
+      if (prev != null && phase !== prev && phase > 0) {
+        scheduleOnRN(showPhaseBanner, idx);
+      }
     },
   );
 
-  const onPickupCollected = useCallback((discount: number) => {
-    collectedCounts[discount] = (collectedCounts[discount] || 0) + 1;
+  const onPickupCollected = useCallback((typeIdx: number) => {
+    const def = PICKUP_DEFS[typeIdx];
+    if (!def) return;
+    collectedCounts[def.key] = (collectedCounts[def.key] || 0) + 1;
     hapticsSuccess();
-    sounds.playPickup();
-  }, [collectedCounts, sounds]);
+    playPickup();
+  }, [collectedCounts, playPickup]);
 
   useAnimatedReaction(
-    () => lastCollectedDiscount.value,
-    (discount) => {
-      if (discount > 0) {
-        scheduleOnRN(onPickupCollected, discount);
-        lastCollectedDiscount.value = 0;
+    () => lastCollectedPickup.value,
+    (v) => {
+      if (v > 0) {
+        scheduleOnRN(onPickupCollected, v - 1);
+        lastCollectedPickup.value = 0;
       }
+    },
+  );
+
+  const onShieldBreak = useCallback(() => {
+    shieldBreaksRef.current += 1;
+    hapticsSuccess();
+  }, []);
+
+  useAnimatedReaction(
+    () => shieldBreakTrigger.value,
+    (v, prev) => {
+      if (prev != null && v !== prev) {
+        scheduleOnRN(onShieldBreak);
+      }
+    },
+  );
+
+  const onCrack = useCallback(() => {
+    playCrack();
+    hapticsError();
+    if (!reduceMotion) {
+      shakeX.value = withSequence(
+        withTiming(4, { duration: 30 }),
+        withTiming(-3, { duration: 45 }),
+        withTiming(2, { duration: 40 }),
+        withTiming(0, { duration: 70 }),
+      );
+    }
+  }, [playCrack, reduceMotion, shakeX]);
+
+  useAnimatedReaction(
+    () => crackTrigger.value,
+    (v, prev) => {
+      if (prev != null && v !== prev) {
+        scheduleOnRN(onCrack);
+      }
+    },
+  );
+
+  useAnimatedReaction(
+    () => lives.value,
+    (v) => {
+      scheduleOnRN(setLivesDisplay, v);
     },
   );
 
@@ -470,44 +746,85 @@ export default function RunnerGame({ onClose }: Props) {
   }, [frameCallback]);
 
   // Finalize score on game over
+  const gameOverFinalizedRef = useRef(false);
   useEffect(() => {
     if (uiState === 'gameover') {
+      if (gameOverFinalizedRef.current) return;
+      gameOverFinalizedRef.current = true;
       stopChase();
       const finalScore = lastFloorShared.value;
       setDisplayScore(finalScore);
       displayScoreRef.current = finalScore;
       targetScoreRef.current = finalScore;
 
+      setFinalStats({
+        distance: Math.floor(distance.value / 12),
+        maxCombo: Math.floor(maxCombo.value),
+        nearMiss: Math.floor(nearMissCount.value),
+      });
+
       const parts: string[] = [];
-      if (collectedCounts[10]) parts.push(`${collectedCounts[10]}× −10%`);
-      if (collectedCounts[20]) parts.push(`${collectedCounts[20]}× −20%`);
-      if (collectedCounts[30]) parts.push(`${collectedCounts[30]}× −30%`);
-      if (collectedCounts[50]) parts.push(`${collectedCounts[50]}× −50%`);
-      setCollectedText(parts.length > 0 ? `Réduc' collectées : ${parts.join(', ')}` : '');
+      for (const def of PICKUP_DEFS) {
+        const n = collectedCounts[def.key];
+        if (n) parts.push(`${n}× ${def.label}`);
+      }
+      setCollectedText(parts.length > 0 ? `Ta composition : ${parts.join(', ')}` : '');
 
       if (finalScore > highScore) {
         setHighScoreState(finalScore);
         setIsRecord(true);
         setHighScore(finalScore).catch(() => {});
-        sounds.playRecord();
+        playRecord();
       }
-      const newSkin = getSkinForScore(finalScore);
-      setSkin(newSkin);
-      unlockSkin(newSkin.key).catch(() => {});
+
+      const earned = getSkinForScore(finalScore);
+      if (!unlockedKeys.includes(earned.key)) {
+        unlockSkin(earned.key).catch(() => {});
+        setUnlockedKeys(prev => (prev.includes(earned.key) ? prev : [...prev, earned.key]));
+        setNewSkinLabel(earned.label);
+      } else {
+        setNewSkinLabel('');
+      }
+
+      const notesCollected = PICKUP_DEFS.reduce((sum, def) => sum + (collectedCounts[def.key] || 0), 0);
+      const fresh = evaluateMissions({
+        score: finalScore,
+        distance: Math.floor(distance.value / 12),
+        maxCombo: Math.floor(maxCombo.value),
+        nearMiss: Math.floor(nearMissCount.value),
+        shieldBreaks: shieldBreaksRef.current,
+        notesCollected,
+      }, unlockedMissions);
+      if (fresh.length > 0) {
+        const keys = fresh.map(m => m.key);
+        unlockMissions(keys).catch(() => {});
+        setUnlockedMissions(prev => [...new Set([...prev, ...keys])]);
+        setNewMissions(fresh);
+      } else {
+        setNewMissions([]);
+      }
+
+      if (isAuthenticated) {
+        clearRunnerLeaderboardCache();
+        submitRunnerScore({
+          score: finalScore,
+          distance: Math.floor(distance.value / 12),
+          maxCombo: Math.floor(maxCombo.value),
+          skin: skin.key,
+        }).then(rank => { if (rank != null) setWorldRank(rank); }).catch(() => {});
+      }
     }
-  }, [uiState, highScore, collectedCounts]);
+  }, [uiState, highScore, collectedCounts, unlockedKeys, unlockedMissions, isAuthenticated, skin, distance, maxCombo, nearMissCount, playRecord]);
 
   const handleRestart = useCallback(() => {
     stopChase();
+    gameOverFinalizedRef.current = false;
     resetGame();
     lastFloorShared.value = 0;
     targetScoreRef.current = 0;
     displayScoreRef.current = 0;
     setDisplayScore(0);
-    collectedCounts[10] = 0;
-    collectedCounts[20] = 0;
-    collectedCounts[30] = 0;
-    collectedCounts[50] = 0;
+    for (const def of PICKUP_DEFS) collectedCounts[def.key] = 0;
     setIsRecord(false);
     setCollectedText('');
     setPopups([]);
@@ -517,11 +834,34 @@ export default function RunnerGame({ onClose }: Props) {
     shakeX.value = 0;
     setPaletteIdx(0);
     setShowGo(false);
+    setFinalStats({ distance: 0, maxCombo: 0, nearMiss: 0 });
+    setNewSkinLabel('');
+    setNewMissions([]);
+    setPhaseBanner(null);
+    setWorldRank(null);
+    shieldBreaksRef.current = 0;
   }, [resetGame, stopChase]);
 
   const handlePopupDone = useCallback((id: number) => {
     setPopups(prev => prev.filter(p => p.id !== id));
   }, []);
+
+  const handlePause = useCallback(() => {
+    gameState.value = 'paused';
+    hapticsLight();
+  }, [gameState]);
+
+  const handleResume = useCallback(() => {
+    gameState.value = 'playing';
+    hapticsLight();
+  }, [gameState]);
+
+  const handleShare = useCallback(() => {
+    hapticsLight();
+    Share.share({
+      message: `J\u2019ai signé ${displayScore} points sur Flacon Runner 🏃\n${runnerShareUrl(displayScore)}`,
+    }).catch(() => {});
+  }, [displayScore]);
 
   const startCountdown = useCallback(() => setCountdown(3), []);
 
@@ -530,16 +870,12 @@ export default function RunnerGame({ onClose }: Props) {
       .onEnd(() => {
         'worklet';
         const state = gameState.value;
-        if (state === 'idle') {
-          scheduleOnRN(startCountdown);
-          return;
-        }
         if (state === 'playing') {
           if (!isJumping.value) {
             jumpVelocity.value = JUMP_VELOCITY;
             isJumping.value = true;
             scheduleOnRN(hapticsLight);
-            scheduleOnRN(sounds.playJump);
+            scheduleOnRN(playJump);
             return;
           }
           if (canDoubleJump.value) {
@@ -547,22 +883,23 @@ export default function RunnerGame({ onClose }: Props) {
             canDoubleJump.value = false;
             isDoubleJumping.value = true;
             scheduleOnRN(hapticsLight);
-            scheduleOnRN(sounds.playJump);
+            scheduleOnRN(playJump);
             return;
           }
           return;
         }
       }),
-    [],
+    [playJump],
   );
 
   const showStart = uiState === 'idle' || uiState === 'entering';
   const showGameOver = uiState === 'gameover';
+  const showPause = uiState === 'paused';
 
   return (
     <GestureDetector gesture={tapGesture}>
       <Animated.View style={[s.container, shakeStyle]}>
-        <RunnerBackground bgOffset={bgOffset} midOffset={midOffset} paletteIdx={paletteIdx} />
+        <RunnerBackground bgOffset={bgOffset} midOffset={midOffset} paletteIdx={paletteIdx} groundY={dims.groundY} />
         <RunnerGround groundOffset={groundOffset} groundY={dims.groundY} screenW={screenW} />
 
         <RunnerSpeedLines speed={speed} speedLineOffset={speedLineOffset} groundY={dims.groundY} />
@@ -578,10 +915,25 @@ export default function RunnerGame({ onClose }: Props) {
           capColor={skin.cap}
           reduceMotion={reduceMotion}
           groundY={dims.groundY}
+          shieldActive={shieldActive}
+          gameTime={gameTime}
+          magnetUntil={magnetUntil}
+          doubleUntil={doubleUntil}
+          slowUntil={slowUntil}
+          lives={lives}
+          invulnUntil={invulnUntil}
         />
 
-        <RunnerObstacles obs={obs} groundY={dims.groundY} paletteIdx={paletteIdx} />
-        <RunnerPickups pkp={pkp} reduceMotion={reduceMotion} />
+        <RunnerObstacles obs={obs} groundY={dims.groundY} paletteIdx={paletteIdx} screenW={dims.width} />
+        <RunnerPickups pkp={pkp} reduceMotion={reduceMotion} screenW={dims.width} />
+        <RunnerParticles trigger={collectBurstTrigger} originX={dims.bottleX} bottleY={bottleY} reduceMotion={reduceMotion} />
+        <RunnerHud
+          gameTime={gameTime}
+          shieldActive={shieldActive}
+          magnetUntil={magnetUntil}
+          doubleUntil={doubleUntil}
+          slowUntil={slowUntil}
+        />
 
         <View style={s.scoreContainer}>
           <Text allowFontScaling={false} style={s.scoreText}>
@@ -594,15 +946,48 @@ export default function RunnerGame({ onClose }: Props) {
           )}
         </View>
 
-        <Pressable
-          style={s.closeBtn}
-          onPress={onClose}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Fermer le jeu"
-        >
-          <Ionicons name="close-outline" size={20} color="#988EA8" />
-        </Pressable>
+        <View style={s.livesRow}>
+          {[0, 1, 2].map(i => (
+            <Ionicons
+              key={i}
+              name={i < livesDisplay ? 'flask' : 'flask-outline'}
+              size={15}
+              color={i < livesDisplay ? '#D4A960' : '#4A4358'}
+            />
+          ))}
+        </View>
+
+        <View style={s.topCluster} pointerEvents="box-none">
+          <Pressable
+            style={s.topBtn}
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Fermer le jeu"
+          >
+            <Ionicons name="close-outline" size={20} color="#988EA8" />
+          </Pressable>
+          <Pressable
+            style={s.topBtn}
+            onPress={toggleMute}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={muted ? 'Activer le son' : 'Couper le son'}
+          >
+            <Ionicons name={muted ? 'volume-mute-outline' : 'volume-high-outline'} size={20} color="#988EA8" />
+          </Pressable>
+          {uiState === 'playing' && (
+            <Pressable
+              style={s.topBtn}
+              onPress={handlePause}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Mettre en pause"
+            >
+              <Ionicons name="pause-outline" size={20} color="#988EA8" />
+            </Pressable>
+          )}
+        </View>
 
         {popups.map(p => (
           <FloatingPopup key={p.id} entry={p} onDone={handlePopupDone} />
@@ -616,31 +1001,52 @@ export default function RunnerGame({ onClose }: Props) {
           </View>
         )}
 
+        {phaseBanner !== null && (
+          <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(200)} style={s.phaseBanner} pointerEvents="none">
+            <Text allowFontScaling={false} style={s.phaseBannerEmoji}>{phaseBanner.emoji}</Text>
+            <Text allowFontScaling={false} style={s.phaseBannerText}>{phaseBanner.label}</Text>
+          </Animated.View>
+        )}
+
         {showStart && (
-          <View style={s.startOverlay} pointerEvents="none">
-            {countdown > 0 ? (
-              <>
-                <Animated.View style={{ transform: [{ scale: countdownScale }] }}>
-                  <Text allowFontScaling={false} style={[s.goScore, { fontSize: 72 }]}>{countdown}</Text>
-                </Animated.View>
-              </>
-            ) : (
-              <>
-                <Text style={s.title}>Flacon Runner</Text>
-                <Text style={s.subtitle}>Esquive les cristaux</Text>
-                <Text style={s.tapLabel}>Tape pour jouer</Text>
-                <Text style={s.hint}>
-                  Tap = saut{'\n'}Double tap = double saut{'\n'}Enchaînement aérien = combo{'\n'}Attrape les réductions
-                </Text>
-                {highScore > 0 && (
-                  <>
-                    <Text style={s.startHiLabel}>Record</Text>
-                    <Text allowFontScaling={false} style={s.startHiScore}>{highScore}</Text>
-                  </>
-                )}
-              </>
-            )}
-          </View>
+          countdown > 0 ? (
+            <View style={s.startOverlay} pointerEvents="none">
+              <Animated.View style={{ transform: [{ scale: countdownScale }] }}>
+                <Text allowFontScaling={false} style={[s.goScore, { fontSize: 72 }]}>{countdown}</Text>
+              </Animated.View>
+            </View>
+          ) : (
+            <Pressable
+              style={s.startOverlay}
+              onPress={startCountdown}
+              accessibilityRole="button"
+              accessibilityLabel="Démarrer la partie"
+            >
+              <Text style={s.title}>Flacon Runner</Text>
+              <Text style={s.subtitle}>Esquive les cristaux</Text>
+              <View style={s.skinRow}>
+                {SKINS.map(def => (
+                  <SkinSwatch
+                    key={def.key}
+                    def={def}
+                    unlocked={unlockedKeys.includes(def.key)}
+                    selected={selectedKey === def.key}
+                    onSelect={selectSkin}
+                  />
+                ))}
+              </View>
+              <Text style={s.tapLabel}>Tape pour jouer</Text>
+              <Text style={s.hint}>
+                Tap = saut{'\n'}Double tap = double saut{'\n'}Enchaînement aérien = combo{'\n'}Attrape les notes pour des pouvoirs
+              </Text>
+              {highScore > 0 && (
+                <>
+                  <Text style={s.startHiLabel}>Record</Text>
+                  <Text allowFontScaling={false} style={s.startHiScore}>{highScore}</Text>
+                </>
+              )}
+            </Pressable>
+          )
         )}
 
         {showGameOver && (
@@ -653,11 +1059,59 @@ export default function RunnerGame({ onClose }: Props) {
               </View>
             )}
             <Text style={s.goHiLabel}>Record: {Math.max(highScore, displayScore)}</Text>
+            <View style={s.goStats}>
+              <View style={s.goStat}>
+                <Text allowFontScaling={false} style={s.goStatNum}>{finalStats.distance}</Text>
+                <Text allowFontScaling={false} style={s.goStatLabel}>mètres</Text>
+              </View>
+              <View style={s.goStat}>
+                <Text allowFontScaling={false} style={s.goStatNum}>×{Math.max(1, finalStats.maxCombo)}</Text>
+                <Text allowFontScaling={false} style={s.goStatLabel}>combo max</Text>
+              </View>
+              <View style={s.goStat}>
+                <Text allowFontScaling={false} style={s.goStatNum}>{finalStats.nearMiss}</Text>
+                <Text allowFontScaling={false} style={s.goStatLabel}>frôlés</Text>
+              </View>
+            </View>
+            {newSkinLabel !== '' && (
+              <View style={s.newSkinBadge}>
+                <Ionicons name="color-palette-outline" size={14} color="#1F1A2E" />
+                <Text allowFontScaling={false} style={s.newSkinText}>Skin « {newSkinLabel} » débloqué</Text>
+              </View>
+            )}
+            {newMissions.map(m => (
+              <View key={m.key} style={s.missionBadge}>
+                <Ionicons name={m.icon as never} size={14} color="#D4A960" />
+                <Text allowFontScaling={false} style={s.missionText}>{m.label}</Text>
+              </View>
+            ))}
+            {worldRank != null && (
+              <Text allowFontScaling={false} style={s.rankText}>Rang mondial : #{worldRank}</Text>
+            )}
             {collectedText ? (
               <Text style={s.goPickups}>{collectedText}</Text>
             ) : null}
             <Pressable style={s.retryBtn} onPress={handleRestart}>
               <Text style={s.retryText}>Rejouer</Text>
+            </Pressable>
+            <Pressable style={s.shareBtn} onPress={handleShare} hitSlop={8}>
+              <Ionicons name="share-social-outline" size={16} color="#D4A960" />
+              <Text style={s.shareText}>Partager mon score</Text>
+            </Pressable>
+            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8}>
+              <Text style={s.quitText}>Quitter</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+
+        {showPause && (
+          <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(200)} style={s.goOverlay}>
+            <Text style={s.goTitle}>Pause</Text>
+            <Pressable style={s.retryBtn} onPress={handleResume}>
+              <Text style={s.retryText}>Reprendre</Text>
+            </Pressable>
+            <Pressable style={s.quitBtn} onPress={handleRestart} hitSlop={8}>
+              <Text style={s.quitText}>Recommencer</Text>
             </Pressable>
             <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8}>
               <Text style={s.quitText}>Quitter</Text>

@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, Share, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -7,15 +7,30 @@ import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useAuthContext } from '../../src/contexts/AuthContext';
+import { useUserParfumContext } from '../../src/contexts/UserParfumContext';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import { useCommunityHighlights } from '../../src/hooks/useCommunityHighlights';
+import { useSotd } from '../../src/hooks/useSotd';
+import { useWeather } from '../../src/hooks/useWeather';
+import { useNetwork } from '../../src/hooks/useNetwork';
 import { getFollowedHighlights, searchProfiles, type CommunityParfum, type CommunityProfile, type CommunitySotd, type FollowedVerdict, type FollowedHave, type ProfileSearchResult } from '../../src/services/community';
+import { getRunnerLeaderboard, type LeaderboardEntry } from '../../src/services/runner';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
-import { normalizePseudo } from '../../src/utils/share';
+import { normalizePseudo, parfumShareUrl } from '../../src/utils/share';
+import { getWmoMeta } from '../../src/utils/weather-codes';
+import { scoreWardrobeItemForWeather } from '../../src/utils/weather-scoring';
 import { hapticsLight } from '../../src/services/haptics';
 import ParfumCard from '../../src/components/ParfumCard';
 import SectionHeader from '../../src/components/SectionHeader';
+import SOTDPicker from '../../src/features/wardrobe/SOTDPicker';
 import type { Parfum } from '../../src/models';
+import type { WeatherData } from '../../src/services/weather';
+import type { SotdEntry } from '../../src/models/user-parfum.interface';
+
+const NIGHT_ICON: Record<string, string> = {
+  sunny: 'moon',
+  'partly-sunny': 'cloudy-night',
+};
 
 function toParfum(cp: CommunityParfum): Parfum {
   return {
@@ -32,15 +47,24 @@ export default function CommunautePage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
-  const { isAuthenticated } = useAuthContext();
+  const { user, isAuthenticated } = useAuthContext();
+  const uid = user?.uid ?? null;
   const { scrollY } = useNavigationChrome();
   const { top_loved, trending, public_profiles, sotd_today, loading, error, refresh } = useCommunityHighlights();
+  const { isOnline } = useNetwork();
+  const { sotd, setTodaySotd } = useSotd(isAuthenticated ? uid : null);
+  const { weather, loading: weatherLoading } = useWeather(isAuthenticated && isOnline);
+  const { items } = useUserParfumContext();
 
   const [pseudoQuery, setPseudoQuery] = useState('');
   const [suggestions, setSuggestions] = useState<ProfileSearchResult[]>([]);
   const [followedVerdicts, setFollowedVerdicts] = useState<FollowedVerdict[]>([]);
   const [followedSotd, setFollowedSotd] = useState<CommunitySotd[]>([]);
   const [followedHave, setFollowedHave] = useState<FollowedHave[]>([]);
+  const [sotdPickerVisible, setSotdPickerVisible] = useState(false);
+  const [sotdHeroAnchor, setSotdHeroAnchor] = useState(0);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [lbLoading, setLbLoading] = useState(false);
   const mountedRef = useRef(true);
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
@@ -53,11 +77,33 @@ export default function CommunautePage() {
       setFollowedVerdicts(d.recent_verdicts);
       setFollowedSotd(d.sotd_today);
       setFollowedHave(d.new_have);
-    });
-    return () => { mountedRef.current = false; };
+    }).catch((e: unknown) => { console.warn('[communaute] followed highlights failed:', (e as Error)?.message ?? String(e)); });
+    return () => { mountedRef.current = false; if (suggestTimer.current) clearTimeout(suggestTimer.current); };
   }, [isAuthenticated]);
 
+  const loadLeaderboard = useCallback((force = false) => {
+    setLbLoading(true);
+    getRunnerLeaderboard(50, force)
+      .then((rows) => { if (mountedRef.current) setLeaderboard(rows); })
+      .catch((e: unknown) => { console.warn('[communaute] leaderboard failed:', (e as Error)?.message ?? String(e)); })
+      .finally(() => { if (mountedRef.current) setLbLoading(false); });
+  }, []);
+
+  useEffect(() => { loadLeaderboard(); }, [loadLeaderboard]);
+
+  const handleRefresh = useCallback(() => {
+    refresh();
+    loadLeaderboard(true);
+  }, [refresh, loadLeaderboard]);
+
   const scrollHandler = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
+
+  const sotdEligible = useMemo(() => items.filter(i => i.status === 'have'), [items]);
+  const sotdScore = useMemo(() => {
+    if (!weather || !sotd) return null;
+    const it = items.find(i => i.parfumId === sotd.parfumId);
+    return it ? scoreWardrobeItemForWeather(it, weather) : null;
+  }, [items, weather, sotd]);
 
   const handleParfumPress = useCallback((cp: CommunityParfum) => {
     setPendingParfum(toParfum(cp));
@@ -95,6 +141,37 @@ export default function CommunautePage() {
     router.push(`/u/${pseudo}`);
   }, [router]);
 
+  const handleSotdPress = useCallback(() => {
+    if (sotd) router.push(`/catalog/${sotd.parfumId}`);
+  }, [sotd, router]);
+
+  const handleSotdChange = useCallback(() => setSotdPickerVisible(true), []);
+
+  const handleSotdSelect = useCallback((parfumId: string) => {
+    if (parfumId === sotd?.parfumId) { setSotdPickerVisible(false); return; }
+    const item = sotdEligible.find(i => i.parfumId === parfumId);
+    if (item) { hapticsLight(); setTodaySotd(item).catch(() => {}); }
+    setSotdPickerVisible(false);
+  }, [sotd, sotdEligible, setTodaySotd]);
+
+  const handleShareSotd = useCallback(() => {
+    if (!sotd) return;
+    hapticsLight();
+    const url = parfumShareUrl(sotd.parfumId);
+    const text = `Aujourd’hui je porte ${sotd.marque} – ${sotd.nom}`;
+    if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
+    else Share.share({ message: `${text}\n${url}` }).catch(() => {});
+  }, [sotd]);
+
+  const handleHeroLayout = useCallback((e: LayoutChangeEvent) => {
+    setSotdHeroAnchor(e.nativeEvent.layout.y + e.nativeEvent.layout.height);
+  }, []);
+
+  const handlePlay = useCallback(() => {
+    hapticsLight();
+    router.push('/runner');
+  }, [router]);
+
   const hasContent = top_loved.length > 0 || trending.length > 0 || public_profiles.length > 0 || sotd_today.length > 0;
 
   const topLovedParfums = useMemo(() => top_loved.map(toParfum), [top_loved]);
@@ -108,7 +185,7 @@ export default function CommunautePage() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.content}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading || lbLoading} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
       >
         <View style={s.header}>
           <Text style={s.title}>Communauté</Text>
@@ -153,6 +230,48 @@ export default function CommunautePage() {
           </View>
         ) : null}
 
+        <View onLayout={handleHeroLayout}>
+          <TodayHero
+            weather={weather}
+            weatherLoading={weatherLoading}
+            sotd={sotd}
+            sotdScore={sotdScore}
+            sotdToday={sotd_today}
+            isAuthenticated={isAuthenticated}
+            onSotdPress={handleSotdPress}
+            onSotdChange={handleSotdChange}
+            onShareSotd={handleShareSotd}
+            onSotdTodayPress={handleProfilePress}
+            styles={s}
+            theme={theme}
+          />
+        </View>
+
+        <View style={s.section}>
+          <SectionHeader title="Flacon Runner" subtitle="Le classement" actionLabel="Jouer" onAction={handlePlay} />
+          {lbLoading && leaderboard.length === 0 ? (
+            <ActivityIndicator style={s.lbLoader} color={theme.colors.primary} />
+          ) : leaderboard.length === 0 ? (
+            <Pressable style={s.lbEmpty} onPress={handlePlay} accessibilityRole="button">
+              <Ionicons name="game-controller-outline" size={24} color={theme.colors.primary} />
+              <Text style={s.lbEmptyText}>Sois le premier au classement — lance une partie.</Text>
+            </Pressable>
+          ) : (
+            <View style={s.lbList}>
+              {leaderboard.slice(0, 10).map((e) => (
+                <LeaderboardRow
+                  key={e.pseudo ?? `rank-${e.rank}`}
+                  entry={e}
+                  isMe={e.isMe}
+                  styles={s}
+                  theme={theme}
+                  onPress={e.pseudo ? () => handleProfilePress(e.pseudo as string) : undefined}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+
         {loading ? (
           <ActivityIndicator style={s.loader} color={theme.colors.primary} />
         ) : error ? (
@@ -182,7 +301,7 @@ export default function CommunautePage() {
                     )}
                     <Text style={s.activityText} numberOfLines={2} maxFontSizeMultiplier={1.3}>
                       <Text style={s.activityPseudo}>@{v.pseudo}</Text>
-                      {v.verdict === 'love' ? ' adore ' : v.verdict === 'like' ? ' aime ' : v.verdict === 'meh' ? ' mitigé sur ' : ' n\u2019aime pas '}
+                      {v.verdict === 'love' ? ' adore ' : v.verdict === 'like' ? ' aime ' : v.verdict === 'meh' ? ' mitigé sur ' : ' n’aime pas '}
                       <Text style={s.activityParfum}>{v.marque} {v.nom}</Text>
                     </Text>
                   </Pressable>
@@ -208,75 +327,192 @@ export default function CommunautePage() {
             ) : null}
 
             {!hasContent ? (
-          <View style={s.stateWrap}>
-            <View style={s.iconCircle}>
-              <Ionicons name="people-outline" size={32} color={theme.colors.primary} />
-            </View>
-            <Text style={s.stateHeading}>Les membres arrivent</Text>
-            <Text style={s.stateText}>
-              {isAuthenticated
-                ? 'Suis des nez pour voir leur activité ici, et rends ton profil visible pour être découvert.'
-                : 'Rends ton profil visible pour être parmi les premiers nez de la communauté.'}
-            </Text>
-            <Pressable style={s.ctaBtn} onPress={() => router.push('/profile')} accessibilityRole="button">
-              <Text style={s.ctaBtnText}>{isAuthenticated ? 'Mon profil public' : 'Créer mon profil'}</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <>
-            {sotd_today.length > 0 ? (
-              <View style={s.section}>
-                <SectionHeader title="Portés aujourd'hui" />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                  {sotd_today.map((item) => (
-                    <SotdCard key={`${item.pseudo}-${item.parfum_id}`} item={item} styles={s} theme={theme} onPress={() => handleProfilePress(item.pseudo)} />
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            {top_loved.length > 0 ? (
-              <View style={s.section}>
-                <SectionHeader title="Les plus aimés" subtitle="Par la communauté" />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                  {topLovedParfums.map((p, i) => (
-                    <View key={p.id} style={s.cardWrap}>
-                      <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(top_loved[i])} />
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            {trending.length > 0 ? (
-              <View style={s.section}>
-                <SectionHeader title="Tendances" subtitle="Cette semaine" />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                  {trendingParfums.map((p, i) => (
-                    <View key={p.id} style={s.cardWrap}>
-                      <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(trending[i])} />
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            {public_profiles.length > 0 ? (
-              <View style={s.section}>
-                <SectionHeader title="Collections à découvrir" />
-                <View style={s.profilesGrid}>
-                  {public_profiles.map((p) => (
-                    <ProfileCard key={p.pseudo} profile={p} styles={s} theme={theme} onPress={() => handleProfilePress(p.pseudo)} />
-                  ))}
+              <View style={s.stateWrap}>
+                <View style={s.iconCircle}>
+                  <Ionicons name="people-outline" size={32} color={theme.colors.primary} />
                 </View>
+                <Text style={s.stateHeading}>Les membres arrivent</Text>
+                <Text style={s.stateText}>
+                  {isAuthenticated
+                    ? 'Suis des nez pour voir leur activité ici, et rends ton profil visible pour être découvert.'
+                    : 'Rends ton profil visible pour être parmi les premiers nez de la communauté.'}
+                </Text>
+                <Pressable style={s.ctaBtn} onPress={() => router.push('/profile')} accessibilityRole="button">
+                  <Text style={s.ctaBtnText}>{isAuthenticated ? 'Mon profil public' : 'Créer mon profil'}</Text>
+                </Pressable>
               </View>
-            ) : null}
-          </>
-        )}
+            ) : (
+              <>
+                {top_loved.length > 0 ? (
+                  <View style={s.section}>
+                    <SectionHeader title="Les plus aimés" subtitle="Par la communauté" />
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
+                      {topLovedParfums.map((p, i) => (
+                        <View key={p.id} style={s.cardWrap}>
+                          <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(top_loved[i])} />
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+
+                {trending.length > 0 ? (
+                  <View style={s.section}>
+                    <SectionHeader title="Tendances" subtitle="Cette semaine" />
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
+                      {trendingParfums.map((p, i) => (
+                        <View key={p.id} style={s.cardWrap}>
+                          <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(trending[i])} />
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+
+                {public_profiles.length > 0 ? (
+                  <View style={s.section}>
+                    <SectionHeader title="Collections à découvrir" />
+                    <View style={s.profilesGrid}>
+                      {public_profiles.map((p) => (
+                        <ProfileCard key={p.pseudo} profile={p} styles={s} theme={theme} onPress={() => handleProfilePress(p.pseudo)} />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            )}
           </>
         )}
       </Animated.ScrollView>
+
+      <SOTDPicker
+        visible={sotdPickerVisible}
+        haveItems={sotdEligible}
+        currentSotdId={sotd?.parfumId ?? null}
+        anchorTop={sotdHeroAnchor}
+        weather={weather}
+        onSelect={handleSotdSelect}
+        onClose={() => setSotdPickerVisible(false)}
+      />
     </SafeAreaView>
+  );
+}
+
+function TodayHero({
+  weather, weatherLoading, sotd, sotdScore, sotdToday, isAuthenticated,
+  onSotdPress, onSotdChange, onShareSotd, onSotdTodayPress, styles: s, theme,
+}: {
+  weather: WeatherData | null;
+  weatherLoading: boolean;
+  sotd: SotdEntry | null;
+  sotdScore: number | null;
+  sotdToday: CommunitySotd[];
+  isAuthenticated: boolean;
+  onSotdPress: () => void;
+  onSotdChange: () => void;
+  onShareSotd: () => void;
+  onSotdTodayPress: (pseudo: string) => void;
+  styles: ReturnType<typeof getStyles>;
+  theme: Theme;
+}) {
+  const showWeather = weather !== null && !weatherLoading;
+  const showScore = typeof sotdScore === 'number' && !isNaN(sotdScore) && sotdScore >= 50;
+  const scColor = showScore
+    ? (sotdScore as number) >= 70 ? theme.colors.deal : (sotdScore as number) >= 40 ? theme.colors.fair : theme.colors.textMuted
+    : theme.colors.textMuted;
+
+  const wmo = showWeather ? getWmoMeta((weather as WeatherData).weatherCode) : null;
+  const iconName = wmo
+    ? (weather as WeatherData).isDay
+      ? wmo.icon
+      : NIGHT_ICON[wmo.icon] ?? wmo.icon
+    : null;
+
+  if (!showWeather && !isAuthenticated && sotdToday.length === 0) return null;
+
+  return (
+    <View style={s.heroCard}>
+      <View style={s.heroTop}>
+        <View style={s.heroTitles}>
+          <Text style={s.heroTitle}>Aujourd’hui</Text>
+          <Text style={s.heroEditorial}>Ce que la journée porte.</Text>
+        </View>
+        {showWeather && wmo && iconName ? (
+          <View style={s.heroWeather}>
+            <Ionicons name={iconName as never} size={15} color={theme.colors.primary} accessible={false} />
+            <Text allowFontScaling={false} style={s.heroTemp}>
+              {Math.round((weather as WeatherData).temperature)}
+              <Text style={s.heroDegree}>°</Text>
+            </Text>
+            <Text style={s.heroWeatherLabel} numberOfLines={1}>{wmo.label}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {isAuthenticated ? (
+        <View style={s.heroMeRow}>
+          <Pressable
+            style={s.heroMeMain}
+            onPress={sotd ? onSotdPress : onSotdChange}
+            onLongPress={sotd ? onShareSotd : undefined}
+            delayLongPress={400}
+            accessibilityRole="button"
+            accessibilityLabel={sotd ? `Ton parfum du jour : ${sotd.nom} ${sotd.marque}` : 'Choisir ton parfum du jour'}
+          >
+            <View style={s.heroMeThumbWrap}>
+              {sotd?.imageUrl ? (
+                <Image source={{ uri: sotd.imageUrl }} style={s.heroMeThumb} contentFit="contain" transition={200} />
+              ) : (
+                <Ionicons name={sotd ? 'flask-outline' : 'sunny-outline'} size={16} color={sotd ? theme.colors.primaryInk : theme.colors.secondary} accessible={false} />
+              )}
+            </View>
+            <View style={s.heroMeInfo}>
+              {sotd ? (
+                <>
+                  <Text style={s.heroMeName} numberOfLines={1}>{sotd.nom}</Text>
+                  <Text style={s.heroMeBrand} numberOfLines={1}>{sotd.marque}</Text>
+                </>
+              ) : (
+                <Text style={s.heroMeCta}>Choisis ton parfum du jour</Text>
+              )}
+            </View>
+            {showScore ? (
+              <View style={[s.heroMeScore, { backgroundColor: (sotdScore as number) >= 70 ? theme.colors.dealSoft : (sotdScore as number) >= 40 ? theme.colors.fairSoft : theme.colors.surface2 }]}>
+                <Text allowFontScaling={false} style={[s.heroMeScoreText, { color: scColor }]}>{sotdScore}%</Text>
+              </View>
+            ) : null}
+          </Pressable>
+          {sotd ? (
+            <Pressable onPress={onShareSotd} hitSlop={8} style={s.heroMeBtn} accessibilityRole="button" accessibilityLabel="Partager ton parfum du jour">
+              <Ionicons name="share-social-outline" size={16} color={theme.colors.primary} />
+            </Pressable>
+          ) : null}
+          <Pressable onPress={onSotdChange} hitSlop={8} style={s.heroMeBtn} accessibilityRole="button" accessibilityLabel="Changer ton parfum du jour">
+            <Ionicons name={sotd ? 'swap-horizontal-outline' : 'add-circle-outline'} size={16} color={theme.colors.primary} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      <View style={s.heroDivider} />
+
+      {sotdToday.length > 0 ? (
+        <>
+          <Text style={s.heroTodayLabel}>Portés aujourd’hui</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
+            {sotdToday.map((item) => (
+              <SotdCard key={`${item.pseudo}-${item.parfum_id}`} item={item} styles={s} theme={theme} onPress={() => onSotdTodayPress(item.pseudo)} />
+            ))}
+          </ScrollView>
+        </>
+      ) : isAuthenticated ? (
+        <Pressable style={s.heroTodayCta} onPress={onSotdChange} accessibilityRole="button" accessibilityLabel="Partager ton parfum du jour">
+          <Ionicons name="add-circle-outline" size={15} color={theme.colors.primary} />
+          <Text style={s.heroTodayCtaText}>Partage le tien</Text>
+        </Pressable>
+      ) : (
+        <Text style={s.heroTodayEmpty}>Les premiers flacons du jour apparaîtront ici.</Text>
+      )}
+    </View>
   );
 }
 
@@ -326,6 +562,28 @@ function ProfileCard({ profile, styles: s, theme, onPress }: { profile: Communit
   );
 }
 
+function LeaderboardRow({ entry, isMe, styles: s, theme, onPress }: { entry: LeaderboardEntry; isMe: boolean; styles: ReturnType<typeof getStyles>; theme: Theme; onPress?: () => void }) {
+  const label = entry.pseudo ?? 'Nez anonyme';
+  const content = (
+    <>
+      <Text allowFontScaling={false} style={[s.lbRank, entry.rank <= 3 ? s.lbRankTop : null]}>{entry.rank}</Text>
+      {entry.avatarUrl ? (
+        <Image source={{ uri: entry.avatarUrl }} style={s.lbAvatar} contentFit="cover" transition={200} />
+      ) : (
+        <View style={[s.lbAvatar, s.lbAvatarPlaceholder]}>
+          <Text allowFontScaling={false} style={s.lbInitial}>{label.charAt(0).toUpperCase()}</Text>
+        </View>
+      )}
+      <Text style={[s.lbPseudo, isMe ? s.lbPseudoMe : null]} numberOfLines={1}>{isMe ? 'Toi' : `@${label}`}</Text>
+      <Text allowFontScaling={false} style={s.lbScore}>{entry.score}</Text>
+    </>
+  );
+  if (onPress) {
+    return <Pressable style={[s.lbRow, isMe ? s.lbRowMe : null]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Rang ${entry.rank}, ${label}, ${entry.score} points`}>{content}</Pressable>;
+  }
+  return <View style={[s.lbRow, isMe ? s.lbRowMe : null]} accessibilityLabel={`Rang ${entry.rank}, ${label}, ${entry.score} points`}>{content}</View>;
+}
+
 function getStyles(t: Theme) {
   return {
     container: { flex: 1, backgroundColor: t.colors.background },
@@ -357,6 +615,40 @@ function getStyles(t: Theme) {
     section: { marginTop: 24 },
     hRow: { paddingHorizontal: 16, gap: 10 },
     cardWrap: { width: 140 },
+
+    heroCard: {
+      backgroundColor: t.colors.surface, borderRadius: t.radius.card,
+      marginHorizontal: 16, marginTop: 4, padding: 14, ...t.shadow.card,
+    },
+    heroTop: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, justifyContent: 'space-between' as const, gap: 12 },
+    heroTitles: { flex: 1, minWidth: 0 },
+    heroTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 17, color: t.colors.text },
+    heroEditorial: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 13, color: t.colors.textMuted, marginTop: 1 },
+    heroWeather: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, flexShrink: 0 },
+    heroTemp: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    heroDegree: { fontFamily: 'Inter_500Medium', fontSize: 11, color: t.colors.textMuted },
+    heroWeatherLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, maxWidth: 80 },
+
+    heroMeRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 12 },
+    heroMeMain: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, minWidth: 0 },
+    heroMeThumbWrap: {
+      width: 36, height: 36, borderRadius: 8, backgroundColor: t.colors.primarySoft,
+      justifyContent: 'center' as const, alignItems: 'center' as const, overflow: 'hidden' as const,
+    },
+    heroMeThumb: { width: 36, height: 36, borderRadius: 8 },
+    heroMeInfo: { flex: 1, minWidth: 0 },
+    heroMeName: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.text },
+    heroMeBrand: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, marginTop: 1 },
+    heroMeCta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.primaryInk },
+    heroMeScore: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    heroMeScoreText: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+    heroMeBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center' as const, justifyContent: 'center' as const },
+
+    heroDivider: { height: 1, backgroundColor: t.colors.border, marginVertical: 12, opacity: 0.7 },
+    heroTodayLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: 1, color: t.colors.textMuted, marginBottom: 10 },
+    heroTodayCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 4 },
+    heroTodayCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
+    heroTodayEmpty: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, paddingVertical: 4 },
 
     profilesGrid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, paddingHorizontal: 12, gap: 8 },
     profileCard: {
@@ -394,5 +686,23 @@ function getStyles(t: Theme) {
     suggestionInitial: { fontFamily: 'Inter_700Bold', fontSize: 12, color: t.colors.primaryInk },
     suggestionPseudo: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14, color: t.colors.text },
     suggestionCount: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted },
+
+    lbLoader: { marginTop: 24 },
+    lbEmpty: {
+      alignItems: 'center' as const, gap: 8, paddingVertical: 24, marginHorizontal: 16,
+      backgroundColor: t.colors.surface, borderRadius: t.radius.card, borderWidth: 1, borderColor: t.colors.border,
+    },
+    lbEmptyText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, textAlign: 'center' as const, paddingHorizontal: 24 },
+    lbList: { marginHorizontal: 16, backgroundColor: t.colors.surface, borderRadius: t.radius.card, borderWidth: 1, borderColor: t.colors.border, overflow: 'hidden' as const },
+    lbRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
+    lbRowMe: { backgroundColor: t.colors.primarySoft },
+    lbRank: { width: 22, fontFamily: 'Inter_700Bold', fontSize: 13, color: t.colors.textMuted, textAlign: 'center' as const, fontVariant: ['tabular-nums'] as never },
+    lbRankTop: { color: t.colors.secondary },
+    lbAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.colors.surface2 },
+    lbAvatarPlaceholder: { justifyContent: 'center' as const, alignItems: 'center' as const, backgroundColor: t.colors.primarySoft },
+    lbInitial: { fontFamily: 'Inter_700Bold', fontSize: 12, color: t.colors.primaryInk },
+    lbPseudo: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14, color: t.colors.text },
+    lbPseudoMe: { fontFamily: 'Inter_700Bold', color: t.colors.primaryInk },
+    lbScore: { fontFamily: 'Inter_800ExtraBold', fontSize: 14, color: t.colors.text, fontVariant: ['tabular-nums'] as never },
   } as const;
 }

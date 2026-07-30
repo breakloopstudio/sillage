@@ -37,7 +37,7 @@ export default function BottleThumb({ item, onPress, onLongPress, size = 64 }: P
       accessibilityLabel={label || 'Parfum'}
     >
       {source ? (
-        <Image source={source} style={s.image} contentFit="contain" />
+        <Image source={source} style={s.image} contentFit="contain" transition={200} cachePolicy="memory-disk" recyclingKey={item.parfumId} />
       ) : (
         <View style={[s.placeholder, { backgroundColor: tint }]}>
           <Text style={s.initial} allowFontScaling={false}>

@@ -1,7 +1,7 @@
 // src/features/wardrobe/SOTDPicker.tsx
 
-import { useState, useMemo } from 'react';
-import { View, Text, Pressable, TextInput, FlatList, useWindowDimensions } from 'react-native';
+import { useState, useMemo, useEffect } from 'react';
+import { View, Text, Pressable, TextInput, FlatList, useWindowDimensions, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
@@ -44,6 +44,12 @@ export default function SOTDPicker({ visible, haveItems, currentSotdId, anchorTo
     );
   }, [sorted, query]);
 
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
+
   if (!visible) return null;
 
   return (
@@ -57,7 +63,7 @@ export default function SOTDPicker({ visible, haveItems, currentSotdId, anchorTo
           <Ionicons name="search-outline" size={18} color={theme.colors.textMuted} />
           <TextInput
             style={s.searchInput}
-            placeholder="Rechercher..."
+            placeholder="Rechercher…"
             placeholderTextColor={theme.colors.textMuted}
             value={query}
             onChangeText={setQuery}

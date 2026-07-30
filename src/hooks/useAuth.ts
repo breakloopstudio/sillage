@@ -2,7 +2,7 @@
 // Expose AppUser (uid/email/displayName/photoURL/providers) — compatible
 // avec tous les écrans (profile, settings, delete-account, etc.).
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { supabase, isSupabaseReady } from '../services/supabase';
@@ -37,6 +37,7 @@ export function useAuth() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const latestUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isSupabaseReady()) {
@@ -45,12 +46,15 @@ export function useAuth() {
     }
 
     let resolved = false;
-    const markReady = () => { if (!resolved) { resolved = true; setAuthReady(true); } };
+    let active = true;
+    const markReady = () => { if (active && !resolved) { resolved = true; setAuthReady(true); } };
     const timeout = setTimeout(markReady, AUTH_TIMEOUT_MS);
 
     const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const su = session?.user ?? null;
-      setUser(su ? suUserToAppUser(su) : null);
+      const uid = su?.id ?? null;
+      latestUidRef.current = uid;
+      if (active) setUser(su ? suUserToAppUser(su) : null);
       if (su) {
         try {
           const { data: adm } = await supabase
@@ -58,15 +62,19 @@ export function useAuth() {
             .select('user_id')
             .eq('user_id', su.id)
             .maybeSingle();
+          if (!active || latestUidRef.current !== uid) return;
           setIsAdmin(adm !== null);
-        } catch (e) { console.warn('[auth] admin check failed:', e); setIsAdmin(false); }
+        } catch (e) {
+          console.warn('[auth] admin check failed:', e);
+          if (active && latestUidRef.current === uid) setIsAdmin(false);
+        }
       } else {
-        setIsAdmin(false);
+        if (active) setIsAdmin(false);
       }
       markReady();
     });
 
-    return () => { clearTimeout(timeout); data?.subscription.unsubscribe(); };
+    return () => { active = false; clearTimeout(timeout); data?.subscription.unsubscribe(); };
   }, []);
 
   // ── register ────────────────────────────────────────────────────────────────

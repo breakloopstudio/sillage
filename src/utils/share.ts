@@ -23,6 +23,11 @@ export function shelfShareUrl(pseudo: string, shelfId: string): string {
   return `${landingBase()}?type=shelf&pseudo=${encodeURIComponent(pseudo)}&shelf=${encodeURIComponent(shelfId)}`;
 }
 
+export function runnerShareUrl(score: number, pseudo?: string | null): string {
+  const base = `${landingBase()}?type=runner&score=${encodeURIComponent(String(Math.floor(score)))}`;
+  return pseudo ? `${base}&pseudo=${encodeURIComponent(pseudo)}` : base;
+}
+
 // Deep links — embarqués dans la page landing (ouverture de l'app installée).
 export function parfumDeepLink(parfumId: string): string {
   return `${APP_SCHEME}://catalog/${encodeURIComponent(parfumId)}`;

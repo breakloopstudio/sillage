@@ -35,14 +35,14 @@ function rowToScan(row: Record<string, unknown>): UserScan {
     rawText: (row.raw_text as string) ?? '',
     marque: (row.marque as string) ?? undefined,
     nom: (row.nom as string) ?? undefined,
-    volumeMl: (row.volume_ml as number) ?? undefined,
+    volumeMl: toNum(row.volume_ml) ?? undefined,
     typeParfum: (row.type_parfum as string) ?? undefined,
     scannedAt: toDate(row.scanned_at) ?? new Date(),
     parfumId: (row.parfum_id as string) ?? undefined,
     imageUrl: (row.image_url as string) ?? undefined,
     familleOlactive: (row.famille_olfactive as string) ?? undefined,
-    annee: (row.annee as number) ?? undefined,
-    bestPrice: (row.best_price as number) ?? undefined,
+    annee: toNum(row.annee) ?? undefined,
+    bestPrice: toNum(row.best_price) ?? undefined,
     status: (row.status as UserScan['status']) ?? undefined,
   };
 }

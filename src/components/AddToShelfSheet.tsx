@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
@@ -9,6 +9,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
   useReducedMotion,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
@@ -32,17 +33,21 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const [query, setQuery] = useState('');
   const [added, setAdded] = useState<Set<string>>(new Set());
+  const [mounted, setMounted] = useState(visible);
 
   const translateY = useSharedValue(400);
   const backdropOpacity = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
+      setMounted(true);
       backdropOpacity.value = withTiming(1, { duration: reduced ? 0 : 200 });
       translateY.value = reduced ? withTiming(0, { duration: 0 }) : withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
-    } else {
+    } else if (mounted) {
       backdropOpacity.value = withTiming(0, { duration: reduced ? 0 : 150 });
-      translateY.value = withTiming(400, { duration: reduced ? 0 : 200 });
+      translateY.value = withTiming(400, { duration: reduced ? 0 : 200 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
       setQuery('');
       setAdded(new Set());
     }
@@ -51,6 +56,12 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
       cancelAnimation(translateY);
     };
   }, [visible, reduced]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
@@ -71,7 +82,7 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
     if (!ok) setAdded((prev) => { const n = new Set(prev); n.delete(parfumId); return n; });
   }, [onAdd]);
 
-  if (!visible) return null;
+  if (!mounted) return null;
 
   return (
     <View style={s.wrapper}>

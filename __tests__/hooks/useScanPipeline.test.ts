@@ -95,7 +95,7 @@ describe('useScanPipeline', () => {
 
     expect(dispatch).toHaveBeenCalledWith({ type: 'START_SCAN', images: ['img1'], scanResult: undefined });
     expect(mockAnalyze).toHaveBeenCalledWith('img1');
-    expect(mockSearch).toHaveBeenCalledWith('Dior', 'Sauvage');
+    expect(mockSearch).toHaveBeenCalledWith(expect.objectContaining({ marque: 'Dior', nom: 'Sauvage' }));
     expect(mockHapticsSuccess).toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_SUCCESS' }));
   });
@@ -119,7 +119,7 @@ describe('useScanPipeline', () => {
     });
 
     expect(dispatch).toHaveBeenCalledWith({ type: 'START_SCAN', images: undefined, scanResult });
-    expect(mockSearch).toHaveBeenCalledWith('Dior', 'Sauvage');
+    expect(mockSearch).toHaveBeenCalledWith(expect.objectContaining({ marque: 'Dior', nom: 'Sauvage' }));
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_SUCCESS' }));
   });
 
@@ -137,18 +137,27 @@ describe('useScanPipeline', () => {
 
   // ── Low confidence → clarify ──────────────────────────
 
-  it('GPT low confidence → dispatch SCAN_CLARIFY low-confidence', async () => {
+  it('GPT low confidence → cherche quand même et dispatch SCAN_SUCCESS (confidence low)', async () => {
     mockAnalyze.mockResolvedValue(makeResult({ confidence: 'low' }));
     const { dispatch, result } = setup();
     await act(async () => {
       await result.current.startAnalysis({ images: ['img1'] });
     });
+    expect(mockSearch).toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'SCAN_CLARIFY',
-      reason: 'low-confidence',
+      type: 'SCAN_SUCCESS',
+      confidence: 'low',
     }));
-    // Ne doit pas chercher
-    expect(mockSearch).not.toHaveBeenCalled();
+  });
+
+  it('GPT sans marque/nom mais avec alternatives → cherche (pas de clarify)', async () => {
+    mockAnalyze.mockResolvedValue(makeResult({ marque: null, nom: null, alternatives: ['Sauvage'] }));
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ images: ['img1'] });
+    });
+    expect(mockSearch).toHaveBeenCalledWith(expect.objectContaining({ alternatives: ['Sauvage'] }));
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_SUCCESS' }));
   });
 
   // ── GPT ne trouve rien → clarify empty-response ──────

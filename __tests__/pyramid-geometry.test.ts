@@ -1,40 +1,29 @@
 import {
-  shade,
   alpha,
-  centroid,
-  bandPoly,
   layerDuration,
   layerAphorism,
   layerContextLabel,
   pickInitialLayer,
+  PERSIST,
 } from '../src/features/catalog/pyramid/geometry';
 
-describe('shade', () => {
-  it('darkens a hex color', () => {
-    const result = shade('#6C3ED9', -0.12);
-    expect(result).toMatch(/^#[0-9A-F]{6}$/);
-    const r = parseInt(result.slice(1, 3), 16);
-    expect(r).toBeLessThan(0x6C);
+describe('PERSIST', () => {
+  it('exposes a persistence ratio per layer', () => {
+    expect(PERSIST.top).toBeGreaterThan(0);
+    expect(PERSIST.heart).toBeGreaterThan(0);
+    expect(PERSIST.base).toBe(1);
   });
 
-  it('lightens a hex color', () => {
-    const result = shade('#0D9488', 0.08);
-    expect(result).toMatch(/^#[0-9A-F]{6}$/);
-    const r = parseInt(result.slice(1, 3), 16);
-    expect(r).toBeGreaterThan(0x0D);
+  it('grows from top to base (evaporation)', () => {
+    expect(PERSIST.top).toBeLessThan(PERSIST.heart);
+    expect(PERSIST.heart).toBeLessThan(PERSIST.base);
   });
 
-  it('clamps to 0', () => {
-    expect(shade('#000000', -0.5)).toBe('#000000');
-  });
-
-  it('clamps to 255', () => {
-    expect(shade('#FFFFFF', 0.5)).toBe('#FFFFFF');
-  });
-
-  it('returns uppercase hex', () => {
-    const result = shade('#aabbcc', -0.1);
-    expect(result).toBe(result.toUpperCase());
+  it('keeps every ratio within 0..1', () => {
+    for (const k of ['top', 'heart', 'base'] as const) {
+      expect(PERSIST[k]).toBeGreaterThanOrEqual(0);
+      expect(PERSIST[k]).toBeLessThanOrEqual(1);
+    }
   });
 });
 
@@ -52,56 +41,6 @@ describe('alpha', () => {
   });
 });
 
-describe('centroid', () => {
-  it('computes centroid of a square', () => {
-    const pts = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
-    expect(centroid(pts)).toEqual({ x: 5, y: 5 });
-  });
-
-  it('handles empty array', () => {
-    expect(centroid([])).toEqual({ x: 0, y: 0 });
-  });
-});
-
-describe('bandPoly', () => {
-  const w = 240;
-  const h = 220;
-
-  it('returns 4 points for k=0 (top triangle)', () => {
-    const { points, svg } = bandPoly(w, h, 0, 3);
-    expect(points).toHaveLength(4);
-    expect(points[0].x).toBeCloseTo(points[1].x, 0);
-    expect(points[0].y).toBeCloseTo(points[1].y, 0);
-    expect(svg).toMatch(/^[\d.,\-\s]+$/);
-  });
-
-  it('returns 4 points for k=1 (heart band)', () => {
-    const { points } = bandPoly(w, h, 1, 3);
-    expect(points).toHaveLength(4);
-    expect(points[0].y).toBeCloseTo(points[1].y, 0);
-    expect(points[2].y).toBeCloseTo(points[3].y, 0);
-  });
-
-  it('inset moves vertices toward centroid for k=1', () => {
-    const { points, centroid: c } = bandPoly(w, h, 1, 3);
-    const w0pts = bandPoly(w, h, 1, 0).points;
-    for (let i = 0; i < 4; i++) {
-      const dInset = Math.hypot(points[i].x - c.x, points[i].y - c.y);
-      const dRaw = Math.hypot(w0pts[i].x - c.x, w0pts[i].y - c.y);
-      expect(dInset).toBeLessThanOrEqual(dRaw);
-    }
-  });
-
-  it('returns correct points for k=2 (base band, inset from bottom)', () => {
-    const { points } = bandPoly(w, h, 2, 3);
-    expect(points).toHaveLength(4);
-    const bh = h / 3;
-    expect(points[2].y).toBeLessThan(h);
-    expect(points[2].y).toBeGreaterThan(h - bh);
-    expect(points[3].y).toBeGreaterThan(h - bh);
-  });
-});
-
 describe('layerDuration', () => {
   it('returns correct durations with en-dashes', () => {
     expect(layerDuration('top')).toBe('0 – 15 min');
@@ -110,8 +49,8 @@ describe('layerDuration', () => {
   });
 
   it('uses en-dash (U+2013)', () => {
-    expect(layerDuration('top')).toContain('\u2013');
-    expect(layerDuration('heart')).toContain('\u2013');
+    expect(layerDuration('top')).toContain('–');
+    expect(layerDuration('heart')).toContain('–');
   });
 });
 

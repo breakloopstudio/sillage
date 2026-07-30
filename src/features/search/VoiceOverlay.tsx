@@ -116,9 +116,9 @@ export default function VoiceOverlay({
           <View style={s.listeningRow}>
             <Ionicons name="mic" size={20} color={theme.colors.primary} />
             <View style={s.listeningContent}>
-              <Text style={s.listeningLabel} allowFontScaling={false}>À l'écoute...</Text>
+              <Text style={s.listeningLabel} allowFontScaling={false}>À l'écoute…</Text>
               <Text style={s.transcriptText} numberOfLines={3} maxFontSizeMultiplier={1.3}>
-                {phase.transcript || 'Parlez maintenant...'}
+                {phase.transcript || 'Parlez maintenant…'}
               </Text>
             </View>
           </View>

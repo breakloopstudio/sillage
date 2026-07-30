@@ -23,14 +23,7 @@ import ParfumCard from '../src/components/ParfumCard';
 import type { ActionItem } from '../src/components/ActionSheet';
 import type { UserScan } from '../src/models/user-scan.interface';
 import type { Parfum } from '../src/models';
-
-const PALETTE = ['#5B21B6', '#1E40AF', '#065F46', '#92400E', '#991B1B', '#9D174D', '#3730A3', '#854D0E'];
-
-function brandColor(brand: string): string {
-  let hash = 0;
-  for (let i = 0; i < brand.length; i++) hash = brand.charCodeAt(i) + ((hash << 5) - hash);
-  return PALETTE[Math.abs(hash) % PALETTE.length];
-}
+import { brandColor } from '../src/utils/brand-color';
 
 function getScanDate(d: Date | { toDate: () => Date } | undefined): Date | null {
   if (!d) return null;

@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { deleteAccount, reauthenticate } from '../src/services/account';
+import AuthGate from '../src/components/AuthGate';
 
 type ScreenState = 'overview' | 'confirm' | 'reauth' | 'deleting' | 'error';
 
@@ -17,7 +18,7 @@ export default function DeleteAccountPage() {
   const s = useMemo(() => getStyles(theme), [theme]);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const router = useRouter();
-  const { user } = useAuthContext();
+  const { user, isAuthenticated } = useAuthContext();
 
   const [screen, setScreen] = useState<ScreenState>('overview');
   const [confirmed, setConfirmed] = useState(false);
@@ -65,6 +66,14 @@ export default function DeleteAccountPage() {
   const handleReset = useCallback(() => { setScreen('overview'); setConfirmed(false); setErrorMessage(null); setPassword(''); }, []);
 
   const isDeleting = screen === 'deleting';
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} style={s.container}>
+        <AuthGate icon="trash-outline" description="Connecte-toi pour gérer la suppression de ton compte." />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>

@@ -5,4 +5,5 @@ export interface ScanResult {
   volumeMl: number | null;
   typeParfum: string | null;
   confidence?: 'high' | 'low';
+  alternatives?: string[];
 }

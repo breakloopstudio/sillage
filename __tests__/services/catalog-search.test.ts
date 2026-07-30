@@ -92,7 +92,7 @@ describe('searchParfumsCached', () => {
 
 describe('searchParfumFromScan', () => {
   it('returns [] if both marque and nom are null', async () => {
-    expect(await searchParfumFromScan(null, null)).toEqual([]);
+    expect(await searchParfumFromScan({ marque: null, nom: null })).toEqual([]);
   });
 
   it('boosts exact nom match (+50) above partial', async () => {
@@ -103,7 +103,7 @@ describe('searchParfumFromScan', () => {
       ],
       error: null,
     });
-    const results = await searchParfumFromScan('Dior', 'Sauvage');
+    const results = await searchParfumFromScan({ marque: 'Dior', nom: 'Sauvage' });
     expect(results[0].id).toBe('p2');
   });
 
@@ -115,7 +115,30 @@ describe('searchParfumFromScan', () => {
       ],
       error: null,
     });
-    const results = await searchParfumFromScan('Dior', 'Test');
+    const results = await searchParfumFromScan({ marque: 'Dior', nom: 'Test' });
+    expect(results[0].id).toBe('p2');
+  });
+
+  it('une hypothèse alternative compte comme un nom exact (+50)', async () => {
+    mockRpc.mockResolvedValue({
+      data: [row('p1', { nom: 'Sauvage', marque: 'Dior', search_text: 'dior sauvage' })],
+      error: null,
+    });
+    // nom principal mal lu ("Savag") → partiel seul ; l'alternative "Sauvage" donne le match exact
+    const results = await searchParfumFromScan({ marque: 'Dior', nom: 'Savag', alternatives: ['Sauvage'] });
+    expect(results[0].id).toBe('p1');
+    expect((results[0] as { _scanScore?: number })._scanScore).toBe(65); // 50 nom + 15 marque
+  });
+
+  it('le typeParfum lu départage les flankers (EDP > EDT)', async () => {
+    mockRpc.mockResolvedValue({
+      data: [
+        row('p1', { nom: 'Sauvage Eau de Toilette', marque: 'Dior', type_parfum: 'Eau de Toilette', search_text: 'dior sauvage eau de toilette' }),
+        row('p2', { nom: 'Sauvage Eau de Parfum', marque: 'Dior', type_parfum: 'Eau de Parfum', search_text: 'dior sauvage eau de parfum' }),
+      ],
+      error: null,
+    });
+    const results = await searchParfumFromScan({ marque: 'Dior', nom: 'Sauvage', typeParfum: 'Eau de Parfum' });
     expect(results[0].id).toBe('p2');
   });
 });

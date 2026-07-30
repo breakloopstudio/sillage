@@ -1,7 +1,9 @@
-// src/features/wardrobe/SOTDCard.tsx — Bannière unifiée météo + Parfum du jour
+// src/features/wardrobe/SOTDCard.tsx — Ligne éditoriale météo + Parfum du jour
+// Outrepassage guide assumé : plus de carte primarySoft. La feature devient une
+// ligne de métadonnée (filet hairline) ; la couleur vit sur les objets, pas sur un fond.
 
 import { useMemo, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
@@ -21,7 +23,6 @@ interface Props {
   sotdScore?: number | null;
   onPress: () => void;
   onChangePress: () => void;
-  /** Long-press sur le segment SOTD → partager « Aujourd'hui je porte… ». */
   onShare?: () => void;
 }
 
@@ -49,182 +50,186 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, onP
   const scColor = scoreColor(sotdScore, theme);
   const scBg = scoreBg(sotdScore, theme);
 
+  const wmo = showWeather ? getWmoMeta((weather as WeatherData).weatherCode) : null;
+  const iconName = wmo
+    ? (weather as WeatherData).isDay
+      ? wmo.icon
+      : NIGHT_ICON[wmo.icon] ?? wmo.icon
+    : null;
+
   if (!weather && !sotd) return null;
 
   return (
-    <View style={s.container}>
-      <View style={s.card}>
-        {weatherLoading && (
-          <ActivityIndicator size="small" color={theme.colors.primary} style={s.weatherSpinner} />
-        )}
+    <View style={s.line}>
+      {weatherLoading ? (
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+      ) : null}
 
-        {showWeather && (
-          <>
-            {(() => {
-              const wmo = getWmoMeta(weather.weatherCode);
-              const iconName = weather.isDay ? wmo.icon : NIGHT_ICON[wmo.icon] ?? wmo.icon;
-              return (
-                <View style={s.weatherSeg}>
-                  <Ionicons name={iconName as never} size={14} color={theme.colors.primary} />
-                  <Text allowFontScaling={false} style={s.temp}>
-                    {Math.round(weather.temperature)}
-                    <Text style={s.degree}>°C</Text>
-                  </Text>
-                  {!sotd && (
-                    <Text style={s.weatherLabel} numberOfLines={1}>{wmo.label}</Text>
-                  )}
-                </View>
-              );
-            })()}
-            <View style={s.dot} />
-          </>
-        )}
+      {showWeather && wmo && iconName ? (
+        <>
+          <View style={s.weatherSeg}>
+            <Ionicons name={iconName as never} size={14} color={theme.colors.primary} accessible={false} />
+            <Text allowFontScaling={false} style={s.temp}>
+              {Math.round((weather as WeatherData).temperature)}
+              <Text style={s.degree}>°</Text>
+            </Text>
+            {!sotd ? (
+              <Text style={s.weatherLabel} numberOfLines={1}>{wmo.label}</Text>
+            ) : null}
+          </View>
+          {sotd ? <Text allowFontScaling={false} style={s.sep}>·</Text> : null}
+        </>
+      ) : null}
 
-        {sotd ? (
-          <Pressable style={s.sotdSeg} onPress={onPress} onLongPress={onShare} delayLongPress={400} accessibilityHint="Appuyez longuement pour partager votre parfum du jour">
+      {sotd ? (
+        <Pressable
+          style={s.sotdSeg}
+          onPress={onPress}
+          onLongPress={onShare}
+          delayLongPress={400}
+          hitSlop={{ top: 7, bottom: 7 }}
+          accessibilityRole="button"
+          accessibilityLabel={`Parfum du jour : ${sotd.nom} ${sotd.marque}`}
+          accessibilityHint="Appuyez longuement pour partager"
+        >
+          <View style={s.thumbWrap}>
             {sotd.imageUrl && !imgFailed ? (
               <Image
                 source={{ uri: sotd.imageUrl }}
-                style={s.image}
-                contentFit="cover"
+                style={s.thumb}
+                contentFit="contain"
                 transition={200}
                 onError={() => setImgFailed(true)}
               />
             ) : (
-              <View style={s.placeholder}>
-                <Ionicons name="flask-outline" size={13} color={theme.colors.primaryInk} />
-              </View>
+              <Ionicons name="flask-outline" size={11} color={theme.colors.primaryInk} accessible={false} />
             )}
-            <View style={s.info}>
-              <Text style={s.name} numberOfLines={1}>{sotd.nom}</Text>
-              <Text style={s.brand} numberOfLines={1}>{sotd.marque}</Text>
+          </View>
+          <Text style={s.name} numberOfLines={1}>{sotd.nom}</Text>
+          {showScore ? (
+            <View style={[s.scoreBadge, { backgroundColor: scBg }]}>
+              <Text allowFontScaling={false} style={[s.scoreText, { color: scColor }]}>{sotdScore}%</Text>
             </View>
-            {showScore && (
-              <View style={[s.scoreBadge, { backgroundColor: scBg }]}>
-                <Text allowFontScaling={false} style={[s.scoreText, { color: scColor }]}>
-                  {sotdScore}%
-                </Text>
-              </View>
-            )}
-            <Pressable onPress={onChangePress} hitSlop={10} style={s.changeBtn}>
-              <Ionicons name="swap-horizontal-outline" size={16} color={theme.colors.primary} />
-            </Pressable>
-          </Pressable>
-        ) : (
-          <Pressable style={s.emptySeg} onPress={onChangePress}>
-            <Text style={s.emptyTitle}>Parfum du jour ?</Text>
-            <Ionicons name="add-circle-outline" size={16} color={theme.colors.primary} />
-          </Pressable>
-        )}
-      </View>
+          ) : null}
+        </Pressable>
+      ) : (
+        <Pressable
+          style={s.emptySeg}
+          onPress={onChangePress}
+          hitSlop={{ top: 7, bottom: 7 }}
+          accessibilityRole="button"
+          accessibilityLabel="Choisir le parfum du jour"
+        >
+          <Text style={s.emptyTitle} numberOfLines={1}>Parfum du jour ?</Text>
+          <Ionicons name="add-circle-outline" size={14} color={theme.colors.primary} accessible={false} />
+        </Pressable>
+      )}
+
+      {sotd ? (
+        <Pressable
+          onPress={onChangePress}
+          hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+          style={s.changeBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Changer le parfum du jour"
+        >
+          <Ionicons name="swap-horizontal-outline" size={14} color={theme.colors.primary} accessible={false} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 function getStyles(t: Theme) {
   return {
-    container: {
+    line: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
       marginHorizontal: 16,
       marginTop: 2,
-      marginBottom: 6,
-    },
-    card: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: t.colors.primarySoft,
-      borderRadius: t.radius.base,
-      paddingVertical: 6,
-      paddingHorizontal: 10,
-      gap: 6,
-      minHeight: 42,
-    },
-    weatherSpinner: {
-      marginRight: 4,
+      marginBottom: 4,
+      paddingVertical: 7,
+      gap: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.colors.border,
+      minHeight: 30,
     },
     weatherSeg: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 3,
       flexShrink: 0,
     },
     temp: {
       fontFamily: 'Inter_700Bold',
       fontSize: 13,
-      color: t.colors.primaryInk,
+      color: t.colors.text,
+      fontVariant: ['tabular-nums'] as import('react-native').FontVariant[],
     },
     degree: {
-      fontFamily: 'Inter_400Regular',
+      fontFamily: 'Inter_500Medium',
       fontSize: 11,
-      color: t.colors.primaryInk,
+      color: t.colors.textMuted,
     },
     weatherLabel: {
       fontFamily: 'Inter_400Regular',
-      fontSize: 12,
-      color: t.colors.primaryInk,
+      fontSize: 11,
+      color: t.colors.textMuted,
       marginLeft: 2,
+      maxWidth: 100,
     },
-    dot: {
-      width: 3,
-      height: 3,
-      borderRadius: 2,
-      backgroundColor: t.colors.primaryInk,
-      opacity: 0.4,
+    sep: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      color: t.colors.textMuted,
+      opacity: 0.6,
     },
     sotdSeg: {
       flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
       gap: 6,
+      minWidth: 0,
     },
-    emptySeg: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    image: {
-      width: 26,
-      height: 26,
-      borderRadius: 5,
-      backgroundColor: t.colors.surface2,
-    },
-    placeholder: {
-      width: 26,
-      height: 26,
+    thumbWrap: {
+      width: 22,
+      height: 22,
       borderRadius: 5,
       backgroundColor: t.colors.primarySoft,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      overflow: 'hidden' as const,
     },
-    info: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      minWidth: 0,
+    thumb: {
+      width: 22,
+      height: 22,
+      borderRadius: 5,
     },
     name: {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 12,
       color: t.colors.text,
-    },
-    brand: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 11,
-      color: t.colors.textMuted,
+      flexShrink: 1,
     },
     scoreBadge: {
       borderRadius: 6,
-      paddingHorizontal: 6,
-      paddingVertical: 3,
-      marginLeft: 2,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
     },
     scoreText: {
       fontFamily: 'Inter_600SemiBold',
-      fontSize: 10,
+      fontSize: 9,
     },
     changeBtn: {
-      padding: 6,
+      padding: 4,
+      flexShrink: 0,
+    },
+    emptySeg: {
+      flex: 1,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      gap: 6,
     },
     emptyTitle: {
       flex: 1,

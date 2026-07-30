@@ -8,6 +8,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { alpha } from '../../utils/alpha';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
 import { searchParfumsCached } from '../../services/catalog';
@@ -175,10 +176,10 @@ export default function SearchChrome() {
             <Ionicons name="search-outline" size={18} color={theme.colors.textMuted} />
             {showVoiceTranscript ? (
               <Text style={s.voiceTranscript} numberOfLines={1}>
-                {voiceTranscript || 'Parle...'}
+                {voiceTranscript || 'Parle…'}
               </Text>
             ) : (
-              <Text style={s.searchPlaceholder} numberOfLines={1}>Rechercher un parfum...</Text>
+              <Text style={s.searchPlaceholder} numberOfLines={1}>Rechercher un parfum…</Text>
             )}
           </Pressable>
         </View>
@@ -282,7 +283,7 @@ function getSearchStyles(t: Theme, safeTop: number) {
       height: 44,
     },
     searchBarOverlay: {
-      backgroundColor: t.colors.background + 'E0',
+      backgroundColor: alpha(t.colors.background, 0.88),
     },
     searchBarShadow: { ...t.shadow.card },
     searchPlaceholder: {

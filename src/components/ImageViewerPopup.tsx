@@ -13,12 +13,12 @@ const CLOSE_ZONE = 68;
 const INFO_ZONE = 56;
 const BREATHING = 24;
 
-import { useMemo, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { useMemo, useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, useWindowDimensions, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, cancelAnimation } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, cancelAnimation, useReducedMotion, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 
@@ -36,22 +36,39 @@ export default function ImageViewerPopup({ visible, imageUrl, imageUrl2x, brand,
   const s = useMemo(() => getStyles(theme), [theme]);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
+  const [mounted, setMounted] = useState(visible);
 
   const backdropOpacity = useSharedValue(0);
   const cardOpacity = useSharedValue(0);
   const scale = useSharedValue(0.92);
 
   useEffect(() => {
-    if (!visible) return;
-    backdropOpacity.value = withTiming(1, { duration: 250 });
-    cardOpacity.value = withTiming(1, { duration: 250 });
-    scale.value = withTiming(1, { duration: 250 });
+    const dur = reduced ? 0 : 250;
+    if (visible) {
+      setMounted(true);
+      backdropOpacity.value = withTiming(1, { duration: dur });
+      cardOpacity.value = withTiming(1, { duration: dur });
+      scale.value = withTiming(1, { duration: dur });
+    } else if (mounted) {
+      backdropOpacity.value = withTiming(0, { duration: dur });
+      cardOpacity.value = withTiming(0, { duration: dur }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
+      scale.value = withTiming(0.92, { duration: dur });
+    }
     return () => {
       cancelAnimation(backdropOpacity);
       cancelAnimation(cardOpacity);
       cancelAnimation(scale);
     };
-  }, [visible]);
+  }, [visible, reduced]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const backdropAnim = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
@@ -62,7 +79,7 @@ export default function ImageViewerPopup({ visible, imageUrl, imageUrl2x, brand,
     transform: [{ scale: scale.value }],
   }));
 
-  if (!visible) return null;
+  if (!mounted) return null;
 
   const imageWidth = screenWidth - 32;
   const imageHeight = screenHeight - insets.top - insets.bottom - CLOSE_ZONE - INFO_ZONE - BREATHING;

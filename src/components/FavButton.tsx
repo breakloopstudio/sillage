@@ -25,6 +25,7 @@ type Size = 'xs' | 'sm' | 'lg';
 interface Props {
   parfum: Parfum;
   size?: Size;
+  inline?: boolean;
 }
 
 const DIMS: Record<Size, { box: number; icon: number; top: number; right: number }> = {
@@ -33,9 +34,9 @@ const DIMS: Record<Size, { box: number; icon: number; top: number; right: number
   lg: { box: 40, icon: 20, top: 12, right: 12 },
 };
 
-export default function FavButton({ parfum, size = 'sm' }: Props) {
+export default function FavButton({ parfum, size = 'sm', inline = false }: Props) {
   const { theme } = useTheme();
-  const s = useMemo(() => getStyles(theme, size), [theme, size]);
+  const s = useMemo(() => getStyles(theme, size, inline), [theme, size, inline]);
   const router = useRouter();
   const { isAuthenticated } = useAuthContext();
   const { favIds, toggleFav } = useFavorisContext();
@@ -62,10 +63,12 @@ export default function FavButton({ parfum, size = 'sm' }: Props) {
     toggleFav(parfum);
   }, [isAuthenticated, isFav, toggleFav, parfum, router]);
 
+  const iconSize = inline ? 20 : DIMS[size].icon;
+
   return (
     <Pressable
       onPress={handlePress}
-      style={s.btn}
+      style={inline ? s.btnInline : s.btn}
       hitSlop={6}
       accessibilityRole="button"
       accessibilityLabel={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
@@ -73,7 +76,7 @@ export default function FavButton({ parfum, size = 'sm' }: Props) {
       <Animated.View style={[s.inner, animStyle]}>
         <Ionicons
           name={isFav ? 'heart' : 'heart-outline'}
-          size={DIMS[size].icon}
+          size={iconSize}
           color={isFav ? theme.colors.favorite : theme.colors.textMuted}
         />
       </Animated.View>
@@ -81,7 +84,7 @@ export default function FavButton({ parfum, size = 'sm' }: Props) {
   );
 }
 
-function getStyles(t: Theme, size: Size) {
+function getStyles(t: Theme, size: Size, inline: boolean) {
   const { box, top, right } = DIMS[size];
   return {
     btn: {
@@ -96,6 +99,12 @@ function getStyles(t: Theme, size: Size) {
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
       ...t.shadow.card,
+    },
+    btnInline: {
+      width: 32,
+      height: 32,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
     },
     inner: {
       justifyContent: 'center' as const,

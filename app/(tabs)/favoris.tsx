@@ -12,6 +12,7 @@ import { useFavorisContext } from '../../src/contexts/FavorisContext';
 import { useUserParfumContext } from '../../src/contexts/UserParfumContext';
 import { usePriceAlertsContext } from '../../src/contexts/PriceAlertsContext';
 import { useDensityPreference, GRID_MODES } from '../../src/hooks/useDensityPreference';
+import { useFavorisViewPreference, type FavorisView } from '../../src/hooks/useFavorisViewPreference';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
@@ -27,12 +28,16 @@ import PriceAlertSheet from '../../src/components/PriceAlertSheet';
 import type { UserFavori, Parfum } from '../../src/models';
 import type { UserParfumStatus } from '../../src/models/user-parfum.interface';
 
-type FavPillId = 'all' | 'untreated' | 'alerts';
+type FavPillId = 'all' | 'untreated';
 
 const FAV_PILLS: { id: FavPillId; label: string; icon: string }[] = [
-  { id: 'all',       label: 'Tous',       icon: 'apps-outline' },
-  { id: 'untreated', label: 'À traiter',  icon: 'eye-outline' },
-  { id: 'alerts',    label: 'Alertes',    icon: 'notifications-outline' },
+  { id: 'all',       label: 'Tous',      icon: 'apps-outline' },
+  { id: 'untreated', label: 'À traiter', icon: 'eye-outline' },
+];
+
+const FAV_VIEW_TABS: { key: FavorisView; label: string; icon: string }[] = [
+  { key: 'favoris', label: 'Favoris', icon: 'heart-outline' },
+  { key: 'alerts',  label: 'Alertes', icon: 'notifications-outline' },
 ];
 
 const DENSITY_ICON: Record<string, string> = {
@@ -80,6 +85,9 @@ export default function FavorisPage() {
 
   const scrollHandler = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
 
+  const { view: viewPref, setView: setViewPref } = useFavorisViewPreference();
+  const effectiveView: FavorisView = viewPref ?? 'favoris';
+
   const [activePill, setActivePill] = useState<FavPillId>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sheetItem, setSheetItem] = useState<UserFavori | null>(null);
@@ -112,24 +120,22 @@ export default function FavorisPage() {
   }, [alerts, displayMap]);
 
   const pillCounts = useMemo(() => {
-    const counts: Record<FavPillId, number> = { all: favoris.length, untreated: 0, alerts: 0 };
+    const counts: Record<FavPillId, number> = { all: favoris.length, untreated: 0 };
     for (const f of favoris) {
       if (!statusByParfumId.has(f.parfumId)) counts.untreated += 1;
-      if (byParfumId.has(f.parfumId)) counts.alerts += 1;
     }
     return counts;
-  }, [favoris, statusByParfumId, byParfumId]);
+  }, [favoris, statusByParfumId]);
 
   const filtered = useMemo(() => {
     let result = favoris;
     if (activePill === 'untreated') result = result.filter(f => !statusByParfumId.has(f.parfumId));
-    else if (activePill === 'alerts') result = result.filter(f => byParfumId.has(f.parfumId));
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(f => favoriMatchesSearch(f, q));
     }
     return result;
-  }, [favoris, activePill, statusByParfumId, byParfumId, searchQuery]);
+  }, [favoris, activePill, statusByParfumId, searchQuery]);
 
   const handleCardPress = useCallback((f: UserFavori) => {
     setPendingParfum(favoriToCard(f));
@@ -180,6 +186,7 @@ export default function FavorisPage() {
   }, [setAlert]);
 
   const handlePillTap = useCallback((pill: FavPillId) => { hapticsLight(); setActivePill(pill); }, []);
+  const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setViewPref(v); }, [setViewPref]);
   const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
 
   const gridNumCols = density === 'list' ? 1 : 2;
@@ -224,14 +231,31 @@ export default function FavorisPage() {
     );
   }
 
-  if (favoris.length === 0) {
-    return (
-      <SafeAreaView edges={['bottom']} style={s.container}>
-        <View style={s.header}><Text style={s.title}>Favoris</Text></View>
-        <EmptyState variant="favoris" onAction={handleEmptyExplore} />
-      </SafeAreaView>
-    );
-  }
+  const topChrome = (
+    <View>
+      <View style={s.header}>
+        <Text style={s.title}>Favoris{'\u00A0'}·{'\u00A0'}{favoris.length}</Text>
+      </View>
+      <View style={s.segmented}>
+        {FAV_VIEW_TABS.map(tab => {
+          const active = effectiveView === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              style={[s.segment, active && s.segmentActive]}
+              onPress={() => handleSelectView(tab.key)}
+              accessibilityRole="button"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: active }}
+            >
+              <Ionicons name={tab.icon as never} size={15} color={active ? theme.colors.primary : theme.colors.textMuted} />
+              <Text style={[s.segmentText, active && s.segmentTextActive]} allowFontScaling={false}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
 
   const sheetStatus = sheetItem ? statusByParfumId.get(sheetItem.parfumId) ?? null : null;
   const sheetHasAlert = sheetItem ? byParfumId.has(sheetItem.parfumId) : false;
@@ -239,123 +263,139 @@ export default function FavorisPage() {
 
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
-      <Animated.FlatList
-        key={gridKey}
-        data={filtered}
-        keyExtractor={item => item.parfumId}
-        renderItem={renderItem}
-        numColumns={gridNumCols}
-        columnWrapperStyle={gridNumCols === 2 ? s.row : undefined}
-        contentContainerStyle={s.content}
-        showsVerticalScrollIndicator={false}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        windowSize={5}
-        maxToRenderPerBatch={10}
-        extraData={resolvedMode}
-        ListHeaderComponent={
-          <View>
-            <View style={s.header}>
-              <Text style={s.title}>Favoris{'\u00A0'}·{'\u00A0'}{favoris.length}</Text>
-            </View>
+      {effectiveView === 'favoris' ? (
+        <Animated.FlatList
+          key={gridKey}
+          data={filtered}
+          keyExtractor={item => item.parfumId}
+          renderItem={renderItem}
+          numColumns={gridNumCols}
+          columnWrapperStyle={gridNumCols === 2 ? s.row : undefined}
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
+          windowSize={5}
+          maxToRenderPerBatch={10}
+          extraData={resolvedMode}
+          ListHeaderComponent={
+            <View>
+              {topChrome}
+              {favoris.length === 0 ? (
+                <EmptyState variant="favoris" onAction={handleEmptyExplore} />
+              ) : (
+                <View>
+                  <View style={s.searchRow}>
+                    <View style={s.searchWrap}>
+                      <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
+                      <TextInput
+                        style={s.searchInput}
+                        placeholder="Nom, marque ou note..."
+                        placeholderTextColor={theme.colors.textMuted}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        keyboardAppearance={keyboardAppearance}
+                      />
+                    </View>
+                  </View>
 
-            {alertRows.length > 0 ? (
-              <View style={s.alertsSection}>
-                <View style={s.alertsHeader}>
-                  <Ionicons name="notifications" size={15} color={theme.colors.primary} />
-                  <Text style={s.alertsTitle}>Tes alertes</Text>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.alertsRow}>
-                  {alertRows.map(row => {
-                    const isDrop = row.variation != null && row.variation < 0;
-                    return (
-                      <Pressable key={row.parfumId} style={s.alertCard} onPress={() => handleAlertCardPress(row)} accessibilityRole="button" accessibilityLabel={`${row.marque} ${row.nom}`}>
-                        {row.imageUrl ? (
-                          <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} />
-                        ) : (
-                          <View style={[s.alertImg, s.alertImgPlaceholder]}>
-                            <Ionicons name="flask-outline" size={18} color={theme.colors.textMuted} />
-                          </View>
-                        )}
-                        <View style={s.alertBody}>
-                          <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
-                          <View style={s.alertPriceRow}>
-                            {row.currentPrice != null ? <Text style={s.alertPrice}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
-                            {row.variation != null ? (
-                              <View style={[s.alertVarChip, { backgroundColor: isDrop ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                                <Text style={[s.alertVarText, { color: isDrop ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          {row.targetPrice != null ? <Text style={s.alertTarget}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text> : null}
-                        </View>
-                        <Pressable style={s.alertOffBtn} onPress={() => handleAlertDisable(row.parfumId)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Désactiver l\u2019alerte">
-                          <Ionicons name="notifications-off-outline" size={16} color={theme.colors.textMuted} />
-                        </Pressable>
+                  <View style={s.toolsRow}>
+                    {GRID_MODES.map(m => (
+                      <Pressable
+                        key={m.key}
+                        style={[s.densityIconBtn, density === m.key && s.densityIconBtnActive]}
+                        onPress={() => setDensity(m.key)}
+                        hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={m.label}
+                      >
+                        <Ionicons name={DENSITY_ICON[m.key] as never} size={18} color={density === m.key ? theme.colors.primary : theme.colors.textMuted} />
                       </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            ) : null}
+                    ))}
+                  </View>
 
-            <View style={s.searchRow}>
-              <View style={s.searchWrap}>
-                <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
-                <TextInput
-                  style={s.searchInput}
-                  placeholder="Nom, marque ou note..."
-                  placeholderTextColor={theme.colors.textMuted}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  keyboardAppearance={keyboardAppearance}
-                />
-              </View>
-              {GRID_MODES.map(m => (
-                <Pressable
-                  key={m.key}
-                  style={[s.densityIconBtn, density === m.key && s.densityIconBtnActive]}
-                  onPress={() => setDensity(m.key)}
-                  hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={m.label}
-                >
-                  <Ionicons name={DENSITY_ICON[m.key] as never} size={18} color={density === m.key ? theme.colors.primary : theme.colors.textMuted} />
-                </Pressable>
-              ))}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
+                    {FAV_PILLS.map(pill => {
+                      const active = activePill === pill.id;
+                      return (
+                        <Pressable
+                          key={pill.id}
+                          style={[s.pill, active && s.pillActive]}
+                          onPress={() => handlePillTap(pill.id)}
+                          hitSlop={{ top: 2, bottom: 2 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${pill.label}, ${pillCounts[pill.id]}`}
+                        >
+                          <Ionicons name={pill.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
+                          <Text style={[s.pillText, active && s.pillTextActive]} allowFontScaling={false}>{pill.label}</Text>
+                          <Text style={[s.pillCount, active && s.pillCountActive]} allowFontScaling={false}>{pillCounts[pill.id]}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {filtered.length === 0 ? (
+                    <View style={s.emptyFilter}>
+                      <Ionicons name="heart-outline" size={28} color={theme.colors.textMuted} />
+                      <Text style={s.emptyFilterText}>
+                        {searchQuery.trim() || activePill !== 'all' ? 'Aucun parfum ne correspond à cette vue' : 'Aucun favori pour l\u2019instant'}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
             </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
-              {FAV_PILLS.map(pill => {
-                const active = activePill === pill.id;
+          }
+        />
+      ) : (
+        <Animated.ScrollView
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
+        >
+          {topChrome}
+          {alertRows.length === 0 ? (
+            <View style={s.alertEmpty}>
+              <Ionicons name="notifications-outline" size={32} color={theme.colors.textMuted} />
+              <Text style={s.alertEmptyTitle}>Aucune alerte pour l\u2019instant</Text>
+              <Text style={s.alertEmptyText} maxFontSizeMultiplier={1.3}>Active une alerte sur un coup de cœur pour être prévenu quand son prix baisse.</Text>
+            </View>
+          ) : (
+            <View style={s.alertList}>
+              {alertRows.map(row => {
+                const isDrop = row.variation != null && row.variation < 0;
                 return (
-                  <Pressable
-                    key={pill.id}
-                    style={[s.pill, active && s.pillActive]}
-                    onPress={() => handlePillTap(pill.id)}
-                    hitSlop={{ top: 2, bottom: 2 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${pill.label}, ${pillCounts[pill.id]}`}
-                  >
-                    <Ionicons name={pill.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
-                    <Text style={[s.pillText, active && s.pillTextActive]} allowFontScaling={false}>{pill.label}</Text>
-                    <Text style={[s.pillCount, active && s.pillCountActive]} allowFontScaling={false}>{pillCounts[pill.id]}</Text>
+                  <Pressable key={row.parfumId} style={s.alertCard} onPress={() => handleAlertCardPress(row)} accessibilityRole="button" accessibilityLabel={`${row.marque} ${row.nom}`}>
+                    {row.imageUrl ? (
+                      <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} />
+                    ) : (
+                      <View style={[s.alertImg, s.alertImgPlaceholder]}>
+                        <Ionicons name="flask-outline" size={18} color={theme.colors.textMuted} />
+                      </View>
+                    )}
+                    <View style={s.alertBody}>
+                      <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
+                      <View style={s.alertPriceRow}>
+                        {row.currentPrice != null ? <Text style={s.alertPrice}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
+                        {row.variation != null ? (
+                          <View style={[s.alertVarChip, { backgroundColor: isDrop ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+                            <Text style={[s.alertVarText, { color: isDrop ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {row.targetPrice != null ? <Text style={s.alertTarget}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text> : null}
+                    </View>
+                    <Pressable style={s.alertOffBtn} onPress={() => handleAlertDisable(row.parfumId)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Désactiver l\u2019alerte">
+                      <Ionicons name="notifications-off-outline" size={16} color={theme.colors.textMuted} />
+                    </Pressable>
                   </Pressable>
                 );
               })}
-            </ScrollView>
-
-            {filtered.length === 0 ? (
-              <View style={s.emptyFilter}>
-                <Ionicons name="heart-outline" size={28} color={theme.colors.textMuted} />
-                <Text style={s.emptyFilterText}>
-                  {searchQuery.trim() || activePill !== 'all' ? 'Aucun parfum ne correspond à cette vue' : 'Aucun favori pour l\u2019instant'}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        }
-      />
+            </View>
+          )}
+        </Animated.ScrollView>
+      )}
 
       <FavoriSheet
         visible={sheetItem !== null}
@@ -400,15 +440,20 @@ function getStyles(t: Theme) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text, flex: 1 },
 
-    alertsSection: { paddingTop: 8, paddingBottom: 4 },
-    alertsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingBottom: 8 },
-    alertsTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.text },
-    alertsRow: { gap: 10, paddingHorizontal: 16 },
+    segmented: { flexDirection: 'row', backgroundColor: t.colors.surface2, borderRadius: 20, padding: 3, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
+    segment: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 18 },
+    segmentActive: { backgroundColor: t.colors.surface, ...t.shadow.card },
+    segmentText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
+    segmentTextActive: { fontFamily: 'Inter_600SemiBold', color: t.colors.text },
     alertCard: {
-      flexDirection: 'row', alignItems: 'center', gap: 10, width: 240,
-      backgroundColor: t.colors.surface, borderRadius: t.radius.card, padding: 10,
-      borderWidth: 1, borderColor: t.colors.border, ...t.shadow.card,
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: t.colors.surface, borderRadius: t.radius.card, padding: 12,
+      borderWidth: 1, borderColor: t.colors.border, marginBottom: 10, ...t.shadow.card,
     },
+    alertList: { paddingTop: 4 },
+    alertEmpty: { paddingVertical: 48, paddingHorizontal: 32, alignItems: 'center' },
+    alertEmptyTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text, marginTop: 14, marginBottom: 6 },
+    alertEmptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21, color: t.colors.textMuted, textAlign: 'center' },
     alertImg: { width: 44, height: 58, borderRadius: t.radius.sm, backgroundColor: t.colors.surface2 },
     alertImgPlaceholder: { justifyContent: 'center', alignItems: 'center' },
     alertBody: { flex: 1, minWidth: 0, gap: 3 },
@@ -425,6 +470,7 @@ function getStyles(t: Theme) {
     searchInput: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.text },
     densityIconBtn: { width: 40, height: 40, borderRadius: 8, backgroundColor: t.colors.surface2, alignItems: 'center', justifyContent: 'center' },
     densityIconBtnActive: { backgroundColor: t.colors.surface, ...t.shadow.card },
+    toolsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
 
     pillsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
     pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.surface2, borderWidth: 1, borderColor: 'transparent', minHeight: 40 },

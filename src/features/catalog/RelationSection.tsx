@@ -5,9 +5,9 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useUserParfumContext } from '../../contexts/UserParfumContext';
 import { usePossessions } from '../../hooks/usePossessions';
-import { useShelves } from '../../hooks/useShelves';
+import { useShelvesContext } from '../../contexts/ShelvesContext';
 import { useSotd } from '../../hooks/useSotd';
-import { hapticsLight } from '../../services/haptics';
+import { hapticsLight, hapticsError } from '../../services/haptics';
 import { STATUS_CHIPS, chipForStatus } from '../../utils/status-chips';
 import { VERDICT_OPTIONS } from '../../utils/verdicts';
 import StarRating from '../wardrobe/StarRating';
@@ -41,7 +41,7 @@ export default function RelationSection({ parfum, save }: Props) {
   const signatureCount = useMemo(() => allItems.filter(i => i.isSignature).length, [allItems]);
 
   const { items: possessions, add: addPossession, remove: removePossession } = usePossessions(uid, parfum.id);
-  const { shelves } = useShelves(uid);
+  const { shelves } = useShelvesContext();
   const { sotd, setTodaySotd } = useSotd(uid);
 
   const [showNotesEdit, setShowNotesEdit] = useState(false);
@@ -68,12 +68,17 @@ export default function RelationSection({ parfum, save }: Props) {
     setRating(r === 0 ? null : r);
   }, [setRating]);
 
-  const handleAddPossession = useCallback((type: PossessionType) => {
+  const handleAddPossession = useCallback(async (type: PossessionType) => {
     if (!item) return;
     hapticsLight();
-    void addPossession(type);
-    if (item.status === 'to_try' || item.status === 'tried' || item.status === 'want') {
-      setStatus('have');
+    try {
+      await addPossession(type);
+      if (item.status === 'to_try' || item.status === 'tried' || item.status === 'want') {
+        setStatus('have');
+      }
+    } catch (e: unknown) {
+      console.warn('[relation] addPossession failed:', (e as Error)?.message ?? String(e));
+      hapticsError();
     }
   }, [item, addPossession, setStatus]);
 
@@ -256,7 +261,7 @@ export default function RelationSection({ parfum, save }: Props) {
             <TextInput
               style={s.notesInput}
               multiline
-              placeholder="Mes impressions, souvenirs, anecdotes..."
+              placeholder="Mes impressions, souvenirs, anecdotes…"
               placeholderTextColor={theme.colors.textMuted}
               value={notesDraft}
               onChangeText={setNotesDraft}
@@ -277,7 +282,7 @@ export default function RelationSection({ parfum, save }: Props) {
             {item.notes ? (
               <Text style={s.notesText} maxFontSizeMultiplier={1.3}>{item.notes}</Text>
             ) : (
-              <Text style={s.notesPlaceholder}>Ajouter des notes personnelles...</Text>
+              <Text style={s.notesPlaceholder}>Ajouter des notes personnelles…</Text>
             )}
           </Pressable>
         )}

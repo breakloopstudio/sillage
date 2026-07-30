@@ -72,12 +72,12 @@ export default function StickyBottomBar({
               <Text style={s.price} numberOfLines={1}>{formatPrice(bestPrice!)}</Text>
               {discountPct !== null && discountPct > 0 && discountPct <= 95 && (
                 <View style={[s.discountBadge, { backgroundColor: theme.colors.deal }]}>
-                  <Text style={s.discountText}>-{discountPct}%</Text>
+                  <Text style={s.discountText}>{`−${discountPct} %`}</Text>
                 </View>
               )}
             </View>
           ) : (
-            <Text style={s.noPrice}>-- €</Text>
+            <Text style={s.noPrice}>— €</Text>
           )}
         </View>
 

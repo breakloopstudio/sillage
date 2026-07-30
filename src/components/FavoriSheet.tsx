@@ -2,7 +2,7 @@
 // Voir la fiche · Alerte prix · Envoyer dans ma parfumerie (statut) · Retirer des favoris
 
 import { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
@@ -12,6 +12,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
   useReducedMotion,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
@@ -42,23 +43,33 @@ export default function FavoriSheet({
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [imgFailed, setImgFailed] = useState(false);
+  const [mounted, setMounted] = useState(visible);
 
   const translateY = useSharedValue(300);
   const backdropOpacity = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
+      setMounted(true);
       backdropOpacity.value = withTiming(1, { duration: reduced ? 0 : 200 });
       translateY.value = reduced ? withTiming(0, { duration: 0 }) : withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
-    } else {
+    } else if (mounted) {
       backdropOpacity.value = withTiming(0, { duration: reduced ? 0 : 150 });
-      translateY.value = withTiming(300, { duration: reduced ? 0 : 200 });
+      translateY.value = withTiming(300, { duration: reduced ? 0 : 200 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
     }
     return () => {
       cancelAnimation(backdropOpacity);
       cancelAnimation(translateY);
     };
   }, [visible, reduced]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
@@ -68,7 +79,7 @@ export default function FavoriSheet({
   const handleStatus = useCallback((st: UserParfumStatus) => { hapticsLight(); onSetStatus(st); }, [onSetStatus]);
   const handleRemove = useCallback(() => { hapticsLight(); onRemove(); }, [onRemove]);
 
-  if (!visible) return null;
+  if (!mounted) return null;
 
   const activeChip = chipForStatus(status);
   const sectionLabel = status === null ? 'Envoyer dans ma parfumerie' : 'Ton statut';

@@ -1,15 +1,15 @@
 import type { Possession, PossessionType } from '../../models/user-parfum.interface';
 import { supabase } from '../supabase';
 import type { Database } from '../../types/database.types';
-import { toDate } from './sql-utils';
+import { toDate, toNum } from './sql-utils';
 
 function rowToPossession(row: Record<string, unknown>): Possession {
   return {
     id: row.id as string,
     parfumId: row.parfum_id as string,
     type: (row.type as PossessionType) ?? 'bottle',
-    sizeMl: typeof row.size_ml === 'number' ? row.size_ml : null,
-    quantity: typeof row.quantity === 'number' ? row.quantity : 1,
+    sizeMl: toNum(row.size_ml),
+    quantity: toNum(row.quantity) ?? 1,
     forSale: row.for_sale === true,
     notes: (row.notes as string) ?? null,
     addedAt: toDate(row.added_at) ?? new Date(),

@@ -151,37 +151,84 @@ export async function searchParfumsCached(queryStr: string): Promise<Parfum[]> {
   }
 }
 
-/** Recherche optimisée pour le scan — rescoring nom/marque structurés GPT-4o. */
-export async function searchParfumFromScan(marque: string | null, nom: string | null): Promise<Parfum[]> {
-  if (!marque && !nom) return [];
+/** Entrée du rescoring scan — lecture GPT-4o (champs structurés + hypothèses). */
+export interface ScanMatchInput {
+  marque: string | null;
+  nom: string | null;
+  typeParfum?: string | null;
+  volumeMl?: number | null;
+  alternatives?: string[];
+}
 
-  const query = [marque, nom].filter(Boolean).join(' ').trim();
-  if (query.length < 2) return [];
+// Bonus/malus de rescoring scan (pondération nom > marque > concentration).
+const SCORE_NOM_EXACT = 50;
+const SCORE_NOM_PARTIEL = 25;
+const SCORE_MARQUE_EXACT = 15;
+const SCORE_MARQUE_PARTIEL = 8;
+const SCORE_TYPE_MATCH = 12;
+const SCORE_TYPE_MISMATCH = -12;
 
-  const results = await searchParfumsCached(query);
-  if (results.length === 0) return [];
+/** Recherche optimisée pour le scan — rescoring nom/marque/concentration sur la lecture GPT-4o. */
+export async function searchParfumFromScan(read: ScanMatchInput): Promise<Parfum[]> {
+  const { marque, nom, typeParfum, alternatives = [] } = read;
+
+  // Requêtes : principale (marque + nom) + une par hypothèse alternative (meilleur rappel).
+  const queries: string[] = [];
+  const pushQuery = (n: string | null) => {
+    const q = [marque, n].filter(Boolean).join(' ').trim();
+    if (q.length >= 2 && !queries.includes(q)) queries.push(q);
+  };
+  pushQuery(nom);
+  for (const alt of alternatives) pushQuery(alt);
+  if (queries.length === 0) return [];
+
+  // La requête principale propage les erreurs (le pipeline les gère) ; les alternatives sont best-effort.
+  const merged = new Map<string, Parfum>();
+  for (let i = 0; i < queries.length; i++) {
+    try {
+      const rows = await searchParfumsCached(queries[i]);
+      for (const p of rows) if (!merged.has(p.id)) merged.set(p.id, p);
+    } catch (e) {
+      if (i === 0) throw e;
+    }
+  }
+  if (merged.size === 0) return [];
 
   const normMarque = marque ? normalize(marque) : null;
-  const normNom = nom ? normalize(nom) : null;
+  const candidateNoms = [nom, ...alternatives]
+    .filter((n): n is string => !!n)
+    .map(normalize);
+  const normType = typeParfum ? normalize(typeParfum) : null;
 
-  const rescored = results.map((p) => {
+  const rescored = [...merged.values()].map((p) => {
     const docMarque = normalize(p.marque || '');
     const docNom = normalize(p.nom || '');
     let bonus = 0;
 
-    if (normNom) {
-      if (docNom === normNom) {
-        bonus += 50;
-      } else if (docNom.includes(normNom) || normNom.includes(docNom)) {
-        bonus += 25;
+    if (candidateNoms.length > 0) {
+      if (candidateNoms.some((n) => docNom === n)) {
+        bonus += SCORE_NOM_EXACT;
+      } else if (candidateNoms.some((n) => docNom.includes(n) || n.includes(docNom))) {
+        bonus += SCORE_NOM_PARTIEL;
       }
     }
 
     if (normMarque) {
       if (docMarque === normMarque) {
-        bonus += 15;
+        bonus += SCORE_MARQUE_EXACT;
       } else if (docMarque.includes(normMarque) || normMarque.includes(docMarque)) {
-        bonus += 8;
+        bonus += SCORE_MARQUE_PARTIEL;
+      }
+    }
+
+    // Concentration (flankers EDT/EDP/Extrait…) : le type lu départage les homonymes.
+    if (normType) {
+      const docType = normalize(p.typeParfum ?? '');
+      const inNom = docNom.includes(normType);
+      if (docType === normType || inNom) {
+        bonus += SCORE_TYPE_MATCH;
+      } else if (docType) {
+        bonus += SCORE_TYPE_MISMATCH;
       }
     }
 

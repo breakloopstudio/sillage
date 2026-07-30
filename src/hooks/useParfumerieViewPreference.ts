@@ -9,9 +9,11 @@ export function useParfumerieViewPreference() {
   const [view, setViewState] = useState<ParfumerieView | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     AsyncStorage.getItem(KEY).then((v) => {
-      if (v === 'collection' || v === 'shelves') setViewState(v);
+      if (!cancelled && (v === 'collection' || v === 'shelves')) setViewState(v);
     }).catch((e) => console.warn('[parfumerie-view] read failed:', e));
+    return () => { cancelled = true; };
   }, []);
 
   const setView = useCallback((v: ParfumerieView) => {

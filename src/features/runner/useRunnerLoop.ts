@@ -34,6 +34,11 @@ import {
   FLYING_OBSTACLE_MIN_SCORE,
   PALETTE_INTERVAL,
   PICKUP_SIZE,
+  POWER_DURATION,
+  SLOW_FACTOR,
+  MAGNET_RADIUS,
+  MAX_LIVES,
+  INVULN_DURATION,
 } from './runner-types';
 
 interface ObsData { active: SharedValue<boolean>; x: SharedValue<number>; type: SharedValue<number>; }
@@ -93,12 +98,29 @@ export function useRunnerLoop(dims: GameDimensions) {
   const nextPickupDistance = useSharedValue(700);
 
   const deathTimer = useSharedValue(0);
-  const lastCollectedDiscount = useSharedValue(0);
 
   const airCombo = useSharedValue(0);
   const nearMissTrigger = useSharedValue(0);
   const popupTrigger = useSharedValue(0);
   const popupBonus = useSharedValue(0);
+  const popupCombo = useSharedValue(0);
+
+  const distance = useSharedValue(0);
+  const maxCombo = useSharedValue(0);
+  const nearMissCount = useSharedValue(0);
+  const collectBurstTrigger = useSharedValue(0);
+
+  const gameTime = useSharedValue(0);
+  const shieldActive = useSharedValue(false);
+  const magnetUntil = useSharedValue(0);
+  const doubleUntil = useSharedValue(0);
+  const slowUntil = useSharedValue(0);
+  const shieldBreakTrigger = useSharedValue(0);
+  const lastCollectedPickup = useSharedValue(0);
+
+  const lives = useSharedValue(MAX_LIVES);
+  const invulnUntil = useSharedValue(0);
+  const crackTrigger = useSharedValue(0);
 
   const resetGame = useCallback(() => {
     gameState.value = 'idle';
@@ -114,9 +136,23 @@ export function useRunnerLoop(dims: GameDimensions) {
     pickupSpawnAccumulator.value = 0;
     nextPickupDistance.value = 700;
     deathTimer.value = 0;
-    lastCollectedDiscount.value = 0;
     airCombo.value = 0;
     nearMissTrigger.value = 0;
+    popupCombo.value = 0;
+    distance.value = 0;
+    maxCombo.value = 0;
+    nearMissCount.value = 0;
+    collectBurstTrigger.value = 0;
+    gameTime.value = 0;
+    shieldActive.value = false;
+    magnetUntil.value = 0;
+    doubleUntil.value = 0;
+    slowUntil.value = 0;
+    shieldBreakTrigger.value = 0;
+    lastCollectedPickup.value = 0;
+    lives.value = MAX_LIVES;
+    invulnUntil.value = 0;
+    crackTrigger.value = 0;
 
     for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) { obsActive[i].value = false; obsX[i].value = dims.width + 100; obsType[i].value = 0; nearMissState[i].value = 0; }
     for (let i = 0; i < PICKUP_POOL_SIZE; i++) { pkpActive[i].value = false; pkpX[i].value = 0; pkpType[i].value = 0; pkpY[i].value = 0; }
@@ -137,13 +173,18 @@ export function useRunnerLoop(dims: GameDimensions) {
 
     if (state === 'playing' || state === 'dying') {
       const currentSpeed = Math.min(BASE_SPEED + score.value * SPEED_INCREMENT_PER_POINT, MAX_SPEED);
+      const slowFactor = state === 'playing' && gameTime.value < slowUntil.value ? SLOW_FACTOR : 1;
       if (state === 'dying') {
         speed.value = currentSpeed * 0.25;
       } else {
-        speed.value = currentSpeed;
+        speed.value = currentSpeed * slowFactor;
       }
 
-      if (state === 'playing') { score.value += currentSpeed * dt * 0.01; }
+      if (state === 'playing') {
+        gameTime.value += dt;
+        const doubleMult = gameTime.value < doubleUntil.value ? 2 : 1;
+        score.value += currentSpeed * slowFactor * dt * 0.01 * doubleMult;
+      }
 
       if (isJumping.value) {
         bottleY.value += jumpVelocity.value * dt;
@@ -159,6 +200,7 @@ export function useRunnerLoop(dims: GameDimensions) {
       }
 
       const scrollDist = speed.value * dt;
+      if (state === 'playing') { distance.value += scrollDist; }
       bgOffset.value = (bgOffset.value + scrollDist * 0.15) % 1200;
       midOffset.value = (midOffset.value + scrollDist * 0.4) % 1400;
       groundOffset.value = (groundOffset.value + scrollDist) % 80;
@@ -185,10 +227,29 @@ export function useRunnerLoop(dims: GameDimensions) {
           const obsY = def.airborne ? airborneObsY : groundObsY;
           const obsH = def.airborne ? def.height - OBSTACLE_HITBOX_INSET : def.height;
           if (checkAABB(bx, by, bw, bh, obsX[i].value + OBSTACLE_HITBOX_INSET, obsY, obsRealW, obsH)) {
-            gameState.value = 'dying';
-            deathTimer.value = 0;
-            speed.value = currentSpeed * 0.25;
-            break;
+            if (shieldActive.value) {
+              shieldActive.value = false;
+              obsActive[i].value = false;
+              nearMissState[i].value = 0;
+              shieldBreakTrigger.value = (shieldBreakTrigger.value % 9999) + 1;
+              continue;
+            }
+            if (gameTime.value < invulnUntil.value) {
+              continue;
+            }
+            obsActive[i].value = false;
+            nearMissState[i].value = 0;
+            lives.value -= 1;
+            if (lives.value <= 0) {
+              lives.value = 0;
+              gameState.value = 'dying';
+              deathTimer.value = 0;
+              speed.value = currentSpeed * 0.25;
+              break;
+            }
+            invulnUntil.value = gameTime.value + INVULN_DURATION;
+            crackTrigger.value = (crackTrigger.value % 9999) + 1;
+            continue;
           }
 
           const obsCenter = obsX[i].value + def.width / 2;
@@ -204,7 +265,9 @@ export function useRunnerLoop(dims: GameDimensions) {
               nearMissState[i].value = 2;
               score.value += NEAR_MISS_BONUS;
               nearMissTrigger.value = (nearMissTrigger.value % 999) + 1;
+              nearMissCount.value += 1;
               popupBonus.value = NEAR_MISS_BONUS;
+              popupCombo.value = 0;
               popupTrigger.value = (popupTrigger.value % 9999) + 1;
             }
           }
@@ -220,15 +283,31 @@ export function useRunnerLoop(dims: GameDimensions) {
         if (!pkpActive[i].value) continue;
         pkpX[i].value -= scrollDist;
         if (state === 'playing') {
+          if (gameTime.value < magnetUntil.value) {
+            const dx = dims.bottleX - pkpX[i].value;
+            const dy = (bottleY.value - BOTTLE_HEIGHT / 2) - pkpY[i].value;
+            if (dx * dx + dy * dy < MAGNET_RADIUS * MAGNET_RADIUS) {
+              const pull = Math.min(1, dt * 12);
+              pkpX[i].value += dx * pull;
+              pkpY[i].value += dy * pull;
+            }
+          }
           if (checkAABB(bx, by, bw, bh, pkpX[i].value, pkpY[i].value, PICKUP_SIZE, PICKUP_SIZE)) {
             const def = PICKUP_DEFS[pkpType[i].value];
             if (def) {
               if (airCombo.value < MAX_COMBO) airCombo.value += 1;
+              if (airCombo.value > maxCombo.value) maxCombo.value = airCombo.value;
               const comboBonus = airCombo.value > 1 ? def.scoreBonus * airCombo.value : def.scoreBonus;
               score.value += comboBonus;
-              lastCollectedDiscount.value = def.discount;
+              if (def.power === 'magnet') magnetUntil.value = gameTime.value + POWER_DURATION.magnet;
+              else if (def.power === 'shield') shieldActive.value = true;
+              else if (def.power === 'double') doubleUntil.value = gameTime.value + POWER_DURATION.double;
+              else if (def.power === 'slow') slowUntil.value = gameTime.value + POWER_DURATION.slow;
+              lastCollectedPickup.value = pkpType[i].value + 1;
               popupBonus.value = comboBonus;
+              popupCombo.value = airCombo.value;
               popupTrigger.value = (popupTrigger.value % 9999) + 1;
+              collectBurstTrigger.value = (collectBurstTrigger.value % 9999) + 1;
             }
             pkpActive[i].value = false;
           }
@@ -305,10 +384,24 @@ export function useRunnerLoop(dims: GameDimensions) {
     bgOffset, midOffset, groundOffset,
     speedLineOffset, palettePhase,
     frameCallback, resetGame,
-    lastCollectedDiscount,
+    lastCollectedPickup,
     airCombo,
     nearMissTrigger,
     popupTrigger,
     popupBonus,
+    popupCombo,
+    distance,
+    maxCombo,
+    nearMissCount,
+    collectBurstTrigger,
+    gameTime,
+    shieldActive,
+    magnetUntil,
+    doubleUntil,
+    slowUntil,
+    shieldBreakTrigger,
+    lives,
+    invulnUntil,
+    crackTrigger,
   };
 }

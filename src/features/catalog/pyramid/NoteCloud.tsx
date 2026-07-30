@@ -78,8 +78,7 @@ const sCloud = {
   flexDirection: 'row' as const,
   flexWrap: 'wrap' as const,
   gap: 8,
-  justifyContent: 'center' as const,
-  marginTop: 14,
+  justifyContent: 'flex-start' as const,
 };
 
 const sPetal = {
@@ -98,8 +97,7 @@ const sPetalText = {
 };
 
 const sEmpty = {
-  marginTop: 14,
-  alignItems: 'center' as const,
+  alignItems: 'flex-start' as const,
 };
 
 const sEmptyText = {

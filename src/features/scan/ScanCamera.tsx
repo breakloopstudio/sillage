@@ -1,6 +1,6 @@
 // src/features/scan/ScanCamera.tsx — Vue caméra avec viseur animé, flash, burst resize
 
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { View, Pressable, Text, StyleSheet, Alert } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
@@ -17,22 +17,25 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 
 // Resize max pour limiter les payloads (ex-capteur 12MP → ~100-300KB base64)
-const MAX_IMAGE_WIDTH = 1024;
+const MAX_IMAGE_WIDTH = 768;
 const IMAGE_QUALITY = 0.6;
-const BURST_COUNT = 3;
+const BURST_COUNT = 1;
 
 interface Props {
   onCapture: (burstBase64: string[]) => void;
   onCancel: () => void;
+  onImportGallery?: () => void;
 }
 
-export function ScanCamera({ onCapture, onCancel }: Props) {
+export function ScanCamera({ onCapture, onCancel, onImportGallery }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const cameraRef = useRef<CameraView>(null);
   const insets = useSafeAreaInsets();
   const [capturing, setCapturing] = useState(false);
   const [captureIndex, setCaptureIndex] = useState(0);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const flashOpacity = useSharedValue(0);
 
@@ -75,13 +78,14 @@ export function ScanCamera({ onCapture, onCancel }: Props) {
 
       if (burst.length > 0) {
         triggerFlash();
-        runOnJS(onCapture)(burst);
-      } else {
+        if (mountedRef.current) runOnJS(onCapture)(burst);
+      } else if (mountedRef.current) {
         setCapturing(false);
         setCaptureIndex(0);
         Alert.alert('Erreur', 'Aucune photo capturée. Veuillez réessayer.');
       }
     } catch {
+      if (!mountedRef.current) return;
       setCapturing(false);
       setCaptureIndex(0);
       Alert.alert('Erreur', 'Échec de la capture. Veuillez réessayer.');
@@ -111,10 +115,19 @@ export function ScanCamera({ onCapture, onCancel }: Props) {
           </View>
 
           <Text style={s.hint}>
-            {capturing ? `${captureIndex}/${BURST_COUNT} — Ne bougez plus` : 'Cadre le flacon et appuie sur le déclencheur'}
+            {capturing
+              ? (BURST_COUNT > 1 ? `${captureIndex}/${BURST_COUNT} — Ne bougez plus` : 'Ne bougez plus')
+              : 'Cadre le flacon et appuie sur le déclencheur'}
           </Text>
 
           <View style={[s.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
+            {onImportGallery ? (
+              <Pressable onPress={onImportGallery} style={s.galleryBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Importer de la galerie">
+                <Ionicons name="images-outline" size={24} color="#FFF" />
+              </Pressable>
+            ) : (
+              <View style={s.galleryBtn} />
+            )}
             <Pressable
               onPress={takeBurst}
               style={[s.captureBtn, capturing && s.captureDisabled]}
@@ -122,6 +135,7 @@ export function ScanCamera({ onCapture, onCancel }: Props) {
             >
               <View style={[s.captureInner, capturing && s.captureInnerDisabled]} />
             </Pressable>
+            <View style={s.galleryBtn} />
           </View>
         </View>
       </CameraView>
@@ -152,7 +166,8 @@ function getStyles(t: Theme) {
     cBR: { position: 'absolute', bottom: -2, right: -2, width: 30, height: 30, borderBottomWidth: 4, borderRightWidth: 4, borderColor: t.colors.primary, borderBottomRightRadius: 8 },
     cActive: { borderColor: t.colors.primary },
     hint: { color: '#FFF', textAlign: 'center', fontFamily: 'Inter_400Regular', fontSize: 14, paddingHorizontal: 40, opacity: 0.8 },
-    bottomBar: { alignItems: 'center' },
+    bottomBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 32 },
+    galleryBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
     captureBtn: {
       width: 72,
       height: 72,

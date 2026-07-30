@@ -6,6 +6,8 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedReaction,
+  useDerivedValue,
+  interpolateColor,
   withSpring,
   withRepeat,
   withTiming,
@@ -26,6 +28,13 @@ interface Props {
   capColor?: string;
   reduceMotion?: boolean;
   groundY: number;
+  shieldActive: SharedValue<boolean>;
+  gameTime: SharedValue<number>;
+  magnetUntil: SharedValue<number>;
+  doubleUntil: SharedValue<number>;
+  slowUntil: SharedValue<number>;
+  lives: SharedValue<number>;
+  invulnUntil: SharedValue<number>;
 }
 
 function RunnerBottle({
@@ -39,6 +48,13 @@ function RunnerBottle({
   capColor = '#D4A960',
   reduceMotion = false,
   groundY,
+  shieldActive,
+  gameTime,
+  magnetUntil,
+  doubleUntil,
+  slowUntil,
+  lives,
+  invulnUntil,
 }: Props) {
   const idleBob = useSharedValue(0);
   const spinAngle = useSharedValue(0);
@@ -48,6 +64,26 @@ function RunnerBottle({
       { translateX: bottleX },
       { translateY: bottleY.value - BOTTLE_HEIGHT + idleBob.value },
     ],
+  }));
+
+  const auraKind = useDerivedValue(() => {
+    if (shieldActive.value) return 2;
+    if (gameTime.value < slowUntil.value) return 4;
+    if (gameTime.value < doubleUntil.value) return 3;
+    if (gameTime.value < magnetUntil.value) return 1;
+    return 0;
+  });
+
+  const auraStyle = useAnimatedStyle(() => {
+    const kind = auraKind.value;
+    return {
+      opacity: kind === 0 ? 0 : 0.5,
+      backgroundColor: interpolateColor(kind, [0, 1, 2, 3, 4], ['#000000', '#B5C334', '#A9744F', '#E8933A', '#9A8FC0']),
+    };
+  });
+
+  const shieldStyle = useAnimatedStyle(() => ({
+    opacity: shieldActive.value ? 0.9 : 0,
   }));
 
   const sqX = useSharedValue(1);
@@ -118,15 +154,20 @@ function RunnerBottle({
       ? 1 + heightAboveGround * 0.0003
       : 1;
     const spin = reduceMotion ? 0 : spinAngle.value;
+    const invuln = gameTime.value < invulnUntil.value;
+    const flicker = invuln && !reduceMotion ? 0.4 + 0.45 * Math.abs(Math.sin(gameTime.value * 28)) : 1;
     return {
       transform: [
         { scaleX: Math.min(1.12, airStretch * 0.95 + 0.05) * sqX.value },
         { scaleY: Math.min(1.12, airStretch) * sqY.value },
         { rotate: `${spin}deg` },
       ],
-      opacity: bottleOpacity.value,
+      opacity: bottleOpacity.value * flicker,
     };
   });
+
+  const crackAStyle = useAnimatedStyle(() => ({ opacity: lives.value <= 2 ? 0.65 : 0 }));
+  const crackBStyle = useAnimatedStyle(() => ({ opacity: lives.value <= 1 ? 0.65 : 0 }));
 
   const flashStyle = useAnimatedStyle(() => ({
     position: 'absolute' as const,
@@ -149,12 +190,23 @@ function RunnerBottle({
         bottleStyle,
       ]}
     >
+      <Animated.View
+        style={[{ position: 'absolute', left: -17, top: -4, width: 64, height: 64, borderRadius: 32 }, auraStyle]}
+        pointerEvents="none"
+      />
+      <Animated.View
+        style={[{ position: 'absolute', left: -8, top: -5, width: 46, height: 66, borderRadius: 23, borderWidth: 2, borderColor: '#67E8F9' }, shieldStyle]}
+        pointerEvents="none"
+      />
       <Animated.View style={[{ width: BOTTLE_WIDTH, height: BOTTLE_HEIGHT }, bodyStyle]}>
         <View style={{ width: 14, height: 10, backgroundColor: capColor, borderRadius: 3, alignSelf: 'center' }} />
         <View style={{ width: 8, height: 8, backgroundColor: bottleColor, alignSelf: 'center' }} />
         <View style={{ flex: 1, backgroundColor: bottleColor, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, alignItems: 'center', overflow: 'hidden' }}>
           <View style={{ width: 14, height: 12, backgroundColor: capColor, borderRadius: 2, marginTop: 6 }} />
           <View style={{ position: 'absolute', top: 4, left: 3, width: 2, height: '60%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 1 }} />
+          <Animated.View style={[{ position: 'absolute', top: 5, left: 7, width: 1.5, height: 22, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 1, transform: [{ rotate: '27deg' }] }, crackAStyle]} pointerEvents="none" />
+          <Animated.View style={[{ position: 'absolute', top: 9, left: 15, width: 1.5, height: 18, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 1, transform: [{ rotate: '-33deg' }] }, crackBStyle]} pointerEvents="none" />
+          <Animated.View style={[{ position: 'absolute', top: 16, left: 11, width: 1.5, height: 10, backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: 1, transform: [{ rotate: '70deg' }] }, crackBStyle]} pointerEvents="none" />
         </View>
       </Animated.View>
       <Animated.View style={flashStyle} pointerEvents="none" />

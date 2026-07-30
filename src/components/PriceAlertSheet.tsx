@@ -1,7 +1,7 @@
 // src/components/PriceAlertSheet.tsx — Gestion d'une alerte prix (cible pré-remplie)
 
 import { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
@@ -11,6 +11,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
   useReducedMotion,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
@@ -45,6 +46,7 @@ export default function PriceAlertSheet({
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [imgFailed, setImgFailed] = useState(false);
+  const [mounted, setMounted] = useState(visible);
 
   const [active, setActive] = useState(false);
   const [mode, setMode] = useState<AlertMode>('drop');
@@ -57,6 +59,7 @@ export default function PriceAlertSheet({
 
   useEffect(() => {
     if (visible) {
+      setMounted(true);
       backdropOpacity.value = withTiming(1, { duration: reduced ? 0 : 200 });
       translateY.value = reduced ? withTiming(0, { duration: 0 }) : withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
       const suggested = suggestTargetPrice(bestPrice, referencePrice);
@@ -71,9 +74,11 @@ export default function PriceAlertSheet({
       }
       setLowest(null);
       getLowestObservedPrice(parfumId).then(setLowest);
-    } else {
+    } else if (mounted) {
       backdropOpacity.value = withTiming(0, { duration: reduced ? 0 : 150 });
-      translateY.value = withTiming(300, { duration: reduced ? 0 : 200 });
+      translateY.value = withTiming(300, { duration: reduced ? 0 : 200 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
     }
     return () => {
       cancelAnimation(backdropOpacity);
@@ -82,8 +87,14 @@ export default function PriceAlertSheet({
   }, [visible, reduced]);
 
   useEffect(() => {
-    knobX.value = withSpring(active ? 20 : 0, { stiffness: 300, damping: 20 });
-  }, [active]);
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
+
+  useEffect(() => {
+    knobX.value = reduced ? withTiming(active ? 20 : 0, { duration: 0 }) : withSpring(active ? 20 : 0, { stiffness: 300, damping: 20 });
+  }, [active, reduced]);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
@@ -98,7 +109,7 @@ export default function PriceAlertSheet({
     onSave(active, active && mode === 'target' ? targetValue : null);
   }, [active, mode, targetValue, onSave]);
 
-  if (!visible) return null;
+  if (!mounted) return null;
 
   return (
     <View style={s.wrapper}>

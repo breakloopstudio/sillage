@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, SlideInDown, useReducedMotion } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { getParfumVerdicts, type ParfumVerdict } from '../../services/community';
@@ -31,6 +31,9 @@ export default function CommunityVerdicts({ parfumId, onOpenProfiles }: Props) {
     setLoading(true);
     getParfumVerdicts(parfumId).then((v) => {
       if (mountedRef.current) { setVerdicts(v); setLoading(false); }
+    }).catch((e: unknown) => {
+      console.warn('[community] getParfumVerdicts failed:', (e as Error)?.message ?? String(e));
+      if (mountedRef.current) setLoading(false);
     });
     return () => { mountedRef.current = false; };
   }, [parfumId]);
@@ -86,6 +89,13 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
   const s = useMemo(() => getSheetStyles(theme), [theme]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const handleProfilePress = useCallback((pseudo: string) => {
     hapticsLight();
@@ -96,18 +106,18 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
   if (!visible) return null;
 
   return (
-    <Animated.View entering={FadeIn.duration(200)} style={s.backdrop}>
+    <Animated.View entering={reduced ? undefined : FadeIn.duration(200)} style={s.backdrop}>
       <Pressable style={s.backdropPress} onPress={onClose} />
-      <Animated.View entering={SlideInDown.duration(250)} style={[s.sheet, { paddingBottom: insets.bottom + 12 }]}>
+      <Animated.View entering={reduced ? undefined : SlideInDown.duration(250)} style={[s.sheet, { paddingBottom: insets.bottom + 12 }]}>
         <View style={s.handle} />
         <Text style={s.sheetTitle}>Verdicts de la communauté</Text>
         <ScrollView style={s.sheetScroll} showsVerticalScrollIndicator={false}>
-          {verdicts.map((v, i) => {
+          {verdicts.map((v) => {
             const token = VERDICT_TOKEN[v.verdict] ?? 'textMuted';
             const icon = VERDICT_ICON[v.verdict] ?? 'remove';
             const color = theme.colors[token];
             return (
-              <Pressable key={`${v.pseudo}-${i}`} style={s.profileRow} onPress={() => handleProfilePress(v.pseudo)} accessibilityRole="button">
+              <Pressable key={v.pseudo} style={s.profileRow} onPress={() => handleProfilePress(v.pseudo)} accessibilityRole="button">
                 {v.avatar_url ? (
                   <Image source={{ uri: v.avatar_url }} style={s.avatar} contentFit="cover" transition={200} />
                 ) : (

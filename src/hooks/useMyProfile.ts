@@ -7,14 +7,19 @@ export function useMyProfile(uid: string | null) {
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
     if (!uid) { setProfile(null); setLoading(false); return; }
-    const p = await getMyProfile(uid);
-    if (!mountedRef.current) return;
-    setProfile(p);
-    setLoading(false);
+    try {
+      const p = await getMyProfile(uid);
+      if (!mountedRef.current) return;
+      setProfile(p);
+    } catch (e: unknown) {
+      console.warn('[useMyProfile] refresh failed:', (e as Error)?.message ?? String(e));
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
   }, [uid]);
 
   useEffect(() => { void refresh(); }, [refresh]);

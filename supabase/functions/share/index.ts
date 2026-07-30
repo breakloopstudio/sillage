@@ -221,6 +221,24 @@ function shelfBody(shelf: ShelfRow, items: ShelfItemRow[]): string {
 </div>`;
 }
 
+function runnerBody(score: number, pseudo: string | null): string {
+  const author = pseudo ? `<div class="author">@${escapeHtml(pseudo)}</div>` : '';
+  return `
+<div class="wrap">
+  <div class="card">
+    <div class="body">
+      <div class="brand">Flacon Runner</div>
+      ${author}
+      <h1 class="name">${score} points</h1>
+      <div class="meta">Esquive les cristaux, attrape les notes, signe ton record.</div>
+      <a class="cta" href="${APP_SCHEME}://runner">Relever le défi sur ParfumScan</a>
+      <div class="store">${STORE_NOTE}</div>
+    </div>
+  </div>
+  <div class="footer">${FOOTER}</div>
+</div>`;
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -278,6 +296,19 @@ Deno.serve(async (req: Request) => {
     const ogImage = items.find((i) => i.image_url)?.image_url ?? shelf.avatar_url;
     const canonical = `${url.origin}${url.pathname}?type=shelf&pseudo=${encodeURIComponent(pseudo)}&shelf=${encodeURIComponent(shelfId)}`;
     return htmlResponse(page({ title, description: desc, image: ogImage, url: canonical }, shelfBody(shelf, items)));
+  }
+
+  if (type === 'runner') {
+    const scoreRaw = url.searchParams.get('score');
+    const score = Math.max(0, Math.floor(Number(scoreRaw ?? 0)));
+    const pseudo = url.searchParams.get('pseudo');
+    if (!Number.isFinite(score) || score <= 0) return notFoundPage();
+    const title = pseudo ? `${score} points · @${pseudo} · Flacon Runner` : `${score} points · Flacon Runner`;
+    const desc = pseudo
+      ? `@${pseudo} a signé ${score} points sur Flacon Runner. Fais mieux sur ParfumScan.`
+      : `${score} points sur Flacon Runner. Fais mieux sur ParfumScan.`;
+    const canonical = `${url.origin}${url.pathname}?type=runner&score=${encodeURIComponent(String(score))}${pseudo ? `&pseudo=${encodeURIComponent(pseudo)}` : ''}`;
+    return htmlResponse(page({ title, description: desc, image: null, url: canonical }, runnerBody(score, pseudo)));
   }
 
   return notFoundPage();

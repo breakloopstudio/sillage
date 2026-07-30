@@ -484,15 +484,18 @@ export default function SearchScreen() {
                 ))}
               </View>
               <FlatList
-                key={`search-${searchDensity}-${resolvedMode}`}
+                key={`search-${searchDensity}`}
                 data={displayParfums}
                 numColumns={searchDensity === 'list' ? 1 : 2}
-                keyExtractor={(p, i) => `${p.id}_${i}`}
+                keyExtractor={(p) => p.id}
                 renderItem={renderResult}
                 columnWrapperStyle={searchDensity !== 'list' ? s.resultRow : undefined}
-                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+                contentContainerStyle={s.resultListContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                windowSize={5}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
               />
             </>
           ) : error && !inFamilyMode ? (
@@ -644,6 +647,7 @@ function getStyles(t: Theme) {
       color: t.colors.text,
     },
     resultRow: { gap: 8, marginBottom: 8 },
+    resultListContent: { paddingHorizontal: 16, paddingBottom: 16 },
     resultCardWrap: { flex: 1, maxWidth: '50%' },
     resultCardWrapFull: { width: '100%' },
     familyHeader: {

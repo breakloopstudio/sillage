@@ -13,10 +13,11 @@ interface Props {
   scanResult: ScanResult;
   reason: 'low-confidence' | 'empty-response' | 'manual';
   onSearch: (marque: string, nom: string, typeParfum: string | null, volumeMl: number | null) => void;
+  onRescan: () => void;
   onReset: () => void;
 }
 
-export function ScanClarify({ scanResult, reason, onSearch, onReset }: Props) {
+export function ScanClarify({ scanResult, reason, onSearch, onRescan, onReset }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
@@ -42,11 +43,23 @@ export function ScanClarify({ scanResult, reason, onSearch, onReset }: Props) {
           <Text style={s.title}>Recherche manuelle</Text>
           <Text style={s.desc}>Renseigne la marque et le nom du parfum pour le trouver dans notre catalogue.</Text>
         </>
+      ) : reason === 'empty-response' ? (
+        <>
+          <Text style={s.title}>On n'a rien pu lire</Text>
+          <Text style={s.desc}>Reprends la photo en cadrant bien l'étiquette, ou saisis le nom ci-dessous.</Text>
+        </>
       ) : (
         <>
           <Text style={s.title}>L'IA a besoin d'un coup de pouce</Text>
           <Text style={s.desc}>Elle n'est pas totalement sûre de sa lecture. Vérifie et corrige si besoin :</Text>
         </>
+      )}
+
+      {reason !== 'manual' && (
+        <Pressable style={s.retakeBtn} onPress={onRescan} accessibilityRole="button" accessibilityLabel="Reprendre la photo">
+          <Ionicons name="camera-outline" size={18} color={textOn(theme.colors.primary)} style={{ marginRight: 8 }} />
+          <Text style={s.retakeText}>Reprendre la photo</Text>
+        </Pressable>
       )}
 
       <View style={s.fields}>
@@ -93,6 +106,8 @@ function getStyles(t: Theme) {
     iconWrap: { marginBottom: 16 },
     title: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 20, color: t.colors.text, marginBottom: 8, textAlign: 'center' },
     desc: { fontSize: 14, color: t.colors.textMuted, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+    retakeBtn: { flexDirection: 'row', backgroundColor: t.colors.primary, borderRadius: t.radius.base, height: 48, paddingHorizontal: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20, ...t.shadow.button },
+    retakeText: { color: textOn(t.colors.primary), fontFamily: 'Inter_600SemiBold', fontSize: 15 },
     fields: { width: '100%', maxWidth: 360, gap: 8, marginBottom: 16 },
     fieldLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: t.colors.text, marginTop: 4 },
     input: { borderRadius: t.radius.base, backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.border, paddingHorizontal: 12, height: 44, fontSize: 15, color: t.colors.text },

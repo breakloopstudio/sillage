@@ -12,10 +12,13 @@ export function usePossessions(uid: string | null, parfumId: string | null) {
   const refresh = useCallback(async () => {
     if (!uid || !parfumId) { setItems([]); return; }
     setLoading(true);
-    const data = await getPossessions(uid, parfumId);
-    if (!mountedRef.current) return;
-    setItems(data);
-    setLoading(false);
+    try {
+      const data = await getPossessions(uid, parfumId);
+      if (!mountedRef.current) return;
+      setItems(data);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
   }, [uid, parfumId]);
 
   useEffect(() => { refresh(); }, [refresh]);

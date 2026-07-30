@@ -3,9 +3,9 @@
 // Partagé entre Favoris et Parfumerie
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, useWindowDimensions, BackHandler } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { translateNote } from '../utils/translate-note';
@@ -70,6 +70,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
+  const reduced = useReducedMotion();
 
   const translateY = useSharedValue(300);
   const backdropOpacity = useSharedValue(0);
@@ -78,11 +79,11 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      backdropOpacity.value = withTiming(1, { duration: 200 });
-      translateY.value = withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
+      backdropOpacity.value = withTiming(1, { duration: reduced ? 0 : 200 });
+      translateY.value = reduced ? withTiming(0, { duration: 0 }) : withSpring(0, { damping: 22, stiffness: 280, mass: 0.8 });
     } else if (mounted) {
-      backdropOpacity.value = withTiming(0, { duration: 150 });
-      translateY.value = withTiming(300, { duration: 200 }, (finished) => {
+      backdropOpacity.value = withTiming(0, { duration: reduced ? 0 : 150 });
+      translateY.value = withTiming(300, { duration: reduced ? 0 : 200 }, (finished) => {
         if (finished) runOnJS(setMounted)(false);
       });
     }
@@ -90,7 +91,13 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
       cancelAnimation(backdropOpacity);
       cancelAnimation(translateY);
     };
-  }, [visible]);
+  }, [visible, reduced]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const backdropAnim = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
   const sheetAnim = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));

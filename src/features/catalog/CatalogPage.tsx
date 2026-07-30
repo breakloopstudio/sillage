@@ -7,6 +7,7 @@ import { View, Text, ActivityIndicator, Pressable, ScrollView, StyleSheet } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { Link, useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { useAuthContext } from '../../contexts/AuthContext';
 import ParfumCard from '../../components/ParfumCard';
 import SectionHeader from '../../components/SectionHeader';
@@ -97,6 +98,8 @@ export default function CatalogPage({ scrollY }: Props) {
       try {
         const popular = await getPopularParfums(120);
         if (!cancelled) setSharedPool(popular);
+        const urls = popular.map(p => p.imageUrl).filter((u): u is string => !!u).slice(0, 24);
+        if (urls.length > 0) Image.prefetch(urls, 'memory-disk').catch(() => {});
       } catch (e) { console.warn('[catalog] getPopularParfums failed:', e); }
       if (!cancelled) setSharedLoading(false);
     }

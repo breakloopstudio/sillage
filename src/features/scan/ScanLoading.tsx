@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -103,9 +104,10 @@ function HaloRing({ t }: { t: Theme }) {
 
 interface Props {
   onCancel?: () => void;
+  thumbnail?: string;
 }
 
-export function ScanLoading({ onCancel }: Props) {
+export function ScanLoading({ onCancel, thumbnail }: Props) {
   const { theme } = useTheme();
   const m = useMemo(() => getStyles(theme), [theme]);
   const [textIndex, setTextIndex] = useState(0);
@@ -134,9 +136,13 @@ export function ScanLoading({ onCancel }: Props) {
           {particles}
         </View>
         <View style={m.centerIcon}>
-          <View style={[m.iconCircle, { backgroundColor: theme.colors.primarySoft }]}>
-            <View style={[m.iconDot, { backgroundColor: theme.colors.primary }]} />
-          </View>
+          {thumbnail ? (
+            <Image source={{ uri: thumbnail }} style={m.thumb} contentFit="contain" />
+          ) : (
+            <View style={[m.iconCircle, { backgroundColor: theme.colors.primarySoft }]}>
+              <View style={[m.iconDot, { backgroundColor: theme.colors.primary }]} />
+            </View>
+          )}
         </View>
       </View>
 
@@ -206,6 +212,12 @@ function getStyles(t: Theme) {
       borderRadius: 24,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    thumb: {
+      width: 60,
+      height: 60,
+      borderRadius: t.radius.base,
+      backgroundColor: t.colors.surface2,
     },
     iconDot: {
       width: 12,

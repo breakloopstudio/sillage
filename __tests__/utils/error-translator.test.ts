@@ -62,10 +62,16 @@ describe('translateSupabaseError', () => {
     expect(translateSupabaseError(err)).toBe('Simple error');
   });
 
-  it('falls back to generic message for non-Error values', () => {
+  it('translates plain PostgREST error objects (real supabase-js shape)', () => {
+    expect(translateSupabaseError({ code: '42501', message: 'new row violates' })).toBe('Permission refusée.');
+    expect(translateSupabaseError({ code: 'PGRST301' })).toBe('Connexion requise. Veuillez vous reconnecter.');
+    expect(translateSupabaseError({ code: 'invalid_credentials' })).toBe('Email ou mot de passe incorrect.');
+  });
+
+  it('falls back to generic message for non-Error values without code', () => {
     expect(translateSupabaseError('string error')).toBe('Une erreur inattendue est survenue.');
     expect(translateSupabaseError(null)).toBe('Une erreur inattendue est survenue.');
     expect(translateSupabaseError(undefined)).toBe('Une erreur inattendue est survenue.');
-    expect(translateSupabaseError({ code: 'invalid_credentials' })).toBe('Une erreur inattendue est survenue.');
+    expect(translateSupabaseError({ message: 'no code here' })).toBe('Une erreur inattendue est survenue.');
   });
 });

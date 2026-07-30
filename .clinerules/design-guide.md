@@ -106,6 +106,8 @@ Certaines couleurs ne changent jamais entre light et dark mode. Elles peuvent ê
 | `rgba(255,255,255,0.12)` | Fond du bouton close sur lightbox | Verre dépoli sur fond sombre, invariant — bouton non intrusif, lisible dans les deux thèmes |
 | `rgba(255,255,255,0.22)` | Bordure du bouton close sur lightbox | Même logique verre dépoli, hairlineWidth |
 | `rgba(237,232,245,0.75)` | Texte secondaire sur lightbox (brand) | `text` dark `#EDE8F5` atténué à 75 %, lisible sur `#0B0712` dans les deux thèmes |
+| `rgba(255,255,255,0.32→0)` | Rim light + éclaircissement du FAB obturateur (arc supérieur) | Reflet de tranche physique, blanc quel que soit le thème — donne du volume au FAB (DockBar §4.11) |
+| `rgba(0,0,0,0.24→0.30)` | Ombrage du FAB obturateur (base + disque intérieur creux) | Ombre physique, noire quel que soit le thème — creuse le FAB et la lentille (DockBar §4.11) |
 
 Toute autre couleur hardcodée est une violation. Utiliser `t.colors.*`.
 
@@ -669,7 +671,7 @@ Les utilisateurs peuvent activer « Texte plus grand » dans les réglages du t�
 
 Le réglage système « Réduire les animations » est respecté partout :
 
-- **Boucles infinies** : coupées (pulse ring DockBar, halo + particules ScanLoading, particule pyramidale §7.5, speed lines runner)
+- **Boucles infinies** : coupées (halo + particules ScanLoading, particule pyramidale §7.5, speed lines runner)
 - **Animations d'entrée** : remplacées par un crossfade simple (opacity uniquement, 150 ms)
 - **Springs** : remplacés par `withTiming(0)`
 - **Gestes** : inchangés (le mouvement suit le doigt — ce n'est pas une animation)
@@ -757,7 +759,7 @@ withRepeat(
 
 Maximum **une boucle infinie** visible par écran (ex. la particule de sillage de la pyramide). Toute autre animation d'attention doit être **bornée** : `withRepeat(anim, count, true)` avec `count ≤ 4`, déclenchée par une interaction (sélection, apparition), puis stabilisée. Toute boucle infinie conserve son `cancelAnimation` au cleanup (§7.3). Si deux boucles semblent nécessaires, la plus discrète devient bornée — jamais deux sources de mouvement perpétuel dans le même champ visuel.
 
-Inventaire sanctionné des boucles infinies (exhaustif) : pulse ring DockBar, halo + particules ScanLoading, particule de sillage pyramide, speed lines runner. Toute nouvelle boucle en remplace une existante.
+Inventaire sanctionné des boucles infinies (exhaustif) : halo + particules ScanLoading, particule de sillage pyramide, speed lines runner. Toute nouvelle boucle en remplace une existante.
 
 ### 7.6 Transitions de navigation & shared element
 
@@ -768,7 +770,7 @@ Inventaire sanctionné des boucles infinies (exhaustif) : pulse ring DockBar, ha
 | Navigation avant (fiche, settings, légal…) | `slide_from_right` |
 | Recherche | `fade` |
 | Scan | `slide_from_bottom` |
-| Onglets | swipe natif pager — indicateur piloté par `position` |
+| Onglets | swipe natif pager — indicateur (pill) glisse au spring sur l'onglet actif |
 
 **Shared element signature — flacon** : à l'ouverture d'une fiche depuis une `ParfumCard`, l'image du flacon continue visuellement vers le `DetailHero` (translation + scale + crossfade du fond carte → hero, ~300 ms `Easing.out(Easing.cubic)` ; le contenu de la fiche entre en stagger après 60 % de progression).
 
@@ -969,7 +971,7 @@ Implémentations canoniques à imiter (ne pas réinventer) :
 | `ActionSheet` | `src/components/ActionSheet.tsx` | §4.16 action sheet |
 | `FilterSheet` | `src/components/FilterSheet.tsx` | §4.16 content sheet |
 | `SaveSheet` | `src/features/catalog/SaveSheet.tsx` | §4.16 content sheet (application live), §2.6 haptique |
-| `DockBar` | `src/features/navigation/DockBar.tsx` | §4.11 langage flottant, §7.5 (pulse) |
+| `DockBar` | `src/features/navigation/DockBar.tsx` | §4.11 langage flottant, §2.3 (overlays volume FAB), §2.5 (halo `tintLuminous`), collapse 3 états |
 | `StickyBottomBar` | `src/features/catalog/StickyBottomBar.tsx` | §4.11 |
 | `OlfactoryPyramid` | `src/features/catalog/` | §4.12, §4.13, §4.14, §7.5 (particule) |
 | `DetailHero` | `src/features/catalog/DetailHero.tsx` | §7.6 shared element (cible) |

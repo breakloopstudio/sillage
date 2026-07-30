@@ -299,15 +299,23 @@ export function usePossessions(uid: string | null, parfumId: string | null): {
 };
 ```
 
-### `useShelves(uid)` — `src/hooks/useShelves.ts`
+### `useShelvesContext()` — `src/contexts/ShelvesContext.tsx`
 ```ts
-// Hook CRUD étagères (temps réel)
-export function useShelves(uid: string | null): {
+// Source de vérité étagères (1 subscription onShelves partagée, temps réel). Remplace le hook useShelves (supprimé).
+export function useShelvesContext(): {
   shelves: Shelf[];
-  create: (name: string, icon?: string, color?: string) => Promise<void>;
-  update: (shelfId: string, data: Partial<Pick<Shelf, 'name' | 'icon' | 'color' | 'order'>>) => Promise<void>;
+  create: (name: string, icon?: string, color?: string, description?: string) => Promise<void>;
+  update: (shelfId: string, data: Partial<Pick<Shelf, 'name' | 'icon' | 'color' | 'order' | 'description' | 'isPublic'>>) => Promise<void>;
   remove: (shelfId: string) => Promise<void>;
+  reorder: (items: { id: string; order: number }[]) => Promise<void>;   // RPC reorder_shelves
 };
+```
+
+### `useFavorisViewPreference()` — `src/hooks/useFavorisViewPreference.ts`
+```ts
+// Préférence de vue du tab Favoris, persistée AsyncStorage (@parfumscan/favoris-view)
+export type FavorisView = 'favoris' | 'alerts';
+export function useFavorisViewPreference(): { view: FavorisView | null; setView: (v: FavorisView) => void };
 ```
 
 ### `useSotd(uid)` — `src/hooks/useSotd.ts`
@@ -502,44 +510,8 @@ interface UserScan {
 ```
 
 ### `src/models/wardrobe.interface.ts`
-```ts
-interface WardrobeItem {
-  parfumId: string;
-  nom: string | null;
-  marque: string | null;
-  imageUrl: string | null;
-  familleOlactive: string | null;
-  ownership: 'have' | 'want' | 'had' | 'sample' | 'decant';
-  rating: number | null;
-  notes: string | null;
-  shelfIds: string[];
-  sizeMl: number | null;
-  sotdCount: number;
-  isSignature: boolean;
-  longevity?: string | null;          // dénormalisé — filtre Tenue
-  sillage?: string | null;            // dénormalisé — filtre Sillage
-  seasonScores?: { spring?: number; summer?: number; fall?: number; winter?: number } | null; // dénormalisé — filtre Saison
-  allNotes?: string[] | null;         // dénormalisé (tête+cœur+fond dédupliqués) — recherche par note
-  addedAt: Date;
-  updatedAt: Date;
-}
 
-interface Shelf {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  order: number;
-  createdAt: Date;
-}
-
-interface SotdEntry {
-  parfumId: string;
-  nom: string;
-  marque: string;
-  imageUrl: string | null;
-}
-```
+> Fichier **supprimé en v8.0** (modèle unifié `user_parfum`). `WardrobeItem` → `UserParfum` ; `Shelf`, `ShelfItem`, `SotdEntry` vivent désormais dans `src/models/user-parfum.interface.ts`.
 
 ### `src/models/user-price-alert.interface.ts`
 ```ts
@@ -565,39 +537,25 @@ interface PublicCollectionItem {
 ```
 
 ### `src/models/user-scent.interface.ts`
-```ts
-type ScentVerdict = 'love' | 'like' | 'meh' | 'dislike';
 
-interface UserScentItem {
-  id: string;
-  parfumId: string;
-  nom: string | null;
-  marque: string | null;
-  imageUrl: string | null;
-  familleOlactive: string | null;
-  status: 'to_try' | 'tried';
-  verdict: ScentVerdict | null;
-  rating: number | null;
-  notes: string | null;
-  triedAt: Date | null;
-  bestPrice?: number;
-  referencePrice?: number;
-  addedAt: Date;
-  updatedAt: Date;
-}
-```
+> Fichier **supprimé en v8.0** (modèle unifié `user_parfum`). `UserScentItem` / `ScentVerdict` vivent désormais dans `src/models/user-parfum.interface.ts`.
 
 ---
 
 ## §5 — Utilitaires
 
-### `src/utils/ownership.ts`
+### `src/utils/accord-profile.ts`
 ```ts
-// Labels centralisés pour les états de garde-robe
-export const OWNERSHIP_LABELS: Record<WardrobeItem['ownership'], string>;
-export function ownershipLabel(o: WardrobeItem['ownership']): string;
-export function wardrobeToCardItem(item: WardrobeItem): { id, nom, marque, imageUrl, familleOlactive, source };
+// Regroupement/coloration des accords olfactifs + aphorismes éditoriaux (AccordProfile)
+export interface AccordRow { raw: string; display: string; pct: number; label: string | null; colorIndex: number; }
+export const ACCORD_GROUPS: { name: string; words: string[] }[];   // 8 familles sémantiques
+export function accordColorIndex(raw: string): number;
+export function buildAccords(accords: string[] | undefined, percentages: Record<string, string> | undefined): AccordRow[];
+export const ACCORD_APHORISMS: string[];   // 8 aphorismes sensoriels
+export function accordAphorism(colorIndex: number): string;
 ```
+
+> `src/utils/ownership.ts` a été supprimé (v8.0 — modèle unifié `user_parfum`).
 
 ### `src/utils/translate-note.ts`
 ```ts
@@ -999,11 +957,11 @@ interface Props {
 
 ### `NavigationChromeContext` — `src/features/navigation/NavigationChromeContext.tsx`
 
-Contexte React partagé par les onglets du navigateur `TopTabs`. Fournit `scrollY` (SharedValue écrite directement par les écrans via `useAnimatedScrollHandler`), `resetDock()` (réaffiche le dock après un changement d'onglet — swipe ou tap), et `dockTranslateY` (SharedValue animée : 0 = visible, 120 = caché). La logique de hide-on-scroll est centralisée ici (`useAnimatedReaction` sur `scrollY` → `withTiming` sur `dockTranslateY`). Chaque écran d'onglet écrit `scrollY.value` depuis son scroll handler UI-thread. Un seul écran visible à la fois → zéro conflit d'écriture.
+Contexte React partagé par les onglets du navigateur `TopTabs`. Fournit `scrollY` (SharedValue écrite directement par les écrans via `useAnimatedScrollHandler`), `resetDock()` (réinitialise l'état du dock après un changement d'onglet — swipe ou tap), `dockCompact` (SharedValue 0 = expanded, 1 = compact) et `dockTranslateY` (SharedValue animée : 0 = visible, 120 = caché). La logique de scroll est centralisée ici dans une machine à 3 états (`useAnimatedReaction` sur `scrollY`) : **expanded** en haut de page, **compact** dès ~30 px de scroll descendant (labels effacés, barre amincie, FAB conservé), **hidden** si le scroll est rapide ou profond (vélocité par frame > seuil, ou y > ~320 px). En remontant, le dock réapparaît en *compact* et ne rouvre en *expanded* qu'une fois revenu tout en haut (pas d'effet yo-yo) ; `resetDock()` force expanded + visible. Chaque écran d'onglet écrit `scrollY.value` depuis son scroll handler UI-thread. Un seul écran visible à la fois → zéro conflit d'écriture.
 
 ### `DockBar` — `src/features/navigation/DockBar.tsx` — custom tabBar TopTabs
 
-Barre flottante 2 onglets + FAB Scan central, verre dépoli (BlurView). Fonctionne comme `tabBar` custom du navigateur `TopTabs` (`expo-router/js-top-tabs`). Reçoit `{ state, navigation }`. L'indicateur doré suit `state.index` via un spring Reanimated (`withSpring`, damping 22, stiffness 280). La géométrie de l'indicateur est exportée via `getIndicatorLeft(screenWidth, tabVisualIndex)` (fonction pure, 2 onglets + FAB centré). Le FAB central (`router.push('/scan')`) est rendu entre les 2 onglets — pas d'haptique à l'ouverture (réservé à la capture, §2.6). **Pas d'avatar dans le DockBar** : l'accès profil (avatar rond) vit dans `SearchChrome` (en haut à droite). Pulse ring FAB coupé en Reduced Motion (`useReducedMotion`). Hide-on-scroll via `dockTranslateY` du `NavigationChromeContext`. Accessibilité : chaque onglet a `accessibilityRole="tab"` + `accessibilityLabel`.
+Barre flottante 4 onglets + FAB Scan central, verre dépoli (BlurView). Fonctionne comme `tabBar` custom du navigateur `TopTabs` (`expo-router/js-top-tabs`). Reçoit `{ state, navigation }`. **Comportement 3 états** piloté par `dockCompact`/`dockTranslateY` du `NavigationChromeContext` : expanded (icônes + labels, hauteur 64), compact au scroll (labels effondrés — opacité + hauteur → 0 —, hauteur 50, le FAB *émerge* de la barre), hidden en lecture immersive. **Indicateur d'onglet actif** : le trait doré est retiré (conflit d'accent violet+doré, §2.4) au profit d'une **pill** `primarySoft` derrière l'icône active qui glisse d'onglet en onglet au spring (`withSpring`, damping 22, stiffness 280) et se dissout en **halo** `tintLuminous` (palier `hint` outer / `veil` inner, dark ÷2) quand la barre se compacte — crossfade piloté par `dockCompact`. Géométrie exportée via `getTabCenter(screenWidth, tabVisualIndex)` (fonction pure, 4 onglets + FAB centré). **FAB obturateur** : anneau `primary` avec gradient vertical (rim light blanc + ombrage, invariants §2.3) cerclant un disque intérieur creux ; le pulse ring perpétuel est retiré (calme au repos), remplacé par un feedback au touch (enfoncement `withSpring` au press, rebond au relâché ; snap en Reduced Motion). **Pas d'avatar dans le DockBar** : l'accès profil vit dans `SearchChrome`. Pas d'haptique à l'ouverture du scan (réservé à la capture, §2.6). Accessibilité : chaque onglet a `accessibilityRole="tab"` + `accessibilityLabel` (le nom est lu même en compact) ; pill/halo marqués `accessible={false}`.
 
 ### `SearchChrome` — `src/features/search/SearchChrome.tsx`
 

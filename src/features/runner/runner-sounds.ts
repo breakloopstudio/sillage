@@ -75,17 +75,20 @@ const JUMP_WAV = generateSweep(180, 400, 0.1);
 const PICKUP_WAV = generateDualTone(660, 0.08, 880, 0.1);
 const DEATH_WAV = generateSweep(300, 80, 0.2);
 const RECORD_WAV = generateDualTone(440, 0.15, 660, 0.25);
+const CRACK_WAV = generateSweep(420, 95, 0.09);
 
 export function useRunnerSounds() {
   const jumpPlayer = useAudioPlayer(JUMP_WAV);
   const pickupPlayer = useAudioPlayer(PICKUP_WAV);
   const deathPlayer = useAudioPlayer(DEATH_WAV);
   const recordPlayer = useAudioPlayer(RECORD_WAV);
+  const crackPlayer = useAudioPlayer(CRACK_WAV);
 
   return useMemo(() => ({
     playJump: () => { jumpPlayer.seekTo(0); jumpPlayer.play(); },
     playPickup: () => { pickupPlayer.seekTo(0); pickupPlayer.play(); },
     playDeath: () => { deathPlayer.seekTo(0); deathPlayer.play(); },
     playRecord: () => { recordPlayer.seekTo(0); recordPlayer.play(); },
-  }), [jumpPlayer, pickupPlayer, deathPlayer, recordPlayer]);
+    playCrack: () => { crackPlayer.seekTo(0); crackPlayer.play(); },
+  }), [jumpPlayer, pickupPlayer, deathPlayer, recordPlayer, crackPlayer]);
 }

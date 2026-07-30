@@ -216,12 +216,16 @@ export function useVoiceSearch(
 
       sessionIdRef.current = Date.now();
 
-      ExpoSpeechRecognitionModule.start({
+      Promise.resolve(ExpoSpeechRecognitionModule.start({
         lang: 'fr-FR',
         interimResults: true,
         continuous: opts?.continuous ?? false,
         contextualStrings: TOP_BRANDS,
         recordingOptions: { persist: true as const },
+      })).catch((e: unknown) => {
+        console.warn('[useVoiceSearch] module.start rejected:', (e as Error)?.message ?? String(e));
+        startPendingRef.current = false;
+        setState('error');
       });
 
       maxDurationRef.current = setTimeout(() => {

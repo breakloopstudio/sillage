@@ -13,6 +13,7 @@ export function useCatalog() {
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => { mountedRef.current = false; if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 

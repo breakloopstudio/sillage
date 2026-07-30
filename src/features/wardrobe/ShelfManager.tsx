@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, Pressable, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, TextInput, Alert, BackHandler } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
@@ -58,6 +58,12 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
       if (sh) startEdit(sh);
     }
   }, [visible, editShelfId]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   const startEdit = useCallback((sh: Shelf) => {
     setEditingId(sh.id);

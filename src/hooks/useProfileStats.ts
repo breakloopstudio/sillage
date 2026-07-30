@@ -26,7 +26,7 @@ export function useProfileStats(uid: string | null): {
   });
   const mountedRef = useRef(true);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const fetchStats = useCallback(async () => {
     if (!uid) {

@@ -1,7 +1,7 @@
 // src/features/scan/ScanScreen.tsx — Orchestrateur scan avec caméra réelle
 // Pipeline métier → useScanPipeline (testable)
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
@@ -9,11 +9,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useNetwork } from '../../hooks/useNetwork';
+import { useScans } from '../../hooks/useScans';
 import { useScanReducer } from '../../hooks/useScanReducer';
 import { useScanPipeline } from '../../hooks/useScanPipeline';
 import { setPendingCatalogQuery } from '../../services/catalog-bridge';
 import type { ScanResult } from '../../models';
-import { ScanIdle } from './ScanIdle';
+import { ScanIdle, type RecentScan } from './ScanIdle';
 import { ScanCamera } from './ScanCamera';
 import { ScanLoading } from './ScanLoading';
 import { ScanClarify } from './ScanClarify';
@@ -21,7 +22,7 @@ import { ScanResults } from './ScanResults';
 import { ScanNoResult } from './ScanNoResult';
 import { ScanError } from './ScanError';
 
-const MAX_IMAGE_WIDTH = 1024;
+const MAX_IMAGE_WIDTH = 768;
 const IMAGE_QUALITY = 0.6;
 
 async function resizeToBase64(uri: string): Promise<string | null> {
@@ -50,6 +51,16 @@ export function ScanScreen() {
 
   // Pipeline métier : GPT-4o → recherche → résultats → historique
   const { startAnalysis, cancelAnalysis } = useScanPipeline(dispatch, user?.uid ?? null, mountedRef);
+
+  // Scans récents réussis (vignettes sur l'idle)
+  const { scans } = useScans(user?.uid ?? null);
+  const recentScans = useMemo<RecentScan[]>(
+    () => scans
+      .filter((sc) => sc.status === 'success' && sc.parfumId)
+      .slice(0, 3)
+      .map((sc) => ({ parfumId: sc.parfumId!, nom: sc.nom, marque: sc.marque, imageUrl: sc.imageUrl })),
+    [scans],
+  );
 
   const guardOnline = useCallback((): boolean => {
     if (isOnline) return true;
@@ -85,7 +96,7 @@ export function ScanScreen() {
       }
     }
     dispatch({ type: 'OPEN_CAMERA' });
-  }, [permission, requestPermission, dispatch]);
+  }, [permission, requestPermission, dispatch, guardOnline]);
 
   const handleGalleryImport = useCallback(async () => {
     if (!guardOnline()) return;
@@ -106,7 +117,7 @@ export function ScanScreen() {
     } catch {
       Alert.alert('Erreur', "Impossible d'accéder à la galerie.");
     }
-  }, [startAnalysis]);
+  }, [startAnalysis, guardOnline]);
 
   const handleCapture = useCallback((burstBase64: string[]) => {
     lastBurstRef.current = burstBase64;
@@ -118,7 +129,7 @@ export function ScanScreen() {
     startAnalysis({
       scanResult: { marque: marque || null, nom: nom || null, typeParfum: typeParfum || null, volumeMl },
     });
-  }, [startAnalysis]);
+  }, [startAnalysis, guardOnline]);
 
   const handleRetryAnalysis = useCallback(() => {
     if (!guardOnline()) return;
@@ -128,7 +139,7 @@ export function ScanScreen() {
     } else {
       reset();
     }
-  }, [reset, startAnalysis]);
+  }, [reset, startAnalysis, guardOnline]);
 
   const handleOpenCatalog = useCallback(() => {
     setPendingCatalogQuery(state.kind === 'results' ? (state.parfums[0]?.marque ?? '') : '');
@@ -141,21 +152,37 @@ export function ScanScreen() {
     router.back();
   }, [reset, router]);
 
+  const handleOpenSearch = useCallback(() => {
+    router.push('/search');
+  }, [router]);
+
+  const handleOpenRecent = useCallback((parfumId: string) => {
+    router.push(`/catalog/${parfumId}`);
+  }, [router]);
+
+  const handleManual = useCallback(() => {
+    dispatch({ type: 'OPEN_MANUAL' });
+  }, [dispatch]);
+
+  const handleClose = useCallback(() => {
+    router.back();
+  }, [router]);
+
   // ─── Rendu par état ────────────────────────────────────
 
   switch (state.kind) {
     case 'idle':
-      return <ScanIdle isOnline={isOnline} onStartScan={handleOpenCamera} onImportGallery={handleGalleryImport} onOpenManual={() => dispatch({ type: 'OPEN_MANUAL' })} />;
+      return <ScanIdle isOnline={isOnline} onStartScan={handleOpenCamera} onOpenSearch={handleOpenSearch} onClose={handleClose} recentScans={recentScans} onOpenRecent={handleOpenRecent} />;
     case 'camera':
-      return <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} />;
+      return <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} onImportGallery={handleGalleryImport} />;
     case 'scanning':
-      return <ScanLoading onCancel={handleCancelScan} />;
+      return <ScanLoading onCancel={handleCancelScan} thumbnail={state.images?.[0]} />;
     case 'clarify':
-      return <ScanClarify scanResult={state.scanResult} reason={state.reason} onSearch={handleClarify} onReset={reset} />;
+      return <ScanClarify scanResult={state.scanResult} reason={state.reason} onSearch={handleClarify} onRescan={handleOpenCamera} onReset={reset} />;
     case 'results':
-      return <ScanResults parfums={state.parfums} onOpenCatalog={handleOpenCatalog} />;
+      return <ScanResults parfums={state.parfums} confidence={state.confidence} onOpenCatalog={handleOpenCatalog} onRescan={handleOpenCamera} />;
     case 'no-result':
-      return <ScanNoResult marque={state.scanResult.marque} onSearchCatalog={handleSearchCatalog} onReset={reset} />;
+      return <ScanNoResult marque={state.scanResult.marque} onSearchCatalog={handleSearchCatalog} onRescan={handleOpenCamera} onManual={handleManual} onReset={reset} />;
     case 'error':
       return <ScanError message={state.message} onReset={reset} onRetryAnalysis={lastBurstRef.current ? handleRetryAnalysis : undefined} />;
   }

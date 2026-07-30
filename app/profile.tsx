@@ -1,6 +1,6 @@
 // app/profile.tsx — Page Profil (route racine, poussée depuis l'avatar du DockBar)
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, Fragment } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,12 @@ import { normalizePseudo } from '../src/utils/share';
 const NAV_ROWS = [
   { key: 'parfumerie', icon: 'flask-outline', label: 'Ma Parfumerie', route: '/(tabs)/collection' },
   { key: 'scans', icon: 'time-outline', label: 'Historique des scans', route: '/history' },
+] as const;
+
+const STAT_DEFS = [
+  { key: 'favoris', label: 'FAVORIS', a11y: 'Favoris', route: '/(tabs)/favoris' },
+  { key: 'parfumerie', label: 'PARFUMERIE', a11y: 'Ma Parfumerie', route: '/(tabs)/collection' },
+  { key: 'scans', label: 'SCANS', a11y: 'Historique des scans', route: '/history' },
 ] as const;
 
 export default function ProfilePage() {
@@ -49,6 +55,12 @@ export default function ProfilePage() {
     scans: scansCount ?? 0,
   }), [items.length, scansCount]);
 
+  const statValues = useMemo(() => ({
+    favoris: dataLoading || favorisCount === null ? null : favorisCount,
+    parfumerie: dataLoading ? null : items.length,
+    scans: dataLoading ? null : scansCount,
+  }), [dataLoading, favorisCount, items.length, scansCount]);
+
   const handleLogout = useCallback(() => {
     logout().catch(() => {});
     router.replace('/auth/login');
@@ -57,6 +69,10 @@ export default function ProfilePage() {
   const handleSotdPress = useCallback(() => {
     if (sotd) router.push(`/catalog/${sotd.parfumId}`);
   }, [sotd, router]);
+
+  const handleStatPress = useCallback((route: (typeof STAT_DEFS)[number]['route']) => {
+    router.push(route);
+  }, [router]);
 
   if (!authReady) {
     return (
@@ -114,20 +130,24 @@ export default function ProfilePage() {
 
         <View style={s.statsCard}>
           <View style={s.statsRow}>
-            <View style={s.statCol}>
-              <Text allowFontScaling={false} style={s.statNum}>{dataLoading || favorisCount === null ? '—' : favorisCount}</Text>
-              <Text allowFontScaling={false} style={s.statLabel}>FAVORIS</Text>
-            </View>
-            <View style={s.statSep} />
-            <View style={s.statCol}>
-              <Text allowFontScaling={false} style={s.statNum}>{dataLoading ? '—' : items.length}</Text>
-              <Text allowFontScaling={false} style={s.statLabel}>PARFUMERIE</Text>
-            </View>
-            <View style={s.statSep} />
-            <View style={s.statCol}>
-              <Text allowFontScaling={false} style={s.statNum}>{dataLoading ? '—' : scansCount}</Text>
-              <Text allowFontScaling={false} style={s.statLabel}>SCANS</Text>
-            </View>
+            {STAT_DEFS.map((def, i) => {
+              const value = statValues[def.key as keyof typeof statValues];
+              const isLast = i === STAT_DEFS.length - 1;
+              return (
+                <Fragment key={def.key}>
+                  <Pressable
+                    style={s.statCol}
+                    onPress={() => handleStatPress(def.route)}
+                    accessibilityRole="button"
+                    accessibilityLabel={value === null ? def.a11y : `${def.a11y}, ${value}`}
+                  >
+                    <Text allowFontScaling={false} style={s.statNum}>{value === null ? '—' : value}</Text>
+                    <Text allowFontScaling={false} style={s.statLabel}>{def.label}</Text>
+                  </Pressable>
+                  {!isLast ? <View style={s.statSep} /> : null}
+                </Fragment>
+              );
+            })}
           </View>
 
           {items.length > 0 ? (
@@ -251,8 +271,8 @@ function getStyles(t: Theme) {
     displayName: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, color: t.colors.text, marginTop: 12 },
     email: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, marginTop: 2 },
     statsCard: { backgroundColor: t.colors.surface, borderRadius: t.radius.card, marginHorizontal: 16, ...t.shadow.card },
-    statsRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20 },
-    statCol: { flex: 1, alignItems: 'center' },
+    statsRow: { flexDirection: 'row', alignItems: 'center' },
+    statCol: { flex: 1, alignItems: 'center', paddingVertical: 20 },
     statNum: { fontFamily: 'Inter_700Bold', fontSize: 24, color: t.colors.text },
     statLabel: {
       fontFamily: 'Inter_500Medium',

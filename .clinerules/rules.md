@@ -29,6 +29,7 @@ app/
 ├── scan.tsx                  # Scan (slide_from_bottom)
 ├── search.tsx                # Recherche (fade)
 ├── history.tsx               # Historique des scans (route racine, poussée depuis Profil)
+├── runner.tsx                # Flacon Runner (easter egg, slide_from_bottom, route racine)
 ├── profile.tsx               # Profil (route racine, poussée depuis l'avatar en haut à droite dans SearchChrome — identité, stats, SOTD, navigation, déconnexion)
 ├── scentlist.tsx             # Redirection /scentlist → /(tabs)/collection (deep links ; JAMAIS dans (tabs)/ — cf. §5)
 ├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, bouton Suivre si connecté, cible du deep link parfumscan://u/<pseudo>)
@@ -39,24 +40,24 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (16)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge
+├── services/     (17)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner)
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (21)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useShelves, useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useVoicePreference, useVoiceSearch, useWeather
-├── contexts/     (4)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel) — ThemeContext est dans src/theme/
-├── components/   (22)        # ParfumCard (badges statut/rating/🔔 optionnels, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie : statut + étagères + pin), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in, mode embedded), AddToShelfSheet (ajout direct à une étagère), PublishShelfGateSheet (gate profil public inline), InspireShelfSheet (copie en lot « M'inspirer »)
+├── hooks/        (21)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference (vue Favoris/Alertes persistée), useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
+├── components/   (23)        # ParfumCard (badges statut/rating/🔔 optionnels, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie : statut + étagères + pin), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in, mode embedded), AddToShelfSheet (ajout direct à une étagère), PublishShelfGateSheet (gate profil public inline), InspireShelfSheet (copie en lot « M'inspirer »), InfoPopup (popup centrée d'information)
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
-│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards
+│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards, AccordProfile (profil d'accords : barres animées + aphorisme)
 │   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 4 onglets + FAB Scan central) + NavigationChromeContext
-│   ├── runner/               # Flacon Runner (easter egg, cf. §17)
+│   ├── runner/               # Flacon Runner v2 (pouvoirs/vies/missions/classement, cf. §17) : RunnerGame, useRunnerLoop, RunnerBottle, RunnerBackground, RunnerGround, RunnerObstacles, RunnerPickups, RunnerSpeedLines, RunnerHud, RunnerParticles, runner-sounds, runner-missions, runner-types, runner-storage
 │   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
 │   ├── scentlist/            # TrySheet (éditeur « Notes détaillées » de la fiche unifiée)
 │   ├── search/     (2)       # SearchChrome (barre recherche + voix) + VoiceOverlay
 │   └── wardrobe/             # SOTDCard, SOTDPicker, StarRating, ShelfManager (DraggableFlatList), ShelfCard (meuble : rayon teinté, tri ↕, badge globe), BottleThumb (flacon nu, long-press)
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
-├── config/       (2)         # env, index (firebase.config supprimé — migration Supabase)
+├── config/       (3)         # env, index, legal (firebase.config supprimé — migration Supabase)
 ├── models/       (8)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
-├── utils/        (20)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier
+├── utils/        (21)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords, accordAphorism)
 └── types/        (1)         # database.types.ts — types Database générés (`supabase gen types typescript --linked`) ; type le client Supabase + payloads d'écriture (M4)
 
 supabase/                     # Backend Supabase (versionné)
@@ -99,7 +100,7 @@ supabase/                     # Backend Supabase (versionné)
 - Brand : route racine, poussée depuis la chip « La maison » de la fiche détail et les sélecteurs de marques (BrandCapsules, BrandSheet) (slide_from_right)
 - Profil public `/u/[pseudo]` : route racine en lecture seule, accessible sans auth (cible du deep link de partage `parfumscan://u/<pseudo>`)
 - Étagère publique `/u/[pseudo]/shelf/[shelfId]` : page publique d'une étagère (identique à la privée, sans actions owner ; cible du deep link de partage `parfumscan://u/<pseudo>/shelf/<shelfId>`)
-- `NavigationChromeContext` pour le hide-on-scroll du dock — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes
+- `NavigationChromeContext` pour le comportement scroll du dock (3 états : expanded / compact / hidden) — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes ; expose `dockCompact` (collapse des labels) + `dockTranslateY` (hide) + `resetDock()`
 - Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs (le profil est une route racine, hors tabs)
 - Swipe-back : natif (React Navigation), pas de geste custom → **0 conflit de swipe**
 - `router.push()` pour navigation avant, `router.back()` / `router.dismissTo()` pour retour
@@ -220,7 +221,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 287 tests, 27 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 312 tests, 33 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
@@ -275,17 +276,20 @@ Mini-jeu endless runner accessible depuis Settings (5 taps sur numéro de versio
 ### Architecture des fichiers
 ```
 src/features/runner/
-├── useRunnerLoop.ts      # Game loop (useFrameCallback) : physique, collisions, spawn, scoring
-├── RunnerGame.tsx         # Intégration : gestes, cycle de vie, score chase, sons, shake, milestones, skins
-├── RunnerBottle.tsx       # Flacon joueur : squash/stretch aérien, landing spring, death flash
-├── RunnerBackground.tsx   # 2 couches parallaxe seamless (wrapping périodique)
-├── RunnerGround.tsx       # Sol défilant avec marques
-├── RunnerObstacles.tsx    # Pool de 8 cristaux (4 types + volant), rendus via opacity toggling
-├── RunnerPickups.tsx      # Pool de 4 badges réduction (altitudes variables)
+├── useRunnerLoop.ts      # Game loop (useFrameCallback) : physique, collisions, spawn, scoring, pouvoirs, vies
+├── RunnerGame.tsx         # Intégration : gestes, cycle de vie, score chase, sons, shake, missions, skins, classement
+├── RunnerBottle.tsx       # Flacon joueur : squash/stretch aérien, landing spring, fissures liées aux vies
+├── RunnerBackground.tsx   # Ciel/horizon gradients ancrés groundY, skyline de flacons
+├── RunnerGround.tsx       # Piste gradient, crête lumineuse, stries 2 plans
+├── RunnerObstacles.tsx    # Pool de 8 cristaux (4 types + volant), spawn entry fade
+├── RunnerPickups.tsx      # Pool de notes à pouvoirs (Bergamote/Santal/Ambre/Musc), spawn entry fade
 ├── RunnerSpeedLines.tsx   # Traits de vitesse horizontaux (opacité liée à la vitesse)
-├── runner-sounds.ts       # 4 WAV synthétisés (jump, pickup, death, record) via expo-audio
-├── runner-types.ts        # Types, constantes, helpers AABB, altitudes
-└── runner-storage.ts      # High score + skins persistés AsyncStorage
+├── RunnerHud.tsx          # Chips pouvoirs actifs (barres de temps résiduel, UI thread)
+├── RunnerParticles.tsx    # Burst de particules à la collecte (coupé en Reduced Motion)
+├── runner-sounds.ts       # 5 WAV synthétisés (jump, pickup, death, record, crack) via expo-audio
+├── runner-missions.ts     # 8 missions/succès persistés AsyncStorage
+├── runner-types.ts        # Types, constantes (PICKUP_DEFS, MAX_LIVES, SLOW_FACTOR), helpers AABB
+└── runner-storage.ts      # High score + skins + mute + missions persistés AsyncStorage
 ```
 
 ### Règles
@@ -297,6 +301,10 @@ src/features/runner/
 - **Persistance** : high score + skins dans AsyncStorage, clé `@parfumscan/runner-*`
 - **Ouverture** : 5 taps sur le numéro de version dans Settings, minuterie 2s de reset
 - **Skins déblocables** : 500→Ambre, 1500→Frost, 3000→Noir, auto-équipés sur game over
+- **Pouvoirs** : 4 notes (Bergamote magnet / Santal shield / Ambre double / Musc slow-mo ×0.45), durées bornées
+- **Vies** : 3 vies + invulnérabilité 1,2 s après impact (flicker UI-thread) ; le shield absorbe un impact
+- **Missions** : 8 succès persistés (`runner-missions.ts`), évalués en fin de partie
+- **Classement** : table `runner_scores` (migration 0041) + RPC `submit_runner_score` / `runner_leaderboard` (service `services/runner.ts`)
 
 ---
 

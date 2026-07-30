@@ -2,6 +2,7 @@ import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Share, Alert, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
@@ -10,7 +11,7 @@ import { useFavorisContext } from '../../src/contexts/FavorisContext';
 import { useUserParfumContext } from '../../src/contexts/UserParfumContext';
 import { usePriceAlertsContext } from '../../src/contexts/PriceAlertsContext';
 import { useMyProfile } from '../../src/hooks/useMyProfile';
-import { useShelves } from '../../src/hooks/useShelves';
+import { useShelvesContext } from '../../src/contexts/ShelvesContext';
 import { useShelfItems } from '../../src/hooks/useShelfItems';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useWeather } from '../../src/hooks/useWeather';
@@ -33,8 +34,10 @@ import {
   signatureItems,
   favoriteItems,
   hasShelfMatter,
+  type ShelfGroup,
 } from '../../src/utils/shelf-grouping';
 import EmptyState from '../../src/components/EmptyState';
+import InfoPopup from '../../src/components/InfoPopup';
 import AuthGate from '../../src/components/AuthGate';
 import FilterSheet from '../../src/components/FilterSheet';
 import StatuerSheet from '../../src/components/StatuerSheet';
@@ -80,8 +83,8 @@ const DENSITY_ICON: Record<string, string> = {
 };
 
 const VIEW_TABS: { key: ParfumerieView; label: string; icon: string }[] = [
-  { key: 'collection', label: 'Collection', icon: 'grid-outline' },
   { key: 'shelves', label: 'Étagères', icon: 'albums-outline' },
+  { key: 'collection', label: 'Collection', icon: 'grid-outline' },
 ];
 
 const KEY_EXPAND = '@parfumscan/parfumerie-shelves-expand';
@@ -114,7 +117,7 @@ export default function MaParfumeriePage() {
   const { items, loading, update, remove } = useUserParfumContext();
   const { byParfumId } = usePriceAlertsContext();
   const { profile } = useMyProfile(uid);
-  const { shelves, create: createShelf, update: updateShelf, remove: removeShelf, reorder } = useShelves(uid);
+  const { shelves, create: createShelf, update: updateShelf, remove: removeShelf, reorder } = useShelvesContext();
   const { byShelf } = useShelfItems(uid);
   const { sotd, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
@@ -140,6 +143,7 @@ export default function MaParfumeriePage() {
   const [addToShelfId, setAddToShelfId] = useState<string | null>(null);
   const [publishGateShelfId, setPublishGateShelfId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
+  const [orphanHelpOpen, setOrphanHelpOpen] = useState(false);
   const statuerItemRef = useRef<UserParfum | null>(null);
 
   useEffect(() => { statuerItemRef.current = statuerItem; }, [statuerItem]);
@@ -420,6 +424,17 @@ export default function MaParfumeriePage() {
     });
   }, []);
 
+  const handleOrphanHelp = useCallback(() => {
+    hapticsLight();
+    setOrphanHelpOpen(true);
+  }, []);
+
+  const handleReorderShelves = useCallback(({ data }: { data: ShelfGroup[] }) => {
+    reorder(data.map((g, i) => ({ id: g.shelf.id, order: i }))).catch(() => { hapticsError(); });
+  }, [reorder]);
+
+  const handleShelvesScrollOffset = useCallback((offset: number) => { scrollY.value = offset; }, [scrollY]);
+
   const handleToggleFavOnly = useCallback(() => { hapticsLight(); setFavOnly(v => !v); }, []);
   const handleSelectView = useCallback((v: ParfumerieView) => { hapticsLight(); setViewPref(v); }, [setViewPref]);
   const canShareCollection = !!profile?.isPublic && !!profile?.pseudo;
@@ -524,7 +539,29 @@ export default function MaParfumeriePage() {
     </View>
   );
 
-  const shelvesView = (
+  const renderShelfGroup = ({ item, drag, isActive }: { item: ShelfGroup; drag: () => void; isActive: boolean }) => (
+    <ScaleDecorator>
+      <ShelfCard
+        name={item.shelf.name}
+        icon={item.shelf.icon}
+        accent={item.shelf.color}
+        tagline={item.shelf.description}
+        items={orderForShelf(item.shelf.id, item.items)}
+        variant="user"
+        isPublic={item.shelf.isPublic}
+        expanded={expanded?.has(item.shelf.id) ?? false}
+        onToggleExpand={() => handleToggleExpand(item.shelf.id)}
+        onPressBottle={handleShelfBottle}
+        onLongPressBottle={handleShelfBottleLong}
+        onAdd={() => handleOpenAddToShelf(item.shelf.id)}
+        onOpenMenu={() => handleOpenShelfMenu(item.shelf)}
+        drag={drag}
+        isDragging={isActive}
+      />
+    </ScaleDecorator>
+  );
+
+  const shelvesHeader = (
     <View>
       <Pressable style={s.newShelfBtn} onPress={handleOpenShelfManager} accessibilityRole="button" accessibilityLabel="Nouvelle étagère">
         <Ionicons name="add-circle-outline" size={18} color={theme.colors.primary} />
@@ -560,26 +597,11 @@ export default function MaParfumeriePage() {
           onLongPressBottle={handleShelfBottleLong}
         />
       ) : null}
+    </View>
+  );
 
-      {shelfGroups.map(g => (
-        <ShelfCard
-          key={g.shelf.id}
-          name={g.shelf.name}
-          icon={g.shelf.icon}
-          accent={g.shelf.color}
-          tagline={g.shelf.description}
-          items={orderForShelf(g.shelf.id, g.items)}
-          variant="user"
-          isPublic={g.shelf.isPublic}
-          expanded={expanded?.has(g.shelf.id) ?? false}
-          onToggleExpand={() => handleToggleExpand(g.shelf.id)}
-          onPressBottle={handleShelfBottle}
-          onLongPressBottle={handleShelfBottleLong}
-          onAdd={() => handleOpenAddToShelf(g.shelf.id)}
-          onOpenMenu={() => handleOpenShelfMenu(g.shelf)}
-        />
-      ))}
-
+  const shelvesFooter = (
+    <View>
       {orphans.length > 0 ? (
         <ShelfCard
           name="Non classés"
@@ -592,6 +614,8 @@ export default function MaParfumeriePage() {
           onToggleExpand={() => handleToggleExpand(ORPHAN_ID)}
           onPressBottle={handleShelfBottle}
           onLongPressBottle={handleShelfBottleLong}
+          onPressEmblem={handleOrphanHelp}
+          emblemAccessibilityLabel="À propos de Non classés"
         />
       ) : null}
     </View>
@@ -749,15 +773,18 @@ export default function MaParfumeriePage() {
           }
         />
       ) : (
-        <Animated.ScrollView
-          contentContainerStyle={s.content}
+        <DraggableFlatList
+          data={shelfGroups}
+          keyExtractor={(g) => g.shelf.id}
+          renderItem={renderShelfGroup}
+          onDragEnd={handleReorderShelves}
+          onScrollOffsetChange={handleShelvesScrollOffset}
           showsVerticalScrollIndicator={false}
-          onScroll={scrollHandler}
-          scrollEventThrottle={16}
-        >
-          {topChrome}
-          {shelvesView}
-        </Animated.ScrollView>
+          contentContainerStyle={s.content}
+          extraData={[expanded, byShelf]}
+          ListHeaderComponent={<>{topChrome}{shelvesHeader}</>}
+          ListFooterComponent={shelvesFooter}
+        />
       )}
 
       <StatuerSheet
@@ -833,6 +860,14 @@ export default function MaParfumeriePage() {
         onFiltersChange={handleAttrFiltersChange}
         onReset={handleAttrReset}
         onClose={handleCloseAttrSheet}
+      />
+
+      <InfoPopup
+        visible={orphanHelpOpen}
+        title="Non classés"
+        message="Ces flacons attendent leur place. Un appui maintenu sur l’un d’eux te permet de le ranger dans l’étagère de ton choix."
+        icon="help-circle-outline"
+        onClose={() => setOrphanHelpOpen(false)}
       />
     </SafeAreaView>
   );
