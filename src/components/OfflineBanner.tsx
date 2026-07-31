@@ -7,6 +7,8 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-na
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 
+export const OFFLINE_BANNER_BAND = 32;
+
 interface Props {
   visible: boolean;
   variant?: 'offline' | 'reconnected';
@@ -16,7 +18,7 @@ export default function OfflineBanner({ visible, variant = 'offline' }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const totalHeight = 32 + insets.top;
+  const totalHeight = OFFLINE_BANNER_BAND + insets.top;
   const hidden = -totalHeight;
   const translateY = useSharedValue(hidden);
 

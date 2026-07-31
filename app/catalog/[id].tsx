@@ -17,6 +17,8 @@ import { translateNote } from '../../src/utils/translate-note';
 import { formatPrice } from '../../src/utils/format-price';
 import { parfumShareUrl } from '../../src/utils/share';
 import OlfactoryPyramid from '../../src/features/catalog/OlfactoryPyramid';
+import SeasonProfile from '../../src/features/catalog/SeasonProfile';
+import { buildSeasonProfile } from '../../src/utils/season-profile';
 import PriceDisplay from '../../src/components/PriceDisplay';
 import Button from '../../src/components/Button';
 import AlertPriceToggle from '../../src/components/AlertPriceToggle';
@@ -25,6 +27,7 @@ import SaveButton from '../../src/features/catalog/SaveButton';
 import RelationSection from '../../src/features/catalog/RelationSection';
 import { useSaveController } from '../../src/features/catalog/useSaveController';
 import AccordProfile from '../../src/features/catalog/AccordProfile';
+import PerformanceProfile from '../../src/features/catalog/PerformanceProfile';
 import TrySheet from '../../src/features/scentlist/TrySheet';
 import NoteDetailPopup from '../../src/components/NoteDetailPopup';
 import ImageViewerPopup from '../../src/components/ImageViewerPopup';
@@ -34,66 +37,6 @@ import CollapsingHeader from '../../src/features/catalog/CollapsingHeader';
 import StickyBottomBar from '../../src/features/catalog/StickyBottomBar';
 import CommunityVerdicts, { VerdictProfilesSheet } from '../../src/features/catalog/CommunityVerdicts';
 import type { ParfumVerdict } from '../../src/services/community';
-
-import { SEASON_ORDER, SEASON_META, normalizeSeasonKey, type SeasonKey } from '../../src/utils/season';
-
-const OCCASION_META: Record<string, { label: string; icon: string }> = {
-  casual:       { label: 'Jour',        icon: 'sunny' },
-  day:          { label: 'Jour',        icon: 'sunny' },
-  daily:        { label: 'Jour',        icon: 'sunny' },
-  evening:      { label: 'Soirée',      icon: 'moon' },
-  night:        { label: 'Soirée',      icon: 'moon' },
-  'night out':  { label: 'Soirée',      icon: 'moon' },
-  night_out:    { label: 'Soirée',      icon: 'moon' },
-  party:        { label: 'Fête',        icon: 'musical-notes' },
-  club:         { label: 'Fête',        icon: 'musical-notes' },
-  work:         { label: 'Bureau',      icon: 'briefcase' },
-  office:       { label: 'Bureau',      icon: 'briefcase' },
-  business:     { label: 'Bureau',      icon: 'briefcase' },
-  professional: { label: 'Bureau',      icon: 'briefcase' },
-  date:         { label: 'Rendez-vous', icon: 'heart' },
-  romantic:     { label: 'Rendez-vous', icon: 'heart' },
-  formal:       { label: 'Formel',      icon: 'shirt' },
-  sport:        { label: 'Sport',       icon: 'fitness' },
-  leisure:      { label: 'Loisir',      icon: 'game-controller' },
-};
-
-interface RankedItem { key: string; label: string; icon: string; score: number }
-
-// Déduplique par label FR (plusieurs clés EN → même label) en gardant le score max,
-// trié par score décroissant. Les clés inconnues sont ignorées (jamais de fallback brut).
-function rankAndDedupe(ranking: { name: string; score: number }[]): RankedItem[] {
-  const byLabel = new Map<string, RankedItem>();
-  for (const item of ranking) {
-    const k = item.name.toLowerCase().trim();
-    const meta = OCCASION_META[k];
-    if (!meta) continue;
-    const existing = byLabel.get(meta.label);
-    if (!existing || item.score > existing.score) {
-      byLabel.set(meta.label, { key: k, label: meta.label, icon: meta.icon, score: item.score });
-    }
-  }
-  return [...byLabel.values()].sort((a, b) => b.score - a.score);
-}
-
-function longevityMeta(v: string): { label: string; pct: number } {
-  const key = v.toLowerCase().trim();
-  if (key.includes('eternal') || key.includes('very long')) return { label: 'Très longue', pct: 90 };
-  if (key.includes('long')) return { label: 'Longue', pct: 70 };
-  if (key.includes('moderate') || key.includes('modéré')) return { label: 'Modérée', pct: 45 };
-  if (key.includes('weak') || key.includes('court')) return { label: 'Courte', pct: 25 };
-  return { label: v, pct: 40 };
-}
-
-function sillageMeta(v: string): { label: string; pct: number } {
-  const key = v.toLowerCase().trim();
-  if (key.includes('enormous') || key.includes('strong') || key.includes('fort') || key.includes('lourd')) return { label: 'Puissant', pct: 90 };
-  if (key.includes('heavy')) return { label: 'Lourd', pct: 80 };
-  if (key.includes('moderate') || key.includes('modéré')) return { label: 'Modéré', pct: 50 };
-  if (key.includes('intimate') || key.includes('soft') || key.includes('léger') || key.includes('faible')) return { label: 'Intime', pct: 25 };
-  return { label: v, pct: 40 };
-}
-
 
 function typeParfumLabel(v: string): string {
   const k = v.toLowerCase().replace(/[^a-z]/g, '');
@@ -117,23 +60,6 @@ function SectionTitle({ icon, title, subtitle, tint, tintSoft, s, t }: { icon: s
         <Text style={s.sectionTitleText}>{title}</Text>
         {subtitle ? <Text style={s.sectionSubtitle}>{subtitle}</Text> : null}
       </View>
-    </View>
-  );
-}
-
-// ─── Jauge horizontale (longévité, sillage) ──────────────────
-
-function GaugeRow({ icon, iconBg, iconColor, label, valueLabel, pct, barColor, valColor, s }: { icon: string; iconBg: string; iconColor: string; label: string; valueLabel: string; pct: number; barColor: string; valColor: string; s: ReturnType<typeof getStyles> }) {
-  return (
-    <View style={s.gaugeRow}>
-      <View style={[s.gaugeIcon, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as never} size={14} color={iconColor} />
-      </View>
-      <View style={s.gaugeBody}>
-        <Text style={s.gaugeLabel}>{label}</Text>
-        <View style={s.gaugeTrack}><View style={[s.gaugeFill, { width: `${pct}%`, backgroundColor: barColor }]} /></View>
-      </View>
-      <Text style={[s.gaugeVal, { color: valColor }]}>{valueLabel}</Text>
     </View>
   );
 }
@@ -299,22 +225,9 @@ export default function CatalogDetailPage() {
     return undefined;
   })();
 
-  // Saisons : clé normalisée → score max. Les valeurs parasites ("day", "night")
-  // sont filtrées par normalizeSeasonKey → plus jamais de texte anglais brut.
-  const seasonScores = new Map<SeasonKey, number>();
-  if (parfum?.seasonRanking) {
-    for (const item of parfum.seasonRanking) {
-      const k = normalizeSeasonKey(item.name);
-      if (!k) continue;
-      seasonScores.set(k, Math.max(seasonScores.get(k) ?? 0, item.score));
-    }
-  }
-  const seasonMax = Math.max(0, ...seasonScores.values());
-  const topSeasonKey = seasonMax > 0 ? (SEASON_ORDER.find(k => seasonScores.get(k) === seasonMax) ?? null) : null;
-
-  // Occasions : dédupliquées par label FR, triées par score décroissant
-  const occasions = parfum?.occasionRanking ? rankAndDedupe(parfum.occasionRanking) : [];
-  const topOccasions = occasions.slice(0, 3);
+  // « Quand le porter » : saisons + occasions + moment de la journée, calculés
+  // une fois (util partagé avec SeasonProfile et la ligne éditoriale de tête).
+  const seasonProfile = useMemo(() => buildSeasonProfile(parfum), [parfum]);
 
   const content = (
     <>
@@ -408,9 +321,12 @@ export default function CatalogDetailPage() {
             </View>
 
             {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) ─── */}
-            {topSeasonKey || topOccasions.length > 0 ? (
+            {seasonProfile?.topSeasonKey || (seasonProfile?.topOccasions.length ?? 0) > 0 ? (
               <Text style={s.editorialLine} maxFontSizeMultiplier={1.3}>
-                {[topSeasonKey ? SEASON_META[topSeasonKey].label : null, topOccasions[0]?.label ?? null]
+                {[
+                  seasonProfile?.columns.find(col => col.isTop)?.label ?? null,
+                  seasonProfile?.topOccasions[0]?.label ?? null,
+                ]
                   .filter(Boolean)
                   .join(' · ')}
               </Text>
@@ -479,6 +395,7 @@ export default function CatalogDetailPage() {
                   topNotes={parfum.notesTete}
                   heartNotes={parfum.notesCoeur}
                   baseNotes={parfum.notesFond}
+                  generalNotes={parfum.generalNotes}
                   onNotePress={handleNotePress}
                 />
 
@@ -487,59 +404,15 @@ export default function CatalogDetailPage() {
                   percentages={parfum.mainAccordsPercentage}
                 />
 
-                {/* ─── Tenue & sillage ─── */}
-                {parfum.longevity || parfum.sillage ? (
-                  <View style={s.infoZone}>
-                    <SectionTitle icon="flash-outline" title="Tenue & sillage" tint={t.colors.reward} tintSoft={t.colors.rewardSoft} s={s} t={t} />
-                    {parfum.longevity ? (() => {
-                      const m = longevityMeta(parfum.longevity!);
-                      return <GaugeRow icon="time-outline" iconBg={t.colors.primarySoft} iconColor={t.colors.primaryInk} label="Longévité" valueLabel={m.label} pct={m.pct} barColor={t.colors.primary} valColor={t.colors.primaryInk} s={s} />;
-                    })() : null}
-                    {parfum.sillage ? (() => {
-                      const m = sillageMeta(parfum.sillage!);
-                      return <GaugeRow icon="pulse-outline" iconBg={t.colors.rewardSoft} iconColor={t.colors.reward} label="Sillage" valueLabel={m.label} pct={m.pct} barColor={t.colors.reward} valColor={t.colors.rewardInk} s={s} />;
-                    })() : null}
-                  </View>
-                ) : null}
+                <PerformanceProfile
+                  parfumId={parfum.id}
+                  longevity={parfum.longevity}
+                  sillage={parfum.sillage}
+                />
 
                 {/* ─── Quand le porter ─── */}
-                {seasonMax > 0 || topOccasions.length > 0 ? (
-                  <View style={s.infoZone}>
-                    <SectionTitle icon="calendar-outline" title="Quand le porter" tint={t.colors.secondary} tintSoft={t.colors.secondarySoft} s={s} t={t} />
-                    {seasonMax > 0 ? (
-                      <View style={s.seasonCols}>
-                        {SEASON_ORDER.map(key => {
-                          const meta = SEASON_META[key];
-                          const score = seasonScores.get(key) ?? 0;
-                          const ratio = seasonMax > 0 ? score / seasonMax : 0;
-                          const isTop = key === topSeasonKey;
-                          const color = t.colors[meta.token];
-                          const soft = t.colors[`${meta.token}Soft`];
-                          return (
-                            <View key={key} style={s.seasonCol}>
-                              <View style={[s.seasonIconWrap, { backgroundColor: isTop ? soft : t.colors.surface2 }]}>
-                                <Ionicons name={meta.icon as never} size={15} color={score > 0 ? color : t.colors.textMuted} />
-                              </View>
-                              <View style={s.seasonTrack}>
-                                <View style={[s.seasonFill, { height: `${score > 0 ? Math.max(10, Math.round(ratio * 100)) : 6}%`, backgroundColor: score > 0 ? color : t.colors.border }]} />
-                              </View>
-                              <Text style={[s.seasonLabel, isTop ? { color: t.colors.text, fontFamily: 'Inter_600SemiBold' } : null]}>{meta.label}</Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    ) : null}
-                    {topOccasions.length > 0 ? (
-                      <View style={[s.occasionRow, seasonMax > 0 ? { marginTop: 14 } : null]}>
-                        {topOccasions.map((o, i) => (
-                          <View key={o.label} style={[s.occasionChip, i === 0 ? { backgroundColor: t.colors.primarySoft } : null]}>
-                            <Ionicons name={o.icon as never} size={12} color={i === 0 ? t.colors.primaryInk : t.colors.textMuted} />
-                            <Text style={[s.occasionChipText, i === 0 ? { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' } : null]}>{o.label}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : null}
-                  </View>
+                {seasonProfile ? (
+                  <SeasonProfile key={parfum?.id ?? 'season'} profile={seasonProfile} parfumId={parfum!.id} />
                 ) : null}
 
                 {/* ─── La communauté (verdicts publics) ─── */}
@@ -658,25 +531,6 @@ function getStyles(t: Theme) {
   sectionTitleBody: { flex: 1 },
   sectionTitleText: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text },
   sectionSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted, marginTop: 1 },
-  // ─── Jauges ───
-  gaugeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  gaugeIcon: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  gaugeBody: { flex: 1 },
-  gaugeLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', color: t.colors.textMuted, marginBottom: 3 },
-  gaugeTrack: { height: 6, borderRadius: 3, backgroundColor: t.colors.border, overflow: 'hidden' },
-  gaugeFill: { height: '100%', borderRadius: 3 },
-  gaugeVal: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginLeft: 8, minWidth: 70, textAlign: 'right' },
-  // ─── Saisons (4 colonnes) ───
-  seasonCols: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  seasonCol: { flex: 1, alignItems: 'center', gap: 6 },
-  seasonIconWrap: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
-  seasonTrack: { width: 8, height: 44, borderRadius: 4, backgroundColor: t.colors.surface2, justifyContent: 'flex-end', overflow: 'hidden' },
-  seasonFill: { width: '100%', borderRadius: 4 },
-  seasonLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
-  // ─── Occasions (chips) ───
-  occasionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  occasionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: t.colors.surface2 },
-  occasionChipText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
   // ─── La signature (maison + nez) ───
   signatureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 6 },
   brandChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.primarySoft },

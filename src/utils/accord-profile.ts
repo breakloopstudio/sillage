@@ -89,18 +89,3 @@ export function buildAccords(
     .slice(0, 5)
     .map(m => ({ ...m, pct: m.pct as number }));
 }
-
-export const ACCORD_APHORISMS: string[] = [
-  'La chaleur qui enveloppe',
-  "L'ancrage sous la peau",
-  'La caresse fumée',
-  "Le cœur qui s'ouvre",
-  "Le voile qui s'attarde",
-  'La fraîcheur coupée',
-  'Le frisson sur la langue',
-  "L'éclat qui ouvre",
-];
-
-export function accordAphorism(colorIndex: number): string {
-  return ACCORD_APHORISMS[colorIndex % ACCORD_APHORISMS.length] ?? ACCORD_APHORISMS[0];
-}

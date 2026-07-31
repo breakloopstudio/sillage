@@ -1,7 +1,6 @@
 import {
   alpha,
   layerDuration,
-  layerAphorism,
   layerContextLabel,
   pickInitialLayer,
   PERSIST,
@@ -51,18 +50,6 @@ describe('layerDuration', () => {
   it('uses en-dash (U+2013)', () => {
     expect(layerDuration('top')).toContain('–');
     expect(layerDuration('heart')).toContain('–');
-  });
-});
-
-describe('layerAphorism', () => {
-  it('returns aphorisms for each key', () => {
-    expect(layerAphorism('top')).toBe("L'éclat des premières minutes");
-    expect(layerAphorism('heart')).toBe('Le cœur qui porte');
-    expect(layerAphorism('base')).toBe("L'empreinte qui persiste");
-  });
-
-  it('returns default for null', () => {
-    expect(layerAphorism(null)).toBe('Le parfum, heure par heure');
   });
 });
 

@@ -1,6 +1,6 @@
 # Upscale — Real-ESRGAN (Python + CUDA)
 
-Deux workers Python dans un venv isolé, appelés par `scripts/migrate-upscale.ts`.
+Deux workers Python dans un venv isolé, appelés par `scripts/images/migrate-upscale.ts`.
 Exploitent le GPU (CUDA, half precision) ; fallback CPU transparent.
 
 - `upscale_worker.py` — worker **persistant** utilisé par la migration : le modèle
@@ -11,25 +11,25 @@ Exploitent le GPU (CUDA, half precision) ; fallback CPU transparent.
 
 ```powershell
 # 1. Créer le venv en Python 3.10 (uv télécharge la version si absente)
-uv venv scripts/upscale/venv --python 3.10
+uv venv scripts/images/upscale/venv --python 3.10
 
 # 2. torch + CUDA (index PyTorch — NE PAS utiliser PyPI par défaut sur Windows)
-uv pip install --python scripts/upscale/venv/Scripts/python.exe torch torchvision --index-url https://download.pytorch.org/whl/cu124
+uv pip install --python scripts/images/upscale/venv/Scripts/python.exe torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
 # 3. realesrgan + opencv
-uv pip install --python scripts/upscale/venv/Scripts/python.exe -r scripts/upscale/requirements.txt
+uv pip install --python scripts/images/upscale/venv/Scripts/python.exe -r scripts/images/upscale/requirements.txt
 
 # 4. Patch basicsr (torchvision >= 0.17 a supprimé functional_tensor)
-scripts/upscale/venv/Scripts/python.exe scripts/upscale/patch_basicsr.py
+scripts/images/upscale/venv/Scripts/python.exe scripts/images/upscale/patch_basicsr.py
 ```
 
 Les poids `RealESRGAN_x4plus.pth` (~64 MB) sont téléchargés automatiquement
-au premier run dans `scripts/upscale/weights/`.
+au premier run dans `scripts/images/upscale/weights/`.
 
 ## Test manuel (CLI one-shot)
 
 ```powershell
-scripts/upscale/venv/Scripts/python.exe scripts/upscale/upscale.py input.webp output.png --scale 4
+scripts/images/upscale/venv/Scripts/python.exe scripts/images/upscale/upscale.py input.webp output.png --scale 4
 ```
 
 ## Workflows (migrate-upscale)
@@ -80,7 +80,7 @@ download primary.webp (Supabase Storage)
 ## Structure
 
 ```
-scripts/upscale/
+scripts/images/upscale/
 ├── upscale_worker.py   # worker persistant (migration)
 ├── upscale.py          # CLI one-shot (manuel)
 ├── patch_basicsr.py    # patch torchvision>=0.17 (idempotent)

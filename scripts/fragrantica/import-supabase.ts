@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as readline from 'readline';
 import pg from 'pg';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { readEnvVar } from '../lib/script-utils';
 
 const INPUT_FILE = path.resolve('data', 'migration', 'parfums.ndjson');
 const BATCH_SIZE = 1000;
@@ -114,18 +115,6 @@ function mapRowObject(obj: Record<string, unknown>): RowObject {
     created_at: toStr(obj.createdAt) ?? new Date().toISOString(),
     updated_at: toStr(obj.updatedAt) ?? new Date().toISOString(),
   };
-}
-
-// ─── .env minimal (évite une dépendance dotenv) ─────────────────────────────
-
-function readEnvVar(key: string): string | undefined {
-  try {
-    const content = fs.readFileSync(path.resolve('.env'), 'utf8');
-    const m = content.match(new RegExp(`^${key}\\s*=\\s*(.+?)\\s*$`, 'm'));
-    return m ? m[1] : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 // ─── Interface d'import (2 implémentations) ──────────────────────────────────

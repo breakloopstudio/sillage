@@ -129,6 +129,24 @@ export type Database = {
         }
         Relationships: []
       }
+      follows: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+        }
+        Relationships: []
+      }
       notification_runs: {
         Row: {
           created_at: string
@@ -150,6 +168,41 @@ export type Database = {
         }
         Relationships: []
       }
+      parfum_votes: {
+        Row: {
+          created_at: string
+          dimension: string
+          parfum_id: string
+          updated_at: string
+          user_id: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          dimension: string
+          parfum_id: string
+          updated_at?: string
+          user_id: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          dimension?: string
+          parfum_id?: string
+          updated_at?: string
+          user_id?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parfum_votes_parfum_id_fkey"
+            columns: ["parfum_id"]
+            isOneToOne: false
+            referencedRelation: "parfums"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       parfums: {
         Row: {
           annee: number | null
@@ -166,6 +219,7 @@ export type Database = {
           image_url_2x: string | null
           image_verified: boolean | null
           longevity: string | null
+          longevity_breakout: Json | null
           main_accords: string[]
           main_accords_percentage: Json | null
           marque: string
@@ -189,6 +243,7 @@ export type Database = {
           search_vector: unknown
           season_ranking: Json | null
           sillage: string | null
+          sillage_breakout: Json | null
           similar_ids: string[]
           similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
@@ -210,6 +265,7 @@ export type Database = {
           image_url_2x?: string | null
           image_verified?: boolean | null
           longevity?: string | null
+          longevity_breakout?: Json | null
           main_accords?: string[]
           main_accords_percentage?: Json | null
           marque: string
@@ -233,6 +289,7 @@ export type Database = {
           search_vector?: unknown
           season_ranking?: Json | null
           sillage?: string | null
+          sillage_breakout?: Json | null
           similar_ids?: string[]
           similar_ids_cached_at?: string | null
           source?: Database["public"]["Enums"]["parfum_source"] | null
@@ -254,6 +311,7 @@ export type Database = {
           image_url_2x?: string | null
           image_verified?: boolean | null
           longevity?: string | null
+          longevity_breakout?: Json | null
           main_accords?: string[]
           main_accords_percentage?: Json | null
           marque?: string
@@ -277,6 +335,7 @@ export type Database = {
           search_vector?: unknown
           season_ranking?: Json | null
           sillage?: string | null
+          sillage_breakout?: Json | null
           similar_ids?: string[]
           similar_ids_cached_at?: string | null
           source?: Database["public"]["Enums"]["parfum_source"] | null
@@ -295,6 +354,7 @@ export type Database = {
           quantity: number
           size_ml: number | null
           type: Database["public"]["Enums"]["possession_type"]
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -306,6 +366,7 @@ export type Database = {
           quantity?: number
           size_ml?: number | null
           type?: Database["public"]["Enums"]["possession_type"]
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -317,6 +378,7 @@ export type Database = {
           quantity?: number
           size_ml?: number | null
           type?: Database["public"]["Enums"]["possession_type"]
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -382,6 +444,8 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string
+          follower_count: number
+          following_count: number
           is_public: boolean
           pseudo: string
           updated_at: string
@@ -391,6 +455,8 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          follower_count?: number
+          following_count?: number
           is_public?: boolean
           pseudo: string
           updated_at?: string
@@ -400,6 +466,8 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          follower_count?: number
+          following_count?: number
           is_public?: boolean
           pseudo?: string
           updated_at?: string
@@ -449,6 +517,33 @@ export type Database = {
           scan_count?: number
           user_id?: string
           voice_count?: number
+        }
+        Relationships: []
+      }
+      runner_scores: {
+        Row: {
+          created_at: string
+          distance: number
+          max_combo: number
+          score: number
+          skin: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          distance?: number
+          max_combo?: number
+          score?: number
+          skin?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          distance?: number
+          max_combo?: number
+          score?: number
+          skin?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -569,6 +664,41 @@ export type Database = {
         }
         Relationships: []
       }
+      shelf_items: {
+        Row: {
+          added_at: string
+          parfum_id: string
+          pinned: boolean
+          position: number
+          shelf_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          parfum_id: string
+          pinned?: boolean
+          position: number
+          shelf_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          parfum_id?: string
+          pinned?: boolean
+          position?: number
+          shelf_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shelf_items_shelf_id_fkey"
+            columns: ["shelf_id"]
+            isOneToOne: false
+            referencedRelation: "shelves"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shelves: {
         Row: {
           color: string | null
@@ -601,33 +731,6 @@ export type Database = {
           is_public?: boolean
           name?: string
           order?: number
-          user_id?: string
-        }
-        Relationships: []
-      }
-      shelf_items: {
-        Row: {
-          added_at: string
-          parfum_id: string
-          pinned: boolean
-          position: number
-          shelf_id: string
-          user_id: string
-        }
-        Insert: {
-          added_at?: string
-          parfum_id: string
-          pinned?: boolean
-          position: number
-          shelf_id: string
-          user_id: string
-        }
-        Update: {
-          added_at?: string
-          parfum_id?: string
-          pinned?: boolean
-          position?: number
-          shelf_id?: string
           user_id?: string
         }
         Relationships: []
@@ -829,74 +932,60 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      mv_top_loved: {
+        Row: {
+          best_price: number | null
+          famille_olfactive: string | null
+          image_url: string | null
+          love_count: number | null
+          marque: string | null
+          nom: string | null
+          parfum_id: string | null
+        }
+        Relationships: []
+      }
+      mv_trending: {
+        Row: {
+          activity_count: number | null
+          best_price: number | null
+          famille_olfactive: string | null
+          image_url: string | null
+          marque: string | null
+          nom: string | null
+          parfum_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      _frag_value: { Args: { breakout: Json; lbl: string }; Returns: number }
+      _perf_cranks: {
+        Args: { breakout: Json; dimension: string }
+        Returns: number[]
+      }
+      _perf_label: { Args: { dimension: string; lvl: number }; Returns: string }
+      _perf_score: {
+        Args: { cap: number; cranks_frag: number[]; cranks_user: number[] }
+        Returns: number
+      }
+      _user_cranks: {
+        Args: { p_dimension: string; p_parfum_id: string }
+        Returns: number[]
+      }
+      add_to_shelf: {
+        Args: { p_parfum_id: string; p_shelf_id: string }
+        Returns: undefined
+      }
+      cast_vote: {
+        Args: { p_dimension: string; p_parfum_id: string; p_value: string }
+        Returns: undefined
+      }
       check_and_increment_quota: {
         Args: { p_kind: string; p_max: number }
         Returns: undefined
       }
       community_highlights: { Args: never; Returns: Json }
       delete_shelf: { Args: { p_shelf_id: string }; Returns: undefined }
-      reorder_shelves: { Args: { p_items: Json }; Returns: undefined }
-      add_to_shelf: { Args: { p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
-      remove_from_shelf: { Args: { p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
-      pin_shelf_item: { Args: { p_pinned: boolean; p_parfum_id: string; p_shelf_id: string }; Returns: undefined }
-      reorder_shelf_items: { Args: { p_items: Json; p_shelf_id: string }; Returns: undefined }
-      submit_runner_score: {
-        Args: { p_score: number; p_distance?: number; p_max_combo?: number; p_skin?: string }
-        Returns: number
-      }
-      runner_leaderboard: {
-        Args: { lim?: number }
-        Returns: {
-          rank: number
-          is_me: boolean
-          pseudo: string | null
-          avatar_url: string | null
-          score: number
-          distance: number
-          max_combo: number
-          skin: string
-          created_at: string
-        }[]
-      }
-      public_shelf: {
-        Args: { p_pseudo: string; p_shelf_id: string }
-        Returns: {
-          shelf_id: string
-          name: string
-          description: string | null
-          color: string | null
-          icon: string | null
-          item_count: number
-          pseudo: string
-          avatar_url: string | null
-          bio: string | null
-        }[]
-      }
-      public_shelf_items: {
-        Args: { p_pseudo: string; p_shelf_id: string }
-        Returns: {
-          parfum_id: string
-          nom: string | null
-          marque: string | null
-          image_url: string | null
-          famille_olfactive: string | null
-          status: Database["public"]["Enums"]["user_parfum_status"] | null
-          verdict: Database["public"]["Enums"]["scent_verdict"] | null
-          rating: number | null
-          best_price: number | null
-        }[]
-      }
-      parfum_verdicts: {
-        Args: { p_parfum_id: string }
-        Returns: {
-          pseudo: string
-          avatar_url: string
-          verdict: Database["public"]["Enums"]["scent_verdict"]
-        }[]
-      }
       export_user_data: { Args: never; Returns: Json }
       family_overviews: {
         Args: { p_buckets: Json; p_top?: number }
@@ -909,12 +998,27 @@ export type Database = {
           total: number
         }[]
       }
+      follow_by_pseudo: { Args: { p_pseudo: string }; Returns: undefined }
+      followed_highlights: { Args: never; Returns: Json }
       immutable_array_to_string: {
         Args: { arr: string[]; sep: string }
         Returns: string
       }
       immutable_unaccent: { Args: { t: string }; Returns: string }
+      is_following: { Args: { p_pseudo: string }; Returns: boolean }
       norm_txt: { Args: { t: string }; Returns: string }
+      parfum_perf: {
+        Args: { p_parfum_id: string; p_user_id?: string }
+        Returns: Json
+      }
+      parfum_verdicts: {
+        Args: { p_parfum_id: string }
+        Returns: {
+          avatar_url: string
+          pseudo: string
+          verdict: Database["public"]["Enums"]["scent_verdict"]
+        }[]
+      }
       personalized_suggestions: {
         Args: { lim?: number }
         Returns: {
@@ -932,6 +1036,7 @@ export type Database = {
           image_url_2x: string | null
           image_verified: boolean | null
           longevity: string | null
+          longevity_breakout: Json | null
           main_accords: string[]
           main_accords_percentage: Json | null
           marque: string
@@ -955,6 +1060,7 @@ export type Database = {
           search_vector: unknown
           season_ranking: Json | null
           sillage: string | null
+          sillage_breakout: Json | null
           similar_ids: string[]
           similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
@@ -968,8 +1074,12 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      pin_shelf_item: {
+        Args: { p_parfum_id: string; p_pinned: boolean; p_shelf_id: string }
+        Returns: undefined
+      }
       public_collection: {
-        Args: { p_pseudo: string }
+        Args: { p_limit?: number; p_pseudo: string }
         Returns: {
           added_at: string
           best_price: number
@@ -981,6 +1091,20 @@ export type Database = {
           rating: number
           status: Database["public"]["Enums"]["user_parfum_status"]
           verdict: Database["public"]["Enums"]["scent_verdict"]
+        }[]
+      }
+      public_followers: {
+        Args: { lim?: number; p_pseudo: string }
+        Returns: {
+          avatar_url: string
+          pseudo: string
+        }[]
+      }
+      public_following: {
+        Args: { lim?: number; p_pseudo: string }
+        Returns: {
+          avatar_url: string
+          pseudo: string
         }[]
       }
       public_profile: {
@@ -995,21 +1119,57 @@ export type Database = {
           pseudo: string
         }[]
       }
-      follow_by_pseudo: { Args: { p_pseudo: string }; Returns: undefined }
-      followed_highlights: { Args: never; Returns: Json }
-      unfollow_by_pseudo: { Args: { p_pseudo: string }; Returns: undefined }
-      is_following: { Args: { p_pseudo: string }; Returns: boolean }
-      public_followers: {
-        Args: { p_pseudo: string; lim?: number }
-        Returns: { pseudo: string; avatar_url: string }[]
+      public_shelf: {
+        Args: { p_pseudo: string; p_shelf_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          color: string
+          description: string
+          icon: string
+          item_count: number
+          name: string
+          pseudo: string
+          shelf_id: string
+        }[]
       }
-      public_following: {
-        Args: { p_pseudo: string; lim?: number }
-        Returns: { pseudo: string; avatar_url: string }[]
+      public_shelf_items: {
+        Args: { p_pseudo: string; p_shelf_id: string }
+        Returns: {
+          best_price: number
+          famille_olfactive: string
+          image_url: string
+          marque: string
+          nom: string
+          parfum_id: string
+          rating: number
+          status: Database["public"]["Enums"]["user_parfum_status"]
+          verdict: Database["public"]["Enums"]["scent_verdict"]
+        }[]
       }
-      search_profiles: {
-        Args: { p_prefix: string; lim?: number }
-        Returns: { pseudo: string; avatar_url: string; collection_count: number }[]
+      recompute_perf_strings: { Args: never; Returns: number }
+      remove_from_shelf: {
+        Args: { p_parfum_id: string; p_shelf_id: string }
+        Returns: undefined
+      }
+      reorder_shelf_items: {
+        Args: { p_items: Json; p_shelf_id: string }
+        Returns: undefined
+      }
+      reorder_shelves: { Args: { p_items: Json }; Returns: undefined }
+      runner_leaderboard: {
+        Args: { lim?: number }
+        Returns: {
+          avatar_url: string
+          created_at: string
+          distance: number
+          max_combo: number
+          pseudo: string
+          rank: number
+          score: number
+          skin: string
+          user_id: string
+        }[]
       }
       search_parfums: {
         Args: { max_results?: number; q: string }
@@ -1028,6 +1188,7 @@ export type Database = {
           image_url_2x: string | null
           image_verified: boolean | null
           longevity: string | null
+          longevity_breakout: Json | null
           main_accords: string[]
           main_accords_percentage: Json | null
           marque: string
@@ -1051,6 +1212,7 @@ export type Database = {
           search_vector: unknown
           season_ranking: Json | null
           sillage: string | null
+          sillage_breakout: Json | null
           similar_ids: string[]
           similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
@@ -1063,6 +1225,14 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      search_profiles: {
+        Args: { lim?: number; p_prefix: string }
+        Returns: {
+          avatar_url: string
+          collection_count: number
+          pseudo: string
+        }[]
       }
       seasonal_parfums: {
         Args: { lim?: number; season: string }
@@ -1081,6 +1251,7 @@ export type Database = {
           image_url_2x: string | null
           image_verified: boolean | null
           longevity: string | null
+          longevity_breakout: Json | null
           main_accords: string[]
           main_accords_percentage: Json | null
           marque: string
@@ -1104,6 +1275,7 @@ export type Database = {
           search_vector: unknown
           season_ranking: Json | null
           sillage: string | null
+          sillage_breakout: Json | null
           similar_ids: string[]
           similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
@@ -1143,6 +1315,7 @@ export type Database = {
           image_url_2x: string | null
           image_verified: boolean | null
           longevity: string | null
+          longevity_breakout: Json | null
           main_accords: string[]
           main_accords_percentage: Json | null
           marque: string
@@ -1166,6 +1339,7 @@ export type Database = {
           search_vector: unknown
           season_ranking: Json | null
           sillage: string | null
+          sillage_breakout: Json | null
           similar_ids: string[]
           similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
@@ -1179,6 +1353,16 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      submit_runner_score: {
+        Args: {
+          p_distance?: number
+          p_max_combo?: number
+          p_score: number
+          p_skin?: string
+        }
+        Returns: number
+      }
+      unfollow_by_pseudo: { Args: { p_pseudo: string }; Returns: undefined }
     }
     Enums: {
       ownership_type: "have" | "want" | "had" | "sample" | "decant"

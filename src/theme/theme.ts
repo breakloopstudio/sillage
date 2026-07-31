@@ -70,6 +70,9 @@ const lightColors = {
   accord5: '#3F8A52',
   accord6: '#C0512B',
   accord7: '#2B7E8F',
+  perf: '#3D5A6C',
+  perfSoft: '#E9EFF2',
+  perfInk: '#2C4654',
   scanBeam: 'rgba(108, 62, 217, 0.85)',
   glow: 'rgba(108, 62, 217, 0.35)',
 } as const;
@@ -141,6 +144,9 @@ const darkColors = {
   accord5: '#67B27C',
   accord6: '#E07A52',
   accord7: '#4FA6B8',
+  perf: '#7FA0B3',
+  perfSoft: '#15222B',
+  perfInk: '#A6C1D1',
   scanBeam: 'rgba(139, 108, 246, 0.90)',
   glow: 'rgba(139, 108, 246, 0.40)',
 } as const;

@@ -26,6 +26,9 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import { readEnvVar } from '../lib/script-utils';
+import { parseTitle } from '../lib/title';
+import { longevityString, sillageString, priceValueString } from '../lib/perf-strings';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,8 +38,8 @@ const execFileAsync = promisify(execFile);
 
 const CLEAN_DIR = path.resolve('data', 'clean');
 const BUCKET = 'parfum-images';
-const BG_REMOVAL_SCRIPT = path.resolve('scripts/bgremoval/remove-bg.cjs');
-const BG_REMOVAL_CWD = path.resolve('scripts/bgremoval');
+const BG_REMOVAL_SCRIPT = path.resolve('scripts/images/bgremoval/remove-bg.cjs');
+const BG_REMOVAL_CWD = path.resolve('scripts/images/bgremoval');
 const PROGRESS_FILE = path.resolve('data/migration/import-fresh-progress.json');
 const LOCAL_URL = 'http://127.0.0.1:54321';
 const WEBP_QUALITY = 82;
@@ -62,6 +65,8 @@ interface CleanEntry {
   };
   longevityAverage?: number;
   sillageAverage?: number;
+  longevityBreakout?: Record<string, number>[];
+  sillageBreakout?: Record<string, number>[];
   priceValueAverage?: number;
   perfumeRating?: number;
   ratingCount?: number;
@@ -73,12 +78,6 @@ interface CleanEntry {
   [key: string]: unknown;
 }
 
-interface ParsedTitle {
-  nom: string;
-  annee: number | undefined;
-  typeParfum: string | undefined;
-  genderLabel: string | undefined;
-}
 
 interface Progress {
   done: string[];
@@ -86,21 +85,7 @@ interface Progress {
 }
 
 // ---------------------------------------------------------------------------
-// .env minimal
-// ---------------------------------------------------------------------------
-
-function readEnvVar(key: string): string | undefined {
-  try {
-    const content = fs.readFileSync(path.resolve('.env'), 'utf8');
-    const m = content.match(new RegExp(`^${key}\\s*=\\s*(.+?)\\s*$`, 'm'));
-    return m ? m[1] : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers: parsing titre + normalisation
+// Helpers: normalisation (parseTitle partagé dans ../lib/title.ts)
 // ---------------------------------------------------------------------------
 
 function normaliseTexte(s: string): string {
@@ -111,86 +96,10 @@ function normaliseId(s: string): string {
   return normaliseTexte(s).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
-function parseTitle(title: string, brandName: string): ParsedTitle {
-  const parts = title.split(' - ');
-  const left = (parts[0] ?? '').trim();
-  const right = (parts[1] ?? '').trim();
-
-  let nom = left;
-  let typeParfum: string | undefined;
-
-  const brandLower = brandName.toLowerCase();
-  const leftLower = left.toLowerCase();
-  const lastBrandIdx = leftLower.lastIndexOf(brandLower);
-
-  if (lastBrandIdx !== -1) {
-    nom = left.slice(0, lastBrandIdx).trim();
-    const remainder = left.slice(lastBrandIdx + brandName.length).trim();
-    const typeWords = [
-      'eau de parfum', 'eau de toilette', 'eau de cologne', 'extrait de parfum',
-      'parfum', 'perfume', 'cologne', 'edp', 'edt', 'edc',
-    ];
-    const remainderLower = remainder.toLowerCase();
-    for (const tw of typeWords) {
-      if (remainderLower.startsWith(tw)) {
-        typeParfum = remainder.slice(0, tw.length).trim();
-        break;
-      }
-    }
-  }
-
-  if (!nom) nom = left;
-
-  let annee: number | undefined;
-  if (right) {
-    const yearMatch = right.match(/\b(\d{4})\b/);
-    if (yearMatch) {
-      annee = parseInt(yearMatch[1], 10);
-      if (annee < 1900 || annee > 2030) annee = undefined;
-    }
-  }
-
-  let genderLabel: string | undefined;
-  if (right) {
-    const rl = right.toLowerCase();
-    if (rl.includes('women and men') || rl.includes('men and women') || rl.includes('women & men') || rl.includes('unisex')) {
-      genderLabel = 'unisex';
-    } else if (rl.includes('women') || rl.includes('female')) {
-      genderLabel = 'female';
-    } else if (rl.includes('men') || rl.includes('male')) {
-      genderLabel = 'male';
-    }
-  }
-
-  return { nom, annee, typeParfum, genderLabel };
-}
 
 // ---------------------------------------------------------------------------
 // Helpers: conversion labels
 // ---------------------------------------------------------------------------
-
-function longevityString(avg: number | undefined): string | null {
-  if (avg == null) return null;
-  if (avg < 2.0) return 'weak';
-  if (avg < 3.0) return 'moderate';
-  if (avg < 4.0) return 'long lasting';
-  return 'eternal';
-}
-
-function sillageString(avg: number | undefined): string | null {
-  if (avg == null) return null;
-  if (avg < 1.5) return 'intimate';
-  if (avg < 2.5) return 'moderate';
-  if (avg < 3.5) return 'strong';
-  return 'enormous';
-}
-
-function priceValueString(avg: number | undefined): string | null {
-  if (avg == null) return null;
-  if (avg < 2.5) return 'overpriced';
-  if (avg < 3.5) return 'fair';
-  return 'deal';
-}
 
 function genderNormalise(g: string | undefined): string | null {
   if (!g) return null;
@@ -266,7 +175,7 @@ function transformEntry(entry: CleanEntry, parfumId: string, imageUrl: string | 
   const mainAccords = entry.mainAccords?.map((a) => a.accord) ?? [];
   const mainAccordsPercentage: Record<string, string> = {};
   if (entry.mainAccords && entry.mainAccords.length > 0) {
-    const maxVal = entry.mainAccords[0]?.value || 100;
+    const maxVal = Math.max(...entry.mainAccords.map((a) => a.value), 1);
     for (const a of entry.mainAccords) {
       mainAccordsPercentage[a.accord] = `${Math.round((a.value / maxVal) * 100)}%`;
     }
@@ -310,6 +219,8 @@ function transformEntry(entry: CleanEntry, parfumId: string, imageUrl: string | 
     main_accords: mainAccords,
     longevity: longevityString(entry.longevityAverage),
     sillage: sillageString(entry.sillageAverage),
+    longevity_breakout: entry.longevityBreakout ?? null,
+    sillage_breakout: entry.sillageBreakout ?? null,
     gender: gender ?? null,
     rating: entry.perfumeRating != null ? String(entry.perfumeRating) : null,
     popularity: null,

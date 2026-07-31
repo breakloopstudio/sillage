@@ -4,8 +4,9 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
-import { pickInitialLayer, layerAphorism, type LayerKey } from './pyramid/geometry';
+import { pickInitialLayer, type LayerKey } from './pyramid/geometry';
 import PyramidStage from './pyramid/PyramidStage';
+import NoteCloud from './pyramid/NoteCloud';
 
 interface LayerDef {
   key: LayerKey;
@@ -20,10 +21,11 @@ interface Props {
   topNotes: string[];
   heartNotes: string[];
   baseNotes: string[];
+  generalNotes?: string[];
   onNotePress?: (note: string, layer?: LayerKey) => void;
 }
 
-export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, onNotePress }: Props) {
+export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, generalNotes, onNotePress }: Props) {
   const { theme, resolvedMode } = useTheme();
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -40,9 +42,6 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, onNo
     [topNotes, heartNotes, baseNotes, c],
   );
 
-  const activeLayer = useMemo(() => active ? (layers.find(l => l.key === active) ?? null) : null, [active, layers]);
-  const activeInk = activeLayer?.ink ?? c.textMuted;
-
   const handleSelect = useCallback((key: LayerKey) => {
     hapticsLight();
     setActive(prev => prev === key ? null : key);
@@ -53,8 +52,42 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, onNo
     [onNotePress],
   );
 
+  const handleGeneralNotePress = useCallback(
+    (note: string) => onNotePress?.(note),
+    [onNotePress],
+  );
+
   const hasAnyNotes = layers.some(l => l.notes.length > 0);
-  if (!hasAnyNotes) return null;
+
+  if (!hasAnyNotes) {
+    const general = (generalNotes ?? [])
+      .map(n => (typeof n === 'string' ? n.trim() : ''))
+      .filter(n => n.length > 0);
+    if (general.length === 0) return null;
+
+    const generalLayer: LayerDef = {
+      key: 'base',
+      label: 'Notes',
+      notes: general,
+      color: c.primary,
+      soft: c.primarySoft,
+      ink: c.primaryInk,
+    };
+
+    return (
+      <Animated.View style={s.root} entering={FadeIn.duration(400)}>
+        <View style={s.header}>
+          <View style={s.headerRow}>
+            <View style={s.headerBadge}>
+              <Ionicons name="layers-outline" size={14} color={c.primary} />
+            </View>
+            <Text style={s.title}>Notes</Text>
+          </View>
+        </View>
+        <NoteCloud layer={generalLayer} onNotePress={handleGeneralNotePress} />
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View style={s.root} entering={FadeIn.duration(400)}>
@@ -64,16 +97,6 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, onNo
             <Ionicons name="layers-outline" size={14} color={c.primary} />
           </View>
           <Text style={s.title}>Pyramide olfactive</Text>
-        </View>
-        <View style={s.aphorismSlot}>
-          <Animated.Text
-            key={active ?? 'none'}
-            entering={FadeIn.duration(180)}
-            exiting={FadeOut.duration(180)}
-            style={[s.aphorism, active ? { color: activeInk } : {}]}
-          >
-            {layerAphorism(active)}
-          </Animated.Text>
         </View>
       </View>
 
@@ -106,7 +129,5 @@ function getStyles(t: Theme) {
       justifyContent: 'center' as const,
     },
     title: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: c.text },
-    aphorismSlot: { height: 22, marginTop: 6, marginLeft: 36, justifyContent: 'center' as const },
-    aphorism: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15, color: c.textMuted },
   } as const;
 }

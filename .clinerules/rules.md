@@ -40,14 +40,14 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (17)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner)
+├── services/     (18)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner), perf-votes (votes performance : RPC parfum_perf/cast_vote)
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (21)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference (vue Favoris/Alertes persistée), useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── hooks/        (22)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference (vue Favoris/Alertes persistée), useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance : fetch + vote optimiste + auto-réparation au focus)
 ├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
-├── components/   (23)        # ParfumCard (badges statut/rating/🔔 optionnels, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie : statut + étagères + pin), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in, mode embedded), AddToShelfSheet (ajout direct à une étagère), PublishShelfGateSheet (gate profil public inline), InspireShelfSheet (copie en lot « M'inspirer »), InfoPopup (popup centrée d'information)
+├── components/   (24)        # ParfumCard (badges statut/rating/🔔 optionnels, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie : statut + étagères + pin), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in, mode embedded), AddToShelfSheet (ajout direct à une étagère), PublishShelfGateSheet (gate profil public inline), InspireShelfSheet (copie en lot « M'inspirer »), InfoPopup (popup centrée d'information), VotePickerSheet (sélecteur de vote : options + vote courant + retirer)
 ├── features/
 │   ├── auth/                 # Helpers écrans auth
-│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards, AccordProfile (profil d'accords : barres animées + aphorisme)
+│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards, AccordProfile (profil d'accords : barres animées + aphorisme), PerformanceProfile (Tenue & sillage : crans animés + bouton vote 👍), SeasonProfile (Quand le porter : colonnes saisons + moment Jour/Soir + bouton vote 👍)
 │   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 4 onglets + FAB Scan central) + NavigationChromeContext
 │   ├── runner/               # Flacon Runner v2 (pouvoirs/vies/missions/classement, cf. §17) : RunnerGame, useRunnerLoop, RunnerBottle, RunnerBackground, RunnerGround, RunnerObstacles, RunnerPickups, RunnerSpeedLines, RunnerHud, RunnerParticles, runner-sounds, runner-missions, runner-types, runner-storage
 │   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
@@ -57,11 +57,11 @@ src/
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (3)         # env, index, legal (firebase.config supprimé — migration Supabase)
 ├── models/       (8)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
-├── utils/        (21)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords, accordAphorism)
+├── utils/        (24)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-4 + ticks), season-profile (profil saisons + occasions + moment)
 └── types/        (1)         # database.types.ts — types Database générés (`supabase gen types typescript --linked`) ; type le client Supabase + payloads d'écriture (M4)
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0040) # extensions, types, tables (dont shelf_items position+pin), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040)…), cron pg_cron, stats, image_url_2x
+├── migrations/   (0001→0044) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044)…), cron pg_cron, stats, image_url_2x
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
@@ -208,7 +208,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §12 — Catalogue de données
 
 - Catalogue 100% autonome : ~25 100 parfums dans la table Postgres `parfums` (migrés depuis Firestore via `scripts/export-firestore.ts` + `scripts/import-supabase.ts`)
-- **Import de nouveaux scrapes** : `scripts/import-fresh.ts` (`npm run import-fresh`) — depuis `data/clean/`, transforme + télécharge l'image + WebP + upload Storage + upsert Postgres en une passe (idempotent, resumable, bg removal optionnel `--bg`). Laisse `image_url_2x` NULL → `migrate-upscale` prend le relais
+- **Import de nouveaux scrapes** : `scripts/fragrantica/import-fresh.ts` (`npm run import-fresh`) — depuis `data/clean/`, transforme + télécharge l'image + WebP + upload Storage + upsert Postgres en une passe (idempotent, resumable, bg removal optionnel `--bg`). Laisse `image_url_2x` NULL → `migrate-upscale` prend le relais
 - Recherche plein texte : colonnes générées `search_text` (index GIN `pg_trgm`) + `search_vector` (tsvector, config `french_unaccent`)
 - `src/utils/normalize.ts` — `normalize()`, `normalizeId()` (utilisés par le dédoublonnage et le rescoring scan)
 - RLS : `parfums` en lecture publique, écriture réservée aux admins (table `admins`)
@@ -221,7 +221,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 312 tests, 33 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 340 tests, 36 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
@@ -261,9 +261,9 @@ supabase/                     # Backend Supabase (versionné)
 ## §16 — Pipeline d'images (WebP + background removal)
 
 - **WebP migration** : `scripts/migrate-webp.ts` — batch conversion JPEG/PNG → WebP (`sharp` quality 82), upload Storage, 8 parallèles, resumable
-- **Background removal** : `scripts/migrate-bgremoval.ts` — `@imgly/background-removal-node` (MODNet), sous-processus Node.js isolé dans `scripts/bgremoval/`
+- **Background removal** : `scripts/migrate-bgremoval.ts` — `@imgly/background-removal-node` (MODNet), sous-processus Node.js isolé dans `scripts/images/bgremoval/`
 - **Migration storage Supabase** : `scripts/migrate-storage.ts` — Firebase Storage → bucket `parfum-images`, 8 parallèles, resumable, réécriture `image_url`
-- **Upscale ×4 (HD)** : `scripts/migrate-upscale.ts` — workers Python persistants (Real-ESRGAN + CUDA, venv `scripts/upscale/`), génère `primary_2x.webp` + colonne `image_url_2x`. ~0,5 img/s, resumable. La fiche détail/lightbox fondent de la 1x vers la 2x ; les listes restent en 1x
+- **Upscale ×4 (HD)** : `scripts/images/migrate-upscale.ts` — workers Python persistants (Real-ESRGAN + CUDA, venv `scripts/images/upscale/`), génère `primary_2x.webp` + colonne `image_url_2x`. ~0,5 img/s, resumable. La fiche détail/lightbox fondent de la 1x vers la 2x ; les listes restent en 1x
 - **Commandes** : `npm run migrate-webp`, `npm run migrate-bg`, `npm run migrate-storage`, `npm run migrate-upscale`
 - **Dépendances dev** : `sharp`, `tsx`
 
@@ -344,3 +344,13 @@ src/features/runner/
 - SafeAreaView de `react-native-safe-area-context` (pas celui de React Native)
 - `expo-camera` pour la caméra (pas `react-native-camera`)
 - `expo-image` pour les images (pas `react-native-fast-image`)
+
+---
+
+## §21 — Votes utilisateurs & fusion performance (v8.10)
+
+- **Table `parfum_votes`** : PK `(parfum_id, user_id, dimension)`, RLS owner, votes individuels **privés** — l'agrégat public passe exclusivement par la RPC `parfum_perf` (SECURITY DEFINER). Dimensions : `longevity`/`sillage` (`'1'..'4'`), `season` (spring/summer/fall/winter), `moment` (day/night). **Jamais saison+moment sous la même dimension** (conflit PK — fix 0044).
+- **Fusion Fragrantica bornée** : `_perf_cranks` normalise le breakout en 4 crans UI (longévité : very weak+weak→1, moderate→2, long lasting→3, eternal→4 ; sillage : intimate→1, moderate→2, strong→3, enormous→4) ; `_perf_score` plafonne Fragrantica à `PERF_CAP = 100` équivalents en conservant sa forme (`poids = min(CAP,total)/total`) et ajoute les votes users à plein poids → moyenne pondérée 1..4. À 0 vote user, résultat strictement Fragrantica. Saisons/moment : fusion de comptes (`score_frag × poids + nb_votes_user`), barres relatives.
+- **Cron `recompute_perf_strings`** (3h15 UTC) : réécrit `parfums.longevity`/`sillage` des parfums ≥ 1 vote user → propagation aux favoris/filtres/recherche.
+- **Client** : `getParfumPerf`/`castVote` (`services/perf-votes.ts`), hook `usePerfVotes` (optimiste + refetch + auto-réparation au focus), affordances 👍 (`VotePickerSheet`), auth requise (`cast_vote` exige `auth.uid()`).
+- **Piège `this`** : ne jamais détacher `supabase.rpc` du client — `supabase.rpc.bind(supabase)` obligatoire (sinon « Cannot read property 'rest' of undefined »).

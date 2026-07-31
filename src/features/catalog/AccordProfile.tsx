@@ -17,7 +17,7 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 import { alpha } from '../../utils/alpha';
 import { getNoteDescription, getNoteEmoji } from '../../utils/note-descriptions';
-import { buildAccords, accordAphorism, type AccordRow } from '../../utils/accord-profile';
+import { buildAccords, type AccordRow } from '../../utils/accord-profile';
 
 interface Props {
   accords: string[] | undefined;
@@ -41,12 +41,6 @@ export default function AccordProfile({ accords, percentages }: Props) {
 
   if (rows.length === 0) return null;
 
-  const character = rows[0];
-  const focusRow = active ? rows.find(r => r.raw === active) ?? null : null;
-  const headRow = focusRow ?? character;
-  const headColor = colorOf(headRow.colorIndex);
-  const aphorism = accordAphorism(headRow.colorIndex);
-
   const handleSelect = useCallback((raw: string) => {
     hapticsLight();
     setActive(prev => (prev === raw ? null : raw));
@@ -60,11 +54,6 @@ export default function AccordProfile({ accords, percentages }: Props) {
             <Ionicons name="color-filter-outline" size={14} color={c.primary} />
           </View>
           <Text style={s.title}>Accords principaux</Text>
-        </View>
-        <View style={s.aphorismSlot}>
-          <Text numberOfLines={1} style={[s.aphorism, { color: headColor }]}>
-            {aphorism}
-          </Text>
         </View>
       </View>
 
@@ -204,8 +193,6 @@ function getStyles(t: Theme) {
       justifyContent: 'center' as const,
     },
     title: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: c.text },
-    aphorismSlot: { height: 22, marginTop: 6, marginLeft: 36, justifyContent: 'center' as const },
-    aphorism: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15 },
     list: {},
   } as const;
 }

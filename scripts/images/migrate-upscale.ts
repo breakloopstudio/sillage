@@ -2,7 +2,7 @@
  * Migration upscale ×4 — Real-ESRGAN (Python + CUDA, workers persistants)
  *
  * Télécharge chaque image WebP depuis Supabase Storage, upscale ×4 via un pool
- * de workers Python persistants (scripts/upscale/upscale_worker.py) : le modèle
+ * de workers Python persistants (scripts/images/upscale/upscale_worker.py) : le modèle
  * est chargé UNE fois par worker, les images défilent en JSON-lines stdin/stdout.
  * Reconvertit en WebP, upload primary_2x.webp, met à jour Postgres (image_url_2x).
  *
@@ -18,8 +18,8 @@
  * Les nouveaux parfums (image_url_2x IS NULL) sont pris automatiquement au run suivant.
  * Remplacer l'image 1x d'un parfum (updateParfum) remet image_url_2x à null → régénéré au prochain run.
  *
- * Prérequis : venv scripts/upscale/venv (Python 3.10 + torch CUDA + realesrgan)
- * Voir scripts/upscale/README.md
+ * Prérequis : venv scripts/images/upscale/venv (Python 3.10 + torch CUDA + realesrgan)
+ * Voir scripts/images/upscale/README.md
  */
 
 import * as fs from 'fs';
@@ -29,14 +29,15 @@ import * as readline from 'readline';
 import { spawn, type ChildProcess } from 'child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import { readEnvVar } from '../lib/script-utils';
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 const BUCKET = 'parfum-images';
-const PYTHON_BIN = path.resolve('scripts/upscale/venv/Scripts/python.exe');
-const UPSCALE_WORKER = path.resolve('scripts/upscale/upscale_worker.py');
+const PYTHON_BIN = path.resolve('scripts/images/upscale/venv/Scripts/python.exe');
+const UPSCALE_WORKER = path.resolve('scripts/images/upscale/upscale_worker.py');
 const PROGRESS_FILE = path.resolve('data/migration/upscale-progress.json');
 const FAILED_FILE = path.resolve('data/migration/upscale-failed.json');
 
@@ -163,24 +164,6 @@ class PythonWorker {
     t.unref?.();
   }
 }
-
-// ---------------------------------------------------------------------------
-// .env minimal
-// ---------------------------------------------------------------------------
-
-function readEnvVar(key: string): string | undefined {
-  try {
-    const content = fs.readFileSync(path.resolve('.env'), 'utf8');
-    const m = content.match(new RegExp(`^${key}\\s*=\\s*(.+?)\\s*$`, 'm'));
-    return m ? m[1] : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Progression
-// ---------------------------------------------------------------------------
 
 function loadProgress(fresh: boolean): Progress {
   if (!fresh && fs.existsSync(PROGRESS_FILE)) {
@@ -332,7 +315,7 @@ async function main(): Promise<void> {
 
   if (!fs.existsSync(PYTHON_BIN) || !fs.existsSync(UPSCALE_WORKER)) {
     console.error(`Worker Python introuvable : ${UPSCALE_WORKER}`);
-    console.error('Voir scripts/upscale/README.md pour l\'installation du venv.');
+    console.error('Voir scripts/images/upscale/README.md pour l\'installation du venv.');
     process.exit(1);
   }
 

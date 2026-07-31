@@ -213,6 +213,19 @@ export function setPendingCatalogQuery(q: string): void;
 export function consumePendingCatalogQuery(): string | null;
 ```
 
+### `src/services/perf-votes.ts`
+```ts
+// Votes utilisateurs sur la performance olfactive (RPC parfum_perf : fusion Fragrantica bornée + votes users)
+export type PerfVoteDimension = 'longevity' | 'sillage' | 'season' | 'moment';
+export interface ParfumPerf { /* longevity/sillage (level, valueLabel, score, fragEquiv, userVotes, myVote), season, dayNight, seasonUserVotes, mySeason, myMoment */ }
+export function getParfumPerf(parfumId: string, userId: string | null): Promise<ParfumPerf | null>;
+// null si RPC indisponible / parfum inconnu → fallback strings legacy (available=false côté hook)
+export function castVote(parfumId: string, dimension: PerfVoteDimension, value: string | null): Promise<boolean>;
+// value null = retirer le vote. Auth requise (auth.uid()).
+// ⚠️ PIÈGE `this` : supabase.rpc doit être appelé en forme méthode ou `.bind(supabase)` —
+//    une référence détachée plante (« Cannot read property 'rest' of undefined »).
+```
+
 ---
 
 ## §2 — Hooks
@@ -405,6 +418,21 @@ export function useWeather(enabled?: boolean): {
 };
 ```
 
+### `usePerfVotes(parfumId)` — `src/hooks/usePerfVotes.ts`
+```ts
+// Votes utilisateurs d'un parfum : fetch parfum_perf + vote optimiste + refetch.
+// Auto-réparation : useFocusEffect (expo-router) retente au focus si la RPC était
+// indisponible au mount (garde anti double-fetch via initialDoneRef/availableRef).
+export function usePerfVotes(parfumId: string | null): {
+  perf: ParfumPerf | null;      // profil fusionné (RPC)
+  available: boolean;           // true si la RPC répond → affordances de vote visibles
+  loading: boolean;
+  vote: (dimension: PerfVoteDimension, value: string | null) => Promise<boolean>;  // value null = retirer
+  removeVote: (dimension: PerfVoteDimension) => Promise<boolean>;
+  refresh: () => Promise<void>;
+};
+```
+
 ---
 
 ## §3 — Theme Reference
@@ -551,8 +579,6 @@ export interface AccordRow { raw: string; display: string; pct: number; label: s
 export const ACCORD_GROUPS: { name: string; words: string[] }[];   // 8 familles sémantiques
 export function accordColorIndex(raw: string): number;
 export function buildAccords(accords: string[] | undefined, percentages: Record<string, string> | undefined): AccordRow[];
-export const ACCORD_APHORISMS: string[];   // 8 aphorismes sensoriels
-export function accordAphorism(colorIndex: number): string;
 ```
 
 > `src/utils/ownership.ts` a été supprimé (v8.0 — modèle unifié `user_parfum`).
@@ -659,6 +685,34 @@ export function parfumDeepLink(parfumId: string): string;     // parfumscan://ca
 export function profileDeepLink(pseudo: string): string;      // parfumscan://u/<pseudo>
 export function isValidPseudo(pseudo: string): boolean;       // ^[a-z0-9][a-z0-9_-]{1,18}[a-z0-9]$
 export function normalizePseudo(input: string): string;       // trim + lowercase + espaces → _
+```
+
+### `src/utils/perf-fusion.ts`
+```ts
+// Fusion Fragrantica bornée + votes utilisateurs (miroir client des helpers SQL _perf_cranks/_perf_score)
+export function perfCranks(breakout: { name: string; score: number }[] | null | undefined, dimension: 'longevity' | 'sillage'): number[];
+// Normalise le breakout Fragrantica en 4 crans UI (very weak+weak→1, moderate→2, long lasting→3, eternal→4 ; intimate→1, moderate→2, strong→3, enormous→4)
+export function perfScore(fragCranks: number[], userCranks: number[], cap?: number): number | null;
+// Moyenne pondérée 1..4 ; Fragrantica plafonné à cap (PERF_CAP = 100) en conservant sa forme ; null si 0 vote des deux côtés
+```
+
+### `src/utils/performance-profile.ts`
+```ts
+// Crans UI 1-4 de longévité/sillage : mapping des strings legacy → niveau, ticks (Matin/Midi/Soir/Nuit, Peau/Proche/Bras/Pièce), libellés FR, émanations
+export type PerfDimensionKey = 'longevity' | 'sillage';
+export function longevityLevel(v: string | null | undefined): number;
+export function sillageLevel(v: string | null | undefined): number;
+export function buildPerformance(longevity?: string | null, sillage?: string | null): PerformanceProfile;
+export function perfDimensionAt(key: PerfDimensionKey, level: number | null): PerfDimension | null;
+```
+
+### `src/utils/season-profile.ts`
+```ts
+// Profil « Quand le porter » : colonnes saisons (ratio), occasions (rankAndDedupe), moment jour/nuit (seuil 25 %)
+export function buildSeasonProfile(parfum): SeasonProfileData | null;
+export function rankAndDedupe(ranking): RankedItem[];
+export function dayNightLabel(day: number, night: number): 'day' | 'night' | null;
+export const SEASON_PHRASES / DAY_NIGHT_TEXT;
 ```
 
 ---
@@ -966,6 +1020,24 @@ Barre flottante 4 onglets + FAB Scan central, verre dépoli (BlurView). Fonction
 ### `SearchChrome` — `src/features/search/SearchChrome.tsx`
 
 Chrome partagé rendu dans le layout des tabs (`(tabs)/_layout.tsx`). Contient la barre de recherche persistante (BlurView), l'**avatar profil rond** à droite de la barre (photo Google ou icône `person-outline` → route racine `/profile`), le FAB micro, le `VoiceOverlay`, et toute la logique de recherche vocale (STT on-device + fallback Whisper). Le profil est une route racine hors tabs, donc SearchChrome n'y apparaît jamais.
+
+### `VotePickerSheet` — `src/components/VotePickerSheet.tsx`
+
+Sheet sélecteur de vote (§4.16 content sheet) : liste d'options avec vote courant marqué + « Retirer mon vote ». Même langage qu'ActionSheet (backdrop scrim, radius top 24, handle, BackHandler, Reduced Motion). Utilisé par `PerformanceProfile` (crans Longévité/Sillage) et `SeasonProfile` (saisons).
+
+```ts
+interface VoteOption { key: string; label: string; icon?: string; color?: string }
+interface Props {
+  visible: boolean;
+  title: string;
+  options: VoteOption[];
+  currentKey: string | null;            // option votée (marquée ✓, label accentué)
+  accent: string;                       // couleur d'accent (perf / primary)
+  onPick: (key: string) => void;        // vote (puis fermeture)
+  onRemove?: (() => void) | null;       // « Retirer mon vote » — affiché seulement si currentKey
+  onClose: () => void;
+}
+```
 
 ---
 

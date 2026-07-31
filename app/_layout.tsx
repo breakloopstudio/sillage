@@ -12,7 +12,8 @@ import { PriceAlertsProvider } from '../src/contexts/PriceAlertsContext';
 import { ShelvesProvider } from '../src/contexts/ShelvesContext';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
-import OfflineBanner from '../src/components/OfflineBanner';
+import OfflineBanner, { OFFLINE_BANNER_BAND } from '../src/components/OfflineBanner';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useNetwork } from '../src/hooks/useNetwork';
 import { createNotificationChannels, startFcmRegistration } from '../src/services/push';
 import { useFonts } from 'expo-font';
@@ -79,8 +80,16 @@ function RootLayoutInner() {
     prevOnlineRef.current = isOnline;
   }, [isOnline]);
 
+  const bannerVisible = !isOnline || reconnected;
+  const pad = useSharedValue(0);
+  useEffect(() => {
+    pad.value = withTiming(bannerVisible ? OFFLINE_BANNER_BAND : 0, { duration: 300 });
+  }, [bannerVisible]);
+  const wrapStyle = useAnimatedStyle(() => ({ paddingTop: pad.value }));
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <Animated.View style={[{ flex: 1, backgroundColor: theme.colors.background }, wrapStyle]}>
       <AuthProvider>
         <FavorisProvider>
         <UserParfumProvider>
@@ -118,7 +127,8 @@ function RootLayoutInner() {
         </UserParfumProvider>
         </FavorisProvider>
       </AuthProvider>
-      <OfflineBanner visible={!isOnline || reconnected} variant={reconnected ? 'reconnected' : 'offline'} />
+      </Animated.View>
+      <OfflineBanner visible={bannerVisible} variant={reconnected ? 'reconnected' : 'offline'} />
     </GestureHandlerRootView>
   );
 }

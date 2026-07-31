@@ -28,6 +28,7 @@
 | 🧪 **Ma Parfumerie** | Meuble d'étagères (segmented Collection/Étagères, ShelfCard à rayons + flacons nus + tri ↕ + pin ★ + badge globe), CRUD enrichi avec drag (DraggableFlatList), édition inline, assignment long-press + ajout direct, visibilité publique + partage + « M'inspirer » (copie en lot). Pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ + badge 🔔, possessions, signature, SOTD+météo, partage collection, mode Collection (grille, statuts, filtres, ♥, densités) |
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
 | ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix (cible custom + historique) |
+| 🗳️ **Votes communauté** | Performance olfactive réappropriée : votes utilisateurs sur Tenue & sillage et « Quand le porter » (saison + moment Jour/Soir), fusion Fragrantica bornée (`PERF_CAP=100`, jour 1 identique au scrape puis la communauté prend le relais), boutons 👍 → `VotePickerSheet` (vote courant + retirer), compteurs et marqueurs `myVote` temps réel, cron quotidien qui propage le consensus aux favoris/filtres/recherche |
 | ❤️ **Favoris** | Onglet dédié (couche intention) : tous les coups de cœur, section « Tes alertes », pills (Tous · À traiter · Alertes), alertes prix v2 (cible custom pré-remplie, badge 🔔), long-press `FavoriSheet` (fiche · alerte · graduation vers la Parfumerie) |
 | 👥 **Communauté** | Vitrine publique (top aimés, tendances 7j, collections à découvrir, SOTD du jour, recherche pseudo), verdicts publics sur la fiche (« Adoré par @x, @y »), follow asymétrique (bouton Suivre + compteurs), activité des suivis (« Nez que tu suis »). **Étagères publiques** par étagère (visibilité `is_public`), landing SSR `type=shelf` (OG + deep link), page publique `/u/[pseudo]/shelf/[id]`, bouton « M'inspirer » (copie en lot → À sentir). Profils publics opt-in, partage landing SSR (OG + deep link) |
 | ⚙️ **Paramètres** | Alertes prix, devise EUR, notifs push, mentions légales |
@@ -158,19 +159,19 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (17)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner)
+├── services/     (18)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner), perf-votes (votes performance)
 ├── services/impl/            # impl Supabase de chaque service + search-shared + sql-utils (service public = export * from impl/<x>.supabase)
-├── hooks/        (21)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference, useShelfItems, useParfumerieViewPreference, useSotd, useVoicePreference, useVoiceSearch, useWeather
+├── hooks/        (22)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference, useShelfItems, useParfumerieViewPreference, useSotd, useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance)
 ├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
-├── components/   (23)        # ParfumCard (badges statut/rating/🔔, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard, AddToShelfSheet, PublishShelfGateSheet, InspireShelfSheet, InfoPopup
+├── components/   (24)        # ParfumCard (badges statut/rating/🔔, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard, AddToShelfSheet, PublishShelfGateSheet, InspireShelfSheet, InfoPopup, VotePickerSheet
 ├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx
-├── features/                 # scan, catalog (+ RelationSection), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager/ShelfCard/BottleThumb), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner
+├── features/                 # scan, catalog (+ RelationSection, PerformanceProfile, SeasonProfile), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager/ShelfCard/BottleThumb), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner
 ├── models/       (8)         # Parfum (+imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
 ├── config/       (2)         # env, index
-└── utils/        (20)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share, alpha, brand-color, shelf-grouping, price-tier
+└── utils/        (24)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share, alpha, brand-color, shelf-grouping, price-tier, accord-profile, perf-fusion, performance-profile, season-profile
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0040) # extensions, types, tables (dont shelf_items position+pin), index, RLS, RPC (search_parfums, reorder_shelves, public_shelf/public_shelf_items, add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items...), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles, public shelves, grants
+├── migrations/   (0001→0044) # extensions, types, tables (dont shelf_items position+pin, parfum_votes 0042-0044), index, RLS, RPC (search_parfums, reorder_shelves, public_shelf/public_shelf_items, add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items, cast_vote/parfum_perf...), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles, public shelves, grants
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 └── config.toml               # config projet (secrets via env(...))
 ```
@@ -192,9 +193,9 @@ scrape Fragrantica      données factuelles     recherche tsvector + pg_trgm
 
 | Étape | Script | Action |
 |---|---|---|
-| 1. Nettoyage | `npm run clean-data` | `scripts/clean-apify.ts` — débruite, déduplique, strip les champs traçants |
-| 2. **Import frais** ⭐ | `npm run import-fresh -- --target=cloud` | `scripts/import-fresh.ts` — depuis `data/clean/` : transforme, télécharge l'image (URL Fragrantica), bg removal optionnel (`--bg`), WebP, upload Storage + upsert Postgres. Idempotent, resumable. Laisse `image_url_2x` NULL |
-| 3. **Upscale HD ×4** | `npm run migrate-upscale` | `scripts/migrate-upscale.ts` — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` (1500×2000) + `image_url_2x`. Fiche détail/lightbox uniquement, resumable |
+| 1. Nettoyage | `npm run clean-data` | `scripts/fragrantica/clean-apify.ts` — débruite, déduplique, strip les champs traçants |
+| 2. **Import frais** ⭐ | `npm run import-fresh -- --target=cloud` | `scripts/fragrantica/import-fresh.ts` — depuis `data/clean/` : transforme, télécharge l'image (URL Fragrantica), bg removal optionnel (`--bg`), WebP, upload Storage + upsert Postgres. Idempotent, resumable. Laisse `image_url_2x` NULL |
+| 3. **Upscale HD ×4** | `npm run migrate-upscale` | `scripts/images/migrate-upscale.ts` — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` (1500×2000) + `image_url_2x`. Fiche détail/lightbox uniquement, resumable |
 
 **Flux pour un nouveau scrape** : `npm run clean-data && npm run import-fresh -- --target=cloud && npm run migrate-upscale`
 
@@ -298,6 +299,14 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.10 — Votes utilisateurs : performance (Tenue & sillage, Quand le porter) + fix RPC bind (31/07/2026)
+
+- **Votes communauté sur la performance olfactive** : table `parfum_votes` (PK parfum/user/dimension, RLS privé) + RPC `parfum_perf`/`cast_vote`. Fusion Fragrantica **bornée** (`PERF_CAP = 100` : poids = min(CAP,total)/total, forme conservée) + votes users à plein poids → moyenne pondérée 1..4. Saisons/moment = fusion de comptes (barres relatives). Cron quotidien `recompute_perf_strings` (3h15 UTC) qui propage le consensus aux champs `longevity`/`sillage` → favoris/filtres/recherche.
+- **Affordances de vote visibles** : boutons 👍 par dimension (Longévité/Sillage) et sur l'en-tête « Quand le porter » → `VotePickerSheet` (vote courant + « Retirer mon vote ») ; chips Jour/Soir en tap direct. Le long-press invisible est retiré.
+- **Migration 0044** : dimension `moment` séparée de `season` (conflit PK corrigé) — `cast_vote` + `parfum_perf` mis à jour (déployée sur le cloud).
+- **Fix critique `this`-binding** : `supabase.rpc.bind(supabase)` — la référence détachée plantait `getParfumPerf` (le vote n'a jamais fonctionné avant ce fix). Hook `usePerfVotes` auto-réparé (refetch au focus).
+- **Tests** : 36 suites, 340 tests. `tsc --noEmit` : 0 erreur app/ + src/.
+
 ## v8.9 — Accords olfactifs, Flacon Runner v2, contextes, performances (30/07/2026)
 
 - **Accords olfactifs (fiche détail)** : `AccordProfile` + `accord-profile.ts` remplacent l'ancienne `AccordBar` — 5 accords en barres colorées par famille (tokens `accord0–7`), qualificatif FR, expansion animée, aphorisme italique, haptique. 8 nouveaux tokens thème (light + dark).
@@ -369,7 +378,7 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ## v7.1 — Catalogue éditorial, images HD, scroll UI-thread, durcissement (26/07/2026)
 
-- **Images HD (upscale ×4)** : pipeline `scripts/migrate-upscale.ts` (workers Python persistants Real-ESRGAN + CUDA, ~0,5 img/s) génère `primary_2x.webp` (1500×2000) + colonne `parfums.image_url_2x` (migration 0017). La fiche détail (`DetailHero`) et la lightbox (`ImageViewerPopup`) affichent la 1x immédiatement puis fondent vers la 2x ; les listes restent en 1x (perf). Champ `Parfum.imageUrl2x`.
+- **Images HD (upscale ×4)** : pipeline `scripts/images/migrate-upscale.ts` (workers Python persistants Real-ESRGAN + CUDA, ~0,5 img/s) génère `primary_2x.webp` (1500×2000) + colonne `parfums.image_url_2x` (migration 0017). La fiche détail (`DetailHero`) et la lightbox (`ImageViewerPopup`) affichent la 1x immédiatement puis fondent vers la 2x ; les listes restent en 1x (perf). Champ `Parfum.imageUrl2x`.
 - **Taxonomie familles** : `src/utils/olfactory-families.ts` regroupe ~46 valeurs anglaises en 6 familles FR (boisée, florale, hespéridée, ambrée, gourmande, aromatique). `FamilyAmbianceCards` v2 data-driven (flacon réel + effectif via `getFamilyOverview`), recherche en mode famille (`/search?family=<key>`).
 - **Catalogue** : nouvelles rangées « Parfaits pour {saison} » (RPC `seasonal_parfums`, migration 0015) et « Les mieux notés » ; compteur de parfums dynamique (`getParfumCount`). Nouvelles fonctions catalogue : `getTopRatedParfums`, `getParfumsByFamily`, `getFamilyOverview`, `getSeasonalParfums`. Code mort supprimé (`onParfums`, `createParfum`, `deleteParfum`…).
 - **Scroll UI-thread** : le callback `onScroll(y)` JS est remplacé par une `SharedValue scrollY` (`NavigationChromeContext`) écrite via `useAnimatedScrollHandler` dans toutes les listes. `CollapsingHeader` 100% UI thread (crossfade, plus de `LayoutAnimation`).

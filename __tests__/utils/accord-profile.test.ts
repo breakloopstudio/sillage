@@ -1,4 +1,4 @@
-import { buildAccords, accordColorIndex, accordAphorism, ACCORD_GROUPS } from '../../src/utils/accord-profile';
+import { buildAccords, accordColorIndex, ACCORD_GROUPS } from '../../src/utils/accord-profile';
 
 describe('accordColorIndex', () => {
   it('maps known accords to their semantic palette slot', () => {
@@ -78,17 +78,3 @@ describe('buildAccords', () => {
   });
 });
 
-describe('accordAphorism', () => {
-  it('returns a non-empty editorial line per palette slot', () => {
-    for (let i = 0; i < ACCORD_GROUPS.length; i++) {
-      const line = accordAphorism(i);
-      expect(typeof line).toBe('string');
-      expect(line.trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  it('wraps safely for out-of-range indices', () => {
-    expect(accordAphorism(99)).toBe(accordAphorism(99 % ACCORD_GROUPS.length));
-    expect(accordAphorism(-1)).toBeTruthy();
-  });
-});

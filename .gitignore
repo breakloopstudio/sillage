@@ -78,8 +78,8 @@ scripts/_tmp-*.ts
 /data
 
 # ─── Binaires upscale (Real-ESRGAN, non versionnés) ──────────────
-scripts/upscale/venv/
-scripts/upscale/weights/
+scripts/images/upscale/venv/
+scripts/images/upscale/weights/
 
 # ─── Build / cache backend ───────────────────────────────────────
 functions/lib/

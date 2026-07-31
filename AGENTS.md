@@ -301,7 +301,7 @@ Parfumerie (ex « Garde-robe ») — icône `flask`. Favoris en grille (filtres 
 
 ## Notes v7.1 — Catalogue éditorial, images HD, scroll UI-thread, durcissement (26/07/2026)
 
-**Images HD (upscale ×4)** : pipeline `scripts/migrate-upscale.ts` (`npm run migrate-upscale`) — pool de workers Python **persistants** (Real-ESRGAN + CUDA, venv isolé `scripts/upscale/`, modèle chargé une fois, jobs en JSON-lines stdin/stdout). Génère `primary_2x.webp` (1500×2000) + colonne `parfums.image_url_2x` (migration 0017). Débit ~0,5 img/s (sériel : GPU + I/O 1500×2000 + 3 allers-retours Supabase ; la concurrence n'accélère pas) → ~24K images en ~10h, resumable. Setup venv : `uv venv --python 3.10` + torch cu124 + realesrgan + `patch_basicsr.py` (torchvision≥0.17). **Câblage app** : `DetailHero` + `ImageViewerPopup` affichent la 1x (déjà en cache) puis fondent vers la 2x (`transition` expo-image, `key={imageUrl2x}`) ; listes/grilles restent en 1x. Champ `Parfum.imageUrl2x`, mappé dans `rowToParfum`/`WRITE_MAP`.
+**Images HD (upscale ×4)** : pipeline `scripts/images/migrate-upscale.ts` (`npm run migrate-upscale`) — pool de workers Python **persistants** (Real-ESRGAN + CUDA, venv isolé `scripts/images/upscale/`, modèle chargé une fois, jobs en JSON-lines stdin/stdout). Génère `primary_2x.webp` (1500×2000) + colonne `parfums.image_url_2x` (migration 0017). Débit ~0,5 img/s (sériel : GPU + I/O 1500×2000 + 3 allers-retours Supabase ; la concurrence n'accélère pas) → ~24K images en ~10h, resumable. Setup venv : `uv venv --python 3.10` + torch cu124 + realesrgan + `patch_basicsr.py` (torchvision≥0.17). **Câblage app** : `DetailHero` + `ImageViewerPopup` affichent la 1x (déjà en cache) puis fondent vers la 2x (`transition` expo-image, `key={imageUrl2x}`) ; listes/grilles restent en 1x. Champ `Parfum.imageUrl2x`, mappé dans `rowToParfum`/`WRITE_MAP`.
 
 **Taxonomie familles** : `src/utils/olfactory-families.ts` — 6 familles FR (boisée/florale/hespéridée/ambrée/gourmande/aromatique) regroupant ~46 valeurs anglaises. `FamilyAmbianceCards` v2 data-driven (flacon réel + effectif via `getFamilyOverview`, RPC `family_overviews` migrations 0018/0019), recherche mode famille (`/search?family=<key>`, `getParfumsByFamily`).
 
@@ -348,25 +348,30 @@ data/raw/ (1.27 GB, non versionné) → data/clean/ (31 MB) → Postgres parfums
 
 ### Scripts
 
+Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/images/` (pipeline images) et `scripts/lib/` (helpers partagés).
+
 | Commande | Fichier | Rôle |
 |---|---|---|
-| `npm run clean-data` | `scripts/clean-apify.ts` | Nettoie les 193 JSON scrapés : débruite, déduplique, strip champs traçants |
-| `npm run import-fresh` | `scripts/import-fresh.ts` | **Import frais** (depuis `data/clean/`) : transforme, télécharge l'image (URL Fragrantica), bg removal optionnel (`--bg`), WebP, upload Storage + upsert Postgres. Idempotent/resumable. Laisse `image_url_2x` NULL |
-| `npm run export-firestore` | `scripts/export-firestore.ts` | Dump NDJSON depuis l'ancien backend Firestore |
-| `npm run import-supabase` | `scripts/import-supabase.ts` | Upsert Postgres (local ou `--target=cloud`) |
-| `npm run migrate-storage` | `scripts/migrate-storage.ts` | Firebase Storage → bucket `parfum-images`, réécriture `image_url` |
-| `npm run migrate-upscale` | `scripts/migrate-upscale.ts` | **Upscale HD ×4** — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` + `image_url_2x` (fiche détail/lightbox), resumable |
-| `npm run generate-notes` / `upload-notes` | `scripts/generate-note-images.ts` / `upload-note-images.ts` | Images de notes olfactives (DashScope Wanx) + upload Storage |
-| `npm run clean-fragella` | `scripts/clean-fragella.ts` | Supprime les parfums importés via l'ancienne API Fragella (`source: 'fragella-cached'`) |
+| `npm run clean-data` | `scripts/fragrantica/clean-apify.ts` | Nettoie les 193 JSON scrapés : débruite, déduplique, strip champs traçants |
+| `npm run scrape-designers` | `scripts/fragrantica/scrape-designers.ts` | Scrape la liste complète des marques Fragrantica + nombre de parfums (11 pages `/designers-N/` + 7 marques commençant par un chiffre absentes de l'index, via curl.exe — le WAF bloque Node fetch) → `data/designers.json` + `.csv` |
+| `npm run watch-designers` | `scripts/fragrantica/watch-designers.ts` | **Watch (étage 1)** : snapshot de `designers.json` dans `data/designers-history/` + diff vs run précédent (marques apparues/disparues/deltas de compteur) → `data/watch/delta-<date>.json` |
+| `npm run diff-brands` | `scripts/fragrantica/diff-brands.ts` | **Diff marque (étage 2)** : scrape les pages des marques à delta (ou `--brands=`), compare à la BDD (même formule d'id qu'`import-fresh`, lecture seule) → file des nouveaux parfums `data/watch/queue-<date>.json`. Flags : `--target=cloud`, `--brands=a,b`, `--delta=<fichier>`, `--all-new-brands` |
+| `npm run scrape-perfumes` | `scripts/fragrantica/scrape-perfumes.ts` | **Scrape fiches (étage 3)** : fiches parfums Fragrantica au format Apify. Deux modes : `--format=raw` (défaut, chaîne `clean-data` → `import-fresh`) ou `--format=clean` (**v2** : écrit directement `data/clean`, merge par id calculée — ⚠️ ne pas relancer `clean-data` derrière ; `--format=both` = les deux). Déchiffre le payload `status` (votes) via `scripts/lib/mfga-fes.js`. Entrées : file queue (défaut), `--brands=`, `--urls=`. Options : `--out-dir=`, `--limit=`, `--refresh`, `--dry-run` |
+| `npm run import-fresh` | `scripts/fragrantica/import-fresh.ts` | **Import frais** (depuis `data/clean/`) : transforme, télécharge l'image (URL Fragrantica), bg removal optionnel (`--bg`), WebP, upload Storage + upsert Postgres. Idempotent/resumable. Laisse `image_url_2x` NULL |
+| `npm run import-supabase` | `scripts/fragrantica/import-supabase.ts` | Upsert Postgres (local ou `--target=cloud`) |
+| `npm run migrate-upscale` | `scripts/images/migrate-upscale.ts` | **Upscale HD ×4** — workers Python Real-ESRGAN + CUDA, génère `primary_2x.webp` + `image_url_2x` (fiche détail/lightbox), resumable |
+| `npm run generate-notes` / `upload-notes` | `scripts/images/generate-note-images.ts` / `upload-note-images.ts` | Images de notes olfactives (DashScope Wanx) + upload Storage |
 
 **Flux nouveau scrape** : `clean-data` → `import-fresh --target=cloud` → `migrate-upscale`.
+**Flux incrémental (veille)** : `scrape-designers` → `watch-designers` → `diff-brands --target=cloud` → `scrape-perfumes` → `clean-data` → `import-fresh --target=cloud` → `migrate-upscale`.
 
 ### Authentification import
 
 Nécessite la clé service_role Supabase (scripts d'import/migration uniquement) :
 1. Renseigner `SUPABASE_SERVICE_ROLE_KEY` dans `.env` (gitignoré)
 2. Les scripts lisent `.env` (`EXPO_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`)
-3. `migrate-upscale` nécessite en plus le venv `scripts/upscale/venv` (voir `scripts/upscale/README.md`)
+3. `migrate-upscale` nécessite en plus le venv `scripts/images/upscale/venv` (voir `scripts/images/upscale/README.md`)
+4. **Proxy scraping (optionnel)** : `SCRAPER_PROXY` dans `.env` (format `http://[user:pass@]host:port`, résidentiel rotatif recommandé) — utilisé par `fetchFragrantica` (tous les scripts scrape-*/diff-brands), log sans credentials. Vide = connexion directe. Les délais inter-requêtes sont jitterisés (`sleepJitter`, ±~35 %) pour éviter une signature de cadence fixe.
 
 ### Décisions clés
 
@@ -616,3 +621,21 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 **⚠️ Déploiement** : pousser la migration `0041_runner_scores.sql` (`supabase db push`) pour le leaderboard, puis régénérer `supabase gen types typescript --linked` (table `runner_scores` + 2 RPC dans `database.types.ts`).
 
 **Tests** : 33 suites, 312 tests. `tsc --noEmit` : 0 erreur app/ + src/ (bruit `__tests__` préexistant hors scope).
+
+## Notes v8.10 — Votes utilisateurs : performance (Tenue & sillage, Quand le porter) + fix RPC bind (31/07/2026)
+
+**Votes utilisateurs sur la performance olfactive** — réappropriation progressive de la base Fragrantica. Table `parfum_votes` (PK `parfum_id, user_id, dimension`, RLS owner, votes individuels **privés** — l'agrégat public passe exclusivement par la RPC `parfum_perf` SECURITY DEFINER). **Fusion Fragrantica bornée** : `_perf_cranks` normalise le breakout en 4 crans UI (longévité : very weak+weak→1, moderate→2, long lasting→3, eternal→4 ; sillage : intimate→1, moderate→2, strong→3, enormous→4) ; `_perf_score` plafonne l'influence Fragrantica à `PERF_CAP = 100` équivalents en conservant sa forme (`poids = min(CAP,total)/total`) puis ajoute les votes users à plein poids → moyenne pondérée 1..4. À 0 vote user, le résultat est strictement Fragrantica (jour 1 identique). Saisons/moment : fusion de comptes (`score_frag × poids + nb_votes_user`), barres relatives. Cron `recompute_perf_strings` (3h15 UTC) réécrit `parfums.longevity`/`sillage` des parfums ≥ 1 vote user → propagé aux favoris/filtres/recherche.
+
+**Migration 0044 — split dimension `moment`.** En 0042, saison ET moment partageaient `dimension='season'` → conflit PK (`(parfum_id, user_id, dimension)`) : voter un moment écrasait le vote saison. `0044_split_moment_dimension.sql` crée la dimension `'moment'` (day/night) : contrainte élargie, `cast_vote` (validation par dimension), `parfum_perf` (lecture `myMoment` + comptes jour/nuit sur `dimension='moment'`, `seasonUserVotes` couvre les deux). Supersède 0043 (fix de boucle `r` conservé). **Déployée sur le cloud** (vérifié par sonde : la contrainte accepte `'moment'`).
+
+**Affordance de vote visible** — le long-press (invisible) est remplacé par des boutons 👍 ouvrant `VotePickerSheet` (sheet sélecteur §4.16 : options + vote courant marqué + « Retirer mon vote ») : un par dimension dans `PerformanceProfile` (crans Longévité/Sillage), un sur l'en-tête de `SeasonProfile` (4 saisons), les chips Jour/Soir passent en **tap direct** (dimension `'moment'`). Auth gate → `/auth/login` si non connecté.
+
+**Bug critique corrigé — `this`-binding RPC.** `perf-votes.ts` extrayait `supabase.rpc` dans une constante → `this` perdu → `this.rest` → « Cannot read property 'rest' of undefined » → `getParfumPerf` plantait **toujours** → `available=false` → le vote n'a jamais marché (depuis l'écriture de la feature). Fix : `supabase.rpc.bind(supabase)`. **Piège documenté** : ne jamais détacher une méthode du client Supabase.
+
+**usePerfVotes auto-réparé** : `useFocusEffect` (expo-router) retente le fetch au focus si la RPC était indisponible au mount (garde anti double-fetch via `initialDoneRef`/`availableRef`) ; `optimisticMyVote` gère `dimension='moment'` explicitement (plus de devinette par valeur).
+
+**Fichiers créés** : `src/services/perf-votes.ts`, `src/hooks/usePerfVotes.ts`, `src/components/VotePickerSheet.tsx`, `src/features/catalog/PerformanceProfile.tsx` + `SeasonProfile.tsx`, `src/utils/perf-fusion.ts` + `performance-profile.ts` + `season-profile.ts`, `supabase/migrations/0042_user_perf_votes.sql` + `0043_fix_parfum_perf.sql` + `0044_split_moment_dimension.sql`, 3 suites de tests (`perf-fusion`, `performance-profile`, `season-profile`).
+
+**⚠️ Déploiement** : `supabase db push` (0042→0044, déjà appliquées sur le cloud) ; après régénération des types (`supabase gen types typescript --linked`), retirer le `rpcUntyped` temporaire de `perf-votes.ts` (RPC typées dans `database.types.ts`).
+
+**Tests** : 36 suites, 340 tests. `tsc --noEmit` : 0 erreur app/ + src/ (bruit `__tests__` préexistant hors scope).

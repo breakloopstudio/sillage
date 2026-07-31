@@ -21,15 +21,6 @@ export function layerDuration(key: LayerKey): string {
   }
 }
 
-export function layerAphorism(key: LayerKey | null): string {
-  switch (key) {
-    case 'top': return "L'éclat des premières minutes";
-    case 'heart': return 'Le cœur qui porte';
-    case 'base': return "L'empreinte qui persiste";
-    default: return 'Le parfum, heure par heure';
-  }
-}
-
 export function layerContextLabel(key: LayerKey): string {
   switch (key) {
     case 'top': return 'Note de tête';

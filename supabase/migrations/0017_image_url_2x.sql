@@ -1,5 +1,5 @@
 -- 0017_image_url_2x.sql — Colonne image upscale ×4 (page détail uniquement)
--- Peuplée par scripts/migrate-upscale.ts (worker Python Real-ESRGAN + CUDA).
+-- Peuplée par scripts/images/migrate-upscale.ts (worker Python Real-ESRGAN + CUDA).
 -- Les cartes/grilles continuent d'utiliser image_url (1x, ~30-80 Ko).
 -- La fiche détail charge image_url_2x en swap progressif (~200-400 Ko).
 
