@@ -77,7 +77,9 @@ export default function SearchScreen() {
   const s = useMemo(() => getStyles(theme), [theme]);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const router = useRouter();
-  const { q: routeQuery, family: familyKey } = useLocalSearchParams<{ q?: string; family?: string }>();
+  const { q: rawQ, family: rawFamily } = useLocalSearchParams<{ q?: string; family?: string }>();
+  const routeQuery = Array.isArray(rawQ) ? rawQ[0] : rawQ;
+  const familyKey = Array.isArray(rawFamily) ? rawFamily[0] : rawFamily;
   const familyDef = useMemo(() => getFamilyByKey(familyKey), [familyKey]);
   const [initialQuery] = useState(() => routeQuery ?? consumePendingCatalogQuery());
 

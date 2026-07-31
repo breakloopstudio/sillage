@@ -22,4 +22,10 @@ describe('formatPrice', () => {
     expect(formatPrice(Infinity)).toBe('— €');
     expect(formatPrice(-Infinity)).toBe('— €');
   });
+
+  it('formats negative values without crashing', () => {
+    const result = formatPrice(-5);
+    expect(result).toContain('5');
+    expect(result).toContain('€');
+  });
 });

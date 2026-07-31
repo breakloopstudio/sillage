@@ -40,7 +40,7 @@ describe('PriceDisplay', () => {
   describe('deal (ratio < 0.8)', () => {
     it('shows discount badge', async () => {
       await renderWithTheme(<PriceDisplay bestPrice={70} referencePrice={100} animated={false} />);
-      expect(screen.getByText('-30%')).toBeTruthy();
+      expect(screen.getByText('\u221230 %')).toBeTruthy();
     });
 
     it('shows "Bonne affaire" label', async () => {
@@ -57,7 +57,7 @@ describe('PriceDisplay', () => {
 
     it('shows discount badge when best < ref', async () => {
       await renderWithTheme(<PriceDisplay bestPrice={95} referencePrice={100} animated={false} />);
-      expect(screen.getByText('-5%')).toBeTruthy();
+      expect(screen.getByText('\u22125 %')).toBeTruthy();
     });
   });
 
@@ -115,7 +115,7 @@ describe('PriceDisplay', () => {
       await renderWithTheme(
         <PriceDisplay bestPrice={66.66} referencePrice={99.99} animated={false} />
       );
-      expect(screen.getByText('-33%')).toBeTruthy();
+      expect(screen.getByText('\u221233 %')).toBeTruthy();
     });
 
     it('does not show badge for >95% discount', async () => {

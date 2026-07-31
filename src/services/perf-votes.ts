@@ -2,6 +2,7 @@
 // (RPC parfum_perf : fusion Fragrantica borné + votes utilisateurs).
 
 import { supabase } from './supabase';
+import { toNum } from './impl/sql-utils';
 import type { SeasonKey } from '../utils/season';
 
 // TEMPORAIRE — parfum_perf / cast_vote ne sont pas encore dans database.types.ts
@@ -41,7 +42,28 @@ export async function getParfumPerf(parfumId: string, userId: string | null): Pr
   try {
     const { data, error } = await rpcUntyped('parfum_perf', { p_parfum_id: parfumId, p_user_id: userId });
     if (error) throw new Error(error.message);
-    return (data as ParfumPerf | null) ?? null;
+    if (!data) return null;
+    const d = data as Record<string, unknown>;
+    const mapDim = (raw: unknown): PerfDimensionResult => {
+      const r = (raw ?? {}) as Record<string, unknown>;
+      return {
+        level: toNum(r.level),
+        valueLabel: (r.value_label as string) ?? (r.valueLabel as string) ?? null,
+        score: toNum(r.score),
+        fragEquiv: toNum(r.frag_equiv) ?? toNum(r.fragEquiv) ?? 0,
+        userVotes: toNum(r.user_votes) ?? toNum(r.userVotes) ?? 0,
+        myVote: toNum(r.my_vote) ?? toNum(r.myVote),
+      };
+    };
+    return {
+      longevity: mapDim(d.longevity),
+      sillage: mapDim(d.sillage),
+      season: (d.season ?? {}) as Record<string, number>,
+      dayNight: (d.day_night ?? d.dayNight ?? {}) as Record<string, number>,
+      seasonUserVotes: toNum(d.season_user_votes) ?? toNum(d.seasonUserVotes) ?? 0,
+      mySeason: (d.my_season ?? d.mySeason ?? null) as SeasonKey | null,
+      myMoment: (d.my_moment ?? d.myMoment ?? null) as 'day' | 'night' | null,
+    };
   } catch (e: unknown) {
     console.warn('[perf-votes] getParfumPerf failed:', (e as Error)?.message ?? String(e));
     return null;

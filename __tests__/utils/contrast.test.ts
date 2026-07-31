@@ -5,6 +5,12 @@ describe('luminance', () => {
     expect(luminance('#000000')).toBeCloseTo(0, 5);
     expect(luminance('#FFFFFF')).toBeCloseTo(1, 5);
   });
+
+  it('handles 3-character hex shorthand', () => {
+    expect(luminance('#FFF')).toBeCloseTo(1, 5);
+    expect(luminance('#000')).toBeCloseTo(0, 5);
+    expect(luminance('#F00')).toBeCloseTo(luminance('#FF0000'), 5);
+  });
 });
 
 describe('textOn', () => {

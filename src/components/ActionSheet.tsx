@@ -121,8 +121,8 @@ function getStyles(t: Theme) {
     },
     sheet: {
       backgroundColor: t.colors.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
       paddingTop: 12,
       paddingHorizontal: 16,
       gap: 4,

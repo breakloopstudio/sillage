@@ -28,7 +28,7 @@ export default function PerfumerPage() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!name) return;
+    if (!name) { setLoading(false); setError(true); return; }
     let mounted = true;
     getParfumsByPerfumer(name)
       .then(results => { if (mounted) { setParfums(results); setLoading(false); } })

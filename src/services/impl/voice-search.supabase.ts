@@ -10,6 +10,9 @@ export async function transcribeVoice(audioBase64: string, mimeType: string): Pr
       const msg = error.message ?? 'Échec de la transcription vocale.';
       throw new Error(msg);
     }
+    if (!data || typeof (data as Record<string, unknown>).text !== 'string') {
+      throw new Error('Réponse vide du service de transcription.');
+    }
     return (data as { text: string }).text;
   } catch (err: unknown) {
     const e = err as Error;

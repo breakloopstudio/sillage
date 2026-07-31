@@ -41,7 +41,7 @@ export default function LoginPage() {
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(e instanceof Error ? e.message : 'Erreur de connexion.');
+      setErrorMessage(translateSupabaseError(e) || 'Erreur de connexion.');
     }
     finally { setLoading(null); }
   }, [canSubmit, email, password, login]);
@@ -53,7 +53,7 @@ export default function LoginPage() {
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(e instanceof Error ? e.message : 'Erreur connexion Google.');
+      setErrorMessage(translateSupabaseError(e) || 'Erreur connexion Google.');
     }
     finally { setLoading(null); }
   }, [loginWithGoogle]);

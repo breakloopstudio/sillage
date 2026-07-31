@@ -121,32 +121,55 @@ export function subscribeUserTable<T>(opts: SubscribeUserTableOptions<T>): () =>
   })();
 
   // 2. Canal realtime — INSERT/UPDATE/DELETE bufferisés jusqu'au fetch initial
-  const channel = supabase
-    .channel(`user:${table}:${userId}:${channelSeq++}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table, filter: `user_id=eq.${userId}` },
-      (payload) => {
-        if (cancelled) return;
-        const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown>;
-        if (!initialDone) {
-          pendingEvents.push({ eventType: payload.eventType, row });
-          return;
+  const MAX_RETRIES = 5;
+  let retryCount = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let currentChannel: ReturnType<typeof supabase.channel> | null = null;
+
+  const createChannel = () => {
+    if (cancelled) return;
+    const ch = supabase
+      .channel(`user:${table}:${userId}:${channelSeq++}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table, filter: `user_id=eq.${userId}` },
+        (payload) => {
+          if (cancelled) return;
+          const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown>;
+          if (!initialDone) {
+            pendingEvents.push({ eventType: payload.eventType, row });
+            return;
+          }
+          applyEvent(payload.eventType, row);
+          emit();
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          if (cancelled) return;
+          retryCount++;
+          if (retryCount > MAX_RETRIES) {
+            console.warn(`[supabase] ${table} channel error — max retries reached`);
+            onError?.(`Canal temps réel ${table} en échec.`);
+            return;
+          }
+          const delay = Math.min(1000 * 2 ** (retryCount - 1), 30000);
+          console.warn(`[supabase] ${table} channel error — retry ${retryCount}/${MAX_RETRIES} in ${delay}ms`);
+          void supabase.removeChannel(ch);
+          retryTimer = setTimeout(createChannel, delay);
+        } else if (status === 'SUBSCRIBED') {
+          retryCount = 0;
         }
-        applyEvent(payload.eventType, row);
-        emit();
-      },
-    )
-    .subscribe((status) => {
-      if (status === 'CHANNEL_ERROR') {
-        console.warn(`[supabase] ${table} channel error`);
-        onError?.(`Canal temps réel ${table} en échec.`);
-      }
-    });
+      });
+    currentChannel = ch;
+  };
+
+  createChannel();
 
   // 3. Cleanup — même contrat que l'unsubscribe d'onSnapshot
   return () => {
     cancelled = true;
-    void supabase.removeChannel(channel);
+    if (retryTimer) clearTimeout(retryTimer);
+    if (currentChannel) void supabase.removeChannel(currentChannel);
   };
 }

@@ -38,7 +38,7 @@ export class LRUCache {
     }
     this.map.delete(key);
     this.map.set(key, entry);
-    return entry.results;
+    return [...entry.results];
   }
 
   set(key: string, value: Parfum[]): void {

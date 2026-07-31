@@ -73,7 +73,7 @@ export default function PriceAlertSheet({
         else { setMode('drop'); setTargetValue(0); }
       }
       setLowest(null);
-      getLowestObservedPrice(parfumId).then(setLowest);
+      getLowestObservedPrice(parfumId).then(setLowest).catch(() => {});
     } else if (mounted) {
       backdropOpacity.value = withTiming(0, { duration: reduced ? 0 : 150 });
       translateY.value = withTiming(300, { duration: reduced ? 0 : 200 }, (finished) => {

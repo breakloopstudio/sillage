@@ -348,53 +348,54 @@ export default function FavorisPage() {
           }
         />
       ) : (
-        <Animated.ScrollView
+        <Animated.FlatList
+          data={alertRows}
+          keyExtractor={(row) => row.parfumId}
           contentContainerStyle={s.content}
           showsVerticalScrollIndicator={false}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
-        >
-          {topChrome}
-          {alertRows.length === 0 ? (
+          windowSize={5}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          ListHeaderComponent={topChrome}
+          ListEmptyComponent={
             <View style={s.alertEmpty}>
               <Ionicons name="notifications-outline" size={32} color={theme.colors.textMuted} />
               <Text style={s.alertEmptyTitle}>Aucune alerte pour l\u2019instant</Text>
               <Text style={s.alertEmptyText} maxFontSizeMultiplier={1.3}>Active une alerte sur un coup de cœur pour être prévenu quand son prix baisse.</Text>
             </View>
-          ) : (
-            <View style={s.alertList}>
-              {alertRows.map(row => {
-                const isDrop = row.variation != null && row.variation < 0;
-                return (
-                  <Pressable key={row.parfumId} style={s.alertCard} onPress={() => handleAlertCardPress(row)} accessibilityRole="button" accessibilityLabel={`${row.marque} ${row.nom}`}>
-                    {row.imageUrl ? (
-                      <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} />
-                    ) : (
-                      <View style={[s.alertImg, s.alertImgPlaceholder]}>
-                        <Ionicons name="flask-outline" size={18} color={theme.colors.textMuted} />
+          }
+          renderItem={({ item: row }) => {
+            const isDrop = row.variation != null && row.variation < 0;
+            return (
+              <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} accessibilityRole="button" accessibilityLabel={`${row.marque} ${row.nom}`}>
+                {row.imageUrl ? (
+                  <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} />
+                ) : (
+                  <View style={[s.alertImg, s.alertImgPlaceholder]}>
+                    <Ionicons name="flask-outline" size={18} color={theme.colors.textMuted} />
+                  </View>
+                )}
+                <View style={s.alertBody}>
+                  <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
+                  <View style={s.alertPriceRow}>
+                    {row.currentPrice != null ? <Text style={s.alertPrice}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
+                    {row.variation != null ? (
+                      <View style={[s.alertVarChip, { backgroundColor: isDrop ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+                        <Text style={[s.alertVarText, { color: isDrop ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
                       </View>
-                    )}
-                    <View style={s.alertBody}>
-                      <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
-                      <View style={s.alertPriceRow}>
-                        {row.currentPrice != null ? <Text style={s.alertPrice}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
-                        {row.variation != null ? (
-                          <View style={[s.alertVarChip, { backgroundColor: isDrop ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                            <Text style={[s.alertVarText, { color: isDrop ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      {row.targetPrice != null ? <Text style={s.alertTarget}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text> : null}
-                    </View>
-                    <Pressable style={s.alertOffBtn} onPress={() => handleAlertDisable(row.parfumId)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Désactiver l\u2019alerte">
-                      <Ionicons name="notifications-off-outline" size={16} color={theme.colors.textMuted} />
-                    </Pressable>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        </Animated.ScrollView>
+                    ) : null}
+                  </View>
+                  {row.targetPrice != null ? <Text style={s.alertTarget}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text> : null}
+                </View>
+                <Pressable style={s.alertOffBtn} onPress={() => handleAlertDisable(row.parfumId)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Désactiver l\u2019alerte">
+                  <Ionicons name="notifications-off-outline" size={16} color={theme.colors.textMuted} />
+                </Pressable>
+              </Pressable>
+            );
+          }}
+        />
       )}
 
       <FavoriSheet

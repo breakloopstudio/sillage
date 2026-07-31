@@ -61,7 +61,7 @@ export default function PriceDisplay({
         )}
         {pct !== null && pct > 0 && pct <= 95 && (
           <View style={[s.discountBadge, { backgroundColor: color }]}>
-            <Text style={[s.discountText, { color: textOn(color) }]}>-{pct}%</Text>
+            <Text style={[s.discountText, { color: textOn(color) }]}>{`\u2212${pct}\u202F%`}</Text>
           </View>
         )}
       </View>

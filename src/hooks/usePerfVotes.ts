@@ -85,7 +85,7 @@ export function usePerfVotes(parfumId: string | null): UsePerfVotes {
       // Optimiste : marque le vote localement avant la réponse (refetch corrigera).
       setPerf(prev => (prev ? optimisticMyVote(prev, dimension, value) : prev));
       const ok = await castVote(parfumId, dimension, value);
-      if (ok) await refresh();
+      await refresh();
       return ok;
     },
     [parfumId, userId, refresh],

@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
+import { hapticsLight } from '../services/haptics';
 
 export interface VoteOption {
   key: string;
@@ -72,6 +73,7 @@ export default function VotePickerSheet({ visible, title, options, currentKey, a
 
   const handlePick = useCallback(
     (key: string) => {
+      hapticsLight();
       onPick(key);
       onClose();
     },

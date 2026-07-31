@@ -21,7 +21,13 @@ Deno.serve(async (req: Request) => {
 
   // Auth : service_role (cron) = bypass ; sinon JWT utilisateur (self ou admin)
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const isServiceRole = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  let isServiceRole = false;
+  if (serviceKey && token.length === serviceKey.length) {
+    let mismatch = 0;
+    for (let i = 0; i < token.length; i++) mismatch |= token.charCodeAt(i) ^ serviceKey.charCodeAt(i);
+    isServiceRole = mismatch === 0;
+  }
 
   if (!isServiceRole) {
     let uid: string;

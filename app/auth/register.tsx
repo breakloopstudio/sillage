@@ -11,6 +11,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { textOn } from '../../src/utils/contrast';
+import { translateSupabaseError } from '../../src/utils/error-translator';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -39,7 +40,7 @@ export default function RegisterPage() {
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(e instanceof Error ? e.message : "Erreur lors de l'inscription.");
+      setErrorMessage(translateSupabaseError(e) || "Erreur lors de l'inscription.");
     }
     finally { setLoading(null); }
   }, [canSubmit, email, password, register]);
@@ -51,7 +52,7 @@ export default function RegisterPage() {
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(e instanceof Error ? e.message : 'Erreur connexion Google.');
+      setErrorMessage(translateSupabaseError(e) || 'Erreur connexion Google.');
     }
     finally { setLoading(null); }
   }, [loginWithGoogle]);

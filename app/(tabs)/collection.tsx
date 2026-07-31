@@ -541,7 +541,7 @@ export default function MaParfumeriePage() {
     </View>
   );
 
-  const renderShelfGroup = ({ item, drag, isActive }: { item: ShelfGroup; drag: () => void; isActive: boolean }) => (
+  const renderShelfGroup = useCallback(({ item, drag, isActive }: { item: ShelfGroup; drag: () => void; isActive: boolean }) => (
     <ScaleDecorator>
       <ShelfCard
         name={item.shelf.name}
@@ -561,7 +561,7 @@ export default function MaParfumeriePage() {
         isDragging={isActive}
       />
     </ScaleDecorator>
-  );
+  ), [orderForShelf, expanded, handleToggleExpand, handleShelfBottle, handleShelfBottleLong, handleOpenAddToShelf, handleOpenShelfMenu]);
 
   const shelvesHeader = (
     <View>

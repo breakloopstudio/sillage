@@ -46,7 +46,7 @@ export default function BrandPage() {
   const [activeFamily, setActiveFamily] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!name) return;
+    if (!name) { setLoading(false); setError(true); return; }
     let mounted = true;
     getParfumsByMarque(name)
       .then(results => { if (mounted) { setParfums(results); setLoading(false); } })

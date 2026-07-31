@@ -62,12 +62,12 @@ Deno.serve(async (req: Request) => {
       const weather = weatherCache.get(key);
       if (!weather) return { sent: 0, purged: 0, processed: 0 };
 
-      // Wardrobe (ownership = 'have')
+      // Parfumerie (status = 'have')
       const { data: wardrobe } = await supabase
-        .from('wardrobe')
+        .from('user_parfum')
         .select('parfum_id, nom, marque, famille_olfactive, is_signature, sotd_count')
         .eq('user_id', row.user_id)
-        .eq('ownership', 'have');
+        .eq('status', 'have');
       if (!wardrobe || wardrobe.length === 0) return { sent: 0, purged: 0, processed: 0 };
 
       const items: WardrobeEntry[] = (wardrobe as Record<string, unknown>[]).map(w => ({

@@ -28,7 +28,16 @@ async function callAnalyze(payload: { imageBase64?: string; imagesBase64?: strin
     if (data == null || typeof data !== 'object') {
       return { marque: null, nom: null, volumeMl: null, typeParfum: null, confidence: 'low', alternatives: [] } as unknown as ScanResult;
     }
-    return data as ScanResult;
+    const r = data as Partial<ScanResult>;
+    return {
+      ...r,
+      marque: r.marque ?? null,
+      nom: r.nom ?? null,
+      volumeMl: r.volumeMl ?? null,
+      typeParfum: r.typeParfum ?? null,
+      confidence: r.confidence ?? 'low',
+      alternatives: r.alternatives ?? [],
+    } as ScanResult;
   } catch (err: unknown) {
     const e = err as Error;
     if (e.message?.includes("Délai d'analyse")) throw e;

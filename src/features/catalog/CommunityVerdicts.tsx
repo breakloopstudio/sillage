@@ -3,7 +3,14 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator, BackHandler } fro
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn, SlideInDown, useReducedMotion } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  cancelAnimation,
+  runOnJS,
+  useReducedMotion,
+} from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { getParfumVerdicts, type ParfumVerdict } from '../../services/community';
@@ -90,6 +97,23 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const [mounted, setMounted] = useState(false);
+  const backdropOpacity = useSharedValue(0);
+  const translateY = useSharedValue(400);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      backdropOpacity.value = withTiming(1, { duration: reduced ? 0 : 200 });
+      translateY.value = reduced ? withTiming(0, { duration: 0 }) : withTiming(0, { duration: 250 });
+    } else if (mounted) {
+      backdropOpacity.value = withTiming(0, { duration: reduced ? 0 : 150 });
+      translateY.value = withTiming(400, { duration: reduced ? 0 : 200 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
+    }
+    return () => { cancelAnimation(backdropOpacity); cancelAnimation(translateY); };
+  }, [visible, reduced]);
 
   useEffect(() => {
     if (!visible) return;
@@ -103,12 +127,15 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
     router.push(`/u/${pseudo}`);
   }, [onClose, router]);
 
-  if (!visible) return null;
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
+  const sheetAnim = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+
+  if (!mounted) return null;
 
   return (
-    <Animated.View entering={reduced ? undefined : FadeIn.duration(200)} style={s.backdrop}>
+    <Animated.View style={[s.backdrop, backdropStyle]}>
       <Pressable style={s.backdropPress} onPress={onClose} />
-      <Animated.View entering={reduced ? undefined : SlideInDown.duration(250)} style={[s.sheet, { paddingBottom: insets.bottom + 12 }]}>
+      <Animated.View style={[s.sheet, sheetAnim, { paddingBottom: insets.bottom + 12 }]}>
         <View style={s.handle} />
         <Text style={s.sheetTitle}>Verdicts de la communauté</Text>
         <ScrollView style={s.sheetScroll} showsVerticalScrollIndicator={false}>

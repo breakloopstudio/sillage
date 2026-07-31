@@ -39,12 +39,12 @@ export default function AccordProfile({ accords, percentages }: Props) {
     [c],
   );
 
-  if (rows.length === 0) return null;
-
   const handleSelect = useCallback((raw: string) => {
     hapticsLight();
     setActive(prev => (prev === raw ? null : raw));
   }, []);
+
+  if (rows.length === 0) return null;
 
   return (
     <Animated.View style={s.root} entering={FadeIn.duration(400)}>

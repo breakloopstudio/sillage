@@ -40,6 +40,8 @@ export function useProfileStats(uid: string | null): {
         supabase.from('user_parfum').select('*').eq('user_id', uid).in('status', ['have', 'had']),
         supabase.from('scans').select('*', { count: 'exact', head: true }).eq('user_id', uid),
       ]);
+      const err = favRes.error ?? wardRes.error ?? scanRes.error;
+      if (err) throw err;
       if (!mountedRef.current) return;
       setStats({
         favorisCount: favRes.count ?? 0,

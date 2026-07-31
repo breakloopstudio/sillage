@@ -31,7 +31,7 @@ export function getSeasonalParfums(season: SeasonKey, limit?: number): Promise<P
 → Voir **§7 — Algorithme de recherche** pour la spécification complète.
 
 ```ts
-export function searchParfumFromScan(marque: string | null, nom: string | null): Promise<Parfum[]>;
+export function searchParfumFromScan(opts: { marque?: string | null; nom?: string | null; alternatives?: string[]; typeParfum?: string | null }): Promise<Parfum[]>;
 // Wrapper scan-spécifique : appelle searchParfumsCached puis rescore avec bonus nom/marque
 // Bonus : +50 (nom exact), +25 (nom partiel), +15 (marque exacte), +8 (marque partielle)
 // Les résultats de searchParfumsCached et searchParfumFromScan sont dédoublonnés par marque+nom normalisé.
@@ -1129,7 +1129,7 @@ Couche d'organisation visuelle (étagères déjà en base) + couche communautair
 
 ### Hooks
 - `useParfumerieViewPreference()` → `{ view: 'collection' | 'shelves' | null, setView }` (AsyncStorage `@parfumscan/parfumerie-view` ; `null` = vue adaptative).
-- `useShelves(uid)` += `reorder(items: { id: string; order: number }[])` → RPC `reorder_shelves`.
+- `useShelvesContext()` (contexte, §2) — `reorder(items: { id: string; order: number }[])` via RPC `reorder_shelves`.
 
 ### Services
 - `updateShelf(uid, id, data)` : `data` accepte désormais `description` + `isPublic` (mapping snake explicite `isPublic → is_public`).

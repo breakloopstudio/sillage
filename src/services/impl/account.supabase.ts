@@ -131,7 +131,7 @@ async function deleteAllFrom(table: UserTableName, uid: string): Promise<number>
     return count ?? 0;
   } catch (e: unknown) {
     console.warn(`[account] deleteAllFrom ${table} failed:`, (e as Error)?.message ?? String(e));
-    return 0;
+    throw e;
   }
 }
 
@@ -158,5 +158,6 @@ export async function clearWeatherCoords(uid: string): Promise<void> {
     if (error) throw error;
   } catch (e: unknown) {
     console.warn('[account] clearWeatherCoords failed:', (e as Error)?.message ?? String(e));
+    throw e;
   }
 }

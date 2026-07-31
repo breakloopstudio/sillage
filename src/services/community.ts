@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { toNum } from './impl/sql-utils';
 
 export interface CommunityParfum {
   parfum_id: string;
@@ -48,10 +49,27 @@ export async function getCommunityHighlights(): Promise<CommunityHighlights> {
     if (error) throw error;
 
     const raw = (data ?? {}) as Record<string, unknown>;
+    const mapParfum = (r: Record<string, unknown>): CommunityParfum => ({
+      parfum_id: (r.parfum_id as string) ?? '',
+      nom: (r.nom as string) ?? null,
+      marque: (r.marque as string) ?? null,
+      image_url: (r.image_url as string) ?? null,
+      famille_olfactive: (r.famille_olfactive as string) ?? null,
+      best_price: toNum(r.best_price),
+      love_count: toNum(r.love_count) ?? undefined,
+      activity_count: toNum(r.activity_count) ?? undefined,
+    });
+    const mapProfile = (r: Record<string, unknown>): CommunityProfile => ({
+      pseudo: (r.pseudo as string) ?? '',
+      avatar_url: (r.avatar_url as string) ?? null,
+      bio: (r.bio as string) ?? null,
+      collection_count: toNum(r.collection_count) ?? 0,
+      top_images: (r.top_images as string[]) ?? [],
+    });
     const result: CommunityHighlights = {
-      top_loved: (raw.top_loved ?? []) as CommunityParfum[],
-      trending: (raw.trending ?? []) as CommunityParfum[],
-      public_profiles: (raw.public_profiles ?? []) as CommunityProfile[],
+      top_loved: ((raw.top_loved ?? []) as Record<string, unknown>[]).map(mapParfum),
+      trending: ((raw.trending ?? []) as Record<string, unknown>[]).map(mapParfum),
+      public_profiles: ((raw.public_profiles ?? []) as Record<string, unknown>[]).map(mapProfile),
       sotd_today: (raw.sotd_today ?? []) as CommunitySotd[],
     };
 
@@ -203,7 +221,7 @@ export async function searchProfiles(prefix: string, limit = 5): Promise<Profile
     return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
       pseudo: (row.pseudo as string) ?? '',
       avatar_url: (row.avatar_url as string) ?? null,
-      collection_count: Number(row.collection_count ?? 0),
+      collection_count: toNum(row.collection_count) ?? 0,
     }));
   } catch (e: unknown) {
     console.warn('[community] searchProfiles failed:', (e as Error)?.message ?? String(e));

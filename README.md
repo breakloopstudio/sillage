@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 340 tests, 36 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 356 tests, 39 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -299,6 +299,17 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.12 — Check-up architectural : crash + sécurité + données + UX (31/07/2026)
+
+- **Audit complet en 6 angles** → 37 corrections en 6 lots (aucun changement de modèle de données ni de navigation).
+- **Crash** : `AccordProfile` hook après early return corrigé (Rules of Hooks) ; spinner infini `brand/[name]`/`perfumer/[name]` si param absent ; garde `Array.isArray` sur les params `q`/`family` de la recherche ; guard `uid` null dans l'historique ; `usePerfVotes` → `refresh()` systématique (rollback optimiste) ; `useProfileStats` vérifie `res.error`.
+- **Sécurité backend** : comparaison de secrets **constant-time** (`verifyCronAuth` + `send-notification`) ; **retry exponentiel** realtime sur `CHANNEL_ERROR` (la subscription mourait silencieusement) ; cron météo → table **`user_parfum`** au lieu de la table morte `wardrobe` (notifications météo réparées).
+- **Données** : `toNum()` généralisé (`community.ts`, `catalog`, `perf-votes` — PostgREST renvoie `numeric` en STRING) ; copie défensive du cache LRU ; null-guards (`voice-search`, `openai-vision`, `normalize`) ; lectures perfumer/marque → fallback `[]` ; écritures `account` → rethrow.
+- **UX** : animation de sortie `CommunityVerdicts` (§4.16) ; `ActionSheet` radius 24 ; double haptique `SaveSheet` retirée (§2.6) ; badge promo `PriceDisplay` `−X %` typographique (§3.7) ; `FavButton` cible 44 px ; scrim `ShelfManager` 0.4 ; haptique `VotePickerSheet` ; `.catch()` `PriceAlertSheet`.
+- **Écrans** : `.catch()` étagère publique ; `translateSupabaseError` sur auth ; virtualisation vue Alertes (`Animated.FlatList`) + `AddToShelfSheet` (FlatList) ; `renderShelfGroup` mémoïsé.
+- **Config/docs** : `tsconfig` exclut `__tests__/` → **`tsc --noEmit` 0 erreur global** ; drifts `reference.md` corrigés (`searchParfumFromScan` objet, `useShelvesContext`) ; `alpha.ts` valide l'hex + clamp.
+- **Tests** : **39 suites, 356 tests** (+3 suites, +15 tests). `tsc --noEmit` : 0 erreur global.
+
 ## v8.11 — Audit performance : virtualisation historique, images memory-disk, mémoïsation (31/07/2026)
 
 - **Audit perf complet** (realtime/contextes, listes, images, startup/bundle, réseau) avec valeurs par défaut validées via Context7. Constat : réseau (5 effects parallèles, 4 caches actifs, debounce + requestIdRef), realtime (cleanup correct, providers mémoïsés) et images (`ParfumCard` memory-disk + recyclingKey, 2x confinées) déjà sains.

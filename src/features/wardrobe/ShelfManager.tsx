@@ -328,7 +328,7 @@ function getStyles(t: Theme) {
       padding: 20,
     } as const,
     backdropTouch: {
-      ...({ position: 'absolute' as const, inset: 0, backgroundColor: 'rgba(0,0,0,0.5)' } as const),
+      ...({ position: 'absolute' as const, inset: 0, backgroundColor: 'rgba(0,0,0,0.4)' } as const),
     },
     modal: {
       backgroundColor: t.colors.surface,

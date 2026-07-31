@@ -69,7 +69,7 @@ export default function FavButton({ parfum, size = 'sm', inline = false }: Props
     <Pressable
       onPress={handlePress}
       style={inline ? s.btnInline : s.btn}
-      hitSlop={6}
+      hitSlop={size === 'xs' ? 9 : 6}
       accessibilityRole="button"
       accessibilityLabel={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
     >

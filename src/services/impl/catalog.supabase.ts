@@ -288,7 +288,7 @@ export async function getSuggestionIndex(limitCount: number = 300): Promise<Sugg
       id: r.id as string,
       nom: r.nom as string,
       marque: r.marque as string,
-      pop: (r.popularity_score as number) ?? 0,
+      pop: toNum(r.popularity_score) ?? 0,
     }));
   } catch {
     return [];
@@ -354,7 +354,7 @@ export async function getFamilyOverviews(
       if (!slot) continue;
       const url = row.image_url as string | null;
       if (url) slot.bottles.push(url);
-      slot.count = Number(row.total ?? 0);
+      slot.count = toNum(row.total) ?? 0;
     }
     return empty;
   } catch {
@@ -411,23 +411,33 @@ export async function getSimilarParfums(mainAccords: string[], excludeId: string
 }
 
 export async function getParfumsByPerfumer(name: string): Promise<Parfum[]> {
-  const { data, error } = await supabase
-    .from('parfums')
-    .select('*')
-    .contains('perfumers', [name])
-    .order('popularity_score', { ascending: false, nullsFirst: false })
-    .limit(50);
-  if (error) throw error;
-  return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  try {
+    const { data, error } = await supabase
+      .from('parfums')
+      .select('*')
+      .contains('perfumers', [name])
+      .order('popularity_score', { ascending: false, nullsFirst: false })
+      .limit(50);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  } catch (e: unknown) {
+    console.warn('[catalog] getParfumsByPerfumer failed:', (e as Error)?.message ?? String(e));
+    return [];
+  }
 }
 
 export async function getParfumsByMarque(marque: string): Promise<Parfum[]> {
-  const { data, error } = await supabase
-    .from('parfums')
-    .select('*')
-    .eq('marque', marque)
-    .order('popularity_score', { ascending: false, nullsFirst: false })
-    .limit(1000);
-  if (error) throw error;
-  return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  try {
+    const { data, error } = await supabase
+      .from('parfums')
+      .select('*')
+      .eq('marque', marque)
+      .order('popularity_score', { ascending: false, nullsFirst: false })
+      .limit(1000);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  } catch (e: unknown) {
+    console.warn('[catalog] getParfumsByMarque failed:', (e as Error)?.message ?? String(e));
+    return [];
+  }
 }

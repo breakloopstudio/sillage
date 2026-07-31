@@ -13,7 +13,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
-import { hapticsLight, hapticsSuccess } from '../../services/haptics';
+import { hapticsSuccess } from '../../services/haptics';
 import { VERDICT_OPTIONS } from '../../utils/verdicts';
 import { STATUS_CHIPS, chipForStatus } from '../../utils/status-chips';
 import type { UserParfum, UserParfumStatus, ScentVerdict, PossessionType } from '../../models/user-parfum.interface';
@@ -75,19 +75,16 @@ export default function SaveSheet({
 
   const handleStatus = useCallback((st: UserParfumStatus) => {
     if (chipForStatus(item?.status) === chipForStatus(st)) return;
-    hapticsLight();
     onSetStatus(st);
     hapticsSuccess();
   }, [item?.status, onSetStatus]);
 
   const handleVerdict = useCallback((v: ScentVerdict) => {
-    hapticsLight();
     onSetVerdict(v);
     hapticsSuccess();
   }, [onSetVerdict]);
 
   const handlePossession = useCallback((type: PossessionType) => {
-    hapticsLight();
     onAddPossession(type);
     hapticsSuccess();
   }, [onAddPossession]);

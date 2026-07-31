@@ -259,9 +259,10 @@ export default function HistoryPage() {
         icon: 'add-circle-outline',
         label: 'Ajouter à ma parfumerie',
         onPress: () => {
-          addPossession(uid!, selectedScan.parfumId!, 'bottle').catch(() => {});
-          addUserParfum(uid!, selectedScan.parfumId!, 'have').catch(() => {});
           setSelectedScan(null);
+          if (!uid || !selectedScan.parfumId) return;
+          addPossession(uid, selectedScan.parfumId, 'bottle').catch(() => {});
+          addUserParfum(uid, selectedScan.parfumId, 'have').catch(() => {});
         },
       });
     }

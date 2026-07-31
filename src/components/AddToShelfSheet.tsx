@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, BackHandler } from 'react-native';
+import { View, Text, Pressable, TextInput, FlatList, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
@@ -113,42 +113,47 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
           />
         </View>
 
-        <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
-          {filtered.length === 0 ? (
+        <FlatList
+          style={s.list}
+          data={filtered}
+          keyExtractor={(c) => c.parfumId}
+          showsVerticalScrollIndicator={false}
+          windowSize={5}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="checkmark-circle-outline" size={28} color={theme.colors.textMuted} />
               <Text style={s.emptyText}>
                 {candidates.length === 0 ? 'Tous tes parfums y sont déjà' : 'Aucun parfum ne correspond'}
               </Text>
             </View>
-          ) : (
-            filtered.map((c) => {
-              const tint = brandColor(c.marque ?? '');
-              return (
-                <Pressable
-                  key={c.parfumId}
-                  style={s.row}
-                  onPress={() => handleAdd(c.parfumId)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ajouter ${c.marque ?? ''} ${c.nom ?? ''}`}
-                >
-                  {c.imageUrl ? (
-                    <Image source={{ uri: c.imageUrl }} style={s.rowImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={c.parfumId} transition={200} />
-                  ) : (
-                    <View style={[s.rowImgPlaceholder, { backgroundColor: tint }]}>
-                      <Text style={s.rowInit} allowFontScaling={false}>{(c.marque ?? '?').charAt(0).toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <View style={s.rowTexts}>
-                    <Text style={s.rowBrand} numberOfLines={1}>{c.marque ?? ''}</Text>
-                    <Text style={s.rowName} numberOfLines={1}>{c.nom ?? ''}</Text>
+          }
+          renderItem={({ item: c }) => {
+            const tint = brandColor(c.marque ?? '');
+            return (
+              <Pressable
+                style={s.row}
+                onPress={() => handleAdd(c.parfumId)}
+                accessibilityRole="button"
+                accessibilityLabel={`Ajouter ${c.marque ?? ''} ${c.nom ?? ''}`}
+              >
+                {c.imageUrl ? (
+                  <Image source={{ uri: c.imageUrl }} style={s.rowImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={c.parfumId} transition={200} />
+                ) : (
+                  <View style={[s.rowImgPlaceholder, { backgroundColor: tint }]}>
+                    <Text style={s.rowInit} allowFontScaling={false}>{(c.marque ?? '?').charAt(0).toUpperCase()}</Text>
                   </View>
-                  <Ionicons name="add-circle-outline" size={22} color={theme.colors.primary} />
-                </Pressable>
-              );
-            })
-          )}
-        </ScrollView>
+                )}
+                <View style={s.rowTexts}>
+                  <Text style={s.rowBrand} numberOfLines={1}>{c.marque ?? ''}</Text>
+                  <Text style={s.rowName} numberOfLines={1}>{c.nom ?? ''}</Text>
+                </View>
+                <Ionicons name="add-circle-outline" size={22} color={theme.colors.primary} />
+              </Pressable>
+            );
+          }}
+        />
       </Animated.View>
     </View>
   );

@@ -11,6 +11,7 @@
     "${configDir}/android",
     "${configDir}/ios",
     "${configDir}/supabase/functions",
-    "${configDir}/scripts"
+    "${configDir}/scripts",
+    "${configDir}/__tests__"
   ]
 }

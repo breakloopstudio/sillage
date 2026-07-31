@@ -81,6 +81,7 @@ export default function PublicShelfPage() {
         setShelf(sh);
         setItems(it);
       })
+      .catch(() => {})
       .finally(() => { if (mountedRef.current) setLoading(false); });
   }, [pseudo, shelfId]);
 
