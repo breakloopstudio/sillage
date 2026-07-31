@@ -206,6 +206,7 @@ export default function BrandPage() {
           }
           showsVerticalScrollIndicator={false}
           windowSize={5}
+          initialNumToRender={10}
           maxToRenderPerBatch={10}
         />
       )}

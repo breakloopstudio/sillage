@@ -639,3 +639,19 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 **⚠️ Déploiement** : `supabase db push` (0042→0044, déjà appliquées sur le cloud) ; après régénération des types (`supabase gen types typescript --linked`), retirer le `rpcUntyped` temporaire de `perf-votes.ts` (RPC typées dans `database.types.ts`).
 
 **Tests** : 36 suites, 340 tests. `tsc --noEmit` : 0 erreur app/ + src/ (bruit `__tests__` préexistant hors scope).
+
+## Notes v8.11 — Audit performance : virtualisation historique, images memory-disk, mémoïsation (31/07/2026)
+
+**Audit perf complet** (5 zones : realtime/contextes, listes/rendu, images, startup/bundle, réseau), valeurs par défaut validées via Context7 (expo-image `cachePolicy='disk'`, `allowDownscaling=true` ; FlatList `windowSize=21`, `initialNumToRender=10`). Constat : couche réseau (5 effects parallèles au mount, pas de waterfall, `sharedPool` dédupliqué, 4 caches actifs LRU/communauté/météo/runner, debounce 150ms + `requestIdRef` + `mountedRef`), realtime (`subscribeUserTable` cleanup `removeChannel`, 7/7 providers mémoïsés) et images (`ParfumCard` memory-disk + recyclingKey, images 2x confinées à la fiche/lightbox, `Image.prefetch` 24 URLs) déjà sains.
+
+**Historique virtualisé** (`history.tsx`) : `ScrollView`+`.map` non borné → **`SectionList`** (`windowSize=5`/`initialNumToRender=10`/`maxToRenderPerBatch=10`, `stickySectionHeadersEnabled={false}`). Fix du **O(n²)** (`sections.slice(0,i).filter(...)` → compteur incrémental). `ScanHistoryCard` mémoïsée (`React.memo` + comparateur custom, pattern `ParfumCard.arePropsEqual`). L'entrée stagger RN Animated (qui ignorait le Reduced Motion — **violation §6.7 corrigée**) est remplacée par `FadeInDown` Reanimated respectueux du Reduced Motion (pattern `ScanResults.tsx:108`). Regroupement refactoré en sections `{ title, data }`.
+
+**Virtualisation FlatList** : `initialNumToRender={10}` sur `brand/[name].tsx` (`windowSize`/`maxToRenderPerBatch` déjà présents — faux positif d'audit corrigé en recheck via `tsc`) ; `windowSize`+`initialNumToRender`+`maxToRenderPerBatch` sur `u/[pseudo].tsx`.
+
+**Images expo-image** : `cachePolicy="memory-disk"` + `recyclingKey` sur `SOTDPicker` (seule image FlatList qui y échappait — prop `recyclingKey` threadée dans `ImageOrPlaceholder`), les cartes no-result de `history`, et les sheets `AddToShelfSheet`/`InspireShelfSheet` (+ `transition`).
+
+**Mémoïsation** : `BrandSheet.contentContainerStyle` (`listContent` useMemo) et `extraData` de la DraggableFlatList de `collection.tsx` (`shelvesExtraData` useMemo).
+
+**Décisions assumées (non faites)** : pas de lazy des providers realtime (casserait la synchro cœur↔grille instantanée v7.4 — décision produit), pas d'`AbortController` sur les RPC (guards `mountedRef` protègent déjà le setState ; gain = bande passante seule), pas de subset polices (~2,4 MB de TTF bloquant le 1er rendu — risque typo, règle `0 fontWeight`), pas de `FavButton` via `useSyncExternalStore` (refactor disproportionné pour des re-renders de cœurs minuscules).
+
+**Tests** : 36 suites, 340 tests (inchangés). `tsc --noEmit` : 0 erreur app/ + src/. **Validé visuellement sur émulateur** (light, dark, Reduced Motion).

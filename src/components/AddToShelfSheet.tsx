@@ -133,7 +133,7 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
                   accessibilityLabel={`Ajouter ${c.marque ?? ''} ${c.nom ?? ''}`}
                 >
                   {c.imageUrl ? (
-                    <Image source={{ uri: c.imageUrl }} style={s.rowImg} contentFit="contain" />
+                    <Image source={{ uri: c.imageUrl }} style={s.rowImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={c.parfumId} transition={200} />
                   ) : (
                     <View style={[s.rowImgPlaceholder, { backgroundColor: tint }]}>
                       <Text style={s.rowInit} allowFontScaling={false}>{(c.marque ?? '?').charAt(0).toUpperCase()}</Text>

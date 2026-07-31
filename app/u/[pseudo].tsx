@@ -217,6 +217,9 @@ export default function PublicProfilePage() {
         data={collection}
         keyExtractor={item => item.parfumId}
         renderItem={renderItem}
+        windowSize={5}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
         numColumns={2}
         columnWrapperStyle={s.row}
         contentContainerStyle={s.content}

@@ -93,6 +93,7 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
 
   const sections = useMemo(() => groupByLetter(filtered), [filtered]);
   const letterIndex = useMemo(() => sections.map(sec => sec.letter), [sections]);
+  const listContent = useMemo(() => ({ paddingBottom: insets.bottom + 20 }), [insets.bottom]);
 
   // Offsets exacts par lettre (hauteurs fixes)
   const offsets = useMemo(() => {
@@ -275,7 +276,7 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
               onScroll={handleScroll}
               scrollEventThrottle={32}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+              contentContainerStyle={listContent}
             />
           )}
 

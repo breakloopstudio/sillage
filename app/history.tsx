@@ -1,11 +1,12 @@
 // app/(tabs)/history.tsx — Journal olfactif : historique des scans
 // ScanHistoryCard wrapper : ParfumCard (scans réussis) + overlay statut
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, TextInput, Animated, Easing, RefreshControl } from 'react-native';
+import { useState, useMemo, useCallback, memo } from 'react';
+import { View, Text, ScrollView, SectionList, Pressable, ActivityIndicator, Alert, TextInput, RefreshControl } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { useScans } from '../src/hooks/useScans';
@@ -14,7 +15,6 @@ import { setPendingParfum } from '../src/services/catalog-bridge';
 import { addUserParfum } from '../src/services/user-parfum';
 import { addPossession } from '../src/services/possessions';
 import { hapticsLight } from '../src/services/haptics';
-import { translateNote } from '../src/utils/translate-note';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 
 import EmptyState from '../src/components/EmptyState';
@@ -60,11 +60,10 @@ function isThisMonth(d: Date): boolean {
 
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
-type SectionItem =
-  | { type: 'header'; label: string }
-  | { type: 'card'; scan: UserScan; repeatCount: number };
+interface ScanCard { scan: UserScan; repeatCount: number }
+interface ScanSection { title: string; data: ScanCard[] }
 
-function groupScansByPeriod(scans: UserScan[]): SectionItem[] {
+function groupScansByPeriod(scans: UserScan[]): ScanSection[] {
   const sorted = [...scans].sort((a, b) => {
     const da = getScanDate(a.scannedAt)?.getTime() ?? 0;
     const db = getScanDate(b.scannedAt)?.getTime() ?? 0;
@@ -107,14 +106,10 @@ function groupScansByPeriod(scans: UserScan[]): SectionItem[] {
     }
   }
 
-  const result: SectionItem[] = [];
-  for (const g of consolidated) {
-    result.push({ type: 'header', label: g.label });
-    for (const scan of g.scans) {
-      result.push({ type: 'card', scan, repeatCount: scan.parfumId ? (repeatMap.get(scan.parfumId) ?? 1) : 1 });
-    }
-  }
-  return result;
+  return consolidated.map(g => ({
+    title: g.label,
+    data: g.scans.map(scan => ({ scan, repeatCount: scan.parfumId ? (repeatMap.get(scan.parfumId) ?? 1) : 1 })),
+  }));
 }
 
 function getDotColor(status: UserScan['status'], t: Theme): string {
@@ -143,19 +138,17 @@ function scanToParfum(scan: UserScan): Parfum {
 
 // ── ScanHistoryCard (wrapper) ──
 
-function ScanHistoryCard({
+function ScanHistoryCardBase({
   scan,
   repeatCount,
   onPress,
   onLongPress,
-  opacity,
   density,
 }: {
   scan: UserScan;
   repeatCount: number;
   onPress: (() => void) | undefined;
   onLongPress: () => void;
-  opacity: Animated.Value;
   density: 'comfortable' | 'compactPlus' | 'list';
 }) {
   const { theme } = useTheme();
@@ -169,57 +162,59 @@ function ScanHistoryCard({
   if (!isSuccess) {
     const tint = brandColor(scan.marque ?? '');
     return (
-      <Animated.View style={{ opacity, marginBottom: 8 }}>
-        <Pressable style={s.cardNoResult} onLongPress={onLongPress} delayLongPress={400}>
-          <View style={[s.dotBadge, { backgroundColor: dotColor }]} />
-          {scan.imageUrl ? (
-            <Image source={{ uri: scan.imageUrl }} style={s.image} contentFit="cover" />
-          ) : (
-            <View style={[s.imagePlaceholder, { backgroundColor: tint }]}>
-              <Text style={s.placeholderInit}>{(scan.marque ?? '?').charAt(0).toUpperCase()}</Text>
-            </View>
-          )}
-          <View style={s.infoNoResult}>
-            {scan.marque ? <Text style={s.brand} numberOfLines={1}>{scan.marque}</Text> : null}
-            <Text style={s.name} numberOfLines={1}>{scan.nom ?? scan.rawText ?? 'Scan sans résultat'}</Text>
-            <View style={s.footer}>
-              <View style={s.dateRow}>
-                <Ionicons name="time-outline" size={12} color={theme.colors.textMuted} />
-                <Text style={s.dateText}>{dateStr}</Text>
-              </View>
+      <Pressable style={s.cardNoResult} onLongPress={onLongPress} delayLongPress={400}>
+        <View style={[s.dotBadge, { backgroundColor: dotColor }]} />
+        {scan.imageUrl ? (
+          <Image source={{ uri: scan.imageUrl }} style={s.image} contentFit="cover" cachePolicy="memory-disk" recyclingKey={scan.id} transition={200} />
+        ) : (
+          <View style={[s.imagePlaceholder, { backgroundColor: tint }]}>
+            <Text style={s.placeholderInit}>{(scan.marque ?? '?').charAt(0).toUpperCase()}</Text>
+          </View>
+        )}
+        <View style={s.infoNoResult}>
+          {scan.marque ? <Text style={s.brand} numberOfLines={1}>{scan.marque}</Text> : null}
+          <Text style={s.name} numberOfLines={1}>{scan.nom ?? scan.rawText ?? 'Scan sans résultat'}</Text>
+          <View style={s.footer}>
+            <View style={s.dateRow}>
+              <Ionicons name="time-outline" size={12} color={theme.colors.textMuted} />
+              <Text style={s.dateText}>{dateStr}</Text>
             </View>
           </View>
-        </Pressable>
-      </Animated.View>
+        </View>
+      </Pressable>
     );
   }
 
   // Success : ParfumCard avec overlay
   const cardData = scanToParfum(scan);
   return (
-    <Animated.View style={{ opacity, marginBottom: 8 }}>
-      <Pressable onLongPress={onLongPress} delayLongPress={400} onPress={onPress}>
-        <View style={s.successWrap}>
-          <ParfumCard parfum={cardData} mode={density} />
-          <View style={s.overlayRow}>
-            <View style={[s.dotBadge, { backgroundColor: dotColor }]} />
-            <View style={s.overlayInfo}>
-              <View style={s.dateRow}>
-                <Ionicons name="time-outline" size={11} color={theme.colors.textMuted} />
-                <Text style={s.dateTextSmall}>{dateStr}</Text>
-              </View>
+    <Pressable onLongPress={onLongPress} delayLongPress={400} onPress={onPress}>
+      <View style={s.successWrap}>
+        <ParfumCard parfum={cardData} mode={density} />
+        <View style={s.overlayRow}>
+          <View style={[s.dotBadge, { backgroundColor: dotColor }]} />
+          <View style={s.overlayInfo}>
+            <View style={s.dateRow}>
+              <Ionicons name="time-outline" size={11} color={theme.colors.textMuted} />
+              <Text style={s.dateTextSmall}>{dateStr}</Text>
             </View>
-            {repeatCount > 1 && (
-              <View style={s.repeatBadge}>
-                <Text style={s.repeatText}>×{repeatCount}</Text>
-              </View>
-            )}
           </View>
+          {repeatCount > 1 && (
+            <View style={s.repeatBadge}>
+              <Text style={s.repeatText}>×{repeatCount}</Text>
+            </View>
+          )}
         </View>
-      </Pressable>
-    </Animated.View>
+      </View>
+    </Pressable>
   );
 }
+
+const ScanHistoryCard = memo(ScanHistoryCardBase, (prev, next) =>
+  prev.scan === next.scan &&
+  prev.repeatCount === next.repeatCount &&
+  prev.density === next.density
+);
 
 // ── Composant principal ──
 
@@ -235,8 +230,7 @@ export default function HistoryPage() {
   const [sortNewest, setSortNewest] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedScan, setSelectedScan] = useState<UserScan | null>(null);
-  const animatedValues = useRef<Animated.Value[]>([]);
-  const prevCount = useRef(0);
+  const reduced = useReducedMotion();
 
   const goToDetail = useCallback(async (parfumId: string) => {
     try {
@@ -319,27 +313,26 @@ export default function HistoryPage() {
     });
   }, [scans]);
 
-  useEffect(() => {
-    const cardCount = sections.filter(i => i.type === 'card').length;
-    if (cardCount <= prevCount.current) {
-      prevCount.current = cardCount;
-      return;
-    }
-    prevCount.current = cardCount;
-    if (cardCount < 2) return;
+  const renderHistoryItem = useCallback(({ item, index }: { item: ScanCard; index: number }) => (
+    <Animated.View
+      entering={reduced ? undefined : FadeInDown.delay(Math.min(index, 10) * 40).duration(260)}
+      style={s.cardSpacing}
+    >
+      <ScanHistoryCard
+        scan={item.scan}
+        repeatCount={item.repeatCount}
+        onPress={item.scan.parfumId ? () => goToDetail(item.scan.parfumId!) : undefined}
+        onLongPress={() => handleLongPress(item.scan)}
+        density="list"
+      />
+    </Animated.View>
+  ), [reduced, s, goToDetail, handleLongPress]);
 
-    animatedValues.current = Array.from({ length: cardCount }, () => new Animated.Value(0));
-    Animated.stagger(
-      80,
-      animatedValues.current.map(v =>
-        Animated.timing(v, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true })
-      )
-    ).start();
-
-    return () => {
-      for (const v of animatedValues.current) v.setValue(1);
-    };
-  }, [sections]);
+  const renderSectionHeader = useCallback(({ section }: { section: ScanSection }) => (
+    <View style={s.sectionHeader}>
+      <Text style={s.sectionTitle}>{section.title}</Text>
+    </View>
+  ), [s]);
 
   const showSearch = scans.length > 5;
 
@@ -378,82 +371,67 @@ export default function HistoryPage() {
     );
   }
 
+  const listHeader = (
+    <View>
+      <View style={s.headerBar}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Retour">
+          <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
+        </Pressable>
+        <Text style={s.title}>{loading ? 'Historique' : `Historique · ${scans.length}`}</Text>
+      </View>
+
+      {!hasScanToday && (
+        <Pressable style={s.todayPrompt} onPress={() => router.push('/scan')}>
+          <Ionicons name="sunny-outline" size={18} color={theme.colors.primary} />
+          <Text style={s.todayPromptText}>Scanner un parfum aujourd'hui ?</Text>
+        </Pressable>
+      )}
+
+      {showSearch && (
+        <View style={s.filterContainer}>
+          <View style={s.searchRow}>
+            <View style={s.searchWrap}>
+              <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Rechercher un scan..."
+                placeholderTextColor={theme.colors.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                keyboardAppearance={keyboardAppearance}
+              />
+            </View>
+            <Pressable style={s.sortBtn} onPress={() => setSortNewest(p => !p)} hitSlop={8}>
+              <Ionicons name="swap-vertical-outline" size={16} color={theme.colors.primary} />
+              <Text style={s.sortLabel}>{sortNewest ? 'Récents' : 'Anciens'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {loading && <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />}
+    </View>
+  );
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
-      <ScrollView
-        contentContainerStyle={s.scroll}
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.scan.id}
+        renderItem={renderHistoryItem}
+        renderSectionHeader={renderSectionHeader}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={<View style={s.bottomSpacer} />}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />
         }
-      >
-        <View style={s.headerBar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Retour">
-            <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
-          </Pressable>
-          <Text style={s.title}>Historique · {scans.length}</Text>
-        </View>
-
-        {!hasScanToday && (
-          <Pressable style={s.todayPrompt} onPress={() => router.push('/scan')}>
-            <Ionicons name="sunny-outline" size={18} color={theme.colors.primary} />
-            <Text style={s.todayPromptText}>Scanner un parfum aujourd'hui ?</Text>
-          </Pressable>
-        )}
-
-        {showSearch && (
-          <View style={s.filterContainer}>
-            <View style={s.searchRow}>
-              <View style={s.searchWrap}>
-                <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
-                <TextInput
-                  style={s.searchInput}
-                  placeholder="Rechercher un scan..."
-                  placeholderTextColor={theme.colors.textMuted}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  keyboardAppearance={keyboardAppearance}
-                />
-              </View>
-              <Pressable style={s.sortBtn} onPress={() => setSortNewest(p => !p)} hitSlop={8}>
-                <Ionicons name="swap-vertical-outline" size={16} color={theme.colors.primary} />
-                <Text style={s.sortLabel}>{sortNewest ? 'Récents' : 'Anciens'}</Text>
-              </Pressable>
-            </View>
-
-          </View>
-        )}
-
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.primary} />
-        ) : (
-          sections.map((item, i) => {
-            if (item.type === 'header') {
-              return (
-                <View key={`h-${item.label}`} style={s.sectionHeader}>
-                  <Text style={s.sectionTitle}>{item.label}</Text>
-                </View>
-              );
-            }
-
-            const cardIdx = sections.slice(0, i).filter(x => x.type === 'card').length;
-            const anim = animatedValues.current[cardIdx] ?? new Animated.Value(1);
-
-            return (
-              <ScanHistoryCard
-                key={item.scan.id}
-                scan={item.scan}
-                repeatCount={item.repeatCount}
-                onPress={item.scan.parfumId ? () => goToDetail(item.scan.parfumId!) : undefined}
-                onLongPress={() => handleLongPress(item.scan)}
-                opacity={anim}
-                density="list"
-              />
-            );
-          })
-        )}
-
-        <View style={s.bottomSpacer} />
-      </ScrollView>
+        contentContainerStyle={s.scroll}
+        stickySectionHeadersEnabled={false}
+        showsVerticalScrollIndicator={false}
+        windowSize={5}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+      />
 
       <ActionSheet
         visible={selectedScan !== null}
@@ -577,6 +555,7 @@ function getStyles(t: Theme) {
     container: { flex: 1, backgroundColor: t.colors.background },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
     scroll: { paddingBottom: 88 },
+    cardSpacing: { marginBottom: 8 },
     headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 28, color: t.colors.text, flex: 1 },
     authTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 20, color: t.colors.text, marginTop: 12 },

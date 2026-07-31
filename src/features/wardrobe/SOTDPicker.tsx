@@ -91,7 +91,7 @@ export default function SOTDPicker({ visible, haveItems, currentSotdId, anchorTo
                   onSelect(item.parfumId);
                 }}
               >
-                <ImageOrPlaceholder imageUrl={item.imageUrl ?? undefined} t={theme} />
+                <ImageOrPlaceholder imageUrl={item.imageUrl ?? undefined} recyclingKey={item.parfumId} t={theme} />
                 <View style={s.itemText}>
                   <Text style={s.itemName}>{item.nom ?? item.parfumId.replace(/_/g, ' ')}</Text>
                   {item.marque && (
@@ -118,7 +118,7 @@ export default function SOTDPicker({ visible, haveItems, currentSotdId, anchorTo
   );
 }
 
-function ImageOrPlaceholder({ imageUrl, t }: { imageUrl?: string; t: Theme }) {
+function ImageOrPlaceholder({ imageUrl, recyclingKey, t }: { imageUrl?: string; recyclingKey?: string; t: Theme }) {
   const [failed, setFailed] = useState(false);
   if (!imageUrl || failed) {
     return (
@@ -132,6 +132,8 @@ function ImageOrPlaceholder({ imageUrl, t }: { imageUrl?: string; t: Theme }) {
       source={{ uri: imageUrl }}
       style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: t.colors.surface2 }}
       contentFit="cover"
+      cachePolicy="memory-disk"
+      recyclingKey={recyclingKey ?? null}
       transition={200}
       onError={() => setFailed(true)}
     />

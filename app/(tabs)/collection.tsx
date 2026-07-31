@@ -266,6 +266,8 @@ export default function MaParfumeriePage() {
     return statuerItem.shelfIds.filter((sid) => byShelf.get(sid)?.pinned.has(statuerItem.parfumId) ?? false);
   }, [statuerItem, byShelf]);
 
+  const shelvesExtraData = useMemo(() => [expanded, byShelf], [expanded, byShelf]);
+
   const handleTogglePin = useCallback((shelfId: string) => {
     const cur = statuerItemRef.current;
     if (!cur || !uid) return;
@@ -781,7 +783,7 @@ export default function MaParfumeriePage() {
           onScrollOffsetChange={handleShelvesScrollOffset}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.content}
-          extraData={[expanded, byShelf]}
+          extraData={shelvesExtraData}
           ListHeaderComponent={<>{topChrome}{shelvesHeader}</>}
           ListFooterComponent={shelvesFooter}
         />

@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 312](https://img.shields.io/badge/Tests-312%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 340](https://img.shields.io/badge/Tests-340%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 312 tests, 33 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 340 tests, 36 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -299,6 +299,16 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.11 — Audit performance : virtualisation historique, images memory-disk, mémoïsation (31/07/2026)
+
+- **Audit perf complet** (realtime/contextes, listes, images, startup/bundle, réseau) avec valeurs par défaut validées via Context7. Constat : réseau (5 effects parallèles, 4 caches actifs, debounce + requestIdRef), realtime (cleanup correct, providers mémoïsés) et images (`ParfumCard` memory-disk + recyclingKey, 2x confinées) déjà sains.
+- **Historique virtualisé** : `history.tsx` passe de `ScrollView`+`.map` (non borné, **O(n²)**) à **`SectionList`** (`windowSize=5`/`initialNumToRender=10`/`maxToRenderPerBatch=10`). `ScanHistoryCard` mémoïsée. L'entrée stagger RN Animated (qui ignorait le Reduced Motion) est remplacée par `FadeInDown` respectueux du Reduced Motion.
+- **Virtualisation FlatList** : `initialNumToRender` sur `brand/[name]`, `windowSize`+`initialNumToRender`+`maxToRenderPerBatch` sur `u/[pseudo]`.
+- **Images expo-image** : `memory-disk`+`recyclingKey` sur `SOTDPicker`, les no-result de `history`, `AddToShelfSheet`, `InspireShelfSheet`.
+- **Mémoïsation** : `contentContainerStyle` de `BrandSheet` et `extraData` de la DraggableFlatList (`collection`) mémoïsés.
+- **Décisions assumées** : pas de lazy des providers realtime (synchro cœur↔grille v7.4, produit), pas d'`AbortController` RPC (guards `mountedRef` suffisent), pas de subset polices (risque typo), pas de `useSyncExternalStore` pour FavButton (disproportionné).
+- **Tests** : 340 tests, 36 suites. `tsc --noEmit` : 0 erreur app/ + src/. Validé visuellement (light/dark/Reduced Motion).
+
 ## v8.10 — Votes utilisateurs : performance (Tenue & sillage, Quand le porter) + fix RPC bind (31/07/2026)
 
 - **Votes communauté sur la performance olfactive** : table `parfum_votes` (PK parfum/user/dimension, RLS privé) + RPC `parfum_perf`/`cast_vote`. Fusion Fragrantica **bornée** (`PERF_CAP = 100` : poids = min(CAP,total)/total, forme conservée) + votes users à plein poids → moyenne pondérée 1..4. Saisons/moment = fusion de comptes (barres relatives). Cron quotidien `recompute_perf_strings` (3h15 UTC) qui propage le consensus aux champs `longevity`/`sillage` → favoris/filtres/recherche.

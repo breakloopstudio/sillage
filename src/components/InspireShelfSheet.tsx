@@ -145,7 +145,7 @@ export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, ite
               return (
                 <View key={it.parfumId} style={s.row}>
                   {it.imageUrl ? (
-                    <Image source={{ uri: it.imageUrl }} style={s.rowImg} contentFit="contain" />
+                    <Image source={{ uri: it.imageUrl }} style={s.rowImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={it.parfumId} transition={200} />
                   ) : (
                     <View style={[s.rowImgPlaceholder, { backgroundColor: tint }]}>
                       <Text style={s.rowInit} allowFontScaling={false}>{(it.marque ?? '?').charAt(0).toUpperCase()}</Text>
