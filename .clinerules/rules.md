@@ -16,8 +16,8 @@ app/
 │   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond en haut à droite) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
 │   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills Tous/À traiter/Alertes, long-press FavoriSheet, prix visibles)
-│   ├── collection.tsx        # Ma Parfumerie (user_parfum uniquement, pills statut + filtre ♥, grille ParfumCard prix masqué + badge 🔔, long-press StatuerSheet)
-│   └── communaute.tsx        # Communauté « pouls éditorial » : hero « L'air du jour » (SOTD communautaire + météo en chip + ligne SOTD perso hairline/badge « Toi » ; rangée « Portés aujourd'hui » masquée si aucun autre SOTD public = pas d'effet miroir), carte défi famille hebdo (« Le geste de la semaine », rotation déterministe OLFACTORY_FAMILIES → /search?family=<key>, CTA soft-fill primarySoft aligné à droite), zone « Les nez » (recherche pseudo en row ghost + « Activité de tes suivis » timeline unifiée + « Collections à découvrir » gatée ≥2 profils), « L'air du temps » (rangée communautaire fusionnée aimés+tendances dédupliqués : carousel si ≥3 cartes sinon lignes featured `mode=list`, complétée en dessous par un seed éditorial « la sélection de la maison » ; cartes hidePrice ; label adaptatif « par les premiers nez »/« par la communauté » selon Σ love_count), footer Runner (CTA Jouer + ton rang). Titres de section à pastille §4.9 (tint primary, marge 16 alignée sur le contenu via style)
+│   ├── collection.tsx        # Ma Parfumerie (user_parfum uniquement, pills statut + filtre ♥, grille ParfumCard prix masqué + badge 🔔, long-press StatuerSheet, ligne SOTD avec chip streak « N j »)
+│   └── communaute.tsx        # Communauté « pouls éditorial » : hero « L'air du jour » (SOTD communautaire + météo en chip + ligne SOTD perso hairline/badge « Toi » ; rangée « Portés aujourd'hui » masquée si aucun autre SOTD public = pas d'effet miroir), carte défi famille hebdo (« Le geste de la semaine », rotation déterministe OLFACTORY_FAMILIES → /search?family=<key>, CTA soft-fill primarySoft aligné à droite), bloc « Ta semaine » (récap perso 7j + Share via landing profil public, masqué si 0 activité), zone « Les nez » (recherche pseudo en row ghost + « Activité de tes suivis » timeline unifiée + « Collections à découvrir » gatée ≥2 profils), « L'air du temps » (rangée communautaire fusionnée aimés+tendances dédupliqués : carousel si ≥3 cartes sinon lignes featured `mode=list`, complétée en dessous par un seed éditorial « la sélection de la maison » ; cartes hidePrice ; label adaptatif « par les premiers nez »/« par la communauté » selon Σ love_count), footer Runner (CTA Jouer + ton rang). Titres de section à pastille §4.9 (tint primary, marge 16 alignée sur le contenu via style)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
@@ -40,9 +40,9 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (18)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner), perf-votes (votes performance : RPC parfum_perf/cast_vote)
+├── services/     (19)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, recap (récap hebdo 7j + streak SOTD), account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner), perf-votes (votes performance : RPC parfum_perf/cast_vote)
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (22)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference (vue Favoris/Alertes persistée), useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance : fetch + vote optimiste + auto-réparation au focus)
+├── hooks/        (23)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference (vue Favoris/Alertes persistée), useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useWeeklyRecap (récap 7j « Ta semaine »), useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance : fetch + vote optimiste + auto-réparation au focus)
 ├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
 ├── components/   (24)        # ParfumCard (badges statut/rating/🔔 optionnels, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie : statut + étagères + pin), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in, mode embedded), AddToShelfSheet (ajout direct à une étagère), PublishShelfGateSheet (gate profil public inline), InspireShelfSheet (copie en lot « M'inspirer »), InfoPopup (popup centrée d'information), VotePickerSheet (sélecteur de vote : options + vote courant + retirer)
 ├── features/
@@ -222,7 +222,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 383 tests, 41 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 397 tests, 44 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
@@ -277,34 +277,42 @@ Mini-jeu endless runner accessible depuis Settings (5 taps sur numéro de versio
 ### Architecture des fichiers
 ```
 src/features/runner/
-├── useRunnerLoop.ts      # Game loop (useFrameCallback) : physique, collisions, spawn, scoring, pouvoirs, vies
-├── RunnerGame.tsx         # Intégration : gestes, cycle de vie, score chase, sons, shake, missions, skins, classement
-├── RunnerBottle.tsx       # Flacon joueur : squash/stretch aérien, landing spring, fissures liées aux vies
+├── useRunnerLoop.ts      # Game loop (useFrameCallback) : physique, collisions, spawn, scoring, pouvoirs, vies, jump buffer, hit-stop, glissade, fièvre
+├── RunnerGame.tsx         # Intégration : gestes (Tap saut + Pan glissade), cycle de vie, score chase, sons, shake, missions, skins, classement, carnet, défi quotidien, suggestion parfum
+├── RunnerBottle.tsx       # Flacon joueur : squash/stretch aérien, landing spring, fissures liées aux vies, accroupi (glissade), aura fièvre
 ├── RunnerBackground.tsx   # Ciel/horizon gradients ancrés groundY, skyline de flacons
 ├── RunnerGround.tsx       # Piste gradient, crête lumineuse, stries 2 plans
 ├── RunnerObstacles.tsx    # Pool de 8 cristaux (4 types + volant), spawn entry fade
 ├── RunnerPickups.tsx      # Pool de notes à pouvoirs (Bergamote/Santal/Ambre/Musc), spawn entry fade
 ├── RunnerSpeedLines.tsx   # Traits de vitesse horizontaux (opacité liée à la vitesse)
-├── RunnerHud.tsx          # Chips pouvoirs actifs (barres de temps résiduel, UI thread)
+├── RunnerHud.tsx          # Chips pouvoirs actifs (barres de temps résiduel) + jauge de fièvre (UI thread)
+├── RunnerCombo.tsx        # Compteur de combo aérien « ×N » (pulse, doré à ×4, coupé en Reduced Motion)
 ├── RunnerParticles.tsx    # Burst de particules à la collecte (coupé en Reduced Motion)
 ├── runner-sounds.ts       # 5 WAV synthétisés (jump, pickup, death, record, crack) via expo-audio
-├── runner-missions.ts     # 8 missions/succès persistés AsyncStorage
-├── runner-types.ts        # Types, constantes (PICKUP_DEFS, MAX_LIVES, SLOW_FACTOR), helpers AABB
-└── runner-storage.ts      # High score + skins + mute + missions persistés AsyncStorage
+├── runner-missions.ts     # 9 missions × 3 paliers (bronze/argent/or) persistés + prochain objectif
+├── runner-stats.ts        # Carnet de runs : stats lifetime locales (runs, distance, notes par type, jours joués)
+├── runner-daily.ts        # Défi quotidien « Le geste du jour » (seed déterministe par date, LCG)
+├── runner-types.ts        # Types, constantes (PICKUP_DEFS, MAX_LIVES, SLOW_FACTOR, duck/fièvre/game-feel, RUNNER_COLORS), helpers AABB
+└── runner-storage.ts      # High score + skins (déblocage multi-seuils) + mute persistés AsyncStorage
 ```
 
 ### Règles
 - **Zéro `setState` en boucle** — toute la logique temps réel est en SharedValues + `useAnimatedStyle`
 - **Pools fixes** — pas de mount/unmount pendant le jeu (pré-alloué en SharedValues)
-- **Collisions** : `checkAABB()` (worklet), hitbox obstacle = `width - 4`, bottle = `width-8 × height-6`
+- **Collisions** : `checkAABB()` (worklet), hitbox obstacle = `width - 4`, bottle = `width-8 × height-6` (hauteur réduite en glissade)
+- **Game-feel** : jump buffer (`JUMP_BUFFER`=120 ms), hit-stop (`HIT_STOP_DURATION`=60 ms de freeze à l'impact), premier saut doublable
+- **Glissade** : swipe bas (`Gesture.Pan` en `Race` avec le Tap) = flacon couché `DUCK_DURATION`=0,6 s, passe sous les cristaux volants
+- **Fièvre** : jauge remplie par pickups/frôlés → `FEVER_DURATION`=4,5 s d'invincibilité + score ×2 + cristaux collectables
 - **Score chase** : JS-side rAF lissant les sauts de score (bonus pickups jusqu'à +800)
 - **Sons** : générés en base64 inline (zéro asset binaire), via `expo-audio` `useAudioPlayer`
-- **Persistance** : high score + skins dans AsyncStorage, clé `@sillage/runner-*`
-- **Ouverture** : 5 taps sur le numéro de version dans Settings, minuterie 2s de reset
-- **Skins déblocables** : 500→Ambre, 1500→Frost, 3000→Noir, auto-équipés sur game over
+- **Persistance** : high score + skins + mute + missions + carnet + défi dans AsyncStorage, clé `@sillage/runner-*`
+- **Ouverture** : 5 taps sur le numéro de version dans Settings → `router.push('/runner')` (route racine), minuterie 2s de reset
+- **Skins déblocables** : 500→Ambre, 1500→Frost, 3000→Noir (tous les seuils franchis débloqués d'un coup)
 - **Pouvoirs** : 4 notes (Bergamote magnet / Santal shield / Ambre double / Musc slow-mo ×0.45), durées bornées
 - **Vies** : 3 vies + invulnérabilité 1,2 s après impact (flicker UI-thread) ; le shield absorbe un impact
-- **Missions** : 8 succès persistés (`runner-missions.ts`), évalués en fin de partie
+- **Missions** : 9 succès × 3 paliers persistés (`runner-missions.ts`), évalués en fin de partie + « prochain objectif »
+- **Rétention locale** : carnet de runs lifetime (`runner-stats.ts`) + défi quotidien seedé (`runner-daily.ts`) — 100 % local, robuste au cold-start
+- **Pont catalogue** : la composition de la course (notes collectées) suggère un vrai parfum au game over (`searchParfumsCached`)
 - **Classement** : table `runner_scores` (migration 0041) + RPC `submit_runner_score` / `runner_leaderboard` (service `services/runner.ts`)
 
 ---

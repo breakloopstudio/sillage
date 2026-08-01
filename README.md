@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 383](https://img.shields.io/badge/Tests-383%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
+[![Tests 397](https://img.shields.io/badge/Tests-397%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -30,7 +30,7 @@
 | ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix (cible custom + historique) |
 | 🗳️ **Votes communauté** | Performance olfactive réappropriée : votes utilisateurs sur Tenue & sillage et « Quand le porter » (saison + moment Jour/Soir), fusion Fragrantica bornée (`PERF_CAP=100`, jour 1 identique au scrape puis la communauté prend le relais), boutons 👍 → `VotePickerSheet` (vote courant + retirer), compteurs et marqueurs `myVote` temps réel, cron quotidien qui propage le consensus aux favoris/filtres/recherche |
 | ❤️ **Favoris** | Onglet dédié (couche intention) : tous les coups de cœur, section « Tes alertes », pills (Tous · À traiter · Alertes), alertes prix v2 (cible custom pré-remplie, badge 🔔), long-press `FavoriSheet` (fiche · alerte · graduation vers la Parfumerie) |
-| 👥 **Communauté** | Vitrine publique (top aimés, tendances 7j, collections à découvrir, SOTD du jour, recherche pseudo), verdicts publics sur la fiche (« Adoré par @x, @y »), follow asymétrique (bouton Suivre + compteurs), activité des suivis (« Nez que tu suis »). **Étagères publiques** par étagère (visibilité `is_public`), landing SSR `type=shelf` (OG + deep link), page publique `/u/[pseudo]/shelf/[id]`, bouton « M'inspirer » (copie en lot → À sentir). Profils publics opt-in, partage landing SSR (OG + deep link) |
+| 👥 **Communauté** | « Pouls éditorial » : hero « L'air du jour » (SOTD communautaire + météo + ton SOTD), défi famille hebdo (« Le geste de la semaine » → /search?family=), récap perso « Ta semaine » (7 j + Share), vitrine (top aimés, tendances, collections à découvrir, recherche pseudo), « Activité de tes suivis » (timeline unifiée verdicts + have), verdicts publics sur la fiche (« Adoré par @x, @y »), follow asymétrique. **Étagères publiques** par étagère (visibilité `is_public`), landing SSR `type=shelf` (OG + deep link), page publique `/u/[pseudo]/shelf/[id]`, bouton « M'inspirer » (copie en lot → À sentir). Profils publics opt-in, partage landing SSR (OG + deep link) |
 | ⚙️ **Paramètres** | Alertes prix, devise EUR, notifs push, mentions légales |
 | 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (swap progressif image HD upscale ×4), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
 | 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |
@@ -38,7 +38,7 @@
 | 🌓 **Dark Mode** | 3 modes (système/clair/sombre), persistance AsyncStorage, SystemUI + NavigationBar theming, keyboardAppearance adaptatif |
 | 🎙️ **Recherche vocale** | Dictée vocale (expo-speech-recognition, on-device) + fallback OpenAI Whisper (Cloud Function), VoiceOverlay 5 phases avec transcript live et top résultats |
 | 🌤️ **Météo & suggestions** | Widget météo (Open-Meteo, gratuit), scoring des parfums adaptés à la météo dans la parfumerie, tri "Météo", SOTDPicker pré-trié, badge de compatibilité, notification push quotidienne à 7h via Cloud Function |
-| 🎮 **Flacon Runner** | Easter egg : endless runner dans Settings (5 taps version). Saut/double-saut, obstacles, combos, score lisse, milestones, skins déblocables, Reanimated UI thread |
+| 🎮 **Flacon Runner** | Easter egg : endless runner dans Settings (5 taps version). Saut/double-saut (jump buffer), glissade « Sillage » (swipe bas), mode Fièvre (jauge → invincibilité + score ×2), pouvoirs, 3 vies, combo aérien, hit-stop, missions à paliers, carnet de runs, défi quotidien, skins, classement mondial, pont catalogue (suggestion de parfum au game over), Reanimated UI thread |
 | 🖼️ **Images HD** | Upscale ×4 (Real-ESRGAN + CUDA) des flacons pour la fiche détail/lightbox ; les listes restent en 1x (perf) |
 
 ---
@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 383 tests, 41 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 397 tests, 44 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -138,7 +138,7 @@ app/
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
 │   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills, long-press FavoriSheet, prix visibles)
 │   ├── collection.tsx        # Ma Parfumerie : segmented Collection|Étagères, mode Collection (grille, statuts, filtres, ♥, densités), mode Étagères (ShelfCard+rayons+tri/pin+Non classés), CRUD drag+édition, assignment long-press, ajout direct, visibilité publique + partage + gate, badge 🔔, vues système Signature/Cœurs, M'inspirer
-│   └── communaute.tsx        # Communauté (placeholder « Bientôt »)
+│   └── communaute.tsx        # Communauté « pouls éditorial » (hero air du jour, défi famille, récap « Ta semaine », les nez, l'air du temps, footer Runner)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
@@ -159,9 +159,9 @@ app/
 └── admin.tsx                 # Administration
 
 src/
-├── services/     (18)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner), perf-votes (votes performance)
+├── services/     (19)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, recap (récap hebdo 7j + streak SOTD), account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner), perf-votes (votes performance)
 ├── services/impl/            # impl Supabase de chaque service + search-shared + sql-utils (service public = export * from impl/<x>.supabase)
-├── hooks/        (22)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference, useShelfItems, useParfumerieViewPreference, useSotd, useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance)
+├── hooks/        (23)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference, useShelfItems, useParfumerieViewPreference, useSotd, useWeeklyRecap, useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance)
 ├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
 ├── components/   (24)        # ParfumCard (badges statut/rating/🔔, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard, AddToShelfSheet, PublishShelfGateSheet, InspireShelfSheet, InfoPopup, VotePickerSheet
 ├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx
@@ -299,6 +299,24 @@ Le bouton unfavorite utilise un cœur avec animation heartbeat (scale bounce 250
 Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive`
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
+## v8.17 — Flacon Runner v3 : game-feel, glissade, fièvre, rétention locale, pont catalogue (01/08/2026)
+
+- **Game-feel** : jump buffer (120 ms), hit-stop (60 ms de freeze à l'impact), premier saut doublable, combo aérien lisible (`RunnerCombo` « ×N », doré à ×4).
+- **Glissade « Sillage »** : swipe bas (`Gesture.Pan` en `Race` avec le Tap) = flacon couché 0,6 s, hitbox réduite pour passer sous les cristaux volants.
+- **Mode Fièvre** : jauge (pickups +20, frôlés +8) → 4,5 s d'invincibilité + score ×2 + cristaux collectables ; jauge dans le HUD, aura dorée du flacon.
+- **Rétention locale** : carnet de runs lifetime (`runner-stats.ts`), missions 9 × 3 paliers bronze/argent/or + prochain objectif (`runner-missions.ts` réécrit), défi quotidien seedé par date (`runner-daily.ts`, hash murmur3 → LCG).
+- **Pont catalogue** : la composition de la course (notes collectées) suggère un vrai parfum au game over (`searchParfumsCached`) → fiche détail.
+- **Bugs** : skins intermédiaires débloqués d'un coup, safe-areas partout, milestones non sautés, Reduced Motion sur countdown/popup, overlay Settings supprimé → `router.push('/runner')`.
+- **Tests** : 44 suites, 397 tests (+14 : missions à paliers, défi quotidien, carnet). `tsc --noEmit` : 0 erreur global.
+
+---
+## v8.16 — Récap perso « Ta semaine » + streak SOTD + Share v1 (front pur) (01/08/2026)
+
+- **Récap « Ta semaine »** (Communauté) : service `recap.ts` + hook `useWeeklyRecap` — 4 counts sur 7 j glissants (scans, favoris, SOTD, verdicts), phrase unique « N flacons croisés · N cœurs · porté N jours · N avis posés », seuil ≥ 1 événement, Share v1 via landing profil public (gaté profil public).
+- **Streak SOTD** (Parfumerie) : `getSotdStreak` (série se terminant aujourd'hui ou hier), `useSotd` retourne `streak`, chip « N j » ≥ 2 sur `SOTDCard` (`tabular-nums`, pas de gamification).
+- **Tests** : 41 suites, 383 tests (inchangés). `tsc --noEmit` : 0 erreur global.
+
+---
 ## v8.15 — Renommage ParfumScan → Sillage (01/08/2026)
 
 - **Renommage complet de la marque** : display name, slug Expo (`sillage`), scheme deep link (`sillage://`), AsyncStorage (`@sillage/*`), domaine (`sillage.app`), npm package, Edge Function `share` (SSR + OG), pages publiques store, mentions légales/privacy, docs.

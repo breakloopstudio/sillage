@@ -15,7 +15,7 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from 'react-native-reanimated';
-import { BOTTLE_WIDTH, BOTTLE_HEIGHT } from './runner-types';
+import { BOTTLE_WIDTH, BOTTLE_HEIGHT, DUCK_SCALE, type GameStateValue } from './runner-types';
 
 interface Props {
   bottleX: number;
@@ -23,7 +23,7 @@ interface Props {
   isJumping: SharedValue<boolean>;
   isDoubleJumping: SharedValue<boolean>;
   landingTrigger: SharedValue<number>;
-  gameState: SharedValue<string>;
+  gameState: SharedValue<GameStateValue>;
   bottleColor?: string;
   capColor?: string;
   reduceMotion?: boolean;
@@ -35,6 +35,8 @@ interface Props {
   slowUntil: SharedValue<number>;
   lives: SharedValue<number>;
   invulnUntil: SharedValue<number>;
+  duckUntil: SharedValue<number>;
+  feverUntil: SharedValue<number>;
 }
 
 function RunnerBottle({
@@ -55,6 +57,8 @@ function RunnerBottle({
   slowUntil,
   lives,
   invulnUntil,
+  duckUntil,
+  feverUntil,
 }: Props) {
   const idleBob = useSharedValue(0);
   const spinAngle = useSharedValue(0);
@@ -67,6 +71,7 @@ function RunnerBottle({
   }));
 
   const auraKind = useDerivedValue(() => {
+    if (gameTime.value < feverUntil.value) return 5;
     if (shieldActive.value) return 2;
     if (gameTime.value < slowUntil.value) return 4;
     if (gameTime.value < doubleUntil.value) return 3;
@@ -78,7 +83,7 @@ function RunnerBottle({
     const kind = auraKind.value;
     return {
       opacity: kind === 0 ? 0 : 0.5,
-      backgroundColor: interpolateColor(kind, [0, 1, 2, 3, 4], ['#000000', '#B5C334', '#A9744F', '#E8933A', '#9A8FC0']),
+      backgroundColor: interpolateColor(kind, [0, 1, 2, 3, 4, 5], ['#000000', '#B5C334', '#A9744F', '#E8933A', '#9A8FC0', '#D4A960']),
     };
   });
 
@@ -156,10 +161,16 @@ function RunnerBottle({
     const spin = reduceMotion ? 0 : spinAngle.value;
     const invuln = gameTime.value < invulnUntil.value;
     const flicker = invuln && !reduceMotion ? 0.4 + 0.45 * Math.abs(Math.sin(gameTime.value * 28)) : 1;
+    // Glissade : le flacon s'accroupit (scaleY réduit, scaleX élargi), base compensée au sol.
+    const ducking = !isJumping.value && gameTime.value < duckUntil.value;
+    const duckScaleY = ducking ? DUCK_SCALE : 1;
+    const duckScaleX = ducking ? 1.25 : 1;
+    const duckCompensate = ducking ? (BOTTLE_HEIGHT * (1 - DUCK_SCALE)) / 2 : 0;
     return {
       transform: [
-        { scaleX: Math.min(1.12, airStretch * 0.95 + 0.05) * sqX.value },
-        { scaleY: Math.min(1.12, airStretch) * sqY.value },
+        { translateY: duckCompensate },
+        { scaleX: Math.min(1.12, airStretch * 0.95 + 0.05) * sqX.value * duckScaleX },
+        { scaleY: Math.min(1.12, airStretch) * sqY.value * duckScaleY },
         { rotate: `${spin}deg` },
       ],
       opacity: bottleOpacity.value * flicker,
@@ -195,7 +206,7 @@ function RunnerBottle({
         pointerEvents="none"
       />
       <Animated.View
-        style={[{ position: 'absolute', left: -8, top: -5, width: 46, height: 66, borderRadius: 23, borderWidth: 2, borderColor: '#67E8F9' }, shieldStyle]}
+        style={[{ position: 'absolute', left: -8, top: -5, width: 46, height: 66, borderRadius: 23, borderWidth: 2, borderColor: '#A9744F' }, shieldStyle]}
         pointerEvents="none"
       />
       <Animated.View style={[{ width: BOTTLE_WIDTH, height: BOTTLE_HEIGHT }, bodyStyle]}>

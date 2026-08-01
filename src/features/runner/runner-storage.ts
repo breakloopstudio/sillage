@@ -20,6 +20,12 @@ export function getSkinForScore(score: number): typeof SKINS[number] {
   return best;
 }
 
+// Tous les skins dont le seuil est franchi par le score (corrige le bug du run à 3000
+// qui ne débloquait que « Noir » en sautant Ambre/Givre).
+export function getSkinsForScore(score: number): Array<typeof SKINS[number]> {
+  return SKINS.filter(s => score >= s.threshold);
+}
+
 export async function getUnlockedSkins(): Promise<string[]> {
   try {
     const v = await AsyncStorage.getItem(SKINS_KEY);

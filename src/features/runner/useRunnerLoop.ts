@@ -8,6 +8,7 @@ import {
 } from 'react-native-reanimated';
 import {
   type GameDimensions,
+  type GameStateValue,
   GRAVITY,
   JUMP_VELOCITY,
   DOUBLE_JUMP_VELOCITY,
@@ -39,6 +40,14 @@ import {
   MAGNET_RADIUS,
   MAX_LIVES,
   INVULN_DURATION,
+  JUMP_BUFFER,
+  HIT_STOP_DURATION,
+  DUCK_HEIGHT,
+  FEVER_DURATION,
+  FEVER_MAX,
+  FEVER_GAIN_PICKUP,
+  FEVER_GAIN_NEARMISS,
+  FEVER_SCORE_MULT,
 } from './runner-types';
 
 interface ObsData { active: SharedValue<boolean>; x: SharedValue<number>; type: SharedValue<number>; }
@@ -52,7 +61,7 @@ export function useRunnerLoop(dims: GameDimensions) {
   const isDoubleJumping = useSharedValue(false);
   const landingTrigger = useSharedValue(0);
 
-  const gameState = useSharedValue('idle');
+  const gameState = useSharedValue<GameStateValue>('idle');
   const score = useSharedValue(0);
   const speed = useSharedValue(BASE_SPEED);
 
@@ -122,12 +131,29 @@ export function useRunnerLoop(dims: GameDimensions) {
   const invulnUntil = useSharedValue(0);
   const crackTrigger = useSharedValue(0);
 
+  // Game-feel : hit-stop (micro-freeze du monde à l'impact) + jump buffer (un tap posé
+  // juste avant l'atterrissage déclenche le saut au contact). `lastTapTime` est écrit par
+  // le geste (RunnerGame) quand un tap ne peut pas être exécuté immédiatement ;
+  // `bufferJumpTrigger` notifie le saut bufferisé pour jouer son + haptique côté JS.
+  const hitStopUntil = useSharedValue(0);
+  const lastTapTime = useSharedValue(-999);
+  const bufferJumpTrigger = useSharedValue(0);
+
+  // Glissade : `duckUntil` = fin du duck (le flacon est couché tant que gameTime < duckUntil).
+  const duckUntil = useSharedValue(0);
+
+  // Mode Fièvre : jauge 0..FEVER_MAX ; pleine → `feverUntil` (invincibilité + ×2 + cristaux
+  // collectables). La jauge se vide progressivement hors fièvre pour rester dynamique.
+  const feverGauge = useSharedValue(0);
+  const feverUntil = useSharedValue(0);
+  const feverStartTrigger = useSharedValue(0);
+
   const resetGame = useCallback(() => {
     gameState.value = 'idle';
     bottleY.value = dims.groundY;
     jumpVelocity.value = 0;
     isJumping.value = false;
-    canDoubleJump.value = false;
+    canDoubleJump.value = true;
     isDoubleJumping.value = false;
     score.value = 0;
     speed.value = BASE_SPEED;
@@ -153,6 +179,13 @@ export function useRunnerLoop(dims: GameDimensions) {
     lives.value = MAX_LIVES;
     invulnUntil.value = 0;
     crackTrigger.value = 0;
+    hitStopUntil.value = 0;
+    lastTapTime.value = -999;
+    bufferJumpTrigger.value = 0;
+    duckUntil.value = 0;
+    feverGauge.value = 0;
+    feverUntil.value = 0;
+    feverStartTrigger.value = 0;
 
     for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) { obsActive[i].value = false; obsX[i].value = dims.width + 100; obsType[i].value = 0; nearMissState[i].value = 0; }
     for (let i = 0; i < PICKUP_POOL_SIZE; i++) { pkpActive[i].value = false; pkpX[i].value = 0; pkpType[i].value = 0; pkpY[i].value = 0; }
@@ -182,8 +215,12 @@ export function useRunnerLoop(dims: GameDimensions) {
 
       if (state === 'playing') {
         gameTime.value += dt;
+        // Hit-stop : le temps de jeu continue d'avancer (pour sortir du freeze), mais le
+        // monde (score, physique, obstacles, pickups) est figé quelques frames à l'impact.
+        if (gameTime.value < hitStopUntil.value) return;
         const doubleMult = gameTime.value < doubleUntil.value ? 2 : 1;
-        score.value += currentSpeed * slowFactor * dt * 0.01 * doubleMult;
+        const feverMult = gameTime.value < feverUntil.value ? FEVER_SCORE_MULT : 1;
+        score.value += currentSpeed * slowFactor * dt * 0.01 * doubleMult * feverMult;
       }
 
       if (isJumping.value) {
@@ -196,6 +233,14 @@ export function useRunnerLoop(dims: GameDimensions) {
           isDoubleJumping.value = false;
           airCombo.value = 0;
           landingTrigger.value = landingTrigger.value + 1;
+          // Jump buffer : un tap posé dans les JUMP_BUFFER secondes avant l'atterrissage
+          // déclenche un saut immédiat au contact (supprime les morts « j'avais tapé ! »).
+          if (gameTime.value - lastTapTime.value < JUMP_BUFFER) {
+            lastTapTime.value = -999;
+            jumpVelocity.value = JUMP_VELOCITY;
+            isJumping.value = true;
+            bufferJumpTrigger.value = (bufferJumpTrigger.value % 9999) + 1;
+          }
         }
       }
 
@@ -210,10 +255,12 @@ export function useRunnerLoop(dims: GameDimensions) {
         palettePhase.value = Math.floor(score.value / PALETTE_INTERVAL);
       }
 
+      const isDucking = state === 'playing' && !isJumping.value && gameTime.value < duckUntil.value;
+      const effectiveHeight = isDucking ? DUCK_HEIGHT : BOTTLE_HEIGHT;
       const bx = dims.bottleX + BOTTLE_HITBOX_INSET_SIDE;
-      const by = bottleY.value - BOTTLE_HEIGHT + BOTTLE_HITBOX_INSET_TOP;
+      const by = bottleY.value - effectiveHeight + BOTTLE_HITBOX_INSET_TOP;
       const bw = BOTTLE_WIDTH - BOTTLE_HITBOX_INSET_SIDE * 2;
-      const bh = BOTTLE_HEIGHT - BOTTLE_HITBOX_INSET_TOP;
+      const bh = effectiveHeight - BOTTLE_HITBOX_INSET_TOP;
 
       for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) {
         if (!obsActive[i].value) { nearMissState[i].value = 0; continue; }
@@ -227,6 +274,17 @@ export function useRunnerLoop(dims: GameDimensions) {
           const obsY = def.airborne ? airborneObsY : groundObsY;
           const obsH = def.airborne ? def.height - OBSTACLE_HITBOX_INSET : def.height;
           if (checkAABB(bx, by, bw, bh, obsX[i].value + OBSTACLE_HITBOX_INSET, obsY, obsRealW, obsH)) {
+            if (gameTime.value < feverUntil.value) {
+              // Fièvre : le cristal éclate en points, aucun dégât.
+              obsActive[i].value = false;
+              nearMissState[i].value = 0;
+              score.value += 15;
+              popupBonus.value = 15;
+              popupCombo.value = 0;
+              popupTrigger.value = (popupTrigger.value % 9999) + 1;
+              collectBurstTrigger.value = (collectBurstTrigger.value % 9999) + 1;
+              continue;
+            }
             if (shieldActive.value) {
               shieldActive.value = false;
               obsActive[i].value = false;
@@ -249,6 +307,7 @@ export function useRunnerLoop(dims: GameDimensions) {
             }
             invulnUntil.value = gameTime.value + INVULN_DURATION;
             crackTrigger.value = (crackTrigger.value % 9999) + 1;
+            hitStopUntil.value = gameTime.value + HIT_STOP_DURATION;
             continue;
           }
 
@@ -269,6 +328,14 @@ export function useRunnerLoop(dims: GameDimensions) {
               popupBonus.value = NEAR_MISS_BONUS;
               popupCombo.value = 0;
               popupTrigger.value = (popupTrigger.value % 9999) + 1;
+              if (gameTime.value >= feverUntil.value) {
+                feverGauge.value += FEVER_GAIN_NEARMISS;
+                if (feverGauge.value >= FEVER_MAX) {
+                  feverGauge.value = 0;
+                  feverUntil.value = gameTime.value + FEVER_DURATION;
+                  feverStartTrigger.value = (feverStartTrigger.value % 9999) + 1;
+                }
+              }
             }
           }
         }
@@ -308,6 +375,14 @@ export function useRunnerLoop(dims: GameDimensions) {
               popupCombo.value = airCombo.value;
               popupTrigger.value = (popupTrigger.value % 9999) + 1;
               collectBurstTrigger.value = (collectBurstTrigger.value % 9999) + 1;
+              if (gameTime.value >= feverUntil.value) {
+                feverGauge.value += FEVER_GAIN_PICKUP;
+                if (feverGauge.value >= FEVER_MAX) {
+                  feverGauge.value = 0;
+                  feverUntil.value = gameTime.value + FEVER_DURATION;
+                  feverStartTrigger.value = (feverStartTrigger.value % 9999) + 1;
+                }
+              }
             }
             pkpActive[i].value = false;
           }
@@ -403,5 +478,12 @@ export function useRunnerLoop(dims: GameDimensions) {
     lives,
     invulnUntil,
     crackTrigger,
+    hitStopUntil,
+    lastTapTime,
+    bufferJumpTrigger,
+    duckUntil,
+    feverGauge,
+    feverUntil,
+    feverStartTrigger,
   };
 }

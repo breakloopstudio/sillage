@@ -14,7 +14,6 @@ import { hapticsLight } from '../src/services/haptics';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { useVoicePreference } from '../src/hooks/useVoicePreference';
 import type { ThemeMode } from '../src/services/theme-storage';
-import RunnerGame from '../src/features/runner/RunnerGame';
 
 export default function SettingsPage() {
   const { user, logout } = useAuthContext();
@@ -26,7 +25,6 @@ export default function SettingsPage() {
   const [weatherNotifs, setWeatherNotifs] = useState(false);
   const { voiceEnabled, setVoiceEnabled } = useVoicePreference();
 
-  const [showRunner, setShowRunner] = useState(false);
   const easterEggTaps = useRef(0);
   const easterEggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -35,17 +33,13 @@ export default function SettingsPage() {
     if (easterEggTimer.current) { clearTimeout(easterEggTimer.current); }
     if (easterEggTaps.current >= 5) {
       easterEggTaps.current = 0;
-      setShowRunner(true);
+      router.push('/runner');
       return;
     }
     easterEggTimer.current = setTimeout(() => {
       easterEggTaps.current = 0;
     }, 2000);
-  }, []);
-
-  const handleRunnerClose = useCallback(() => {
-    setShowRunner(false);
-  }, []);
+  }, [router]);
 
   const handleThemeChange = useCallback((m: ThemeMode) => {
     setMode(m);
@@ -252,11 +246,6 @@ export default function SettingsPage() {
           <Text style={s.version}>Sillage v{Constants.expoConfig?.version ?? '1.0.0'}{Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : ''}</Text>
         </Pressable>
       </ScrollView>
-      {showRunner && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0B0712', margin: -100, padding: 100 }]}>
-          <RunnerGame onClose={handleRunnerClose} />
-        </View>
-      )}
     </SafeAreaView>
   );
 }

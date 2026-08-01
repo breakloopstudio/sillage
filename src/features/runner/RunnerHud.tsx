@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { View, Text } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
-import { PICKUP_DEFS, POWER_DURATION, type PowerType } from './runner-types';
+import { PICKUP_DEFS, POWER_DURATION, FEVER_DURATION, FEVER_MAX, type PowerType } from './runner-types';
 
 interface Props {
   gameTime: SharedValue<number>;
@@ -11,9 +11,13 @@ interface Props {
   magnetUntil: SharedValue<number>;
   doubleUntil: SharedValue<number>;
   slowUntil: SharedValue<number>;
+  feverGauge: SharedValue<number>;
+  feverUntil: SharedValue<number>;
+  topInset?: number;
 }
 
 const BAR_W = 30;
+const FEVER_BAR_W = 120;
 
 function defByPower(p: PowerType) {
   return PICKUP_DEFS.find(d => d.power === p) ?? PICKUP_DEFS[0];
@@ -54,17 +58,42 @@ function ShieldChip({ shieldActive }: { shieldActive: SharedValue<boolean> }) {
   );
 }
 
-function RunnerHud({ gameTime, shieldActive, magnetUntil, doubleUntil, slowUntil }: Props) {
+function FeverBar({ feverGauge, feverUntil, gameTime }: { feverGauge: SharedValue<number>; feverUntil: SharedValue<number>; gameTime: SharedValue<number> }) {
+  const fill = useAnimatedStyle(() => {
+    const active = gameTime.value < feverUntil.value;
+    const ratio = active
+      ? Math.max(0, Math.min(1, (feverUntil.value - gameTime.value) / FEVER_DURATION))
+      : Math.max(0, Math.min(1, feverGauge.value / FEVER_MAX));
+    return {
+      width: FEVER_BAR_W * ratio,
+      backgroundColor: active ? '#D4A960' : '#8B6CF6',
+    };
+  });
+  const wrap = useAnimatedStyle(() => {
+    const active = gameTime.value < feverUntil.value;
+    return { opacity: active || feverGauge.value > 0 ? 1 : 0 };
+  });
+  return (
+    <Animated.View style={[{ width: FEVER_BAR_W, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.12)', overflow: 'hidden' }, wrap]}>
+      <Animated.View style={[{ height: 5, borderRadius: 2.5 }, fill]} />
+    </Animated.View>
+  );
+}
+
+function RunnerHud({ gameTime, shieldActive, magnetUntil, doubleUntil, slowUntil, feverGauge, feverUntil, topInset = 0 }: Props) {
   return (
     <View
-      style={{ position: 'absolute', top: 104, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 12, zIndex: 40 }}
+      style={{ position: 'absolute', top: topInset + 56, left: 0, right: 0, alignItems: 'center', gap: 8, zIndex: 40 }}
       pointerEvents="none"
       accessibilityElementsHidden
     >
-      <TimedChip until={magnetUntil} gameTime={gameTime} power="magnet" />
-      <ShieldChip shieldActive={shieldActive} />
-      <TimedChip until={doubleUntil} gameTime={gameTime} power="double" />
-      <TimedChip until={slowUntil} gameTime={gameTime} power="slow" />
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+        <TimedChip until={magnetUntil} gameTime={gameTime} power="magnet" />
+        <ShieldChip shieldActive={shieldActive} />
+        <TimedChip until={doubleUntil} gameTime={gameTime} power="double" />
+        <TimedChip until={slowUntil} gameTime={gameTime} power="slow" />
+      </View>
+      <FeverBar feverGauge={feverGauge} feverUntil={feverUntil} gameTime={gameTime} />
     </View>
   );
 }

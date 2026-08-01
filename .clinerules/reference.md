@@ -140,6 +140,16 @@ export function getFollowedHighlights(): Promise<FollowedHighlights | null>;
 // RPC followed_highlights (authenticated) : SOTD + verdicts + nouveaux « have » des suivis
 ```
 
+### `src/services/recap.ts`
+```ts
+// Activité perso dérivée (front pur, tables owner-RLS, aucune RPC/migration)
+export interface WeeklyRecap { scans: number; favorites: number; daysWorn: number; verdicts: number; total: number; }
+export function getSotdStreak(uid: string): Promise<number>;
+// Jours consécutifs de SOTD se terminant aujourd'hui (ou hier si non posé aujourd'hui) ; 0 si série cassée
+export function getWeeklyRecap(uid: string): Promise<WeeklyRecap>;
+// 4 counts head sur 7 jours glissants : scans.scanned_at, favoris.added_at, sotd.day, user_parfum.tried_at (verdict non null)
+```
+
 ### `src/services/theme-storage.ts`
 ```ts
 // Persistance de la préférence de thème dans AsyncStorage
@@ -335,10 +345,21 @@ export function useFavorisViewPreference(): { view: FavorisView | null; setView:
 
 ### `useSotd(uid)` — `src/hooks/useSotd.ts`
 ```ts
-// Hook Parfum du jour (lecture/écriture + état local optimiste)
+// Hook Parfum du jour (lecture/écriture + état local optimiste) + streak de port
 export function useSotd(uid: string | null): {
   sotd: SotdEntry | null;
+  streak: number;                 // jours consécutifs (getSotdStreak) ; rechargé après setTodaySotd
   setTodaySotd: (item: UserParfum) => Promise<void>;
+  refresh: () => Promise<void>;
+};
+```
+
+### `useWeeklyRecap(uid)` — `src/hooks/useWeeklyRecap.ts`
+```ts
+// Récap perso des 7 jours (getWeeklyRecap) — bloc « Ta semaine » de Communauté
+export function useWeeklyRecap(uid: string | null): {
+  recap: WeeklyRecap | null;
+  loading: boolean;
   refresh: () => Promise<void>;
 };
 ```

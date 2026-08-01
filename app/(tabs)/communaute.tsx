@@ -13,12 +13,13 @@ import { useCommunityHighlights } from '../../src/hooks/useCommunityHighlights';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useWeather } from '../../src/hooks/useWeather';
 import { useMyProfile } from '../../src/hooks/useMyProfile';
+import { useWeeklyRecap } from '../../src/hooks/useWeeklyRecap';
 import { useNetwork } from '../../src/hooks/useNetwork';
 import { getFollowedHighlights, searchProfiles, type CommunityParfum, type CommunityProfile, type CommunitySotd, type FollowedVerdict, type FollowedHave, type ProfileSearchResult } from '../../src/services/community';
 import { getRunnerLeaderboard, type LeaderboardEntry } from '../../src/services/runner';
 import { getTopRatedParfums, getSeasonalParfums } from '../../src/services/catalog';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
-import { normalizePseudo, parfumShareUrl } from '../../src/utils/share';
+import { normalizePseudo, parfumShareUrl, profileShareUrl } from '../../src/utils/share';
 import { getWmoMeta } from '../../src/utils/weather-codes';
 import { currentSeason } from '../../src/utils/season';
 import { OLFACTORY_FAMILIES } from '../../src/utils/olfactory-families';
@@ -29,6 +30,7 @@ import SOTDPicker from '../../src/features/wardrobe/SOTDPicker';
 import type { Parfum } from '../../src/models';
 import type { WeatherData } from '../../src/services/weather';
 import type { SotdEntry } from '../../src/models/user-parfum.interface';
+import type { WeeklyRecap } from '../../src/services/recap';
 
 const NIGHT_ICON: Record<string, string> = {
   sunny: 'moon',
@@ -78,6 +80,15 @@ function verdictVerb(v: FollowedVerdict['verdict']): string {
   return v === 'love' ? ' adore ' : v === 'like' ? ' aime ' : v === 'meh' ? ' mitigé sur ' : ' n’aime pas ';
 }
 
+function recapPhrase(r: WeeklyRecap): string {
+  const segs: string[] = [];
+  if (r.scans > 0) segs.push(`${r.scans} flacon${r.scans > 1 ? 's' : ''} croisé${r.scans > 1 ? 's' : ''}`);
+  if (r.favorites > 0) segs.push(`${r.favorites} cœur${r.favorites > 1 ? 's' : ''}`);
+  if (r.daysWorn > 0) segs.push(`porté ${r.daysWorn} jour${r.daysWorn > 1 ? 's' : ''}`);
+  if (r.verdicts > 0) segs.push(`${r.verdicts} avis posé${r.verdicts > 1 ? 's' : ''}`);
+  return segs.join(' · ');
+}
+
 interface TimelineRow {
   key: string;
   pseudo: string;
@@ -105,6 +116,7 @@ export default function CommunautePage() {
   const { items } = useUserParfumContext();
   const { profile, loading: profileLoading } = useMyProfile(isAuthenticated ? uid : null);
   const followingCount = profile?.followingCount ?? 0;
+  const { recap } = useWeeklyRecap(isAuthenticated ? uid : null);
 
   const [pseudoQuery, setPseudoQuery] = useState('');
   const [suggestions, setSuggestions] = useState<ProfileSearchResult[]>([]);
@@ -288,6 +300,26 @@ export default function CommunautePage() {
     router.push(`/search?family=${encodeURIComponent(weekFamily.key)}`);
   }, [router, weekFamily.key]);
 
+  const recapPublic = !!profile?.isPublic && !!profile?.pseudo;
+
+  const handleShareRecap = useCallback(() => {
+    if (!recap || !profile?.pseudo) return;
+    hapticsLight();
+    const phrase = recapPhrase(recap);
+    const url = profileShareUrl(profile.pseudo);
+    const text = `Ma semaine olfactive — ${phrase}.`;
+    if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
+    else Share.share({ message: `${text}\n${url}` }).catch(() => {});
+  }, [recap, profile?.pseudo]);
+
+  const handleRecapCta = useCallback(() => {
+    if (recapPublic) handleShareRecap();
+    else router.push('/profile');
+  }, [recapPublic, handleShareRecap, router]);
+
+  const recapCtaLabel = recapPublic ? 'Partager' : 'Rendre public';
+  const recapCtaIcon = recapPublic ? 'share-social-outline' : 'chevron-forward';
+
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
       <Animated.ScrollView
@@ -334,6 +366,27 @@ export default function CommunautePage() {
             <Ionicons name="arrow-forward" size={16} color={theme.colors.primaryInk} accessible={false} />
           </Pressable>
         </View>
+
+        {recap && recap.total >= 1 ? (
+          <View style={s.recapCard}>
+            <View style={s.recapRow}>
+              <View style={s.recapTexts}>
+                <Text style={s.recapOverline}>Ta semaine</Text>
+                <Text style={s.recapPhrase} numberOfLines={2} maxFontSizeMultiplier={1.3}>{recapPhrase(recap)}</Text>
+              </View>
+              <Pressable
+                style={s.recapCta}
+                onPress={handleRecapCta}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={recapPublic ? 'Partager ta semaine olfactive' : 'Rendre ton profil public pour partager ta semaine'}
+              >
+                <Text style={s.recapCtaText}>{recapCtaLabel}</Text>
+                <Ionicons name={recapCtaIcon as never} size={15} color={theme.colors.primary} accessible={false} />
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         <View style={s.section}>
           <SectionHeader style={s.sectionHeader} title="Les nez" subtitle="Trouve et suis des passionnés" icon="people-outline" tint="primary" tintBg="primarySoft" />
@@ -736,6 +789,17 @@ function getStyles(t: Theme) {
       minHeight: 44, paddingHorizontal: 14, borderRadius: t.radius.base, backgroundColor: t.colors.primarySoft,
     },
     challengeCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: t.colors.primaryInk },
+
+    recapCard: {
+      backgroundColor: t.colors.surface, borderRadius: t.radius.card,
+      marginHorizontal: 16, marginTop: 16, padding: 12, ...t.shadow.card,
+    },
+    recapRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
+    recapTexts: { flex: 1, minWidth: 0 },
+    recapOverline: { fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 1, color: t.colors.textMuted },
+    recapPhrase: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.text, lineHeight: 18, marginTop: 3 },
+    recapCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 8, paddingVertical: 8, flexShrink: 0 },
+    recapCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
 
     pseudoRow: {
       flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,

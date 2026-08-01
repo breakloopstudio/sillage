@@ -21,6 +21,7 @@ interface Props {
   weather: WeatherData | null;
   weatherLoading: boolean;
   sotdScore?: number | null;
+  streak?: number | null;
   onPress: () => void;
   onChangePress: () => void;
   onShare?: () => void;
@@ -40,13 +41,14 @@ function scoreBg(score: number | null | undefined, t: Theme) {
   return t.colors.surface2;
 }
 
-export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, onPress, onChangePress, onShare }: Props) {
+export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, streak, onPress, onChangePress, onShare }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const [imgFailed, setImgFailed] = useState(false);
 
   const showWeather = weather !== null && !weatherLoading;
   const showScore = typeof sotdScore === 'number' && !isNaN(sotdScore) && sotdScore >= 50;
+  const showStreak = typeof streak === 'number' && streak >= 2;
   const scColor = scoreColor(sotdScore, theme);
   const scBg = scoreBg(sotdScore, theme);
 
@@ -89,7 +91,7 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, onP
           delayLongPress={400}
           hitSlop={{ top: 7, bottom: 7 }}
           accessibilityRole="button"
-          accessibilityLabel={`Parfum du jour : ${sotd.nom} ${sotd.marque}`}
+          accessibilityLabel={`Parfum du jour : ${sotd.nom} ${sotd.marque}${showStreak ? `, porté ${streak} jours de suite` : ''}`}
           accessibilityHint="Appuyez longuement pour partager"
         >
           <View style={s.thumbWrap}>
@@ -106,6 +108,11 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, onP
             )}
           </View>
           <Text style={s.name} numberOfLines={1}>{sotd.nom}</Text>
+          {showStreak ? (
+            <View style={s.streakChip}>
+              <Text allowFontScaling={false} style={s.streakText}>{streak} j</Text>
+            </View>
+          ) : null}
           {showScore ? (
             <View style={[s.scoreBadge, { backgroundColor: scBg }]}>
               <Text allowFontScaling={false} style={[s.scoreText, { color: scColor }]}>{sotdScore}%</Text>
@@ -219,6 +226,18 @@ function getStyles(t: Theme) {
     scoreText: {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 9,
+    },
+    streakChip: {
+      borderRadius: 6,
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      backgroundColor: t.colors.surface2,
+    },
+    streakText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 9,
+      color: t.colors.textMuted,
+      fontVariant: ['tabular-nums'] as import('react-native').FontVariant[],
     },
     changeBtn: {
       padding: 4,

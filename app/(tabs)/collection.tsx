@@ -119,7 +119,7 @@ export default function MaParfumeriePage() {
   const { profile } = useMyProfile(uid);
   const { shelves, create: createShelf, update: updateShelf, remove: removeShelf, reorder } = useShelvesContext();
   const { byShelf } = useShelfItems(uid);
-  const { sotd, setTodaySotd } = useSotd(uid);
+  const { sotd, streak, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
   const { weather, loading: weatherLoading, coords } = useWeather(isAuthenticated && isOnline);
   const { scrollY } = useNavigationChrome();
@@ -533,6 +533,7 @@ export default function MaParfumeriePage() {
           weather={weather}
           weatherLoading={weatherLoading}
           sotdScore={sotdScore}
+          streak={streak}
           onPress={handleSotdPress}
           onChangePress={handleSotdChangePress}
           onShare={handleShareSotd}

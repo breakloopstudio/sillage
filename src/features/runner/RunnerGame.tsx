@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions, AppState, Share } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import Animated, {
   useAnimatedReaction,
   useSharedValue,
@@ -14,13 +16,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { hapticsLight, hapticsSuccess, hapticsError } from '../../services/haptics';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { submitRunnerScore, clearRunnerLeaderboardCache } from '../../services/runner';
+import { searchParfumsCached } from '../../services/catalog';
+import type { Parfum } from '../../models';
 import { runnerShareUrl } from '../../utils/share';
 import {
-  getHighScore, setHighScore, getSkinForScore, unlockSkin, getUnlockedSkins,
+  getHighScore, setHighScore, getSkinsForScore, unlockSkin, getUnlockedSkins,
   getSelectedSkinKey, setSelectedSkinKey, getMuted, setMuted,
 } from './runner-storage';
 import { SKINS } from './runner-storage';
@@ -33,8 +38,14 @@ import RunnerPickups from './RunnerPickups';
 import RunnerSpeedLines from './RunnerSpeedLines';
 import RunnerParticles from './RunnerParticles';
 import RunnerHud from './RunnerHud';
+import RunnerCombo from './RunnerCombo';
 import { useRunnerSounds } from './runner-sounds';
-import { getUnlockedMissions, unlockMissions, evaluateMissions, type Mission } from './runner-missions';
+import {
+  getMissionTiers, saveMissionTiers, evaluateMissionTiers, nextObjective,
+  type FreshTier, type NextObjective, type MissionContext,
+} from './runner-missions';
+import { recordRun, totalNotes } from './runner-stats';
+import { getDailyChallenge, isDailyDone, markDailyDone, type DailyChallenge } from './runner-daily';
 import {
   type GameDimensions,
   JUMP_VELOCITY,
@@ -42,6 +53,8 @@ import {
   PALETTES,
   PICKUP_DEFS,
   RUNNER_PHASES,
+  PX_PER_METER,
+  DUCK_DURATION,
 } from './runner-types';
 
 interface Props {
@@ -50,7 +63,16 @@ interface Props {
 
 const MILESTONES = [500, 1000, 2000, 3000];
 
-function getStyles() {
+// Mapping des notes collectées (clés pickups) vers les noms de notes du catalogue (EN),
+// pour suggérer un vrai parfum dont l'accord ressemble à la course.
+const NOTE_QUERY: Record<string, string> = {
+  bergamote: 'bergamot',
+  santal: 'sandalwood',
+  ambre: 'amber',
+  musc: 'musk',
+};
+
+function getStyles(topInset: number, bottomInset: number) {
   return {
     container: {
       ...StyleSheet.absoluteFill,
@@ -59,7 +81,7 @@ function getStyles() {
     },
     scoreContainer: {
       position: 'absolute' as const,
-      top: 60,
+      top: topInset + 12,
       right: 24,
       alignItems: 'flex-end' as const,
       zIndex: 50,
@@ -78,7 +100,7 @@ function getStyles() {
     },
     livesRow: {
       position: 'absolute' as const,
-      top: 106,
+      top: topInset + 58,
       right: 26,
       flexDirection: 'row' as const,
       gap: 5,
@@ -86,7 +108,7 @@ function getStyles() {
     },
     topCluster: {
       position: 'absolute' as const,
-      top: 55,
+      top: topInset + 8,
       left: 12,
       flexDirection: 'row' as const,
       gap: 6,
@@ -152,6 +174,7 @@ function getStyles() {
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
       backgroundColor: 'rgba(11,7,18,0.75)',
+      paddingBottom: bottomInset + 24,
     },
     goTitle: {
       fontFamily: 'PlayfairDisplay_700Bold',
@@ -211,6 +234,101 @@ function getStyles() {
       fontSize: 12,
       color: '#988EA8',
       marginTop: 12,
+    },
+    nextObjRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 6,
+      marginTop: 8,
+    },
+    nextObjText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      color: '#988EA8',
+      fontVariant: ['tabular-nums'] as never,
+    },
+    dailyCard: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      marginTop: 24,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: 'rgba(212,169,96,0.10)',
+      borderWidth: 1,
+      borderColor: 'rgba(212,169,96,0.3)',
+    },
+    dailyCardText: {
+      flex: 1,
+    },
+    dailyOverline: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 9,
+      color: '#D4A960',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase' as const,
+    },
+    dailyLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      color: '#EDE8F5',
+      marginTop: 2,
+    },
+    dailyDoneBadge: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 6,
+      backgroundColor: '#2DD4BF',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginTop: 8,
+    },
+    dailyDoneText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      color: '#1F1A2E',
+    },
+    suggestedCard: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 12,
+      marginTop: 14,
+      padding: 10,
+      borderRadius: 12,
+      backgroundColor: '#15101E',
+      borderWidth: 1,
+      borderColor: 'rgba(212,169,96,0.3)',
+      width: 280,
+    },
+    suggestedImg: {
+      width: 44,
+      height: 58,
+      borderRadius: 6,
+      backgroundColor: '#1D1728',
+    },
+    suggestedText: {
+      flex: 1,
+    },
+    suggestedOverline: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 9,
+      color: '#D4A960',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase' as const,
+    },
+    suggestedName: {
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      fontSize: 14,
+      color: '#EDE8F5',
+      marginTop: 2,
+    },
+    suggestedBrand: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      color: '#988EA8',
+      marginTop: 1,
     },
     goStats: {
       flexDirection: 'row' as const,
@@ -292,7 +410,7 @@ function getStyles() {
     },
     phaseBanner: {
       position: 'absolute' as const,
-      top: 152,
+      top: topInset + 104,
       alignSelf: 'center' as const,
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
@@ -338,7 +456,7 @@ const MILESTONE_LABELS: Record<number, string> = {
   3000: 'Légende',
 };
 
-function FloatingPopup({ entry, onDone }: { entry: PopupEntry; onDone: (id: number) => void }) {
+function FloatingPopup({ entry, onDone, reduceMotion }: { entry: PopupEntry; onDone: (id: number) => void; reduceMotion: boolean }) {
   const opacity = useSharedValue(1);
   const ty = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -347,12 +465,16 @@ function FloatingPopup({ entry, onDone }: { entry: PopupEntry; onDone: (id: numb
   const fontSize = 15 + Math.min(combo, 4) * 2;
 
   useEffect(() => {
-    opacity.value = withTiming(0, { duration: 800 });
-    ty.value = withTiming(-70, { duration: 800 });
-    scale.value = withSequence(
-      withSpring(peak, { damping: 12, stiffness: 300 }),
-      withTiming(1, { duration: 500 }),
-    );
+    if (reduceMotion) {
+      opacity.value = withTiming(0, { duration: 150 });
+    } else {
+      opacity.value = withTiming(0, { duration: 800 });
+      ty.value = withTiming(-70, { duration: 800 });
+      scale.value = withSequence(
+        withSpring(peak, { damping: 12, stiffness: 300 }),
+        withTiming(1, { duration: 500 }),
+      );
+    }
     const t = setTimeout(() => onDone(entry.id), 850);
     return () => clearTimeout(t);
   }, []);
@@ -407,7 +529,9 @@ function SkinSwatch({ def, unlocked, selected, onSelect }: { def: typeof SKINS[n
 }
 
 export default function RunnerGame({ onClose }: Props) {
-  const s = useMemo(() => getStyles(), []);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const s = useMemo(() => getStyles(insets.top, insets.bottom), [insets.top, insets.bottom]);
   const reduceMotion = useReducedMotion();
   const { isAuthenticated } = useAuthContext();
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -429,7 +553,6 @@ export default function RunnerGame({ onClose }: Props) {
     frameCallback, resetGame,
     lastCollectedPickup,
     airCombo,
-    nearMissTrigger,
     popupTrigger,
     popupBonus,
     popupCombo,
@@ -446,6 +569,12 @@ export default function RunnerGame({ onClose }: Props) {
     lives,
     invulnUntil,
     crackTrigger,
+    lastTapTime,
+    bufferJumpTrigger,
+    duckUntil,
+    feverGauge,
+    feverUntil,
+    feverStartTrigger,
   } = useRunnerLoop(dims);
 
   const [uiState, setUiState] = useState('idle');
@@ -457,6 +586,7 @@ export default function RunnerGame({ onClose }: Props) {
 
   const [countdown, setCountdown] = useState(-1);
   const countdownScale = useSharedValue(1);
+  const goTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sounds = useRunnerSounds();
   const mutedRef = useRef(false);
@@ -476,7 +606,7 @@ export default function RunnerGame({ onClose }: Props) {
     });
   }, []);
 
-  const collectedCounts = useMemo(() => ({ bergamote: 0, santal: 0, ambre: 0, musc: 0 } as Record<string, number>), []);
+  const collectedCounts = useRef<Record<string, number>>({ bergamote: 0, santal: 0, ambre: 0, musc: 0 });
   const [popups, setPopups] = useState<PopupEntry[]>([]);
   const popupIdRef = useRef(0);
 
@@ -495,11 +625,19 @@ export default function RunnerGame({ onClose }: Props) {
   const [paletteIdx, setPaletteIdx] = useState(0);
   const [showGo, setShowGo] = useState(false);
   const [finalStats, setFinalStats] = useState({ distance: 0, maxCombo: 0, nearMiss: 0 });
-  const [newSkinLabel, setNewSkinLabel] = useState('');
+  const [newSkinLabels, setNewSkinLabels] = useState<string[]>([]);
   const [phaseBanner, setPhaseBanner] = useState<{ label: string; emoji: string } | null>(null);
   const phaseBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [unlockedMissions, setUnlockedMissions] = useState<string[]>([]);
-  const [newMissions, setNewMissions] = useState<Mission[]>([]);
+  const [freshTiers, setFreshTiers] = useState<FreshTier[]>([]);
+  const [nextObj, setNextObj] = useState<NextObjective | null>(null);
+
+  const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
+  const [dailyDone, setDailyDone] = useState(false);
+  const [dailyJustDone, setDailyJustDone] = useState(false);
+  const dailyChallengeRef = useRef<DailyChallenge | null>(null);
+  const dailyDoneRef = useRef(false);
+
+  const [suggestedParfum, setSuggestedParfum] = useState<Parfum | null>(null);
   const [worldRank, setWorldRank] = useState<number | null>(null);
   const [livesDisplay, setLivesDisplay] = useState(3);
   const shieldBreaksRef = useRef(0);
@@ -550,7 +688,10 @@ export default function RunnerGame({ onClose }: Props) {
   useEffect(() => {
     getHighScore().then(v => setHighScoreState(v)).catch(() => {});
     getMuted().then(m => { mutedRef.current = m; setMutedState(m); }).catch(() => {});
-    getUnlockedMissions().then(keys => setUnlockedMissions(keys)).catch(() => {});
+    const ch = getDailyChallenge();
+    dailyChallengeRef.current = ch;
+    setDailyChallenge(ch);
+    isDailyDone().then(done => { dailyDoneRef.current = done; setDailyDone(done); }).catch(() => {});
     getUnlockedSkins().then(keys => {
       setUnlockedKeys(keys);
       getSelectedSkinKey().then(saved => {
@@ -575,18 +716,26 @@ export default function RunnerGame({ onClose }: Props) {
         gameState.value = 'playing';
         jumpVelocity.value = JUMP_VELOCITY;
         isJumping.value = true;
+        canDoubleJump.value = true;
         setCountdown(-1);
         setShowGo(true);
-        countdownScale.value = withSpring(1, { damping: 12, stiffness: 300 });
-        setTimeout(() => setShowGo(false), 500);
+        if (!reduceMotion) countdownScale.value = withSpring(1, { damping: 12, stiffness: 300 });
+        goTimerRef.current = setTimeout(() => setShowGo(false), 500);
       }, 400);
-      return () => clearTimeout(t);
+      return () => {
+        clearTimeout(t);
+        if (goTimerRef.current) { clearTimeout(goTimerRef.current); goTimerRef.current = null; }
+      };
     }
-    countdownScale.value = 1.4;
-    countdownScale.value = withSpring(1, { damping: 12, stiffness: 300 });
+    if (reduceMotion) {
+      countdownScale.value = 1;
+    } else {
+      countdownScale.value = 1.4;
+      countdownScale.value = withSpring(1, { damping: 12, stiffness: 300 });
+    }
     const t = setTimeout(() => setCountdown(c => c - 1), 400);
     return () => clearTimeout(t);
-  }, [countdown]);
+  }, [countdown, reduceMotion, gameState, jumpVelocity, isJumping, canDoubleJump, countdownScale]);
 
   useAnimatedReaction(
     () => gameState.value,
@@ -628,7 +777,6 @@ export default function RunnerGame({ onClose }: Props) {
           if (floor >= m && lastMilestoneShared.value < m) {
             lastMilestoneShared.value = m;
             scheduleOnRN(handleMilestone, MILESTONE_LABELS[m] ?? '');
-            break;
           }
         }
       }
@@ -671,10 +819,10 @@ export default function RunnerGame({ onClose }: Props) {
   const onPickupCollected = useCallback((typeIdx: number) => {
     const def = PICKUP_DEFS[typeIdx];
     if (!def) return;
-    collectedCounts[def.key] = (collectedCounts[def.key] || 0) + 1;
+    collectedCounts.current[def.key] = (collectedCounts.current[def.key] || 0) + 1;
     hapticsSuccess();
     playPickup();
-  }, [collectedCounts, playPickup]);
+  }, [playPickup]);
 
   useAnimatedReaction(
     () => lastCollectedPickup.value,
@@ -748,73 +896,93 @@ export default function RunnerGame({ onClose }: Props) {
   // Finalize score on game over
   const gameOverFinalizedRef = useRef(false);
   useEffect(() => {
-    if (uiState === 'gameover') {
-      if (gameOverFinalizedRef.current) return;
-      gameOverFinalizedRef.current = true;
-      stopChase();
-      const finalScore = lastFloorShared.value;
-      setDisplayScore(finalScore);
-      displayScoreRef.current = finalScore;
-      targetScoreRef.current = finalScore;
+    if (uiState !== 'gameover') return;
+    if (gameOverFinalizedRef.current) return;
+    gameOverFinalizedRef.current = true;
+    stopChase();
+    const finalScore = lastFloorShared.value;
+    setDisplayScore(finalScore);
+    displayScoreRef.current = finalScore;
+    targetScoreRef.current = finalScore;
 
-      setFinalStats({
-        distance: Math.floor(distance.value / 12),
-        maxCombo: Math.floor(maxCombo.value),
-        nearMiss: Math.floor(nearMissCount.value),
-      });
+    const dist = Math.floor(distance.value / PX_PER_METER);
+    const combo = Math.floor(maxCombo.value);
+    const nearMiss = Math.floor(nearMissCount.value);
+    const shieldBreaks = shieldBreaksRef.current;
+    setFinalStats({ distance: dist, maxCombo: combo, nearMiss });
 
-      const parts: string[] = [];
-      for (const def of PICKUP_DEFS) {
-        const n = collectedCounts[def.key];
-        if (n) parts.push(`${n}× ${def.label}`);
-      }
-      setCollectedText(parts.length > 0 ? `Ta composition : ${parts.join(', ')}` : '');
-
-      if (finalScore > highScore) {
-        setHighScoreState(finalScore);
-        setIsRecord(true);
-        setHighScore(finalScore).catch(() => {});
-        playRecord();
-      }
-
-      const earned = getSkinForScore(finalScore);
-      if (!unlockedKeys.includes(earned.key)) {
-        unlockSkin(earned.key).catch(() => {});
-        setUnlockedKeys(prev => (prev.includes(earned.key) ? prev : [...prev, earned.key]));
-        setNewSkinLabel(earned.label);
-      } else {
-        setNewSkinLabel('');
-      }
-
-      const notesCollected = PICKUP_DEFS.reduce((sum, def) => sum + (collectedCounts[def.key] || 0), 0);
-      const fresh = evaluateMissions({
-        score: finalScore,
-        distance: Math.floor(distance.value / 12),
-        maxCombo: Math.floor(maxCombo.value),
-        nearMiss: Math.floor(nearMissCount.value),
-        shieldBreaks: shieldBreaksRef.current,
-        notesCollected,
-      }, unlockedMissions);
-      if (fresh.length > 0) {
-        const keys = fresh.map(m => m.key);
-        unlockMissions(keys).catch(() => {});
-        setUnlockedMissions(prev => [...new Set([...prev, ...keys])]);
-        setNewMissions(fresh);
-      } else {
-        setNewMissions([]);
-      }
-
-      if (isAuthenticated) {
-        clearRunnerLeaderboardCache();
-        submitRunnerScore({
-          score: finalScore,
-          distance: Math.floor(distance.value / 12),
-          maxCombo: Math.floor(maxCombo.value),
-          skin: skin.key,
-        }).then(rank => { if (rank != null) setWorldRank(rank); }).catch(() => {});
-      }
+    const notesByType: Record<string, number> = {};
+    const parts: string[] = [];
+    for (const def of PICKUP_DEFS) {
+      const n = collectedCounts.current[def.key];
+      if (n) { notesByType[def.key] = n; parts.push(`${n}× ${def.label}`); }
     }
-  }, [uiState, highScore, collectedCounts, unlockedKeys, unlockedMissions, isAuthenticated, skin, distance, maxCombo, nearMissCount, playRecord]);
+    const notesCollected = Object.values(notesByType).reduce((sum, n) => sum + n, 0);
+    setCollectedText(parts.length > 0 ? `Ta composition : ${parts.join(', ')}` : '');
+
+    const daily = dailyChallengeRef.current;
+    if (daily && !dailyDoneRef.current && daily.check({ score: finalScore, distance: dist, maxCombo: combo, nearMiss, shieldBreaks, notesCollected })) {
+      dailyDoneRef.current = true;
+      setDailyDone(true);
+      setDailyJustDone(true);
+      markDailyDone().catch(() => {});
+      hapticsSuccess();
+    }
+
+    const sortedNotes = Object.entries(notesByType).sort((a, b) => b[1] - a[1]);
+    const query = sortedNotes.slice(0, 2).map(([k]) => NOTE_QUERY[k]).filter(Boolean).join(' ');
+    if (query) {
+      searchParfumsCached(query).then(results => {
+        if (results.length > 0) setSuggestedParfum(results[0]);
+      }).catch(() => {});
+    }
+
+    if (finalScore > highScore) {
+      setHighScoreState(finalScore);
+      setIsRecord(true);
+      setHighScore(finalScore).catch(() => {});
+      playRecord();
+    }
+
+    const earned = getSkinsForScore(finalScore).filter(sk => !unlockedKeys.includes(sk.key));
+    if (earned.length > 0) {
+      const keys = earned.map(sk => sk.key);
+      Promise.all(keys.map(k => unlockSkin(k))).catch(() => {});
+      setUnlockedKeys(prev => [...new Set([...prev, ...keys])]);
+      setNewSkinLabels(earned.map(sk => sk.label));
+    } else {
+      setNewSkinLabels([]);
+    }
+
+    // Carnet (stats lifetime) puis missions à paliers + prochain objectif.
+    recordRun({ score: finalScore, distance: dist, maxCombo: combo, nearMiss, shieldBreaks, notesByType })
+      .then((stats) => {
+        const ctx: MissionContext = {
+          score: finalScore, distance: dist, maxCombo: combo, nearMiss, shieldBreaks, notesCollected,
+          totalRuns: stats.totalRuns, totalDistance: stats.totalDistance, totalNotes: totalNotes(stats),
+        };
+        return getMissionTiers().then((tiers) => {
+          const fresh = evaluateMissionTiers(ctx, tiers);
+          const updated = { ...tiers };
+          for (const f of fresh) updated[f.mission.key] = f.tier;
+          if (fresh.length > 0) {
+            saveMissionTiers(updated).catch(() => {});
+            setFreshTiers(fresh);
+          } else {
+            setFreshTiers([]);
+          }
+          setNextObj(nextObjective(ctx, updated));
+        });
+      })
+      .catch(() => {});
+
+    if (isAuthenticated) {
+      clearRunnerLeaderboardCache();
+      submitRunnerScore({ score: finalScore, distance: dist, maxCombo: combo, skin: skin.key })
+        .then(rank => { if (rank != null) setWorldRank(rank); }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiState]);
 
   const handleRestart = useCallback(() => {
     stopChase();
@@ -824,7 +992,7 @@ export default function RunnerGame({ onClose }: Props) {
     targetScoreRef.current = 0;
     displayScoreRef.current = 0;
     setDisplayScore(0);
-    for (const def of PICKUP_DEFS) collectedCounts[def.key] = 0;
+    for (const def of PICKUP_DEFS) collectedCounts.current[def.key] = 0;
     setIsRecord(false);
     setCollectedText('');
     setPopups([]);
@@ -835,8 +1003,11 @@ export default function RunnerGame({ onClose }: Props) {
     setPaletteIdx(0);
     setShowGo(false);
     setFinalStats({ distance: 0, maxCombo: 0, nearMiss: 0 });
-    setNewSkinLabel('');
-    setNewMissions([]);
+    setNewSkinLabels([]);
+    setFreshTiers([]);
+    setNextObj(null);
+    setDailyJustDone(false);
+    setSuggestedParfum(null);
     setPhaseBanner(null);
     setWorldRank(null);
     shieldBreaksRef.current = 0;
@@ -863,10 +1034,17 @@ export default function RunnerGame({ onClose }: Props) {
     }).catch(() => {});
   }, [displayScore]);
 
+  const handleOpenSuggested = useCallback(() => {
+    if (suggestedParfum) {
+      hapticsLight();
+      router.push(`/catalog/${suggestedParfum.id}`);
+    }
+  }, [suggestedParfum, router]);
+
   const startCountdown = useCallback(() => setCountdown(3), []);
 
-  const tapGesture = useMemo(() =>
-    Gesture.Tap()
+  const tapGesture = useMemo(() => {
+    const tap = Gesture.Tap()
       .onEnd(() => {
         'worklet';
         const state = gameState.value;
@@ -886,13 +1064,53 @@ export default function RunnerGame({ onClose }: Props) {
             scheduleOnRN(playJump);
             return;
           }
+          // En l'air, double saut déjà consommé : on horodate le tap pour le jump buffer
+          // (un atterrissage dans les JUMP_BUFFER ms déclenchera un saut automatique).
+          lastTapTime.value = gameTime.value;
           return;
         }
-      }),
-    [playJump],
+      });
+
+    // Swipe vers le bas = glissade (« Sillage »). failOffsetX laisse passer les gestes
+    // horizontaux (swipe-back natif) ; activeOffsetY évite de confondre un tap et un swipe.
+    const pan = Gesture.Pan()
+      .activeOffsetY(12)
+      .failOffsetX([-20, 20])
+      .onStart((e) => {
+        'worklet';
+        if (e.translationY > 0 && gameState.value === 'playing' && !isJumping.value) {
+          duckUntil.value = gameTime.value + DUCK_DURATION;
+          scheduleOnRN(hapticsLight);
+        }
+      });
+
+    return Gesture.Race(tap, pan);
+  }, [playJump, gameState, isJumping, canDoubleJump, jumpVelocity, isDoubleJumping, lastTapTime, gameTime, duckUntil]);
+
+  // Saut bufferisé déclenché par le loop à l'atterrissage → feedback son + haptique.
+  useAnimatedReaction(
+    () => bufferJumpTrigger.value,
+    (v, prev) => {
+      if (prev != null && v !== prev) {
+        scheduleOnRN(hapticsLight);
+        scheduleOnRN(playJump);
+      }
+    },
   );
 
-  const showStart = uiState === 'idle' || uiState === 'entering';
+  // Mode Fièvre déclenché (jauge pleine) → achèvement : haptique + son + bannière.
+  useAnimatedReaction(
+    () => feverStartTrigger.value,
+    (v, prev) => {
+      if (prev != null && v !== prev) {
+        scheduleOnRN(hapticsSuccess);
+        scheduleOnRN(playRecord);
+        scheduleOnRN(handleMilestone, 'Fièvre !');
+      }
+    },
+  );
+
+  const showStart = uiState === 'idle';
   const showGameOver = uiState === 'gameover';
   const showPause = uiState === 'paused';
 
@@ -922,6 +1140,8 @@ export default function RunnerGame({ onClose }: Props) {
           slowUntil={slowUntil}
           lives={lives}
           invulnUntil={invulnUntil}
+          duckUntil={duckUntil}
+          feverUntil={feverUntil}
         />
 
         <RunnerObstacles obs={obs} groundY={dims.groundY} paletteIdx={paletteIdx} screenW={dims.width} />
@@ -933,7 +1153,11 @@ export default function RunnerGame({ onClose }: Props) {
           magnetUntil={magnetUntil}
           doubleUntil={doubleUntil}
           slowUntil={slowUntil}
+          feverGauge={feverGauge}
+          feverUntil={feverUntil}
+          topInset={insets.top}
         />
+        <RunnerCombo airCombo={airCombo} reduceMotion={reduceMotion} centerY={dims.groundY * 0.5} />
 
         <View style={s.scoreContainer}>
           <Text allowFontScaling={false} style={s.scoreText}>
@@ -990,7 +1214,7 @@ export default function RunnerGame({ onClose }: Props) {
         </View>
 
         {popups.map(p => (
-          <FloatingPopup key={p.id} entry={p} onDone={handlePopupDone} />
+          <FloatingPopup key={p.id} entry={p} onDone={handlePopupDone} reduceMotion={reduceMotion} />
         ))}
 
         {milestone !== '' && (
@@ -1037,8 +1261,17 @@ export default function RunnerGame({ onClose }: Props) {
               </View>
               <Text style={s.tapLabel}>Tape pour jouer</Text>
               <Text style={s.hint}>
-                Tap = saut{'\n'}Double tap = double saut{'\n'}Enchaînement aérien = combo{'\n'}Attrape les notes pour des pouvoirs
+                Tap = saut{'\n'}Double tap = double saut{'\n'}Swipe bas = glissade{'\n'}Enchaînement aérien = combo · Jauge pleine = fièvre
               </Text>
+              {dailyChallenge != null && (
+                <View style={s.dailyCard}>
+                  <Ionicons name={dailyDone ? 'checkmark-circle' : (dailyChallenge.icon as never)} size={20} color={dailyDone ? '#2DD4BF' : '#D4A960'} />
+                  <View style={s.dailyCardText}>
+                    <Text allowFontScaling={false} style={s.dailyOverline}>Le geste du jour</Text>
+                    <Text style={s.dailyLabel}>{dailyDone ? 'Réussi — reviens demain' : dailyChallenge.label}</Text>
+                  </View>
+                </View>
+              )}
               {highScore > 0 && (
                 <>
                   <Text style={s.startHiLabel}>Record</Text>
@@ -1073,24 +1306,54 @@ export default function RunnerGame({ onClose }: Props) {
                 <Text allowFontScaling={false} style={s.goStatLabel}>frôlés</Text>
               </View>
             </View>
-            {newSkinLabel !== '' && (
-              <View style={s.newSkinBadge}>
+            {newSkinLabels.map(label => (
+              <View key={label} style={s.newSkinBadge}>
                 <Ionicons name="color-palette-outline" size={14} color="#1F1A2E" />
-                <Text allowFontScaling={false} style={s.newSkinText}>Skin « {newSkinLabel} » débloqué</Text>
-              </View>
-            )}
-            {newMissions.map(m => (
-              <View key={m.key} style={s.missionBadge}>
-                <Ionicons name={m.icon as never} size={14} color="#D4A960" />
-                <Text allowFontScaling={false} style={s.missionText}>{m.label}</Text>
+                <Text allowFontScaling={false} style={s.newSkinText}>Skin « {label} » débloqué</Text>
               </View>
             ))}
+            {freshTiers.map(f => (
+              <View key={f.mission.key} style={s.missionBadge}>
+                <Ionicons name={f.mission.icon as never} size={14} color="#D4A960" />
+                <Text allowFontScaling={false} style={s.missionText}>{f.mission.label} · {f.tier}/3</Text>
+              </View>
+            ))}
+            {dailyJustDone && (
+              <View style={s.dailyDoneBadge}>
+                <Ionicons name="checkmark-circle" size={14} color="#1F1A2E" />
+                <Text allowFontScaling={false} style={s.dailyDoneText}>Geste du jour réussi</Text>
+              </View>
+            )}
             {worldRank != null && (
               <Text allowFontScaling={false} style={s.rankText}>Rang mondial : #{worldRank}</Text>
             )}
             {collectedText ? (
               <Text style={s.goPickups}>{collectedText}</Text>
             ) : null}
+            {nextObj != null && (
+              <View style={s.nextObjRow}>
+                <Ionicons name={nextObj.icon as never} size={13} color="#988EA8" />
+                <Text allowFontScaling={false} style={s.nextObjText}>
+                  Prochain : {nextObj.label} — {nextObj.current}/{nextObj.target} {nextObj.unit}
+                </Text>
+              </View>
+            )}
+            {suggestedParfum != null && (
+              <Pressable
+                style={s.suggestedCard}
+                onPress={handleOpenSuggested}
+                accessibilityRole="button"
+                accessibilityLabel={`Ta course ressemble à ${suggestedParfum.nom} de ${suggestedParfum.marque}. Voir la fiche.`}
+              >
+                <Image source={{ uri: suggestedParfum.imageUrl }} style={s.suggestedImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={suggestedParfum.id} />
+                <View style={s.suggestedText}>
+                  <Text allowFontScaling={false} style={s.suggestedOverline}>Ta course a un sillage</Text>
+                  <Text numberOfLines={1} style={s.suggestedName}>{suggestedParfum.nom}</Text>
+                  <Text numberOfLines={1} style={s.suggestedBrand}>{suggestedParfum.marque} · voir la fiche</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#988EA8" />
+              </Pressable>
+            )}
             <Pressable style={s.retryBtn} onPress={handleRestart}>
               <Text style={s.retryText}>Rejouer</Text>
             </Pressable>

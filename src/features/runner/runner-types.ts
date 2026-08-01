@@ -1,4 +1,9 @@
 // src/features/runner/runner-types.ts — Types, config, constantes du mini-jeu Flacon Runner
+//
+// NOTE design : le mini-jeu est une scène sombre immersive volontairement HORS thème
+// (couleurs hardcodées violet/noir/doré, identiques en light et dark). Exception assumée
+// au design-guide §2 — même logique que le fond lightbox §2.3 (`#0B0712`). Les couleurs
+// sont regroupées dans RUNNER_COLORS ci-dessous pour éviter la dispersion.
 
 export interface GameDimensions {
   width: number;
@@ -25,7 +30,20 @@ export interface PickupDef {
 
 export type PowerType = 'magnet' | 'shield' | 'double' | 'slow';
 
-export type GameStateValue = 'entering' | 'idle' | 'playing' | 'dying' | 'gameover' | 'exiting';
+export type GameStateValue = 'idle' | 'playing' | 'paused' | 'dying' | 'gameover';
+
+// Palette centralisée de la scène (hors thème, cf. note d'en-tête).
+export const RUNNER_COLORS = {
+  bg: '#0B0712',
+  gold: '#D4A960',
+  violet: '#8B6CF6',
+  violetDeep: '#6C3ED9',
+  textLight: '#EDE8F5',
+  muted: '#988EA8',
+  mutedDim: '#4A4358',
+  ink: '#1F1A2E',
+  surface: '#15101E',
+} as const;
 
 export const GRAVITY = 1850;
 export const JUMP_VELOCITY = -720;
@@ -33,6 +51,28 @@ export const DOUBLE_JUMP_VELOCITY = -610;
 export const BASE_SPEED = 300;
 export const MAX_SPEED = 780;
 export const SPEED_INCREMENT_PER_POINT = 0.12;
+
+// Game-feel : jump buffer (un tap posé juste avant l'atterrissage déclenche le saut
+// au contact) + hit-stop (micro-freeze du monde à l'impact pour « sentir » le coup).
+export const JUMP_BUFFER = 0.12;
+export const HIT_STOP_DURATION = 0.06;
+
+// Conversion px → « mètres » affichés (12 px = 1 mètre).
+export const PX_PER_METER = 12;
+
+// Glissade (« Sillage ») : swipe bas = le flacon se couche, hitbox réduite en hauteur
+// pour passer sous les cristaux volants. Deuxième dimension de jeu (sauter OU glisser).
+export const DUCK_DURATION = 0.6;
+export const DUCK_HEIGHT = 26;
+export const DUCK_SCALE = 0.55;
+
+// Mode Fièvre : une jauge se remplit (pickups + frôlés) ; pleine → invincibilité + score
+// ×2 + cristaux collectables pendant FEVER_DURATION. Pic de récompense rythmant le run.
+export const FEVER_DURATION = 4.5;
+export const FEVER_MAX = 100;
+export const FEVER_GAIN_PICKUP = 20;
+export const FEVER_GAIN_NEARMISS = 8;
+export const FEVER_SCORE_MULT = 2;
 
 export const BOTTLE_WIDTH = 30;
 export const BOTTLE_HEIGHT = 56;
@@ -88,9 +128,9 @@ export const INVULN_DURATION = 1.2;
 export const SPAWN_ENTRY_DISTANCE = 140;
 
 export const PICKUP_DEFS: PickupDef[] = [
-  { key: 'bergamote', label: 'Bergamote', emoji: '🍋', color: '#B5C334', power: 'magnet', altitude: 'low', scoreBonus: 25 },
+  { key: 'bergamote', label: 'Bergamote', emoji: '🍊', color: '#B5C334', power: 'magnet', altitude: 'low', scoreBonus: 25 },
   { key: 'santal', label: 'Santal', emoji: '🪵', color: '#A9744F', power: 'shield', altitude: 'medium', scoreBonus: 50 },
-  { key: 'ambre', label: 'Ambre', emoji: '🔥', color: '#E8933A', power: 'double', altitude: 'high', scoreBonus: 100 },
+  { key: 'ambre', label: 'Ambre', emoji: '✨', color: '#E8933A', power: 'double', altitude: 'high', scoreBonus: 100 },
   { key: 'musc', label: 'Musc', emoji: '🌙', color: '#9A8FC0', power: 'slow', altitude: 'very_high', scoreBonus: 200 },
 ];
 

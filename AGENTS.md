@@ -719,6 +719,41 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 
 **Backlog P1 restant (P1-B)** : récap hebdo perso `weekly_recap` (RPC + bloc « Ta semaine » + Share) · streak SOTD (chip « N j » sur `SOTDCard` **dans Parfumerie**, nécessite l'historique `sotd`). **P2** inchangé : chips ♥n/×n gatés (activation) · « Étagères à découvrir » · taste twins gatés · push « X a aimé un parfum que tu as » · chrome contextuel · hub jeux.
 
+## Notes v8.15 — Communauté : polish visuel + densité cold-start (01/08/2026)
+
+**Brainstorm orchestré sur le rendu réel** du P0+P1-A (4 angles × 2 rounds : polish / densité / rétention / croissance) → corrections des défauts que `tsc`/`jest` ne voient pas, ancrés dans les screenshots. Aucun changement de modèle ni de contrat service.
+
+**Polish visuel.** `SectionHeader` n'a aucune marge horizontale par design (la marge vient du caller via `style`) → les 2 titres de Communauté étaient collés au bord gauche (x=0) alors que le contenu est à 16. Fix **local** : `style={{ paddingHorizontal: 16 }}` sur les 2 headers (pas global : `BrandCapsules`/`FamilyAmbianceCards` passent déjà leur marge, un global doublerait). `subtitle` de `SectionHeader` n'avait pas de `fontFamily` → fallback système ; `Inter_400Regular` ajouté (bénéficie aux 5 consommateurs). Sublabel « Nez que tu suis » → **« Activité de tes suivis »** (le header « Les nez » porte la découverte, le sublabel qualifie le bloc suivi). CTA défi : outline pleine largeur (2ᵉ masse violette, §2.4) → **soft-fill `primarySoft`/`primaryInk` aligné à droite** (affordance du levier → `/search` préservée, 1 seul accent).
+
+**Densité cold-start (deux seuils : SQL vs rendu).** Le P0 avait mis des seuils SQL honnêtes mais à 1-2 users une rangée horizontale de cartes 140 px paraît vide (1 carte = 1/3 de rangée). Règles de rendu : **fusion** « Les plus aimés » + « Tendances » en une seule rangée « L'air du temps » **dédupliquée** (tue la duplication du même parfum sous 2 labels) ; seuil de rendu par conteneur (carousel ≥ 3, grille ≥ 2) ; sous 3 cartes communautaires, les cartes **réelles** passent en **lignes featured `mode=list`** (format vertical plein à 1-2, le signal n'est jamais jeté — flag `USE_FEATURED_ROWS`) complétées en dessous par une rangée seed « la sélection de la maison » (le seed devient un **frère**, jamais un remplaçant d'un vrai signal maigre) ; « Collections à découvrir » gatée **≥ 2 profils** (fin de la demi-carte orpheline). **Miroir hero** : la rangée « Portés aujourd'hui » est masquée si aucun *autre* SOTD public (`showRow = sotdToday.length > 0`) — à 1 user on ne se parle plus à soi-même ; la ligne hairline perso reste. Label adaptatif « par les premiers nez » / « par la communauté » selon Σ `love_count` (< 5).
+
+**Fichiers modifiés** : `app/(tabs)/communaute.tsx`, `src/components/SectionHeader.tsx` (`fontFamily` subtitle), `.clinerules/rules.md`.
+**Fichiers créés / supprimés** : aucun.
+
+**Tests** : 41 suites, 383 tests (inchangés). `tsc --noEmit` : 0 erreur global.
+
+**⚠️ Rendu jamais validé à l'écran** → `start.bat` (light / dark / Reduced Motion). Points à vérifier : featured-row `mode=list` à 2 users (si double marge → retirer `marginHorizontal` du wrapper `featuredRow` ; si le rendu ne plaît pas → `USE_FEATURED_ROWS = false` = fallback seed-only en 1 ligne) ; CTA soft-fill droite ; titres alignés 16 ; plus de Versace dupliqué ; hero sans rangée « Toi » seule à 1 user.
+
+## Notes v8.16 — Récap perso « Ta semaine » + streak SOTD + Share v1 (front pur) (01/08/2026)
+
+**Rétention perso jour-1, sans migration ni masse critique.** Réalise le backlog P1-B de v8.14. Le positionnement « pouls éditorial » est *cadré communauté, motorisé perso* : sans moteur perso, l'onglet meurt en cold-start (0 suivi → « Les nez » vide). Le récap est le seul moteur qui fonctionne à 1 user, zéro donnée réseau.
+
+**Récap « Ta semaine »** (Communauté, après le défi, avant « Les nez »). Nouveau service `src/services/recap.ts` + hook `useWeeklyRecap` : `getWeeklyRecap(uid)` = 4 counts `head` PostgREST sur 7 jours glissants (`scans.scanned_at`, `favoris.added_at`, `sotd.day`, `user_parfum.tried_at` avec verdict non null), `Promise.all` + `safe` par requête (1 échec → 0, pas de casse). Bloc row-carte ≤ 60 px : overline « TA SEMAINE » + **une phrase** (segments non nuls joints par ` · ` : « N flacons croisés · N cœurs · porté N jours · N avis posés ») + CTA droite. Seuil **≥ 1 événement**, masqué à 0 (pas d'empty state culpabilisant). **Share v1 front pur** : texte « Ma semaine olfactive — … » + `profileShareUrl(pseudo)`, gaté profil public (sinon CTA → `/profile`, pattern de consentement). La landing SSR dédiée `share?type=recap` (OG riches) est **reportée en P1**, gatée sur le taux de Share mesuré.
+
+**Streak SOTD** (Parfumerie). `getSotdStreak(uid)` = lecture `sotd` `order day desc limit 366` + comptage consécutif (série se terminant aujourd'hui, ou hier si non posé aujourd'hui — la série ne meurt pas à 14 h ; 0 si cassée). `useSotd` retourne `streak` (chargé en parallèle du SOTD, **rechargé après `setTodaySotd`** — refresh juste plutôt qu'optimiste fragile, le cas « série cassée puis pose » rend l'optimiste piégeux). Chip **« N j » ≥ 2** sur `SOTDCard` (`textMuted`/`surface2`, après le nom, avant le badge score, `tabular-nums`, `allowFontScaling={false}`) — **pas de 🔥, pas de palier** (§19 : pas de gamification ; la constance se constate, ne se célèbre pas). Câblé dans `collection.tsx`. `accessibilityLabel` étendu (« porté N jours de suite »).
+
+**Fichiers créés** : `src/services/recap.ts`, `src/hooks/useWeeklyRecap.ts`.
+**Fichiers modifiés** : `src/hooks/useSotd.ts`, `src/features/wardrobe/SOTDCard.tsx`, `app/(tabs)/collection.tsx`, `app/(tabs)/communaute.tsx`, `.clinerules/reference.md` (+ service `recap`, + hook `useWeeklyRecap`, `useSotd` += `streak`), `.clinerules/rules.md`.
+**Fichiers supprimés** : aucun.
+
+**Limite connue** : « avis posé » se fie à `tried_at` — un verdict édité sans re-`markTried` n'est pas compté (accepté en v1).
+
+**Tests** : 41 suites, 383 tests (inchangés — aucun test ne couvre `communaute.tsx`, `recap`, `useSotd`). `tsc --noEmit` : 0 erreur global.
+
+**⚠️ Rendu jamais validé à l'écran** → `start.bat` (light / dark / Reduced Motion) : bloc « Ta semaine » (≥ 1 événement, CTA Partager/Rendre public), chip streak sur `SOTDCard` Parfumerie (vérifier la troncature du nom sur 360 dp avec nom long + score + streak ; si inacceptable → déplacer le chip dans l'en-tête du `SOTDPicker`).
+
+**Backlog** : P1 = landing SSR `share?type=recap` + RPC `public_weekly_recap` (migration, gatée taux Share). P2 inchangé : reorder mode SOLO/NETWORK (gated visuel) · chips ♥n/×n (de-striper `love_count`, gatés ≥ 3) · « Étagères à découvrir » (`public_shelf_overview`) · taste twins gatés · push « X a aimé un parfum que tu as » · hub jeux.
+
 ## Notes v8.15 — Renommage ParfumScan → Sillage (01/08/2026)
 
 **Renommage complet de la marque** (nom, slug, scheme, clés, identifiants natifs, backend, docs). L'app s'appelle désormais **Sillage**.
@@ -743,3 +778,29 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 **Docs** : AGENTS.md, README.md, `.clinerules/*` (rules, reference, design-guide, SPEC), `docs/*` — titres, scheme, clés, badges (repo `breakloopstudio/sillage`).
 
 **Reste manuel (post-commit)** : désinstaller l'ancienne app sur device, `start.bat build` (rebuild natif pour embarquer le nouveau package), vérifier Google Sign-In (nouveau client), supprimer l'ancien projet Expo `parfumscan` si inutile. Nom du dossier local `C:\dev\Sillage`.
+
+## Notes v8.17 — Flacon Runner v3 : game-feel, glissade, fièvre, rétention locale, pont catalogue (01/08/2026)
+
+**Refonte du mini-jeu** en 3 vagues (brainstorm 4 angles × subagents). Aucun changement du modèle de données de l'app ; le jeu reste un easter egg « luxe malin » (scène sombre hors thème assumée, désormais documentée + couleurs regroupées dans `RUNNER_COLORS`).
+
+**Vague 1 — Fondations (bugs + game-feel).**
+- **Bugs** : skins intermédiaires sautés corrigé (`getSkinsForScore` itère tous les seuils franchis, un run à 3000 débloque Ambre+Givre+Noir) · safe-area (`useSafeAreaInsets` sur score/vies/HUD/boutons/phaseBanner/game over) · milestones plus sautés (suppression du `break`, tous les paliers franchis d'une frame sont déclenchés) · `collectedCounts` `useMemo` muté → `useRef` · anneau de bouclier aligné sur la couleur Santal (cohérent avec l'aura) · Reduced Motion sur `countdownScale` + `FloatingPopup` (§6.7) · overlay Settings supprimé (hack `margin:-100`) au profit de `router.push('/runner')` · dédoublonnage milestones↔missions (missions de score → « Cap des 500/3000 ») · émojis pickups dédoublonnés des phases (Bergamote 🍊, Ambre ✨) · `PX_PER_METER` centralise la conversion px→m.
+- **Game-feel** : **jump buffer** (un tap posé ≤ `JUMP_BUFFER`=120 ms avant l'atterrissage déclenche le saut au contact ; `lastTapTime` écrit par le geste, `bufferJumpTrigger` notifie le son+haptique) · **hit-stop** (`HIT_STOP_DURATION`=60 ms de freeze du monde à l'impact, `gameTime` continue d'avancer) · **combo aérien lisible** (nouveau `RunnerCombo.tsx` : « ×N » centré qui pulse à chaque pickup, vire au doré à ×4, coupé en Reduced Motion) · premier saut doublable (`canDoubleJump=true` au reset/GO).
+
+**Vague 2 — Profondeur de jeu.**
+- **Glissade « Sillage »** (2ᵉ dimension) : swipe bas (`Gesture.Pan` composé au `Gesture.Tap` via `Gesture.Race`, `activeOffsetY`+`failOffsetX` pour laisser passer le swipe-back natif) = le flacon se couche `DUCK_DURATION`=0,6 s, hitbox réduite (`DUCK_HEIGHT`=26) pour passer sous les cristaux volants, visuel accroupi (`DUCK_SCALE`=0,55, base compensée au sol).
+- **Mode Fièvre** : jauge 0..`FEVER_MAX`=100 remplie par les pickups (+20) et frôlés (+8) ; pleine → `FEVER_DURATION`=4,5 s d'invincibilité + score ×`FEVER_SCORE_MULT`=2 + cristaux collectables (+15). Feedback : bannière « Fièvre ! » + haptique + son, barre de jauge dans `RunnerHud` (se vide pendant la fièvre), aura dorée du flacon (kind 5).
+- *Micro-patterns d'obstacles reportés* (optionnel, équilibrage à valider à l'écran).
+
+**Vague 3 — Rétention locale + pont catalogue.**
+- **Carnet de runs** (`runner-stats.ts`) : stats lifetime locales (runs, distance cumulée, meilleurs combo/frôlés, notes par type, jours joués) — chaque course compte, pas seulement le record.
+- **Missions à paliers** (`runner-missions.ts` réécrit) : 9 missions × 3 paliers (bronze/argent/or), persistance du plus haut palier atteint, badges « Label · N/3 » au game over + **prochain objectif** (`nextObjective`, effet « presque »).
+- **Défi quotidien « Le geste du jour »** (`runner-daily.ts`) : objectif déterministe par date (seed = hash murmur3 de la date → LCG, équitable car indépendant du spawn), affiché sur l'accueil, coche une fois réussi. ⚠️ premier jet : LCG multiplicatif sur seeds proches = même défi pendant des mois → corrigé par le hash à avalanche.
+- **Composition → vrai parfum** : au game over, les notes collectées (mapping pickup→note EN, top 2 par fréquence) alimentent `searchParfumsCached` → carte « Ta course a un sillage » (image + nom + marque) qui pousse vers la fiche détail. Le jeu cesse d'être une île.
+
+**Fichiers créés** : `RunnerCombo.tsx`, `runner-stats.ts`, `runner-daily.ts`, `__tests__/runner/{runner-missions,runner-daily,runner-stats}.test.ts`.
+**Fichiers modifiés** : `runner-types.ts` (constantes game-feel/duck/fièvre + `RUNNER_COLORS` + `GameStateValue` corrigé), `useRunnerLoop.ts` (jump buffer, hit-stop, duck, fièvre), `RunnerGame.tsx` (safe-area, gestes, carnet, missions, défi, suggestion parfum), `RunnerBottle.tsx` (duck + aura fièvre), `RunnerHud.tsx` (jauge fièvre + topInset), `runner-storage.ts` (`getSkinsForScore`), `runner-missions.ts` (réécrit en paliers), `app/settings.tsx` (suppression overlay).
+
+**⚠️ Rendu jamais validé à l'écran** → `start.bat` requis (light/dark/Reduced Motion) : geste de glissade (conflit Pan/Tap à confirmer), hit-stop, combo meter, jauge de fièvre, carte « geste du jour » sur l'accueil, carte parfum suggéré au game over.
+
+**Tests** : 44 suites, 397 tests (+14 : missions à paliers, défi quotidien, stats). `tsc --noEmit` : 0 erreur global.
