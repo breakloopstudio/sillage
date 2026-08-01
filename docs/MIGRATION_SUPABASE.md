@@ -1,4 +1,4 @@
-# Plan de migration Firebase → Supabase — ParfumScan
+# Plan de migration Firebase → Supabase — Sillage
 
 **Statut** : migration **terminée** (25/07/2026). Phases 0→4 complètes : schéma **12 migrations** (0001→0012), données (24 627 parfums + images), couche services 100 % Supabase (deps + code Firebase retirés), 6 Edge Functions + 3 crons déployés, **E2E cloud 24/24 stable** (3 runs consécutifs), tsc 0 (src/app), 217 tests unitaires, app fonctionnelle sur émulateur (`EXPO_PUBLIC_USE_SUPABASE=true`). Config dashboard effectuée (Google provider 2 client IDs + confirmation email off) + **projet expo.dev lié** (`eas init`, push débloqués au prochain build).
 **Contexte** : app **pas en production** → migration « fresh start », aucune donnée utilisateur à préserver. Seuls le catalogue (~25 100 parfums) et les images sont migrés.

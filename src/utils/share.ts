@@ -3,7 +3,7 @@
 
 import { env } from '../config/env';
 
-export const APP_SCHEME = 'parfumscan';
+export const APP_SCHEME = 'sillage';
 
 function landingBase(): string {
   return `${env.SUPABASE_URL.replace(/\/$/, '')}/functions/v1/share`;

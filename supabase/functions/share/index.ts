@@ -10,8 +10,8 @@
 import { createAdminClient } from '../_shared/supabase.ts';
 import { toNum } from '../_shared/helpers.ts';
 
-const APP_SCHEME = 'parfumscan';
-const FOOTER = 'ParfumScan · l\u2019expertise parfum, le bon prix';
+const APP_SCHEME = 'sillage';
+const FOOTER = 'Sillage · l\u2019expertise parfum, le bon prix';
 const STORE_NOTE = 'L\u2019app arrive bientôt sur l\u2019App Store et Google Play';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ function page(meta: Meta, bodyHtml: string): string {
 <meta property="og:description" content="${escapeHtml(meta.description)}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${escapeHtml(meta.url)}">
-<meta property="og:site_name" content="ParfumScan">
+<meta property="og:site_name" content="Sillage">
 <meta property="og:locale" content="fr_FR">
 <link rel="canonical" href="${escapeHtml(meta.url)}">
 ${img}
@@ -115,7 +115,7 @@ function notFoundPage(): Response {
   </div></div>
   <div class="footer">${FOOTER}</div>
 </div>`;
-  return htmlResponse(page({ title: 'ParfumScan', description: 'Contenu introuvable.', image: null, url: '' }, body), 404);
+  return htmlResponse(page({ title: 'Sillage', description: 'Contenu introuvable.', image: null, url: '' }, body), 404);
 }
 
 // ─── Rendus ──────────────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ function parfumBody(p: ParfumRow): string {
       <h1 class="name">${escapeHtml(p.nom || '')}</h1>
       ${family}
       ${price}
-      <a class="cta" href="${APP_SCHEME}://catalog/${encodeURIComponent(p.id)}">Ouvrir dans ParfumScan</a>
+      <a class="cta" href="${APP_SCHEME}://catalog/${encodeURIComponent(p.id)}">Ouvrir dans Sillage</a>
       <div class="store">${STORE_NOTE}</div>
     </div>
   </div>
@@ -174,7 +174,7 @@ function profileBody(prof: ProfileRow, items: CollectionRow[]): string {
       ${bio}
       <div class="count">${count} parfum${count > 1 ? 's' : ''} dans sa parfumerie</div>
       ${grid}
-      <a class="cta" href="${APP_SCHEME}://u/${encodeURIComponent(prof.pseudo)}">Voir sur ParfumScan</a>
+      <a class="cta" href="${APP_SCHEME}://u/${encodeURIComponent(prof.pseudo)}">Voir sur Sillage</a>
       <div class="store">${STORE_NOTE}</div>
     </div>
   </div>
@@ -213,7 +213,7 @@ function shelfBody(shelf: ShelfRow, items: ShelfItemRow[]): string {
       ${bio}
       <div class="count">${count} parfum${count > 1 ? 's' : ''} dans cette étagère</div>
       ${grid}
-      <a class="cta" href="${APP_SCHEME}://u/${encodeURIComponent(shelf.pseudo)}/shelf/${encodeURIComponent(shelf.shelf_id)}">Voir sur ParfumScan</a>
+      <a class="cta" href="${APP_SCHEME}://u/${encodeURIComponent(shelf.pseudo)}/shelf/${encodeURIComponent(shelf.shelf_id)}">Voir sur Sillage</a>
       <div class="store">${STORE_NOTE}</div>
     </div>
   </div>
@@ -231,7 +231,7 @@ function runnerBody(score: number, pseudo: string | null): string {
       ${author}
       <h1 class="name">${score} points</h1>
       <div class="meta">Esquive les cristaux, attrape les notes, signe ton record.</div>
-      <a class="cta" href="${APP_SCHEME}://runner">Relever le défi sur ParfumScan</a>
+      <a class="cta" href="${APP_SCHEME}://runner">Relever le défi sur Sillage</a>
       <div class="store">${STORE_NOTE}</div>
     </div>
   </div>
@@ -258,8 +258,8 @@ Deno.serve(async (req: Request) => {
     const p = data as ParfumRow;
     const title = `${p.marque ?? ''} ${p.nom ?? ''}`.trim() || 'Parfum';
     const desc = p.famille_olfactive
-      ? `${p.famille_olfactive} — découvre ce parfum sur ParfumScan`
-      : 'Découvre ce parfum sur ParfumScan';
+      ? `${p.famille_olfactive} — découvre ce parfum sur Sillage`
+      : 'Découvre ce parfum sur Sillage';
     const canonical = `${url.origin}${url.pathname}?type=parfum&id=${encodeURIComponent(id)}`;
     return htmlResponse(page({ title, description: desc, image: p.image_url, url: canonical }, parfumBody(p)));
   }
@@ -274,8 +274,8 @@ Deno.serve(async (req: Request) => {
     const prof = (Array.isArray(profRes.data) ? profRes.data[0] : profRes.data) as ProfileRow | null;
     if (!prof) return notFoundPage();
     const items = ((colRes.data ?? []) as CollectionRow[]).slice(0, 8);
-    const title = `${prof.pseudo} · ParfumScan`;
-    const desc = prof.bio || `${Number(prof.collection_count ?? 0)} parfums dans sa parfumerie sur ParfumScan`;
+    const title = `${prof.pseudo} · Sillage`;
+    const desc = prof.bio || `${Number(prof.collection_count ?? 0)} parfums dans sa parfumerie sur Sillage`;
     const canonical = `${url.origin}${url.pathname}?type=profile&pseudo=${encodeURIComponent(pseudo)}`;
     return htmlResponse(page({ title, description: desc, image: prof.avatar_url, url: canonical }, profileBody(prof, items)));
   }
@@ -305,8 +305,8 @@ Deno.serve(async (req: Request) => {
     if (!Number.isFinite(score) || score <= 0) return notFoundPage();
     const title = pseudo ? `${score} points · @${pseudo} · Flacon Runner` : `${score} points · Flacon Runner`;
     const desc = pseudo
-      ? `@${pseudo} a signé ${score} points sur Flacon Runner. Fais mieux sur ParfumScan.`
-      : `${score} points sur Flacon Runner. Fais mieux sur ParfumScan.`;
+      ? `@${pseudo} a signé ${score} points sur Flacon Runner. Fais mieux sur Sillage.`
+      : `${score} points sur Flacon Runner. Fais mieux sur Sillage.`;
     const canonical = `${url.origin}${url.pathname}?type=runner&score=${encodeURIComponent(String(score))}${pseudo ? `&pseudo=${encodeURIComponent(pseudo)}` : ''}`;
     return htmlResponse(page({ title, description: desc, image: null, url: canonical }, runnerBody(score, pseudo)));
   }

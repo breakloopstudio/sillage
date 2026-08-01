@@ -1,5 +1,5 @@
 // src/theme/theme.ts
-// Design tokens ParfumScan — Refonte « Luxe malin »
+// Design tokens Sillage — Refonte « Luxe malin »
 // Phase A : nouveaux tokens + rétrocompatibilité avec l'existant
 // Dark mode : palette « Luxe profond »
 

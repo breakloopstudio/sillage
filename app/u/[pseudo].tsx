@@ -1,5 +1,5 @@
 // app/u/[pseudo].tsx — Profil public d'un membre (lecture seule)
-// Cible du deep link parfumscan://u/<pseudo> et du partage de collection.
+// Cible du deep link sillage://u/<pseudo> et du partage de collection.
 // Accessible sans authentification (données publiques uniquement).
 
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';

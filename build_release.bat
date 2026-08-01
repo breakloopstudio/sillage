@@ -2,7 +2,7 @@
 set ANDROID_HOME=C:\Users\Pierre-Louis\AppData\Local\Android\Sdk
 echo.
 echo ======================================
-echo   ParfumScan - Build Release APK
+echo   Sillage - Build Release APK
 echo ======================================
 echo.
 echo [%time%] Demarrage Gradle...

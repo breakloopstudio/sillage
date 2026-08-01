@@ -70,81 +70,83 @@ export function ScanIdle({ onStartScan, onOpenSearch, onClose, recentScans = [],
         <Ionicons name="close" size={20} color={theme.colors.textMuted} />
       </Pressable>
 
-      <View style={s.viewfinder}>
-        <View style={[s.veilOuter, { backgroundColor: tintLuminous(theme.colors.primary, 'ghost', resolvedMode) }]} />
-        <View style={[s.veilInner, { backgroundColor: tintLuminous(theme.colors.primary, 'hint', resolvedMode) }]} />
-        <View style={[s.corner, s.tl]} />
-        <View style={[s.corner, s.tr]} />
-        <View style={[s.corner, s.bl]} />
-        <View style={[s.corner, s.br]} />
+      <View style={s.main}>
+        <View style={s.viewfinder}>
+          <View style={[s.veilOuter, { backgroundColor: tintLuminous(theme.colors.primary, 'ghost', resolvedMode) }]} />
+          <View style={[s.veilInner, { backgroundColor: tintLuminous(theme.colors.primary, 'hint', resolvedMode) }]} />
+          <View style={[s.corner, s.tl]} />
+          <View style={[s.corner, s.tr]} />
+          <View style={[s.corner, s.bl]} />
+          <View style={[s.corner, s.br]} />
 
-        <View style={s.bottle}>
-          <View style={[s.bCap, { backgroundColor: alpha(theme.colors.primary, 0.22) }]} />
-          <View style={[s.bNeck, { backgroundColor: alpha(theme.colors.primary, 0.16) }]} />
-          <View style={[s.bBody, { backgroundColor: alpha(theme.colors.primary, 0.13) }]} />
+          <View style={s.bottle}>
+            <View style={[s.bCap, { backgroundColor: alpha(theme.colors.primary, 0.22) }]} />
+            <View style={[s.bNeck, { backgroundColor: alpha(theme.colors.primary, 0.16) }]} />
+            <View style={[s.bBody, { backgroundColor: alpha(theme.colors.primary, 0.13) }]} />
+          </View>
+
+          {!reduced && (
+            <Animated.View style={[s.scanLine, scanStyle]}>
+              <LinearGradient
+                colors={[alpha(theme.colors.primary, 0), theme.colors.primary, alpha(theme.colors.primary, 0)]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          )}
         </View>
 
-        {!reduced && (
-          <Animated.View style={[s.scanLine, scanStyle]}>
-            <LinearGradient
-              colors={[alpha(theme.colors.primary, 0), theme.colors.primary, alpha(theme.colors.primary, 0)]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
+        <Text style={s.overline}>Sillage</Text>
+        <Text style={s.title}>Cadre le flacon</Text>
+        <Text style={s.desc}>
+          L'IA reconnaît le parfum et trouve{'\n'}le meilleur prix pour toi.
+        </Text>
+
+        <View style={s.actions}>
+          <Pressable onPress={onStartScan} style={[s.cta, !isOnline && { opacity: 0.5 }]}>
+            <Ionicons name="camera-outline" size={20} color={textOn(theme.colors.primary)} style={{ marginRight: 8 }} />
+            <Text style={s.ctaText}>Scanner un flacon</Text>
+          </Pressable>
+
+          <Pressable onPress={onOpenSearch} style={s.link} accessibilityRole="button" accessibilityLabel="Rechercher dans le catalogue">
+            <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
+            <Text style={s.linkText}>Rechercher dans le catalogue</Text>
+          </Pressable>
+        </View>
+
+        {recentScans.length > 0 && (
+          <View style={s.recentWrap}>
+            <Text style={s.recentTitle}>Scans récents</Text>
+            <View style={s.recentRow}>
+              {recentScans.map((r) => (
+                <Pressable
+                  key={r.parfumId}
+                  style={s.recentItem}
+                  onPress={() => onOpenRecent?.(r.parfumId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${r.marque ?? ''} ${r.nom ?? ''}`.trim()}
+                >
+                  {r.imageUrl ? (
+                    <Image source={{ uri: r.imageUrl }} style={s.recentImg} contentFit="contain" />
+                  ) : (
+                    <View style={[s.recentImg, s.recentImgEmpty]}>
+                      <Ionicons name="flask-outline" size={20} color={theme.colors.textMuted} />
+                    </View>
+                  )}
+                  <Text style={s.recentLabel} numberOfLines={1}>{r.nom ?? r.marque ?? 'Parfum'}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {!isOnline && (
+          <Text style={s.offlineHint}>Scan indisponible hors-ligne</Text>
         )}
       </View>
 
-      <Text style={s.overline}>ParfumScan</Text>
-      <Text style={s.title}>Cadre le flacon</Text>
-      <Text style={s.desc}>
-        L'IA reconnaît le parfum et trouve{'\n'}le meilleur prix pour toi.
-      </Text>
-
-      <View style={s.actions}>
-        <Pressable onPress={onStartScan} style={[s.cta, !isOnline && { opacity: 0.5 }]}>
-          <Ionicons name="camera-outline" size={20} color={textOn(theme.colors.primary)} style={{ marginRight: 8 }} />
-          <Text style={s.ctaText}>Scanner un flacon</Text>
-        </Pressable>
-
-        <Pressable onPress={onOpenSearch} style={s.link} accessibilityRole="button" accessibilityLabel="Rechercher dans le catalogue">
-          <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
-          <Text style={s.linkText}>Rechercher dans le catalogue</Text>
-        </Pressable>
-      </View>
-
-      {recentScans.length > 0 && (
-        <View style={s.recentWrap}>
-          <Text style={s.recentTitle}>Scans récents</Text>
-          <View style={s.recentRow}>
-            {recentScans.map((r) => (
-              <Pressable
-                key={r.parfumId}
-                style={s.recentItem}
-                onPress={() => onOpenRecent?.(r.parfumId)}
-                accessibilityRole="button"
-                accessibilityLabel={`${r.marque ?? ''} ${r.nom ?? ''}`.trim()}
-              >
-                {r.imageUrl ? (
-                  <Image source={{ uri: r.imageUrl }} style={s.recentImg} contentFit="contain" />
-                ) : (
-                  <View style={[s.recentImg, s.recentImgEmpty]}>
-                    <Ionicons name="flask-outline" size={20} color={theme.colors.textMuted} />
-                  </View>
-                )}
-                <Text style={s.recentLabel} numberOfLines={1}>{r.nom ?? r.marque ?? 'Parfum'}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {!isOnline && (
-        <Text style={s.offlineHint}>Scan indisponible hors-ligne</Text>
-      )}
-
-      <Text style={[s.tip, { bottom: 24 + insets.bottom }]}>
+      <Text style={[s.tip, { marginBottom: 24 + insets.bottom }]}>
         Astuce : cadre la marque et le nom pour un résultat optimal
       </Text>
     </View>
@@ -158,9 +160,14 @@ function getStyles(t: Theme) {
     container: {
       flex: 1,
       backgroundColor: t.colors.background,
-      justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 32,
+    },
+    main: {
+      flex: 1,
+      width: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     closeBtn: {
       position: 'absolute',
@@ -318,13 +325,10 @@ function getStyles(t: Theme) {
       color: t.colors.textMuted,
     },
     tip: {
-      position: 'absolute',
-      bottom: 24,
       fontFamily: 'Inter_400Regular',
       fontSize: 12,
       color: t.colors.textMuted,
       textAlign: 'center',
-      paddingHorizontal: 32,
     },
     offlineHint: {
       fontFamily: 'Inter_400Regular',

@@ -345,7 +345,7 @@ export default function CatalogPage({ scrollY }: Props) {
 
       <View style={s.headerBar}>
         <View style={{ flex: 1 }}>
-          <Text style={s.heroTitle}>ParfumScan</Text>
+          <Text style={s.heroTitle}>Sillage</Text>
           <Text style={s.heroSub}>Trouve ton parfum au meilleur prix</Text>
         </View>
       </View>

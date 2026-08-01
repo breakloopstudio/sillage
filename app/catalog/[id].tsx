@@ -187,7 +187,7 @@ export default function CatalogDetailPage() {
     if (!parfum) return;
     hapticsLight();
     const url = parfumShareUrl(parfum.id);
-    const text = `Découvre ${parfum.marque} – ${parfum.nom} sur ParfumScan`;
+    const text = `Découvre ${parfum.marque} – ${parfum.nom} sur Sillage`;
     try {
       if (Platform.OS === 'ios') {
         await Share.share({ url, message: text });

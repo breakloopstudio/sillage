@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ParfumerieView = 'collection' | 'shelves';
 
-const KEY = '@parfumscan/parfumerie-view';
+const KEY = '@sillage/parfumerie-view';
 
 export function useParfumerieViewPreference() {
   const [view, setViewState] = useState<ParfumerieView | null>(null);

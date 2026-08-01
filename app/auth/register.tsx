@@ -75,7 +75,7 @@ export default function RegisterPage() {
           </View>
           <View style={s.header}>
             <Text style={s.title}>Créer un compte</Text>
-            <Text style={s.subtitle}>Rejoins la communauté ParfumScan</Text>
+            <Text style={s.subtitle}>Rejoins la communauté Sillage</Text>
           </View>
 
           <Pressable
@@ -156,7 +156,7 @@ export default function RegisterPage() {
             <Text style={s.checkLabel}>Je certifie avoir 15 ans ou plus</Text>
           </Pressable>
 
-          <Text style={s.ageNote}>ParfumScan n'est pas destiné aux moins de 15 ans.</Text>
+          <Text style={s.ageNote}>Sillage n'est pas destiné aux moins de 15 ans.</Text>
 
           <Pressable
             style={[s.submitBtn, (!canSubmit || isLoading) && s.submitBtnDisabled]}

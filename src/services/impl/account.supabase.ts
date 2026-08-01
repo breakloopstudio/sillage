@@ -75,7 +75,7 @@ export async function exportAccountData(): Promise<string> {
   const { data, error } = await supabase.rpc('export_user_data');
   if (error) throw new Error(translateSupabaseError(error));
   const json = JSON.stringify(data, null, 2);
-  const filename = `parfumscan-export-${formatDate()}.json`;
+  const filename = `sillage-export-${formatDate()}.json`;
   const file = new File(Paths.cache, filename);
   file.write(json);
   return file.uri;

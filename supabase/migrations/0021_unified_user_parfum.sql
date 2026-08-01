@@ -315,7 +315,7 @@ begin
 
   select jsonb_build_object(
     'exportedAt', now(),
-    'app', 'ParfumScan',
+    'app', 'Sillage',
     'version', '3.0.0',
     'collections', jsonb_build_object(
       'favoris',      (select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from public.favoris t where t.user_id = v_uid),

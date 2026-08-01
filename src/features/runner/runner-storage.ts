@@ -2,10 +2,10 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const HIGH_SCORE_KEY = '@parfumscan/runner-highscore';
-const SKINS_KEY = '@parfumscan/runner-skins';
-const SELECTED_SKIN_KEY = '@parfumscan/runner-selected-skin';
-const MUTED_KEY = '@parfumscan/runner-muted';
+const HIGH_SCORE_KEY = '@sillage/runner-highscore';
+const SKINS_KEY = '@sillage/runner-skins';
+const SELECTED_SKIN_KEY = '@sillage/runner-selected-skin';
+const MUTED_KEY = '@sillage/runner-muted';
 
 export const SKINS = [
   { key: 'default', label: 'Violette', threshold: 0, bottle: '#6C3ED9', cap: '#D4A960' },

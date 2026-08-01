@@ -1,4 +1,4 @@
-# ParfumScan React — Référence technique
+# Sillage React — Référence technique
 
 ## §1 — Service Layer
 
@@ -125,7 +125,9 @@ export function getPublicCollection(pseudo: string): Promise<PublicCollectionIte
 ```ts
 // Communauté — vitrine, verdicts publics, follow (RPC + cache mémoire 1h)
 export function getCommunityHighlights(): Promise<CommunityHighlights>;
-// RPC community_highlights : top_loved, trending, public_profiles, sotd_today
+// RPC community_highlights : top_loved, trending, public_profiles (SOTD extrait, voir ci-dessous)
+export function getSotdCommunityToday(): Promise<CommunitySotd[]>;
+// RPC sotd_community_today : SOTD publics du jour, live, cache court 3 min (hors du cache 1h)
 export function clearCommunityCache(): void;
 export function getParfumVerdicts(parfumId: string): Promise<ParfumVerdict[]>;
 // RPC parfum_verdicts : profils publics ayant un verdict sur ce parfum
@@ -326,7 +328,7 @@ export function useShelvesContext(): {
 
 ### `useFavorisViewPreference()` — `src/hooks/useFavorisViewPreference.ts`
 ```ts
-// Préférence de vue du tab Favoris, persistée AsyncStorage (@parfumscan/favoris-view)
+// Préférence de vue du tab Favoris, persistée AsyncStorage (@sillage/favoris-view)
 export type FavorisView = 'favoris' | 'alerts';
 export function useFavorisViewPreference(): { view: FavorisView | null; setView: (v: FavorisView) => void };
 ```
@@ -376,10 +378,15 @@ export function usePublicProfile(pseudo: string | null): {
 
 ### `useCommunityHighlights()` — `src/hooks/useCommunityHighlights.ts`
 ```ts
-// Vitrine communauté (cache mémoire 1h) — top aimés, tendances, profils, SOTD
+// Vitrine communauté (cache 1h) + SOTD du jour (RPC dédiée, cache 3 min), chargés en
+// Promise.allSettled (le SOTD communautaire est non bloquant). top_loved/trending vides
+// en cold-start → l'écran bascule sur un seed éditorial (getTopRatedParfums /
+// getSeasonalParfums) chargé seulement si besoin.
 export function useCommunityHighlights(): CommunityHighlights & {
+  sotd_today: CommunitySotd[];
   loading: boolean;
   error: string | null;
+  refresh: () => void;
 };
 ```
 
@@ -555,7 +562,7 @@ interface UserPriceAlert {
 
 ### `src/models/profile.interface.ts`
 ```ts
-interface MyProfile { pseudo: string; avatarUrl: string | null; bio: string | null; isPublic: boolean; createdAt: Date; }
+interface MyProfile { pseudo: string; avatarUrl: string | null; bio: string | null; isPublic: boolean; followingCount: number; createdAt: Date; }
 interface PublicProfile { pseudo: string; avatarUrl: string | null; bio: string | null; createdAt: Date; collectionCount: number; }
 interface PublicCollectionItem {
   parfumId: string; nom: string | null; marque: string | null; imageUrl: string | null;
@@ -678,11 +685,11 @@ export function formatVariation(variation: number): string;  // « −18 % » / 
 ### `src/utils/share.ts`
 ```ts
 // URLs de partage (landing + deep links) & identité publique (pseudo)
-export const APP_SCHEME: string;                              // 'parfumscan'
+export const APP_SCHEME: string;                              // 'sillage'
 export function parfumShareUrl(parfumId: string): string;     // landing https (?type=parfum&id=)
 export function profileShareUrl(pseudo: string): string;      // landing https (?type=profile&pseudo=)
-export function parfumDeepLink(parfumId: string): string;     // parfumscan://catalog/<id>
-export function profileDeepLink(pseudo: string): string;      // parfumscan://u/<pseudo>
+export function parfumDeepLink(parfumId: string): string;     // sillage://catalog/<id>
+export function profileDeepLink(pseudo: string): string;      // sillage://u/<pseudo>
 export function isValidPseudo(pseudo: string): boolean;       // ^[a-z0-9][a-z0-9_-]{1,18}[a-z0-9]$
 export function normalizePseudo(input: string): string;       // trim + lowercase + espaces → _
 ```
@@ -1067,7 +1074,7 @@ La RPC fait tout le scoring côté Postgres :
 Cache exact LRU (200 entrées, TTL 10 min). `clearSearchCache()` exposé pour les mutations admin.
 
 #### Recherches récentes (AsyncStorage)
-Les 5 dernières recherches persistent dans `@parfumscan/recent-searches`.
+Les 5 dernières recherches persistent dans `@sillage/recent-searches`.
 
 ### Couche 4 — Debounce et anti-race (`useCatalog`)
 
@@ -1128,7 +1135,7 @@ Couche d'organisation visuelle (étagères déjà en base) + couche communautair
 - `src/utils/brand-color.ts` : `brandColor(brand)` (extrait de `ParfumCard`, réutilisé par `BottleThumb`/`AddToShelfSheet`/`InspireShelfSheet`).
 
 ### Hooks
-- `useParfumerieViewPreference()` → `{ view: 'collection' | 'shelves' | null, setView }` (AsyncStorage `@parfumscan/parfumerie-view` ; `null` = vue adaptative).
+- `useParfumerieViewPreference()` → `{ view: 'collection' | 'shelves' | null, setView }` (AsyncStorage `@sillage/parfumerie-view` ; `null` = vue adaptative).
 - `useShelvesContext()` (contexte, §2) — `reorder(items: { id: string; order: number }[])` via RPC `reorder_shelves`.
 
 ### Services
@@ -1152,7 +1159,7 @@ Couche d'organisation visuelle (étagères déjà en base) + couche communautair
 
 ### Partage (`share.ts`)
 - `shelfShareUrl(pseudo, shelfId)` → landing `?type=shelf&pseudo=&shelf=`.
-- `shelfDeepLink(pseudo, shelfId)` → `parfumscan://u/<pseudo>/shelf/<shelfId>`.
+- `shelfDeepLink(pseudo, shelfId)` → `sillage://u/<pseudo>/shelf/<shelfId>`.
 - Edge Function `share` : branch `type=shelf` (SSR + balises OG = nom + ligne éditoriale + identité + grille de flacons).
 
 ### Routes

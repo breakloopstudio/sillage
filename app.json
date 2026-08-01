@@ -1,22 +1,22 @@
 {
   "expo": {
-    "name": "ParfumScan",
-    "slug": "parfumscan",
+    "name": "Sillage",
+    "slug": "sillage",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#FAF8F5",
-    "scheme": "parfumscan",
+    "scheme": "sillage",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.parfumscan.app",
+      "bundleIdentifier": "com.sillage.app",
       "googleServicesFile": "./GoogleService-Info.plist",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Autoriser ParfumScan à utiliser votre appareil photo pour scanner les flacons de parfum.",
-        "NSPhotoLibraryUsageDescription": "Autoriser ParfumScan à accéder à votre photothèque pour télécharger des photos de parfum.",
-        "NSMicrophoneUsageDescription": "Autoriser ParfumScan à utiliser le micro pour rechercher des parfums à la voix.",
+        "NSCameraUsageDescription": "Autoriser Sillage à utiliser votre appareil photo pour scanner les flacons de parfum.",
+        "NSPhotoLibraryUsageDescription": "Autoriser Sillage à accéder à votre photothèque pour télécharger des photos de parfum.",
+        "NSMicrophoneUsageDescription": "Autoriser Sillage à utiliser le micro pour rechercher des parfums à la voix.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -27,11 +27,11 @@
         "UIBackgroundModes": [
           "remote-notification"
         ],
-        "NSSpeechRecognitionUsageDescription": "Autoriser ParfumScan à utiliser la reconnaissance vocale."
+        "NSSpeechRecognitionUsageDescription": "Autoriser Sillage à utiliser la reconnaissance vocale."
       }
     },
     "android": {
-      "package": "com.parfumscan.app",
+      "package": "com.sillage.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#7C3AED",
@@ -76,7 +76,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Autoriser ParfumScan à utiliser votre appareil photo pour scanner les flacons de parfum."
+          "cameraPermission": "Autoriser Sillage à utiliser votre appareil photo pour scanner les flacons de parfum."
         }
       ],
       "@react-native-google-signin/google-signin",
@@ -86,8 +86,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Autoriser ParfumScan à utiliser le micro pour rechercher des parfums à la voix.",
-          "speechRecognitionPermission": "Autoriser ParfumScan à utiliser la reconnaissance vocale."
+          "microphonePermission": "Autoriser Sillage à utiliser le micro pour rechercher des parfums à la voix.",
+          "speechRecognitionPermission": "Autoriser Sillage à utiliser la reconnaissance vocale."
         }
       ],
       "expo-audio",
@@ -102,7 +102,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "98c0c4cc-f96e-4f91-bafd-182a63eaa570"
+        "projectId": "31e344db-f4ac-4304-b0c9-b4b35059c8e7"
       }
     },
     "owner": "breakloopstudio"

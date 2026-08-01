@@ -1,4 +1,4 @@
-// jest-setup.js — ParfumScan test environment
+// jest-setup.js — Sillage test environment
 
 // Mock Reanimated
 jest.mock('react-native-reanimated', () => ({

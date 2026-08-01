@@ -1,5 +1,5 @@
 -- 0001_extensions.sql — Extensions + helpers de normalisation + config FTS
--- ParfumScan : migration Firebase → Supabase (cf. MIGRATION_SUPABASE.md)
+-- Sillage : migration Firebase → Supabase (cf. MIGRATION_SUPABASE.md)
 --
 -- Convention Supabase : extensions dans le schéma `extensions` (présent dans
 -- le search_path par défaut). Si les extensions sont déjà installées dans un

@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 
-const KEY = '@parfumscan/voice-search';
+const KEY = '@sillage/voice-search';
 
 function readPref(): Promise<boolean> {
   return AsyncStorage.getItem(KEY).then(v => v !== 'false').catch(() => true);

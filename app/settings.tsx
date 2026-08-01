@@ -249,7 +249,7 @@ export default function SettingsPage() {
         </View>
 
         <Pressable onPress={handleVersionTap}>
-          <Text style={s.version}>ParfumScan v{Constants.expoConfig?.version ?? '1.0.0'}{Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : ''}</Text>
+          <Text style={s.version}>Sillage v{Constants.expoConfig?.version ?? '1.0.0'}{Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : ''}</Text>
         </Pressable>
       </ScrollView>
       {showRunner && (

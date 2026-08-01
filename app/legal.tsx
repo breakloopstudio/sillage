@@ -29,7 +29,7 @@ export default function LegalPage() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Éditeur de l'application</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'application ParfumScan est éditée par {LEGAL_COMPANY_NAME}.{'\n'}
+            L'application Sillage est éditée par {LEGAL_COMPANY_NAME}.{'\n'}
             {LEGAL_COMPANY_FORM !== 'À_COMPLÉTER' ? `\nForme juridique : ${LEGAL_COMPANY_FORM}` : ''}
             {LEGAL_ADDRESS !== 'À_COMPLÉTER' ? `\nSiège social : ${LEGAL_ADDRESS}` : ''}
             {LEGAL_RCS !== 'À_COMPLÉTER' ? `\nRCS : ${LEGAL_RCS}` : ''}
@@ -58,7 +58,7 @@ export default function LegalPage() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Propriété intellectuelle</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'ensemble du code source, du design, des textes et des éléments graphiques de l'application ParfumScan est la propriété exclusive de l'éditeur, sauf mention contraire.{'\n\n'}
+            L'ensemble du code source, du design, des textes et des éléments graphiques de l'application Sillage est la propriété exclusive de l'éditeur, sauf mention contraire.{'\n\n'}
             Toute reproduction, représentation, modification ou adaptation, partielle ou totale, est interdite sans autorisation préalable.{'\n\n'}
             La base de données de parfums est constituée à partir de données publiques et reste la propriété de leurs auteurs respectifs.
           </Text>

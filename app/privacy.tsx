@@ -26,7 +26,7 @@ export default function PrivacyPage() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>1. Responsable de traitement</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            Le responsable du traitement des données personnelles est {LEGAL_COMPANY_NAME}, éditrice de l'application ParfumScan, joignable à l'adresse {LEGAL_EMAIL}. Les coordonnées complètes figurent dans les mentions légales.
+            Le responsable du traitement des données personnelles est {LEGAL_COMPANY_NAME}, éditrice de l'application Sillage, joignable à l'adresse {LEGAL_EMAIL}. Les coordonnées complètes figurent dans les mentions légales.
           </Text>
         </View>
 
@@ -149,7 +149,7 @@ export default function PrivacyPage() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>9. Cookies et stockage local</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'application mobile ParfumScan n'utilise pas de cookies. Le seul stockage local sur l'appareil concerne la préférence de thème (clair/sombre/système) via AsyncStorage.
+            L'application mobile Sillage n'utilise pas de cookies. Le seul stockage local sur l'appareil concerne la préférence de thème (clair/sombre/système) via AsyncStorage.
           </Text>
         </View>
 

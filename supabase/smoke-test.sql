@@ -1,4 +1,4 @@
--- Smoke test du schéma ParfumScan (local)
+-- Smoke test du schéma Sillage (local)
 -- 1. Données de test
 insert into public.parfums (id, nom, marque, famille_olfactive, notes_tete, notes_coeur, notes_fond, main_accords, perfumers, popularity_score, review_count, rating_count, image_url)
 values

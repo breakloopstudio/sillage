@@ -1,4 +1,4 @@
-# Plan d'audit — Recherche ParfumScan (v6.16)
+# Plan d'audit — Recherche Sillage (v6.16)
 
 Légende : **P0** = bug correctitude / fail silencieux · **P1** = perf / coût · **P2** = robustesse · **P3** = cleanup.
 

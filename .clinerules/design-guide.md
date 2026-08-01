@@ -1,4 +1,4 @@
-# Guide de design — ParfumScan
+# Guide de design — Sillage
 
 **Direction** : « Luxe malin »  
 **Version** : 1.5 — Juillet 2026 (accessibilité profonde, sheets unifiés, formatage données, motion signature, densité, haptique, adaptive)  
@@ -831,7 +831,7 @@ En dark mode, les ombres noires sont invisibles. Tous les `shadow` tokens sont r
 ### 8.5 Comportement dynamique
 
 - **Mode système** : `useColorScheme()` natif, changement immédiat.
-- **Persistance** : choix `system | light | dark` dans AsyncStorage (`@parfumscan/theme`).
+- **Persistance** : choix `system | light | dark` dans AsyncStorage (`@sillage/theme`).
 - **Pas de flash** : le `ThemeProvider` bloque le rendu (`{ready ? children : null}`) tant que la préférence n'est pas chargée.
 - **StatusBar** : suit automatiquement le mode résolu.
 
@@ -873,7 +873,7 @@ Le rendu de l'app est bloqué (splash maintenu) jusqu'à fontsLoaded —
 toute fontFamily référencée dans le code DOIT exister dans ce useFonts.
 
 src/services/
-└── theme-storage.ts     ← AsyncStorage, clé @parfumscan/theme
+└── theme-storage.ts     ← AsyncStorage, clé @sillage/theme
 ```
 
 ### A.2 Pattern getStyles

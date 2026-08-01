@@ -3,7 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = '@parfumscan/theme';
+const KEY = '@sillage/theme';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 

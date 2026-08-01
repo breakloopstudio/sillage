@@ -91,7 +91,7 @@ export default function LoginPage() {
             <Ionicons name="rose-outline" size={36} color={theme.colors.primary} />
           </View>
           <View style={s.header}>
-            <Text style={s.title}>ParfumScan</Text>
+            <Text style={s.title}>Sillage</Text>
             <Text style={s.subtitle}>Découvre l'univers des parfums</Text>
           </View>
 

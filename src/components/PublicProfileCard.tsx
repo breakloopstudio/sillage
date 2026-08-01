@@ -103,9 +103,9 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedd
     hapticsLight();
     const url = profileShareUrl(profile.pseudo);
     if (Platform.OS === 'ios') {
-      Share.share({ url, message: 'Ma parfumerie sur ParfumScan' }).catch(() => {});
+      Share.share({ url, message: 'Ma parfumerie sur Sillage' }).catch(() => {});
     } else {
-      Share.share({ message: `Ma parfumerie sur ParfumScan ${url}` }).catch(() => {});
+      Share.share({ message: `Ma parfumerie sur Sillage ${url}` }).catch(() => {});
     }
   }, [profile]);
 

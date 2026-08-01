@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type FavorisView = 'favoris' | 'alerts';
 
-const KEY = '@parfumscan/favoris-view';
+const KEY = '@sillage/favoris-view';
 
 export function useFavorisViewPreference() {
   const [view, setViewState] = useState<FavorisView | null>(null);

@@ -85,7 +85,7 @@ describe('useDensityPreference', () => {
     act(() => result.current.setDensity('compactPlus'));
     expect(result.current.density).toBe('compactPlus');
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-      '@parfumscan/catalog-density',
+      '@sillage/catalog-density',
       'compactPlus',
     );
   });
@@ -96,7 +96,7 @@ describe('useDensityPreference', () => {
     act(() => result.current.setDensity('list'));
     expect(result.current.density).toBe('list');
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-      '@parfumscan/catalog-density',
+      '@sillage/catalog-density',
       'list',
     );
   });

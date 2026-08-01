@@ -29,7 +29,7 @@ export const MISSIONS: Mission[] = [
   { key: 'harvester', label: 'Belle récolte', icon: 'leaf-outline', check: c => c.notesCollected >= 8 },
 ];
 
-const MISSIONS_KEY = '@parfumscan/runner-missions';
+const MISSIONS_KEY = '@sillage/runner-missions';
 
 export async function getUnlockedMissions(): Promise<string[]> {
   try {

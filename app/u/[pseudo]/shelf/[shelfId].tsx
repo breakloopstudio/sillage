@@ -1,5 +1,5 @@
 // app/u/[pseudo]/shelf/[shelfId].tsx — Étagère publique d'un membre (lecture seule)
-// Cible du deep link parfumscan://u/<pseudo>/shelf/<shelfId> et du partage d'étagère.
+// Cible du deep link sillage://u/<pseudo>/shelf/<shelfId> et du partage d'étagère.
 // Accessible sans authentification (RPC publiques filtrées sur les deux is_public).
 
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';

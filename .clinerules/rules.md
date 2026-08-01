@@ -1,4 +1,4 @@
-# ParfumScan React — Règles du projet
+# Sillage React — Règles du projet
 
 ## §1 — Vue d'ensemble
 
@@ -17,7 +17,7 @@ app/
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
 │   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills Tous/À traiter/Alertes, long-press FavoriSheet, prix visibles)
 │   ├── collection.tsx        # Ma Parfumerie (user_parfum uniquement, pills statut + filtre ♥, grille ParfumCard prix masqué + badge 🔔, long-press StatuerSheet)
-│   └── communaute.tsx        # Communauté (vitrine publique : top aimés, tendances, collections, SOTD, recherche pseudo + « Nez que tu suis » si connecté)
+│   └── communaute.tsx        # Communauté « pouls éditorial » : hero « L'air du jour » (SOTD communautaire + météo en chip + ligne SOTD perso hairline/badge « Toi » ; rangée « Portés aujourd'hui » masquée si aucun autre SOTD public = pas d'effet miroir), carte défi famille hebdo (« Le geste de la semaine », rotation déterministe OLFACTORY_FAMILIES → /search?family=<key>, CTA soft-fill primarySoft aligné à droite), zone « Les nez » (recherche pseudo en row ghost + « Activité de tes suivis » timeline unifiée + « Collections à découvrir » gatée ≥2 profils), « L'air du temps » (rangée communautaire fusionnée aimés+tendances dédupliqués : carousel si ≥3 cartes sinon lignes featured `mode=list`, complétée en dessous par un seed éditorial « la sélection de la maison » ; cartes hidePrice ; label adaptatif « par les premiers nez »/« par la communauté » selon Σ love_count), footer Runner (CTA Jouer + ton rang). Titres de section à pastille §4.9 (tint primary, marge 16 alignée sur le contenu via style)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
@@ -32,7 +32,7 @@ app/
 ├── runner.tsx                # Flacon Runner (easter egg, slide_from_bottom, route racine)
 ├── profile.tsx               # Profil (route racine, poussée depuis l'avatar en haut à droite dans SearchChrome — identité, stats, SOTD, navigation, déconnexion)
 ├── scentlist.tsx             # Redirection /scentlist → /(tabs)/collection (deep links ; JAMAIS dans (tabs)/ — cf. §5)
-├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, bouton Suivre si connecté, cible du deep link parfumscan://u/<pseudo>)
+├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, bouton Suivre si connecté, cible du deep link sillage://u/<pseudo>)
 ├── legal.tsx                 # Mentions légales
 ├── privacy.tsx               # Politique de confidentialité
 ├── privacy-center.tsx        # Centre de confidentialité
@@ -92,14 +92,14 @@ supabase/                     # Backend Supabase (versionné)
 
 - Expo Router file-based, **TopTabs + custom tabBar** (DockBar en verre dépoli)
 - Navigation : swipe horizontal natif entre les 4 onglets (TopTabs = material-top-tabs vendored, react-native-tab-view + pager-view 8.0.2)
-- IA : 4 onglets — Catalogue | Favoris | Ma Parfumerie | Communauté (placeholder) — + FAB central Scan. Accès profil = avatar rond en haut à droite (dans SearchChrome → route racine /profile)
+- IA : 4 onglets — Catalogue | Favoris | Ma Parfumerie | Communauté (« pouls éditorial » : air du jour / les nez / l'air du temps / footer Runner) — + FAB central Scan. Accès profil = avatar rond en haut à droite (dans SearchChrome → route racine /profile)
 - **Règle d'or (v6.23)** : aucun fichier-route utilitaire (redirect, stub, shim) dans `app/(tabs)/` — expo-router auto-enregistre tout fichier du groupe comme écran du TopTabs, donc comme page swipeable du pager. Les redirects vivent à la racine `app/` (Stack, non swipeable)
 - Scan/Recherche : routes racine (`slide_from_bottom` / `fade`), pas des onglets
 - Historique : route racine, poussée depuis Profil
 - Perfumer : route racine, poussée depuis la signature nez de la fiche détail (slide_from_right)
 - Brand : route racine, poussée depuis la chip « La maison » de la fiche détail et les sélecteurs de marques (BrandCapsules, BrandSheet) (slide_from_right)
-- Profil public `/u/[pseudo]` : route racine en lecture seule, accessible sans auth (cible du deep link de partage `parfumscan://u/<pseudo>`)
-- Étagère publique `/u/[pseudo]/shelf/[shelfId]` : page publique d'une étagère (identique à la privée, sans actions owner ; cible du deep link de partage `parfumscan://u/<pseudo>/shelf/<shelfId>`)
+- Profil public `/u/[pseudo]` : route racine en lecture seule, accessible sans auth (cible du deep link de partage `sillage://u/<pseudo>`)
+- Étagère publique `/u/[pseudo]/shelf/[shelfId]` : page publique d'une étagère (identique à la privée, sans actions owner ; cible du deep link de partage `sillage://u/<pseudo>/shelf/<shelfId>`)
 - `NavigationChromeContext` pour le comportement scroll du dock (3 états : expanded / compact / hidden) — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes ; expose `dockCompact` (collapse des labels) + `dockTranslateY` (hide) + `resetDock()`
 - Chrome partagé : `SearchChrome` (barre de recherche + voix) dans le layout des tabs (le profil est une route racine, hors tabs)
 - Swipe-back : natif (React Navigation), pas de geste custom → **0 conflit de swipe**
@@ -171,7 +171,7 @@ supabase/                     # Backend Supabase (versionné)
 
 - **Architecture** : `src/theme/ThemeContext.tsx` — `ThemeProvider` + `useTheme()` hook
 - **Double palette** : `src/theme/theme.ts` exporte `lightTheme` et `darkTheme` (objets complets identiques, seuls `colors` et `shadow` diffèrent)
-- **Persistance** : `src/services/theme-storage.ts` — AsyncStorage, clé `@parfumscan/theme`
+- **Persistance** : `src/services/theme-storage.ts` — AsyncStorage, clé `@sillage/theme`
 - **3 modes** : `system` (défaut, suit `Appearance`/`useColorScheme()`), `light`, `dark`
 - **Pattern composant** : `getStyles(t: Theme)` (fonction pure hors composant) + `const s = useMemo(() => getStyles(theme), [theme])` dans le composant
 - **Ombres** : remplacées par des bordures subtiles en dark mode (`borderWidth` + `borderColor` rgba)
@@ -299,7 +299,7 @@ src/features/runner/
 - **Collisions** : `checkAABB()` (worklet), hitbox obstacle = `width - 4`, bottle = `width-8 × height-6`
 - **Score chase** : JS-side rAF lissant les sauts de score (bonus pickups jusqu'à +800)
 - **Sons** : générés en base64 inline (zéro asset binaire), via `expo-audio` `useAudioPlayer`
-- **Persistance** : high score + skins dans AsyncStorage, clé `@parfumscan/runner-*`
+- **Persistance** : high score + skins dans AsyncStorage, clé `@sillage/runner-*`
 - **Ouverture** : 5 taps sur le numéro de version dans Settings, minuterie 2s de reset
 - **Skins déblocables** : 500→Ambre, 1500→Frost, 3000→Noir, auto-équipés sur game over
 - **Pouvoirs** : 4 notes (Bergamote magnet / Santal shield / Ambre double / Musc slow-mo ×0.45), durées bornées

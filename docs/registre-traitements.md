@@ -1,4 +1,4 @@
-# Registre des traitements — ParfumScan
+# Registre des traitements — Sillage
 
 Document interne conforme à l'article 30 du RGPD.
 

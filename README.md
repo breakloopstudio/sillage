@@ -1,4 +1,4 @@
-# 🧴 ParfumScan React Native
+# 🧴 Sillage
 
 <div align="center">
 
@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 383](https://img.shields.io/badge/Tests-383%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 383](https://img.shields.io/badge/Tests-383%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -68,8 +68,8 @@
 ### Installation
 
 ```bash
-git clone https://github.com/breakloopstudio/parfumscan-react.git
-cd parfumscan-react
+git clone https://github.com/breakloopstudio/sillage.git
+cd sillage
 npm install
 ```
 
@@ -115,11 +115,11 @@ build_release.bat
 
 ## 🌓 Dark Mode
 
-ParfumScan propose un mode sombre complet disponible **sans authentification**.
+Sillage propose un mode sombre complet disponible **sans authentification**.
 
 - **3 modes** : Système (défaut, suit les réglages du téléphone), Clair, Sombre
 - **Toggle** : dans Paramètres → Apparence (segmented control Clair / Système / Sombre)
-- **Persistance** : la préférence est sauvegardée dans AsyncStorage (`@parfumscan/theme`)
+- **Persistance** : la préférence est sauvegardée dans AsyncStorage (`@sillage/theme`)
 - **Palette « Luxe profond »** : fond violet-noir `#0B0712`, violet `#8B6CF6`, doré `#D4A960`, teal `#2DD4BF`
 - **Architecture** : `ThemeProvider` → `useTheme()` hook → `getStyles(t: Theme)` + `useMemo` dans chaque composant
 - **StatusBar** : automatiquement adaptée (texte clair en dark, foncé en light)
@@ -299,6 +299,15 @@ Le bouton unfavorite utilise un cœur avec animation heartbeat (scale bounce 250
 Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive`
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
+## v8.15 — Renommage ParfumScan → Sillage (01/08/2026)
+
+- **Renommage complet de la marque** : display name, slug Expo (`sillage`), scheme deep link (`sillage://`), AsyncStorage (`@sillage/*`), domaine (`sillage.app`), npm package, Edge Function `share` (SSR + OG), pages publiques store, mentions légales/privacy, docs.
+- **Identifiants natifs** : package Android + bundle iOS `com.sillage.app` (dossier Kotlin déplacé), keystore `sillage-release.keystore` (alias renommé via keytool), `google-services.json` re-registrés Firebase.
+- **Backend** : projet Expo relinké (`@breakloopstudio/sillage`), migration `0047` (RPC `export_user_data` → `'Sillage'`), `supabase/config.toml` project_id `sillage` (container Docker `supabase_db_sillage`).
+- **⚠️ Upgrade note** : les clés AsyncStorage ayant changé de namespace, les préférences locales (thème, densité, runner…) sont réinitialisées au premier lancement — voulu pré-store. Les anciens liens partagés `parfumscan://` ne s'ouvrent plus.
+- **Tests** : 41 suites, 383 tests. `tsc --noEmit` : 0 erreur global.
+
+---
 ## v8.14 — Renommage `ParfumCard compact` → `carousel` + chips sur les rangées (01/08/2026)
 
 - **Renommage mode `compact` → `carousel`** : le mode des rangées horizontales (`ParfumCard`) s'appelle désormais `carousel` — le bouton « Compact » du toggle pilote toujours `compactPlus`, ce qui levait l'ambiguïté de nommage. `CardMode = 'carousel' | 'comfortable' | 'compactPlus' | 'list'` (9 call sites mis à jour).
@@ -378,7 +387,7 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 ## v8.4 — Communauté Phase 1 : profils publics & partage (15/09/2026)
 
 - **Profils publics (opt-in)** : table `profiles` (migration 0023 — pseudo unique + bio + `is_public`), RPC `public_profile`/`public_collection` (`SECURITY DEFINER`, **notes perso exclues**), service `profile.ts` + hooks `useMyProfile`/`usePublicProfile`.
-- **Partage & landing SSR** : Edge Function `share` (HTML on-brand + **balises OG/Twitter** → aperçu riche iMessage/WhatsApp/Instagram, bouton deep link `parfumscan://`, mention store). 3 surfaces : fiche · Ma Parfumerie (si profil public) · SOTD (long-press « Aujourd'hui je porte… »).
+- **Partage & landing SSR** : Edge Function `share` (HTML on-brand + **balises OG/Twitter** → aperçu riche iMessage/WhatsApp/Instagram, bouton deep link `sillage://`, mention store). 3 surfaces : fiche · Ma Parfumerie (si profil public) · SOTD (long-press « Aujourd'hui je porte… »).
 - **UI** : `PublicProfileCard` (section « PROFIL PUBLIC » du profil, validation pseudo), route publique `/u/[pseudo]` (lecture seule, accessible sans auth).
 - **Périmètre** : pas de feed/follow/UGC modéré (brique la plus sûre) ; agrégats anonymes & « nez compatibles » reportés (cold-start, 0 utilisateur).
 - **Tests** : 222 tests, 20 suites (+ `share.test.ts`).
@@ -488,7 +497,7 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 - **New hooks** : `useFavoris`, `useCollection`, `useWishlist`, `useScans` — Firestore temps réel
 - **0 fontWeight** : migration complète de tout le code vers `fontFamily`
 - **Firebase modular API** : migration namespaced → modular (v25+)
-- **Onboarding** : 3 slides swipe au 1er lancement, AsyncStorage `@parfumscan_onboarding_done` (⏸️ désactivé temporairement)
+- **Onboarding** : 3 slides swipe au 1er lancement, AsyncStorage `@sillage_onboarding_done` (⏸️ désactivé temporairement)
 
 ## v6.9 — Favoris + Historique refonte & Pager migration (21/07/2026)
 
@@ -506,7 +515,7 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 - **Suppression chips famille olfactive** : remplacés par dilution dans sections nommées + cartes d'ambiance « Explorer par famille » (6 cartes theme-aware avec Ionicons)
 - **Capsules marques** : top 10 marques en pastilles rectangulaires + bottom sheet « Toutes les marques » (A-Z, barre de recherche, index latéral)
 - **ParfumCard 4 modes** : `compact` (rangées, 140px), `comfortable` (grille défaut, tags famille/année + notes de tête + price dot deal/fair/overpriced), `compactPlus` (grille dense, image 90px), `list`
-- **Densité persistée** : AsyncStorage (`@parfumscan/catalog-density`), partagée entre catalogue et recherche
+- **Densité persistée** : AsyncStorage (`@sillage/catalog-density`), partagée entre catalogue et recherche
 - **Recherche** : chips famille supprimées, contrôles de densité identiques à la grille (Confort./Compact/Liste)
 - **Nouveaux composants** : `BrandCapsules`, `CatalogRow` (collapse/expand avec chevron), `FamilyAmbianceCards` (6 cartes d'ambiance avec couleurs du thème)
 - **Nouveau hook** : `useDensityPreference` (lecture/écriture AsyncStorage, partagé catalogue + recherche)

@@ -10,7 +10,7 @@ export const GRID_MODES: { key: CardMode; label: string }[] = [
   { key: 'list', label: 'Liste' },
 ];
 
-const KEY = '@parfumscan/catalog-density';
+const KEY = '@sillage/catalog-density';
 const VALID: readonly CardMode[] = ['comfortable', 'compactPlus', 'list'];
 
 function isValid(v: string | null): v is CardMode {

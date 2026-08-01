@@ -87,7 +87,7 @@ const VIEW_TABS: { key: ParfumerieView; label: string; icon: string }[] = [
   { key: 'collection', label: 'Collection', icon: 'grid-outline' },
 ];
 
-const KEY_EXPAND = '@parfumscan/parfumerie-shelves-expand';
+const KEY_EXPAND = '@sillage/parfumerie-shelves-expand';
 
 const SIG_ID = '__sig__';
 const FAV_ID = '__fav__';
@@ -357,7 +357,7 @@ export default function MaParfumeriePage() {
   const handleShareShelf = useCallback(() => {
     if (!shelfMenu || !profile?.pseudo) return;
     const url = shelfShareUrl(profile.pseudo, shelfMenu.id);
-    const text = `Mon étagère « ${shelfMenu.name} » sur ParfumScan`;
+    const text = `Mon étagère « ${shelfMenu.name} » sur Sillage`;
     setShelfMenu(null);
     if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
     else Share.share({ message: `${text} ${url}` }).catch(() => {});
@@ -444,7 +444,7 @@ export default function MaParfumeriePage() {
     if (!profile?.pseudo) return;
     hapticsLight();
     const url = profileShareUrl(profile.pseudo);
-    const text = 'Ma parfumerie sur ParfumScan';
+    const text = 'Ma parfumerie sur Sillage';
     if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
     else Share.share({ message: `${text} ${url}` }).catch(() => {});
   }, [profile]);

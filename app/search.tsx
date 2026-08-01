@@ -27,7 +27,7 @@ import { useNetwork } from '../src/hooks/useNetwork';
 import { textOn } from '../src/utils/contrast';
 import type { Parfum } from '../src/models';
 
-const RECENT_KEY = '@parfumscan/recent-searches';
+const RECENT_KEY = '@sillage/recent-searches';
 
 // Persiste les recherches recentes entre les navigations et sessions
 const recentStore = { items: [] as string[] };

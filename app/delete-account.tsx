@@ -40,7 +40,7 @@ export default function DeleteAccountPage() {
         throw e;
       }
       await GoogleSignin.signOut().catch(() => {});
-      await AsyncStorage.removeItem('@parfumscan/recent-searches').catch(() => {});
+      await AsyncStorage.removeItem('@sillage/recent-searches').catch(() => {});
       router.replace('/auth/login');
     } catch (e: unknown) {
       setErrorMessage((e as Error).message || 'Échec de la suppression.');

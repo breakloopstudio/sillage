@@ -6,7 +6,7 @@ set PATH=%ANDROID_HOME%\platform-tools;%ANDROID_HOME%\emulator;%PATH%
 
 echo.
 echo ======================================
-echo   ParfumScan - Dev
+echo   Sillage - Dev
 echo ======================================
 echo.
 echo   start.bat          Metro rapide (cache conserve)
