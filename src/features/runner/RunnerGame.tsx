@@ -25,7 +25,7 @@ import { searchParfumsCached } from '../../services/catalog';
 import type { Parfum } from '../../models';
 import { runnerShareUrl } from '../../utils/share';
 import {
-  getHighScore, setHighScore, getSkinsForScore, unlockSkin, getUnlockedSkins,
+  getHighScore, setHighScore, getSkinsForScore, unlockSkins, getUnlockedSkins,
   getSelectedSkinKey, setSelectedSkinKey, getMuted, setMuted,
 } from './runner-storage';
 import { SKINS } from './runner-storage';
@@ -55,6 +55,7 @@ import {
   RUNNER_PHASES,
   PX_PER_METER,
   DUCK_DURATION,
+  MAX_LIVES,
 } from './runner-types';
 
 interface Props {
@@ -517,7 +518,7 @@ function SkinSwatch({ def, unlocked, selected, onSelect }: { def: typeof SKINS[n
         <View style={{ position: 'absolute', top: 7, width: 8, height: 5, backgroundColor: def.cap, borderRadius: 2 }} />
         {!unlocked && (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(11,7,18,0.6)' }}>
-            <Ionicons name="lock-closed" size={13} color="#988EA8" />
+            <Ionicons name="lock-closed-outline" size={13} color="#988EA8" />
           </View>
         )}
       </View>
@@ -575,6 +576,7 @@ export default function RunnerGame({ onClose }: Props) {
     feverGauge,
     feverUntil,
     feverStartTrigger,
+    pickupCounts,
   } = useRunnerLoop(dims);
 
   const [uiState, setUiState] = useState('idle');
@@ -606,7 +608,6 @@ export default function RunnerGame({ onClose }: Props) {
     });
   }, []);
 
-  const collectedCounts = useRef<Record<string, number>>({ bergamote: 0, santal: 0, ambre: 0, musc: 0 });
   const [popups, setPopups] = useState<PopupEntry[]>([]);
   const popupIdRef = useRef(0);
 
@@ -722,10 +723,9 @@ export default function RunnerGame({ onClose }: Props) {
         if (!reduceMotion) countdownScale.value = withSpring(1, { damping: 12, stiffness: 300 });
         goTimerRef.current = setTimeout(() => setShowGo(false), 500);
       }, 400);
-      return () => {
-        clearTimeout(t);
-        if (goTimerRef.current) { clearTimeout(goTimerRef.current); goTimerRef.current = null; }
-      };
+      // Ne nettoie que le tick du countdown : le timer « GO » (goTimerRef) est armé juste
+      // avant que `countdown` passe à -1 — le nettoyer ici l'annulerait et le « GO » resterait.
+      return () => clearTimeout(t);
     }
     if (reduceMotion) {
       countdownScale.value = 1;
@@ -736,6 +736,11 @@ export default function RunnerGame({ onClose }: Props) {
     const t = setTimeout(() => setCountdown(c => c - 1), 400);
     return () => clearTimeout(t);
   }, [countdown, reduceMotion, gameState, jumpVelocity, isJumping, canDoubleJump, countdownScale]);
+
+  // Nettoyage du timer « GO » au démontage uniquement.
+  useEffect(() => () => {
+    if (goTimerRef.current) { clearTimeout(goTimerRef.current); goTimerRef.current = null; }
+  }, []);
 
   useAnimatedReaction(
     () => gameState.value,
@@ -817,9 +822,7 @@ export default function RunnerGame({ onClose }: Props) {
   );
 
   const onPickupCollected = useCallback((typeIdx: number) => {
-    const def = PICKUP_DEFS[typeIdx];
-    if (!def) return;
-    collectedCounts.current[def.key] = (collectedCounts.current[def.key] || 0) + 1;
+    if (!PICKUP_DEFS[typeIdx]) return;
     hapticsSuccess();
     playPickup();
   }, [playPickup]);
@@ -895,6 +898,8 @@ export default function RunnerGame({ onClose }: Props) {
 
   // Finalize score on game over
   const gameOverFinalizedRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
   useEffect(() => {
     if (uiState !== 'gameover') return;
     if (gameOverFinalizedRef.current) return;
@@ -913,8 +918,9 @@ export default function RunnerGame({ onClose }: Props) {
 
     const notesByType: Record<string, number> = {};
     const parts: string[] = [];
-    for (const def of PICKUP_DEFS) {
-      const n = collectedCounts.current[def.key];
+    for (let i = 0; i < PICKUP_DEFS.length; i++) {
+      const def = PICKUP_DEFS[i];
+      const n = Math.floor(pickupCounts[i].value);
       if (n) { notesByType[def.key] = n; parts.push(`${n}× ${def.label}`); }
     }
     const notesCollected = Object.values(notesByType).reduce((sum, n) => sum + n, 0);
@@ -933,7 +939,7 @@ export default function RunnerGame({ onClose }: Props) {
     const query = sortedNotes.slice(0, 2).map(([k]) => NOTE_QUERY[k]).filter(Boolean).join(' ');
     if (query) {
       searchParfumsCached(query).then(results => {
-        if (results.length > 0) setSuggestedParfum(results[0]);
+        if (mountedRef.current && results.length > 0) setSuggestedParfum(results[0]);
       }).catch(() => {});
     }
 
@@ -944,15 +950,15 @@ export default function RunnerGame({ onClose }: Props) {
       playRecord();
     }
 
-    const earned = getSkinsForScore(finalScore).filter(sk => !unlockedKeys.includes(sk.key));
-    if (earned.length > 0) {
-      const keys = earned.map(sk => sk.key);
-      Promise.all(keys.map(k => unlockSkin(k))).catch(() => {});
-      setUnlockedKeys(prev => [...new Set([...prev, ...keys])]);
-      setNewSkinLabels(earned.map(sk => sk.label));
-    } else {
-      setNewSkinLabels([]);
-    }
+      const earned = getSkinsForScore(finalScore).filter(sk => !unlockedKeys.includes(sk.key));
+      if (earned.length > 0) {
+        const keys = earned.map(sk => sk.key);
+        unlockSkins(keys).catch(() => {});
+        setUnlockedKeys(prev => [...new Set([...prev, ...keys])]);
+        setNewSkinLabels(earned.map(sk => sk.label));
+      } else {
+        setNewSkinLabels([]);
+      }
 
     // Carnet (stats lifetime) puis missions à paliers + prochain objectif.
     recordRun({ score: finalScore, distance: dist, maxCombo: combo, nearMiss, shieldBreaks, notesByType })
@@ -962,6 +968,7 @@ export default function RunnerGame({ onClose }: Props) {
           totalRuns: stats.totalRuns, totalDistance: stats.totalDistance, totalNotes: totalNotes(stats),
         };
         return getMissionTiers().then((tiers) => {
+          if (!mountedRef.current) return;
           const fresh = evaluateMissionTiers(ctx, tiers);
           const updated = { ...tiers };
           for (const f of fresh) updated[f.mission.key] = f.tier;
@@ -986,15 +993,16 @@ export default function RunnerGame({ onClose }: Props) {
 
   const handleRestart = useCallback(() => {
     stopChase();
+    if (goTimerRef.current) { clearTimeout(goTimerRef.current); goTimerRef.current = null; }
     gameOverFinalizedRef.current = false;
     resetGame();
     lastFloorShared.value = 0;
     targetScoreRef.current = 0;
     displayScoreRef.current = 0;
     setDisplayScore(0);
-    for (const def of PICKUP_DEFS) collectedCounts.current[def.key] = 0;
     setIsRecord(false);
     setCollectedText('');
+    setLivesDisplay(MAX_LIVES);
     setPopups([]);
     setCountdown(-1);
     setMilestone('');
@@ -1098,14 +1106,14 @@ export default function RunnerGame({ onClose }: Props) {
     },
   );
 
-  // Mode Fièvre déclenché (jauge pleine) → achèvement : haptique + son + bannière.
+  // Mode Fièvre déclenché (jauge pleine) → son + bannière (l'haptique vient du pickup
+  // collecté, §2.6 : un seul haptique par geste).
   useAnimatedReaction(
     () => feverStartTrigger.value,
     (v, prev) => {
       if (prev != null && v !== prev) {
-        scheduleOnRN(hapticsSuccess);
         scheduleOnRN(playRecord);
-        scheduleOnRN(handleMilestone, 'Fièvre !');
+        scheduleOnRN(handleMilestone, 'Fièvre');
       }
     },
   );
@@ -1120,7 +1128,7 @@ export default function RunnerGame({ onClose }: Props) {
         <RunnerBackground bgOffset={bgOffset} midOffset={midOffset} paletteIdx={paletteIdx} groundY={dims.groundY} />
         <RunnerGround groundOffset={groundOffset} groundY={dims.groundY} screenW={screenW} />
 
-        <RunnerSpeedLines speed={speed} speedLineOffset={speedLineOffset} groundY={dims.groundY} />
+        <RunnerSpeedLines speed={speed} speedLineOffset={speedLineOffset} groundY={dims.groundY} reduceMotion={reduceMotion} />
 
         <RunnerBottle
           bottleX={dims.bottleX}
@@ -1170,7 +1178,7 @@ export default function RunnerGame({ onClose }: Props) {
           )}
         </View>
 
-        <View style={s.livesRow}>
+        <View style={s.livesRow} accessibilityLabel={`Vies : ${livesDisplay} sur 3`}>
           {[0, 1, 2].map(i => (
             <Ionicons
               key={i}
@@ -1260,7 +1268,7 @@ export default function RunnerGame({ onClose }: Props) {
                 ))}
               </View>
               <Text style={s.tapLabel}>Tape pour jouer</Text>
-              <Text style={s.hint}>
+              <Text style={s.hint} maxFontSizeMultiplier={1.3}>
                 Tap = saut{'\n'}Double tap = double saut{'\n'}Swipe bas = glissade{'\n'}Enchaînement aérien = combo · Jauge pleine = fièvre
               </Text>
               {dailyChallenge != null && (
@@ -1288,7 +1296,7 @@ export default function RunnerGame({ onClose }: Props) {
             <Text allowFontScaling={false} style={s.goScore}>{displayScore}</Text>
             {isRecord && (
               <View style={s.recordBadge}>
-                <Text allowFontScaling={false} style={s.recordText}>Nouveau record !</Text>
+                <Text allowFontScaling={false} style={s.recordText}>Nouveau record</Text>
               </View>
             )}
             <Text style={s.goHiLabel}>Record: {Math.max(highScore, displayScore)}</Text>
@@ -1320,7 +1328,7 @@ export default function RunnerGame({ onClose }: Props) {
             ))}
             {dailyJustDone && (
               <View style={s.dailyDoneBadge}>
-                <Ionicons name="checkmark-circle" size={14} color="#1F1A2E" />
+                <Ionicons name="checkmark-circle-outline" size={14} color="#1F1A2E" />
                 <Text allowFontScaling={false} style={s.dailyDoneText}>Geste du jour réussi</Text>
               </View>
             )}
@@ -1334,7 +1342,7 @@ export default function RunnerGame({ onClose }: Props) {
               <View style={s.nextObjRow}>
                 <Ionicons name={nextObj.icon as never} size={13} color="#988EA8" />
                 <Text allowFontScaling={false} style={s.nextObjText}>
-                  Prochain : {nextObj.label} — {nextObj.current}/{nextObj.target} {nextObj.unit}
+                  Prochain : {nextObj.label} – {nextObj.current}/{nextObj.target} {nextObj.unit}
                 </Text>
               </View>
             )}
@@ -1354,14 +1362,14 @@ export default function RunnerGame({ onClose }: Props) {
                 <Ionicons name="chevron-forward" size={16} color="#988EA8" />
               </Pressable>
             )}
-            <Pressable style={s.retryBtn} onPress={handleRestart}>
+            <Pressable style={s.retryBtn} onPress={handleRestart} accessibilityRole="button" accessibilityLabel="Rejouer">
               <Text style={s.retryText}>Rejouer</Text>
             </Pressable>
-            <Pressable style={s.shareBtn} onPress={handleShare} hitSlop={8}>
+            <Pressable style={s.shareBtn} onPress={handleShare} hitSlop={8} accessibilityRole="button" accessibilityLabel="Partager mon score">
               <Ionicons name="share-social-outline" size={16} color="#D4A960" />
               <Text style={s.shareText}>Partager mon score</Text>
             </Pressable>
-            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8}>
+            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Quitter">
               <Text style={s.quitText}>Quitter</Text>
             </Pressable>
           </Animated.View>
@@ -1370,13 +1378,13 @@ export default function RunnerGame({ onClose }: Props) {
         {showPause && (
           <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(200)} style={s.goOverlay}>
             <Text style={s.goTitle}>Pause</Text>
-            <Pressable style={s.retryBtn} onPress={handleResume}>
+            <Pressable style={s.retryBtn} onPress={handleResume} accessibilityRole="button" accessibilityLabel="Reprendre">
               <Text style={s.retryText}>Reprendre</Text>
             </Pressable>
-            <Pressable style={s.quitBtn} onPress={handleRestart} hitSlop={8}>
+            <Pressable style={s.quitBtn} onPress={handleRestart} hitSlop={8} accessibilityRole="button" accessibilityLabel="Recommencer">
               <Text style={s.quitText}>Recommencer</Text>
             </Pressable>
-            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8}>
+            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Quitter">
               <Text style={s.quitText}>Quitter</Text>
             </Pressable>
           </Animated.View>

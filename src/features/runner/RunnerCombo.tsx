@@ -13,6 +13,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { RUNNER_COLORS } from './runner-types';
 
 interface Props {
   airCombo: SharedValue<number>;
@@ -47,7 +48,7 @@ function RunnerCombo({ airCombo, reduceMotion, centerY }: Props) {
   }));
 
   const textStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(Math.max(2, airCombo.value), [2, 4], ['#8B6CF6', '#D4A960']),
+    color: interpolateColor(Math.max(2, airCombo.value), [2, 4], [RUNNER_COLORS.violet, RUNNER_COLORS.gold]),
   }));
 
   return (

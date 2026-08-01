@@ -99,6 +99,7 @@ function RunnerBottle({
   useAnimatedReaction(
     () => landingTrigger.value,
     () => {
+      if (reduceMotion) return;
       sqY.value = 0.78;
       sqX.value = 1.25;
       sqY.value = withSpring(1, { damping: 10, stiffness: 300 });

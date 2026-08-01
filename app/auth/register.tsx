@@ -185,8 +185,8 @@ export default function RegisterPage() {
 function getStyles(t: Theme) {
   return {
     bg: { flex: 1, backgroundColor: t.colors.background },
-    scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 },
-    form: { maxWidth: 400, alignSelf: 'center', width: '100%', paddingVertical: 24, paddingHorizontal: 4 },
+    scroll: { flexGrow: 1, paddingHorizontal: 24 },
+    form: { maxWidth: 400, alignSelf: 'center', width: '100%', paddingVertical: 24, paddingHorizontal: 4, flexGrow: 1, justifyContent: 'center' },
     iconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: t.colors.primarySoft, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 12 },
     header: { alignItems: 'center', marginBottom: 28 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 32, color: t.colors.text, letterSpacing: -0.5 },

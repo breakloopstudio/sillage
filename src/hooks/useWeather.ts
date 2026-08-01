@@ -5,10 +5,9 @@ import * as Location from 'expo-location';
 import { useFocusEffect } from 'expo-router';
 import { fetchWeather, type WeatherData } from '../services/weather';
 
-const POSITION_TIMEOUT_MS = 5000;
+const POSITION_TIMEOUT_MS = 10_000;
 const INITIAL_DELAY_MS = 1000;
-const LAST_KNOWN_MAX_AGE_MS = 2 * 60 * 1000;
-const LAST_KNOWN_ACCURACY_M = 1000;
+const LAST_KNOWN_MAX_AGE_MS = 10 * 60 * 1000;
 
 interface UseWeatherResult {
   weather: WeatherData | null;
@@ -33,15 +32,17 @@ export function useWeather(enabled = true): UseWeatherResult {
   const fetchWithPosition = useCallback(async (force = false) => {
     let pos = await Location.getLastKnownPositionAsync({
       maxAge: LAST_KNOWN_MAX_AGE_MS,
-      requiredAccuracy: LAST_KNOWN_ACCURACY_M,
     });
-    let fromCache = pos !== null;
+    let source: 'cache-fresh' | 'current' | 'cache-stale' = pos ? 'cache-fresh' : 'current';
     if (!pos) {
       pos = await withTimeout(
-        Location.getCurrentPositionAsync({}),
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
         POSITION_TIMEOUT_MS,
       );
-      fromCache = false;
+    }
+    if (!pos) {
+      pos = await Location.getLastKnownPositionAsync();
+      source = 'cache-stale';
     }
     if (__DEV__ && pos) {
       const ageMs = pos.timestamp ? Date.now() - pos.timestamp : -1;
@@ -50,7 +51,7 @@ export function useWeather(enabled = true): UseWeatherResult {
         lon: Number(pos.coords.longitude.toFixed(4)),
         accuracy: pos.coords.accuracy,
         ageMs,
-        fromCache,
+        source,
       });
     }
     if (pos) {

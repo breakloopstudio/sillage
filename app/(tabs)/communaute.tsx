@@ -1,7 +1,7 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, Share, StyleSheet } from 'react-native';
+import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, Share, StyleSheet, type ViewStyle, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
+import Animated, { useAnimatedScrollHandler, useReducedMotion, FadeInDown, FadeIn } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
@@ -134,6 +134,7 @@ export default function CommunautePage() {
   const seedTriggeredRef = useRef(false);
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     mountedRef.current = true;
@@ -334,7 +335,7 @@ export default function CommunautePage() {
           <Text style={s.title}>Communauté</Text>
         </View>
 
-        <View onLayout={(e) => handleAnchorLayout(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
+        <Reveal index={0} onLayout={(e) => handleAnchorLayout(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
           <TodayHero
             weather={weather}
             weatherLoading={weatherLoading}
@@ -348,9 +349,9 @@ export default function CommunautePage() {
             styles={s}
             theme={theme}
           />
-        </View>
+        </Reveal>
 
-        <View style={s.challengeCard}>
+        <Reveal index={1} style={s.challengeCard}>
           <View style={s.challengeTop}>
             <View style={s.challengeIcon}>
               <Ionicons name={weekFamily.icon as never} size={20} color={theme.colors.primary} accessible={false} />
@@ -360,22 +361,22 @@ export default function CommunautePage() {
               <Text style={s.challengeTitle} numberOfLines={1}>{weekFamily.label}</Text>
               <Text style={s.challengeTagline} numberOfLines={2} maxFontSizeMultiplier={1.3}>{weekFamily.tagline}</Text>
             </View>
+            <Pressable style={({ pressed }) => [s.challengeCta, pressed && s.pressFade]} onPress={handleFamilyExplore} accessibilityRole="button" accessibilityLabel={`Explorer la famille ${weekFamily.label}`}>
+              <Text style={s.challengeCtaText}>Explorer</Text>
+              <Ionicons name="arrow-forward" size={15} color={theme.colors.primaryInk} accessible={false} />
+            </Pressable>
           </View>
-          <Pressable style={s.challengeCta} onPress={handleFamilyExplore} accessibilityRole="button" accessibilityLabel={`Explorer la famille ${weekFamily.label}`}>
-            <Text style={s.challengeCtaText}>Explorer</Text>
-            <Ionicons name="arrow-forward" size={16} color={theme.colors.primaryInk} accessible={false} />
-          </Pressable>
-        </View>
+        </Reveal>
 
         {recap && recap.total >= 1 ? (
-          <View style={s.recapCard}>
+          <Reveal index={2} style={s.recapCard}>
             <View style={s.recapRow}>
               <View style={s.recapTexts}>
                 <Text style={s.recapOverline}>Ta semaine</Text>
                 <Text style={s.recapPhrase} numberOfLines={2} maxFontSizeMultiplier={1.3}>{recapPhrase(recap)}</Text>
               </View>
               <Pressable
-                style={s.recapCta}
+                style={({ pressed }) => [s.recapCta, pressed && s.pressFade]}
                 onPress={handleRecapCta}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 accessibilityRole="button"
@@ -385,7 +386,7 @@ export default function CommunautePage() {
                 <Ionicons name={recapCtaIcon as never} size={15} color={theme.colors.primary} accessible={false} />
               </Pressable>
             </View>
-          </View>
+          </Reveal>
         ) : null}
 
         <View style={s.section}>
@@ -477,7 +478,7 @@ export default function CommunautePage() {
             <Text style={s.stateText}>{error}</Text>
           </View>
         ) : (!anything && !seedLoading) ? (
-          <View style={s.stateWrap}>
+          <Animated.View style={s.stateWrap} entering={reducedMotion ? undefined : FadeIn.duration(320)}>
             <View style={s.iconCircle}>
               <Ionicons name="people-outline" size={32} color={theme.colors.primary} />
             </View>
@@ -490,7 +491,7 @@ export default function CommunautePage() {
             <Pressable style={s.ctaBtn} onPress={() => router.push('/profile')} accessibilityRole="button">
               <Text style={s.ctaBtnText}>{isAuthenticated ? 'Mon profil public' : 'Créer mon profil'}</Text>
             </Pressable>
-          </View>
+          </Animated.View>
         ) : showAnyAir ? (
           <View style={s.section}>
             <SectionHeader style={s.sectionHeader} title="L’air du temps" subtitle="Ce qui se porte et se convoite" icon="trending-up-outline" tint="primary" tintBg="primarySoft" />
@@ -500,7 +501,7 @@ export default function CommunautePage() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
                   {commParfums.map((p, i) => (
                     <View key={p.id} style={s.cardWrap}>
-                      <ParfumCard parfum={p} mode="carousel" hidePrice onPressOverride={() => handleParfumPress(comm[i])} />
+                      <ParfumCard parfum={p} mode="carousel" hidePrice socialLoves={comm[i].love_count ?? undefined} onPressOverride={() => handleParfumPress(comm[i])} />
                     </View>
                   ))}
                 </ScrollView>
@@ -512,7 +513,7 @@ export default function CommunautePage() {
                     <Text style={s.subLabel}>{commLabel}</Text>
                     {USE_FEATURED_ROWS ? commParfums.map((p, i) => (
                       <View key={p.id} style={s.featuredRow}>
-                        <ParfumCard parfum={p} mode="list" hidePrice onPressOverride={() => handleParfumPress(comm[i])} />
+                        <ParfumCard parfum={p} mode="list" hidePrice socialLoves={comm[i].love_count ?? undefined} onPressOverride={() => handleParfumPress(comm[i])} />
                       </View>
                     )) : null}
                   </View>
@@ -547,6 +548,15 @@ export default function CommunautePage() {
         onClose={() => setSotdPickerVisible(false)}
       />
     </SafeAreaView>
+  );
+}
+
+function Reveal({ index, children, style, onLayout }: { index: number; children: ReactNode; style?: ViewStyle; onLayout?: (e: LayoutChangeEvent) => void }) {
+  const reduced = useReducedMotion();
+  return (
+    <Animated.View style={style} onLayout={onLayout} entering={reduced ? undefined : FadeInDown.delay(index * 70).duration(420)}>
+      {children}
+    </Animated.View>
   );
 }
 
@@ -613,7 +623,7 @@ function TodayHero({
 
       {isAuthenticated ? (
         <Pressable
-          style={s.heroMeLine}
+          style={({ pressed }) => [s.heroMeLine, pressed && s.pressFade]}
           onPress={sotd ? onSotdPress : onSotdChange}
           onLongPress={sotd ? onShareSotd : undefined}
           delayLongPress={400}
@@ -699,7 +709,7 @@ function RunnerFooter({ entry, loading, onPress, styles: s, theme }: { entry: Le
       ? `Ton rang #${entry.rank} · ${entry.score} pts`
       : 'Lance une partie';
   return (
-    <Pressable style={s.runnerFooter} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Flacon Runner, ${entry ? `ton rang ${entry.rank}, ${entry.score} points` : 'aucune partie jouée'}. Jouer`}>
+    <Pressable style={({ pressed }) => [s.runnerFooter, pressed && s.pressFade]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Flacon Runner, ${entry ? `ton rang ${entry.rank}, ${entry.score} points` : 'aucune partie jouée'}. Jouer`}>
       <Ionicons name="game-controller-outline" size={16} color={theme.colors.textMuted} accessible={false} />
       <View style={s.runnerFooterText}>
         <Text style={s.runnerFooterTitle}>Flacon Runner</Text>
@@ -731,6 +741,7 @@ function getStyles(t: Theme) {
       borderRadius: t.radius.base, backgroundColor: t.colors.primary, justifyContent: 'center' as const,
     },
     ctaBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#FFFFFF' },
+    pressFade: { opacity: 0.7 },
 
     section: { marginTop: 24 },
     sectionHeader: { paddingHorizontal: 16 },
@@ -746,7 +757,7 @@ function getStyles(t: Theme) {
     },
     heroTop: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, justifyContent: 'space-between' as const, gap: 12 },
     heroTitles: { flex: 1, minWidth: 0 },
-    heroTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 17, color: t.colors.text },
+    heroTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 20, lineHeight: 24, color: t.colors.text },
     heroEditorial: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15, color: t.colors.textMuted, marginTop: 2 },
     heroWeather: {
       flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, flexShrink: 0,
@@ -761,7 +772,7 @@ function getStyles(t: Theme) {
 
     heroMeLine: {
       flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
-      marginTop: 12, paddingVertical: 8, minHeight: 44,
+      marginTop: 10, paddingVertical: 6, minHeight: 44,
       borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.colors.border,
     },
     heroMeThumbWrap: {
@@ -785,20 +796,20 @@ function getStyles(t: Theme) {
     challengeTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text, marginTop: 2 },
     challengeTagline: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, lineHeight: 18, marginTop: 2 },
     challengeCta: {
-      marginTop: 12, alignSelf: 'flex-end' as const, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
-      minHeight: 44, paddingHorizontal: 14, borderRadius: t.radius.base, backgroundColor: t.colors.primarySoft,
+      flexShrink: 0, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+      minHeight: 44, paddingHorizontal: 12, borderRadius: t.radius.base, backgroundColor: t.colors.primarySoft,
     },
-    challengeCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: t.colors.primaryInk },
+    challengeCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primaryInk },
 
     recapCard: {
       backgroundColor: t.colors.surface, borderRadius: t.radius.card,
-      marginHorizontal: 16, marginTop: 16, padding: 12, ...t.shadow.card,
+      marginHorizontal: 16, marginTop: 16, padding: 14, ...t.shadow.card,
     },
     recapRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
     recapTexts: { flex: 1, minWidth: 0 },
     recapOverline: { fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 1, color: t.colors.textMuted },
     recapPhrase: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.text, lineHeight: 18, marginTop: 3 },
-    recapCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 8, paddingVertical: 8, flexShrink: 0 },
+    recapCta: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'flex-end' as const, gap: 6, minWidth: 124, paddingHorizontal: 8, paddingVertical: 8, flexShrink: 0 },
     recapCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
 
     pseudoRow: {

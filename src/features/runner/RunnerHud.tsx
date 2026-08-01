@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { View, Text } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
-import { PICKUP_DEFS, POWER_DURATION, FEVER_DURATION, FEVER_MAX, type PowerType } from './runner-types';
+import { PICKUP_DEFS, POWER_DURATION, FEVER_DURATION, FEVER_MAX, RUNNER_COLORS, type PowerType } from './runner-types';
 
 interface Props {
   gameTime: SharedValue<number>;
@@ -66,7 +66,7 @@ function FeverBar({ feverGauge, feverUntil, gameTime }: { feverGauge: SharedValu
       : Math.max(0, Math.min(1, feverGauge.value / FEVER_MAX));
     return {
       width: FEVER_BAR_W * ratio,
-      backgroundColor: active ? '#D4A960' : '#8B6CF6',
+      backgroundColor: active ? RUNNER_COLORS.gold : RUNNER_COLORS.violet,
     };
   });
   const wrap = useAnimatedStyle(() => {

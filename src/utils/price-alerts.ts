@@ -30,6 +30,31 @@ export function alertVariation(initialPrice: number | null, currentPrice: number
 /** Formate une variation en pourcentage signé (« −18 % », « +5 % »). */
 export function formatVariation(variation: number): string {
   const pct = Math.round(variation * 100);
-  const sign = pct > 0 ? '+' : pct < 0 ? '\u2212' : '';
-  return `${sign}${Math.abs(pct)}\u00A0%`;
+  const sign = pct > 0 ? '+' : pct < 0 ? '−' : '';
+  return `${sign}${Math.abs(pct)} %`;
+}
+
+export type PriceAlertState = 'reached' | 'near' | 'watching';
+
+/**
+ * Baisse absolue en € depuis l'activation (négatif = baisse, positif = hausse).
+ * null si l'ancre ou le prix courant manque.
+ */
+export function priceAlertDropAbs(initialPrice: number | null, currentPrice: number | null): number | null {
+  if (initialPrice == null || currentPrice == null) return null;
+  return currentPrice - initialPrice;
+}
+
+/**
+ * État d'une alerte à cible, dérivé côté client (sans colonne dédiée en base).
+ * - reached : le prix courant est sous la cible (objectif atteint).
+ * - near    : le prix courant frôle la cible (≤ +10 % au-dessus).
+ * - watching: veille normale.
+ * null si la cible ou le prix courant manque (mode « baisse » sans cible → pas d'état).
+ */
+export function priceAlertState(targetPrice: number | null, currentPrice: number | null): PriceAlertState | null {
+  if (targetPrice == null || currentPrice == null) return null;
+  if (currentPrice <= targetPrice) return 'reached';
+  if (currentPrice <= targetPrice * 1.1) return 'near';
+  return 'watching';
 }

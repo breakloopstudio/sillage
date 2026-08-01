@@ -41,6 +41,19 @@ export async function unlockSkin(key: string): Promise<void> {
   } catch (e) { console.warn('[runner-storage] unlockSkin', e); }
 }
 
+// Déblocage atomique de plusieurs skins (1 lecture + 1 écriture) — évite la race du
+// read-modify-write parallèle qui pouvait n'en persister qu'un (run à 3000 → Ambre+Givre+Noir).
+export async function unlockSkins(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  try {
+    const skins = await getUnlockedSkins();
+    const merged = [...new Set([...skins, ...keys])];
+    if (merged.length !== skins.length) {
+      await AsyncStorage.setItem(SKINS_KEY, JSON.stringify(merged));
+    }
+  } catch (e) { console.warn('[runner-storage] unlockSkins', e); }
+}
+
 export async function getHighScore(): Promise<number> {
   try {
     const v = await AsyncStorage.getItem(HIGH_SCORE_KEY);

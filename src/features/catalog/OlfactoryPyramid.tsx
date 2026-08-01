@@ -1,7 +1,7 @@
 ﻿import { useState, useCallback, useMemo } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 import { pickInitialLayer, type LayerKey } from './pyramid/geometry';
@@ -30,8 +30,10 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme), [theme]);
 
-  const [active, setActive] = useState<LayerKey | null>(() =>
-    pickInitialLayer(topNotes.length, heartNotes.length, baseNotes.length));
+  const [selected, setSelected] = useState<Set<LayerKey>>(() => {
+    const initial = pickInitialLayer(topNotes.length, heartNotes.length, baseNotes.length);
+    return new Set<LayerKey>([initial]);
+  });
 
   const layers: [LayerDef, LayerDef, LayerDef] = useMemo(
     () => [
@@ -42,10 +44,33 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
     [topNotes, heartNotes, baseNotes, c],
   );
 
+  const openableKeys = useMemo(
+    () => layers.filter(l => l.notes.length > 0).map(l => l.key),
+    [layers],
+  );
+
+  const allOpen = useMemo(
+    () => openableKeys.length > 0 && openableKeys.every(k => selected.has(k)),
+    [openableKeys, selected],
+  );
+
   const handleSelect = useCallback((key: LayerKey) => {
     hapticsLight();
-    setActive(prev => prev === key ? null : key);
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }, []);
+
+  const handleToggleAll = useCallback(() => {
+    hapticsLight();
+    setSelected(prev => {
+      const everyOpen = openableKeys.length > 0 && openableKeys.every(k => prev.has(k));
+      return everyOpen ? new Set<LayerKey>() : new Set<LayerKey>(openableKeys);
+    });
+  }, [openableKeys]);
 
   const handleNotePress = useCallback(
     (note: string, layer: LayerKey) => onNotePress?.(note, layer),
@@ -92,17 +117,27 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
   return (
     <Animated.View style={s.root} entering={FadeIn.duration(400)}>
       <View style={s.header}>
-        <View style={s.headerRow}>
-          <View style={s.headerBadge}>
-            <Ionicons name="layers-outline" size={14} color={c.primary} />
+        <View style={s.headerBar}>
+          <View style={s.headerRow}>
+            <View style={s.headerBadge}>
+              <Ionicons name="layers-outline" size={14} color={c.primary} />
+            </View>
+            <Text style={s.title}>Pyramide olfactive</Text>
           </View>
-          <Text style={s.title}>Pyramide olfactive</Text>
+          <Pressable
+            onPress={handleToggleAll}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={allOpen ? 'Tout replier' : 'Tout afficher'}
+          >
+            <Text style={s.headerAction}>{allOpen ? 'Tout replier' : 'Tout afficher'}</Text>
+          </Pressable>
         </View>
       </View>
 
       <PyramidStage
         layers={layers}
-        active={active}
+        selected={selected}
         onSelect={handleSelect}
         onNotePress={handleNotePress}
         resolvedMode={resolvedMode}
@@ -119,7 +154,9 @@ function getStyles(t: Theme) {
   return {
     root: { marginTop: 24, marginBottom: 4 },
     header: { marginBottom: 18 },
+    headerBar: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
     headerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+    headerAction: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: c.primary },
     headerBadge: {
       width: 28,
       height: 28,

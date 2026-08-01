@@ -2,8 +2,9 @@
 //
 // NOTE design : le mini-jeu est une scène sombre immersive volontairement HORS thème
 // (couleurs hardcodées violet/noir/doré, identiques en light et dark). Exception assumée
-// au design-guide §2 — même logique que le fond lightbox §2.3 (`#0B0712`). Les couleurs
-// sont regroupées dans RUNNER_COLORS ci-dessous pour éviter la dispersion.
+// au design-guide §2 — même logique que le fond lightbox §2.3 (`#0B0712`).
+// `RUNNER_COLORS` ci-dessous est la palette de référence : les composants récents
+// (RunnerCombo, RunnerHud) l'utilisent ; les hex historiques de RunnerGame restent à migrer.
 
 export interface GameDimensions {
   width: number;
@@ -16,6 +17,7 @@ export interface ObstacleDef {
   width: number;
   height: number;
   airborne?: boolean;
+  falling?: boolean;
 }
 
 export interface PickupDef {
@@ -38,6 +40,7 @@ export const RUNNER_COLORS = {
   gold: '#D4A960',
   violet: '#8B6CF6',
   violetDeep: '#6C3ED9',
+  teal: '#2DD4BF',
   textLight: '#EDE8F5',
   muted: '#988EA8',
   mutedDim: '#4A4358',
@@ -81,15 +84,29 @@ export const OBSTACLE_POOL_SIZE = 8;
 export const PICKUP_POOL_SIZE = 4;
 
 export const OBSTACLE_DEFS: ObstacleDef[] = [
-  { width: 28, height: 40 },
-  { width: 28, height: 56 },
-  { width: 55, height: 28 },
-  { width: 33, height: 48 },
-  { width: 50, height: 20, airborne: true },
+  { width: 28, height: 40 },                  // 0 — éclat de flacon (sol)
+  { width: 28, height: 56 },                  // 1 — éclat haut
+  { width: 55, height: 28 },                  // 2 — éclat large
+  { width: 33, height: 48 },                  // 3 — éclat moyen
+  { width: 34, height: 24, airborne: true },  // 4 — abeille (ondule en volant)
+  { width: 22, height: 26, falling: true },   // 5 — goutte d'essence (tombe, télégraphiée)
 ];
 
-export const FLYING_OBSTACLE_Y_OFFSET = 110;
+// Abeille : centre d'ondulation au-dessus du sol + amplitude/fréquence de l'oscillation
+// verticale. Calibré pour que le flacon DEBOUT la touche et le flacon ACCROUPI passe dessous.
+export const FLYING_OBSTACLE_Y_OFFSET = 62;
+export const BEE_AMPLITUDE = 12;
+export const BEE_FREQ = 5.5;
 export const FLYING_OBSTACLE_MIN_SCORE = 300;
+
+// Goutte d'essence : hauteur de départ, délai de télégraphie (ombre au sol) avant la
+// chute, vitesse de chute. Dangereuse seulement une fois au sol (obstacle à sauter).
+// NB : le spawn ne compense que la CHUTE (pas la télégraphie) pour que l'ombre reste
+// visible ~0,3 s avant l'impact — voir useRunnerLoop.
+export const DROP_START_HEIGHT = 240;
+export const DROP_TELEGRAPH = 0.35;
+export const DROP_FALL_SPEED = 1000;
+export const DROP_MIN_SCORE = 600;
 
 export const PICKUP_SIZE = 38;
 
@@ -161,6 +178,16 @@ export function getDoubleObstacleChance(score: number): number {
   if (score < 1500) return 0.3;
   if (score < 2000) return 0.45;
   return 0.55;
+}
+
+// Répartition des types d'obstacles selon le score : éclats (0-3) majoritaires,
+// abeille (4) dès 300 pts, goutte d'essence (5) dès 600 pts.
+export function pickObstacleType(score: number): number {
+  'worklet';
+  const roll = Math.random();
+  if (score > DROP_MIN_SCORE && roll < 0.15) return 5;
+  if (score > FLYING_OBSTACLE_MIN_SCORE && roll < 0.40) return 4;
+  return Math.floor(Math.random() * 4);
 }
 
 export function checkAABB(

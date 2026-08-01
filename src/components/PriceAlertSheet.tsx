@@ -133,6 +133,16 @@ export default function PriceAlertSheet({
           </View>
         </View>
 
+        {bestPrice != null ? (
+          <View style={s.priceRow}>
+            <Text style={s.priceLabel}>Prix actuel</Text>
+            <Text style={s.priceCurrent} allowFontScaling={false}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
+            {referencePrice != null && referencePrice !== bestPrice ? (
+              <Text style={s.priceRef} allowFontScaling={false}>{formatPrice(referencePrice, { decimals: 0 })}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
         <Pressable style={s.toggleRow} onPress={handleToggle} accessibilityRole="switch" accessibilityState={{ checked: active }} accessibilityLabel="Alerte prix">
           <View style={s.toggleLeft}>
             <Ionicons name={active ? 'notifications' : 'notifications-outline'} size={20} color={active ? theme.colors.primary : theme.colors.textMuted} />
@@ -209,6 +219,11 @@ function getStyles(t: Theme) {
     headerText: { flex: 1 },
     headerBrand: { fontFamily: 'Inter_400Regular', fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: 1.2, color: t.colors.textMuted, marginBottom: 2 },
     headerName: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 17, color: t.colors.text },
+
+    priceRow: { flexDirection: 'row' as const, alignItems: 'baseline' as const, gap: 6, paddingHorizontal: 8, paddingBottom: 4 },
+    priceLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted },
+    priceCurrent: { fontFamily: 'Inter_700Bold', fontSize: 15, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    priceRef: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted, textDecorationLine: 'line-through' as const, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
 
     toggleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingVertical: 12, paddingHorizontal: 8, gap: 12 },
     toggleLeft: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, flex: 1 },

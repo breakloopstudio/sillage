@@ -18,7 +18,8 @@ import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { hapticsLight, hapticsError } from '../../src/services/haptics';
 import { favoriMatchesSearch } from '../../src/utils/favori-filters';
-import { alertVariation, formatVariation } from '../../src/utils/price-alerts';
+import { alertVariation, formatVariation, priceAlertState, priceAlertDropAbs } from '../../src/utils/price-alerts';
+import { priceTier } from '../../src/utils/price-tier';
 import { formatPrice } from '../../src/utils/format-price';
 import EmptyState from '../../src/components/EmptyState';
 import AuthGate from '../../src/components/AuthGate';
@@ -66,7 +67,18 @@ interface AlertRow {
   imageUrl: string | null;
   currentPrice: number | null;
   targetPrice: number | null;
+  initialPrice: number | null;
+  referencePrice: number | null;
   variation: number | null;
+}
+
+interface AlertEditTarget {
+  parfumId: string;
+  nom: string;
+  marque: string;
+  imageUrl: string | null;
+  bestPrice?: number;
+  referencePrice?: number;
 }
 
 export default function FavorisPage() {
@@ -91,12 +103,12 @@ export default function FavorisPage() {
   const [activePill, setActivePill] = useState<FavPillId>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sheetItem, setSheetItem] = useState<UserFavori | null>(null);
-  const [alertTarget, setAlertTarget] = useState<UserFavori | null>(null);
+  const [alertTarget, setAlertTarget] = useState<AlertEditTarget | null>(null);
 
   const displayMap = useMemo(() => {
-    const m = new Map<string, { nom: string | null; marque: string | null; imageUrl: string | null; bestPrice?: number }>();
+    const m = new Map<string, { nom: string | null; marque: string | null; imageUrl: string | null; bestPrice?: number; referencePrice?: number }>();
     for (const up of items) m.set(up.parfumId, { nom: up.nom, marque: up.marque, imageUrl: up.imageUrl, bestPrice: up.bestPrice });
-    for (const f of favoris) m.set(f.parfumId, { nom: f.nom ?? null, marque: f.marque ?? null, imageUrl: f.imageUrl ?? null, bestPrice: f.bestPrice });
+    for (const f of favoris) m.set(f.parfumId, { nom: f.nom ?? null, marque: f.marque ?? null, imageUrl: f.imageUrl ?? null, bestPrice: f.bestPrice, referencePrice: f.referencePrice });
     return m;
   }, [items, favoris]);
 
@@ -113,11 +125,23 @@ export default function FavorisPage() {
         imageUrl: d.imageUrl ?? null,
         currentPrice,
         targetPrice: a.targetPrice,
+        initialPrice: a.initialPrice,
+        referencePrice: d.referencePrice ?? null,
         variation: alertVariation(a.initialPrice, currentPrice),
       });
     }
-    return rows.sort((x, y) => (x.variation ?? 0) - (y.variation ?? 0));
+    return rows.sort((x, y) => {
+      const rx = priceAlertState(x.targetPrice, x.currentPrice) === 'reached' ? 1 : 0;
+      const ry = priceAlertState(y.targetPrice, y.currentPrice) === 'reached' ? 1 : 0;
+      return ry - rx || (x.variation ?? 0) - (y.variation ?? 0);
+    });
   }, [alerts, displayMap]);
+
+  const alertRowsFiltered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return alertRows;
+    return alertRows.filter(r => r.nom.toLowerCase().includes(q) || r.marque.toLowerCase().includes(q));
+  }, [alertRows, searchQuery]);
 
   const pillCounts = useMemo(() => {
     const counts: Record<FavPillId, number> = { all: favoris.length, untreated: 0 };
@@ -150,7 +174,16 @@ export default function FavorisPage() {
   }, [sheetItem, handleCardPress]);
 
   const handleSheetAlerte = useCallback(() => {
-    setAlertTarget(sheetItem);
+    if (sheetItem) {
+      setAlertTarget({
+        parfumId: sheetItem.parfumId,
+        nom: sheetItem.nom ?? '',
+        marque: sheetItem.marque ?? '',
+        imageUrl: sheetItem.imageUrl ?? null,
+        bestPrice: sheetItem.bestPrice,
+        referencePrice: sheetItem.referencePrice,
+      });
+    }
     setSheetItem(null);
   }, [sheetItem]);
 
@@ -171,19 +204,25 @@ export default function FavorisPage() {
 
   const handleAlertSave = useCallback((active: boolean, targetPrice: number | null) => {
     if (alertTarget) {
-      setAlert(alertTarget.parfumId, active, { targetPrice }).catch(() => { hapticsError(); });
+      setAlert(alertTarget.parfumId, active, { targetPrice, currentPrice: alertTarget.bestPrice }).catch(() => { hapticsError(); });
     }
     setAlertTarget(null);
   }, [alertTarget, setAlert]);
 
   const handleAlertCardPress = useCallback((row: AlertRow) => {
+    setAlertTarget({
+      parfumId: row.parfumId,
+      nom: row.nom,
+      marque: row.marque,
+      imageUrl: row.imageUrl,
+      bestPrice: row.currentPrice ?? undefined,
+      referencePrice: row.referencePrice ?? undefined,
+    });
+  }, []);
+
+  const handleAlertLongPress = useCallback((row: AlertRow) => {
     router.push(`/catalog/${row.parfumId}`);
   }, [router]);
-
-  const handleAlertDisable = useCallback((parfumId: string) => {
-    hapticsLight();
-    setAlert(parfumId, false).catch(() => { hapticsError(); });
-  }, [setAlert]);
 
   const handlePillTap = useCallback((pill: FavPillId) => { hapticsLight(); setActivePill(pill); }, []);
   const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setViewPref(v); }, [setViewPref]);
@@ -210,6 +249,22 @@ export default function FavorisPage() {
     );
   }, [density, gridNumCols, statusByParfumId, byParfumId, handleCardPress, handleLongPress, s]);
 
+  const renderSearchRow = useCallback((placeholder: string) => (
+    <View style={s.searchRow}>
+      <View style={s.searchWrap}>
+        <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
+        <TextInput
+          style={s.searchInput}
+          placeholder={placeholder}
+          placeholderTextColor={theme.colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          keyboardAppearance={keyboardAppearance}
+        />
+      </View>
+    </View>
+  ), [s, theme, searchQuery, keyboardAppearance]);
+
   if (!authReady) {
     return <View style={s.center}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
   }
@@ -234,7 +289,9 @@ export default function FavorisPage() {
   const topChrome = (
     <View>
       <View style={s.header}>
-        <Text style={s.title}>Favoris{'\u00A0'}·{'\u00A0'}{favoris.length}</Text>
+        <Text style={s.title}>
+          {effectiveView === 'favoris' ? 'Favoris' : 'Alertes'}{' '}·{' '}{effectiveView === 'favoris' ? favoris.length : alertRows.length}
+        </Text>
       </View>
       <View style={s.segmented}>
         {FAV_VIEW_TABS.map(tab => {
@@ -285,19 +342,7 @@ export default function FavorisPage() {
                 <EmptyState variant="favoris" onAction={handleEmptyExplore} />
               ) : (
                 <View>
-                  <View style={s.searchRow}>
-                    <View style={s.searchWrap}>
-                      <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
-                      <TextInput
-                        style={s.searchInput}
-                        placeholder="Nom, marque ou note..."
-                        placeholderTextColor={theme.colors.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        keyboardAppearance={keyboardAppearance}
-                      />
-                    </View>
-                  </View>
+                  {renderSearchRow('Nom, marque ou note...')}
 
                   <View style={s.toolsRow}>
                     {GRID_MODES.map(m => (
@@ -338,7 +383,7 @@ export default function FavorisPage() {
                     <View style={s.emptyFilter}>
                       <Ionicons name="heart-outline" size={28} color={theme.colors.textMuted} />
                       <Text style={s.emptyFilterText}>
-                        {searchQuery.trim() || activePill !== 'all' ? 'Aucun parfum ne correspond à cette vue' : 'Aucun favori pour l\u2019instant'}
+                        {searchQuery.trim() || activePill !== 'all' ? 'Aucun parfum ne correspond à cette vue' : 'Aucun favori pour l’instant'}
                       </Text>
                     </View>
                   ) : null}
@@ -349,7 +394,7 @@ export default function FavorisPage() {
         />
       ) : (
         <Animated.FlatList
-          data={alertRows}
+          data={alertRowsFiltered}
           keyExtractor={(row) => row.parfumId}
           contentContainerStyle={s.content}
           showsVerticalScrollIndicator={false}
@@ -358,40 +403,79 @@ export default function FavorisPage() {
           windowSize={5}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
-          ListHeaderComponent={topChrome}
-          ListEmptyComponent={
-            <View style={s.alertEmpty}>
-              <Ionicons name="notifications-outline" size={32} color={theme.colors.textMuted} />
-              <Text style={s.alertEmptyTitle}>Aucune alerte pour l\u2019instant</Text>
-              <Text style={s.alertEmptyText} maxFontSizeMultiplier={1.3}>Active une alerte sur un coup de cœur pour être prévenu quand son prix baisse.</Text>
+          extraData={resolvedMode}
+          ListHeaderComponent={
+            <View>
+              {topChrome}
+              {alertRows.length > 0 ? renderSearchRow('Nom ou marque...') : null}
             </View>
           }
+          ListEmptyComponent={
+            alertRows.length === 0 ? (
+              <EmptyState
+                variant="alertes"
+                onAction={favoris.length ? () => setViewPref('favoris') : handleEmptyExplore}
+                actionLabel={favoris.length ? undefined : 'Explorer le catalogue'}
+              />
+            ) : (
+              <View style={s.emptyFilter}>
+                <Ionicons name="search-outline" size={28} color={theme.colors.textMuted} />
+                <Text style={s.emptyFilterText}>Aucune alerte ne correspond à cette recherche</Text>
+              </View>
+            )
+          }
           renderItem={({ item: row }) => {
-            const isDrop = row.variation != null && row.variation < 0;
+            const tier = priceTier(row.currentPrice, row.referencePrice);
+            const dropAbs = priceAlertDropAbs(row.initialPrice, row.currentPrice);
+            const state = priceAlertState(row.targetPrice, row.currentPrice);
+            const a11y = `${row.marque} ${row.nom}${row.currentPrice != null ? `, ${formatPrice(row.currentPrice, { decimals: 0 })}` : ''}${state === 'reached' ? ', objectif atteint' : row.variation != null ? `, ${formatVariation(row.variation)}` : ', en veille'}`;
             return (
-              <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} accessibilityRole="button" accessibilityLabel={`${row.marque} ${row.nom}`}>
+              <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} onLongPress={() => handleAlertLongPress(row)} accessibilityRole="button" accessibilityLabel={a11y}>
                 {row.imageUrl ? (
-                  <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} />
+                  <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} cachePolicy="memory-disk" recyclingKey={row.parfumId} />
                 ) : (
                   <View style={[s.alertImg, s.alertImgPlaceholder]}>
                     <Ionicons name="flask-outline" size={18} color={theme.colors.textMuted} />
                   </View>
                 )}
                 <View style={s.alertBody}>
+                  <Text style={s.alertBrand} numberOfLines={1}>{row.marque}</Text>
                   <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
                   <View style={s.alertPriceRow}>
-                    {row.currentPrice != null ? <Text style={s.alertPrice}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
-                    {row.variation != null ? (
-                      <View style={[s.alertVarChip, { backgroundColor: isDrop ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                        <Text style={[s.alertVarText, { color: isDrop ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
-                      </View>
-                    ) : null}
+                    {tier ? <View style={[s.alertPriceDot, { backgroundColor: theme.colors[tier] }]} accessible={false} /> : null}
+                    {row.currentPrice != null ? <Text style={s.alertPrice} allowFontScaling={false}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
+                    {row.referencePrice != null && row.referencePrice !== row.currentPrice ? <Text style={s.alertRef} allowFontScaling={false}>{formatPrice(row.referencePrice, { decimals: 0 })}</Text> : null}
                   </View>
-                  {row.targetPrice != null ? <Text style={s.alertTarget}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text> : null}
+                  {(row.variation != null || (dropAbs != null && dropAbs !== 0)) ? (
+                    <View style={s.alertChipRow}>
+                      {row.variation != null ? (
+                        <View style={[s.alertVarChip, { backgroundColor: row.variation < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+                          <Text style={[s.alertVarText, { color: row.variation < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
+                        </View>
+                      ) : null}
+                      {dropAbs != null && dropAbs !== 0 ? (
+                        <View style={[s.alertVarChip, { backgroundColor: dropAbs < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+                          <Text style={[s.alertVarText, { color: dropAbs < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{dropAbs < 0 ? `−${formatPrice(Math.abs(dropAbs), { decimals: 0 })}` : `+${formatPrice(dropAbs, { decimals: 0 })}`}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  {state === 'reached' ? (
+                    <View style={[s.alertStateChip, { backgroundColor: theme.colors.dealSoft }]}>
+                      <Ionicons name="checkmark-circle-outline" size={12} color={theme.colors.dealInk} accessible={false} />
+                      <Text style={[s.alertStateText, { color: theme.colors.dealInk }]} allowFontScaling={false}>Objectif atteint</Text>
+                    </View>
+                  ) : state === 'near' ? (
+                    <View style={[s.alertStateChip, { backgroundColor: theme.colors.fairSoft }]}>
+                      <Ionicons name="trending-down-outline" size={12} color={theme.colors.fairInk} accessible={false} />
+                      <Text style={[s.alertStateText, { color: theme.colors.fairInk }]} allowFontScaling={false}>Bientôt à ta cible</Text>
+                    </View>
+                  ) : row.targetPrice != null ? (
+                    <Text style={s.alertCaption}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text>
+                  ) : (
+                    <Text style={s.alertCaption}>Surveille les baisses</Text>
+                  )}
                 </View>
-                <Pressable style={s.alertOffBtn} onPress={() => handleAlertDisable(row.parfumId)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Désactiver l\u2019alerte">
-                  <Ionicons name="notifications-off-outline" size={16} color={theme.colors.textMuted} />
-                </Pressable>
               </Pressable>
             );
           }}
@@ -446,25 +530,27 @@ function getStyles(t: Theme) {
     segmentActive: { backgroundColor: t.colors.surface, ...t.shadow.card },
     segmentText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
     segmentTextActive: { fontFamily: 'Inter_600SemiBold', color: t.colors.text },
+
     alertCard: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
+      flexDirection: 'row', alignItems: 'flex-start', gap: 12,
       backgroundColor: t.colors.surface, borderRadius: t.radius.card, padding: 12,
       borderWidth: 1, borderColor: t.colors.border, marginBottom: 10, ...t.shadow.card,
     },
-    alertList: { paddingTop: 4 },
-    alertEmpty: { paddingVertical: 48, paddingHorizontal: 32, alignItems: 'center' },
-    alertEmptyTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text, marginTop: 14, marginBottom: 6 },
-    alertEmptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21, color: t.colors.textMuted, textAlign: 'center' },
-    alertImg: { width: 44, height: 58, borderRadius: t.radius.sm, backgroundColor: t.colors.surface2 },
+    alertImg: { width: 52, height: 70, borderRadius: t.radius.sm, backgroundColor: t.colors.surface2 },
     alertImgPlaceholder: { justifyContent: 'center', alignItems: 'center' },
-    alertBody: { flex: 1, minWidth: 0, gap: 3 },
-    alertName: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 13, color: t.colors.text },
+    alertBody: { flex: 1, minWidth: 0, gap: 4 },
+    alertBrand: { fontFamily: 'Inter_400Regular', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: t.colors.textMuted },
+    alertName: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 14, color: t.colors.text },
     alertPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    alertPriceDot: { width: 7, height: 7, borderRadius: 4 },
     alertPrice: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    alertRef: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    alertChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     alertVarChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
     alertVarText: { fontFamily: 'Inter_700Bold', fontSize: 10 },
-    alertTarget: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted },
-    alertOffBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    alertStateChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    alertStateText: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+    alertCaption: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted },
 
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
     searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: t.colors.surface2, borderRadius: 20, paddingHorizontal: 12, height: 40, gap: 8 },

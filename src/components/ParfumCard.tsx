@@ -26,7 +26,8 @@ type CardChip =
   | { kind: 'family'; label: string }
   | { kind: 'neutral'; label: string }
   | { kind: 'note'; value: string }
-  | { kind: 'gender'; icons: GenderIcon[] };
+  | { kind: 'gender'; icons: GenderIcon[] }
+  | { kind: 'social'; count: number };
 
 interface Props {
   parfum: Parfum;
@@ -36,6 +37,8 @@ interface Props {
   status?: UserParfumStatus | null;
   rating?: number | null;
   hidePrice?: boolean;
+  /** Preuve sociale communautaire — chip « ♥ n » (gaté ≥3 interne). Passé depuis Communauté uniquement. */
+  socialLoves?: number;
   /** Alerte prix active — badge 🔔 + variation depuis l'activation. */
   priceAlert?: { variation: number | null } | null;
 }
@@ -55,7 +58,7 @@ function resolveImageUrl(p: Parfum): string | null {
   return p.imageUrl ?? null;
 }
 
-function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress, status, rating, hidePrice = false, priceAlert = null }: Props) {
+function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress, status, rating, hidePrice = false, socialLoves, priceAlert = null }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -90,8 +93,10 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
   const genderIc = genderIcons(parfum.gender);
   const commuRating = communityRatingLabel(parfum);
   const showCommu = commuRating !== null && !showRating;
+  const showSocial = typeof socialLoves === 'number' && socialLoves >= 3;
 
   const baseChips: CardChip[] = [
+    showSocial ? { kind: 'social', count: socialLoves as number } : null,
     familyLabel ? { kind: 'family', label: familyLabel } : null,
     showCommu ? { kind: 'note', value: commuRating! } : null,
     genderIc.length > 0 ? { kind: 'gender', icons: genderIc } : null,
@@ -119,6 +124,14 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
           {c.icons.map((ic, j) => (
             <Ionicons key={j} name={ic} size={11} color={theme.colors.textMuted} />
           ))}
+        </View>
+      );
+    }
+    if (c.kind === 'social') {
+      return (
+        <View key={`c${i}`} style={s.tagSocial}>
+          <Ionicons name="heart" size={9} color={theme.colors.favorite} accessible={false} />
+          <Text style={s.tagSocialText} allowFontScaling={false}>{c.count}</Text>
         </View>
       );
     }
@@ -162,7 +175,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: carousel (rangées horizontales) ──
   if (mode === 'carousel') {
-    const a11yLabelCarousel = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabelCarousel = [parfum.nom, parfum.marque, familyLabel, genderVal, showSocial ? `aimé par ${socialLoves} nez` : null, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     return (
       <Pressable style={s.cardCarousel} onPress={goToDetail} onLongPress={onLongPress} delayLongPress={400} accessible={true} accessibilityLabel={a11yLabelCarousel} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
         {showImage ? (
@@ -311,8 +324,9 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: list ──
   if (mode === 'list') {
-    const a11yLabelList = [parfum.nom, parfum.marque, familyLabel, parfum.annee ? String(parfum.annee) : null, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabelList = [parfum.nom, parfum.marque, familyLabel, parfum.annee ? String(parfum.annee) : null, genderVal, showSocial ? `aimé par ${socialLoves} nez` : null, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     const chips: CardChip[] = [
+      showSocial ? { kind: 'social', count: socialLoves as number } : null,
       familyLabel ? { kind: 'family', label: familyLabel } : null,
       parfum.annee ? { kind: 'neutral', label: String(parfum.annee) } : null,
       genderIc.length > 0 ? { kind: 'gender', icons: genderIc } : null,
@@ -386,6 +400,7 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.status === next.status &&
     prev.rating === next.rating &&
     prev.hidePrice === next.hidePrice &&
+    prev.socialLoves === next.socialLoves &&
     (prev.priceAlert?.variation ?? null) === (next.priceAlert?.variation ?? null)
   );
 }
@@ -402,6 +417,8 @@ function getStyles(t: Theme) {
     tagNeutralText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
     tagNote: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.colors.surface2, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
     tagNoteValue: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    tagSocial: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.colors.favoriteSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    tagSocialText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: t.colors.favorite, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     tagGender: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: t.colors.surface2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 20 },
     priceDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
     priceDotSmall: { width: 7, height: 7, borderRadius: 3.5, marginRight: 4 },

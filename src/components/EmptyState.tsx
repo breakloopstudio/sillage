@@ -6,7 +6,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import Button from './Button';
 
-type Variant = 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist';
+type Variant = 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist' | 'alertes';
 
 const CONFIG = {
   collection: {
@@ -39,18 +39,26 @@ const CONFIG = {
     desc: 'Sauvegarde les parfums que tu veux sentir, puis note tes impressions après l\'essai. En boutique, c\'est ton meilleur allié.',
     cta: 'Explorer le catalogue',
   },
+  alertes: {
+    icon: 'notifications-outline',
+    title: 'Aucune alerte pour l\'instant',
+    desc: 'Active une alerte sur un coup de cœur pour être prévenu quand son prix baisse.',
+    cta: 'Voir mes coups de cœur',
+  },
 } as const satisfies Record<Variant, { icon: string; title: string; desc: string; cta: string }>;
 
 interface Props {
   variant: Variant;
   onAction: () => void;
   style?: ViewStyle;
+  actionLabel?: string;
 }
 
-export default function EmptyState({ variant, onAction, style }: Props) {
+export default function EmptyState({ variant, onAction, style, actionLabel }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { icon, title, desc, cta } = CONFIG[variant];
+  const ctaLabel = actionLabel ?? cta;
 
   return (
     <View style={[s.container, style]}>
@@ -60,7 +68,7 @@ export default function EmptyState({ variant, onAction, style }: Props) {
       <Text style={s.title}>{title}</Text>
       <Text style={s.desc}>{desc}</Text>
       <Button variant="primary" onPress={onAction} style={s.cta}>
-        {cta}
+        {ctaLabel}
       </Button>
     </View>
   );

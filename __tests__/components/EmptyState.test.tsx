@@ -74,6 +74,23 @@ describe('EmptyState', () => {
     });
   });
 
+  describe('variant: alertes', () => {
+    it('renders correct title', async () => {
+      await renderWithTheme(<EmptyState variant="alertes" onAction={onAction} />);
+      expect(screen.getByText("Aucune alerte pour l'instant")).toBeTruthy();
+    });
+
+    it('has the default CTA text', async () => {
+      await renderWithTheme(<EmptyState variant="alertes" onAction={onAction} />);
+      expect(screen.getByText('Voir mes coups de cœur')).toBeTruthy();
+    });
+  });
+
+  it('overrides the CTA label with actionLabel', async () => {
+    await renderWithTheme(<EmptyState variant="favoris" onAction={onAction} actionLabel="Explorer le catalogue" />);
+    expect(screen.getByText('Explorer le catalogue')).toBeTruthy();
+  });
+
   it('calls onAction when CTA button is pressed', async () => {
     await renderWithTheme(<EmptyState variant="favoris" onAction={onAction} />);
     fireEvent.press(screen.getByText('Explorer le catalogue'));

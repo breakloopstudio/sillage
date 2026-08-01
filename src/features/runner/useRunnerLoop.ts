@@ -22,6 +22,7 @@ import {
   getSpawnDistance,
   getPickupSpawnDistance,
   getDoubleObstacleChance,
+  pickObstacleType,
   checkAABB,
   OBSTACLE_DEFS,
   PICKUP_DEFS,
@@ -32,7 +33,11 @@ import {
   NEAR_MISS_BONUS,
   MAX_COMBO,
   FLYING_OBSTACLE_Y_OFFSET,
-  FLYING_OBSTACLE_MIN_SCORE,
+  BEE_AMPLITUDE,
+  BEE_FREQ,
+  DROP_START_HEIGHT,
+  DROP_TELEGRAPH,
+  DROP_FALL_SPEED,
   PALETTE_INTERVAL,
   PICKUP_SIZE,
   POWER_DURATION,
@@ -50,7 +55,7 @@ import {
   FEVER_SCORE_MULT,
 } from './runner-types';
 
-interface ObsData { active: SharedValue<boolean>; x: SharedValue<number>; type: SharedValue<number>; }
+interface ObsData { active: SharedValue<boolean>; x: SharedValue<number>; type: SharedValue<number>; y: SharedValue<number>; dropAt: SharedValue<number>; }
 interface PkpData { active: SharedValue<boolean>; x: SharedValue<number>; type: SharedValue<number>; y: SharedValue<number>; }
 
 export function useRunnerLoop(dims: GameDimensions) {
@@ -78,6 +83,14 @@ export function useRunnerLoop(dims: GameDimensions) {
   const obsX: SharedValue<number>[] = [ox0,ox1,ox2,ox3,ox4,ox5,ox6,ox7];
   const obsType: SharedValue<number>[] = [ot0,ot1,ot2,ot3,ot4,ot5,ot6,ot7];
 
+  const oy0=useSharedValue(0); const oy1=useSharedValue(0); const oy2=useSharedValue(0); const oy3=useSharedValue(0);
+  const oy4=useSharedValue(0); const oy5=useSharedValue(0); const oy6=useSharedValue(0); const oy7=useSharedValue(0);
+  const obsY: SharedValue<number>[] = [oy0,oy1,oy2,oy3,oy4,oy5,oy6,oy7];
+
+  const da0=useSharedValue(0); const da1=useSharedValue(0); const da2=useSharedValue(0); const da3=useSharedValue(0);
+  const da4=useSharedValue(0); const da5=useSharedValue(0); const da6=useSharedValue(0); const da7=useSharedValue(0);
+  const dropAt: SharedValue<number>[] = [da0,da1,da2,da3,da4,da5,da6,da7];
+
   const nm0=useSharedValue(0); const nm1=useSharedValue(0); const nm2=useSharedValue(0); const nm3=useSharedValue(0);
   const nm4=useSharedValue(0); const nm5=useSharedValue(0); const nm6=useSharedValue(0); const nm7=useSharedValue(0);
   const nearMissState: SharedValue<number>[] = [nm0,nm1,nm2,nm3,nm4,nm5,nm6,nm7];
@@ -92,7 +105,7 @@ export function useRunnerLoop(dims: GameDimensions) {
   const pkpType: SharedValue<number>[] = [pt0,pt1,pt2,pt3];
   const pkpY: SharedValue<number>[] = [py0,py1,py2,py3];
 
-  const obs = useMemo<ObsData[]>(() => Array.from({length:OBSTACLE_POOL_SIZE},(_,i)=>({active:obsActive[i],x:obsX[i],type:obsType[i]})), []);
+  const obs = useMemo<ObsData[]>(() => Array.from({length:OBSTACLE_POOL_SIZE},(_,i)=>({active:obsActive[i],x:obsX[i],type:obsType[i],y:obsY[i],dropAt:dropAt[i]})), []);
   const pkp = useMemo<PkpData[]>(() => Array.from({length:PICKUP_POOL_SIZE},(_,i)=>({active:pkpActive[i],x:pkpX[i],type:pkpType[i],y:pkpY[i]})), []);
 
   const bgOffset = useSharedValue(0);
@@ -127,6 +140,15 @@ export function useRunnerLoop(dims: GameDimensions) {
   const shieldBreakTrigger = useSharedValue(0);
   const lastCollectedPickup = useSharedValue(0);
 
+  // Compteurs de collecte par type (worklet) — précis même si plusieurs pickups sont
+  // ramassés la même frame (aimant), contrairement à `lastCollectedPickup` qui coalesce.
+  // Source de vérité pour la composition, la mission « Récolte » et la suggestion parfum.
+  const pc0 = useSharedValue(0);
+  const pc1 = useSharedValue(0);
+  const pc2 = useSharedValue(0);
+  const pc3 = useSharedValue(0);
+  const pickupCounts: SharedValue<number>[] = [pc0, pc1, pc2, pc3];
+
   const lives = useSharedValue(MAX_LIVES);
   const invulnUntil = useSharedValue(0);
   const crackTrigger = useSharedValue(0);
@@ -142,8 +164,8 @@ export function useRunnerLoop(dims: GameDimensions) {
   // Glissade : `duckUntil` = fin du duck (le flacon est couché tant que gameTime < duckUntil).
   const duckUntil = useSharedValue(0);
 
-  // Mode Fièvre : jauge 0..FEVER_MAX ; pleine → `feverUntil` (invincibilité + ×2 + cristaux
-  // collectables). La jauge se vide progressivement hors fièvre pour rester dynamique.
+  // Mode Fièvre : jauge 0..FEVER_MAX remplie par les pickups et frôlés ; pleine →
+  // `feverUntil` (invincibilité + ×2 + cristaux collectables) et la jauge retombe à 0.
   const feverGauge = useSharedValue(0);
   const feverUntil = useSharedValue(0);
   const feverStartTrigger = useSharedValue(0);
@@ -176,6 +198,10 @@ export function useRunnerLoop(dims: GameDimensions) {
     slowUntil.value = 0;
     shieldBreakTrigger.value = 0;
     lastCollectedPickup.value = 0;
+    pc0.value = 0;
+    pc1.value = 0;
+    pc2.value = 0;
+    pc3.value = 0;
     lives.value = MAX_LIVES;
     invulnUntil.value = 0;
     crackTrigger.value = 0;
@@ -187,7 +213,7 @@ export function useRunnerLoop(dims: GameDimensions) {
     feverUntil.value = 0;
     feverStartTrigger.value = 0;
 
-    for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) { obsActive[i].value = false; obsX[i].value = dims.width + 100; obsType[i].value = 0; nearMissState[i].value = 0; }
+    for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) { obsActive[i].value = false; obsX[i].value = dims.width + 100; obsType[i].value = 0; nearMissState[i].value = 0; obsY[i].value = 0; dropAt[i].value = 0; }
     for (let i = 0; i < PICKUP_POOL_SIZE; i++) { pkpActive[i].value = false; pkpX[i].value = 0; pkpType[i].value = 0; pkpY[i].value = 0; }
 
     bgOffset.value = 0;
@@ -268,12 +294,24 @@ export function useRunnerLoop(dims: GameDimensions) {
 
         if (state === 'playing') {
           const def = OBSTACLE_DEFS[obsType[i].value];
+          // Position verticale réelle (oy) selon le type d'obstacle.
+          if (def.airborne) {
+            // Abeille : ondulation verticale autour de son centre de vol.
+            obsY[i].value = dims.groundY - FLYING_OBSTACLE_Y_OFFSET + Math.sin(gameTime.value * BEE_FREQ + i * 1.7) * BEE_AMPLITUDE;
+          } else if (def.falling) {
+            // Goutte : immobilisée en haut pendant la télégraphie, puis chute jusqu'au sol.
+            if (gameTime.value >= dropAt[i].value && obsY[i].value < dims.groundY - def.height) {
+              obsY[i].value = Math.min(dims.groundY - def.height, obsY[i].value + DROP_FALL_SPEED * dt);
+            }
+          } else {
+            obsY[i].value = dims.groundY - def.height;
+          }
           const obsRealW = def.width - OBSTACLE_HITBOX_INSET * 2;
-          const groundObsY = dims.groundY - def.height;
-          const airborneObsY = dims.groundY - FLYING_OBSTACLE_Y_OFFSET;
-          const obsY = def.airborne ? airborneObsY : groundObsY;
+          const obsTopY = obsY[i].value;
           const obsH = def.airborne ? def.height - OBSTACLE_HITBOX_INSET : def.height;
-          if (checkAABB(bx, by, bw, bh, obsX[i].value + OBSTACLE_HITBOX_INSET, obsY, obsRealW, obsH)) {
+          // La goutte n'est dangereuse qu'une fois quasi au sol (obstacle à sauter).
+          const dropSafe = def.falling && obsTopY < dims.groundY - def.height - 2;
+          if (!dropSafe && checkAABB(bx, by, bw, bh, obsX[i].value + OBSTACLE_HITBOX_INSET, obsTopY, obsRealW, obsH)) {
             if (gameTime.value < feverUntil.value) {
               // Fièvre : le cristal éclate en points, aucun dégât.
               obsActive[i].value = false;
@@ -313,13 +351,17 @@ export function useRunnerLoop(dims: GameDimensions) {
 
           const obsCenter = obsX[i].value + def.width / 2;
           const bottleLeft = dims.bottleX;
-          const obsTop = def.airborne ? dims.groundY - FLYING_OBSTACLE_Y_OFFSET : dims.groundY - def.height;
+          const obsTop = obsY[i].value;
           const bottleBottom = bottleY.value;
 
           if (nearMissState[i].value === 0 && obsCenter < bottleLeft && obsCenter > bottleLeft - 40) {
             nearMissState[i].value = 1;
             const nearBottom = bottleBottom < obsTop && bottleBottom > obsTop - NEAR_MISS_GAP;
-            const triggers = def.airborne ? nearBottom : (nearBottom && isJumping.value);
+            // Frôlé en glissant SOUS l'abeille (top du flacon juste sous le bas de l'abeille).
+            const bottleTop = bottleY.value - effectiveHeight;
+            const obsBottom = obsTop + def.height;
+            const nearDuckUnder = def.airborne && isDucking && bottleTop > obsBottom && bottleTop < obsBottom + NEAR_MISS_GAP;
+            const triggers = def.airborne ? (nearBottom || nearDuckUnder) : (nearBottom && isJumping.value);
             if (triggers) {
               nearMissState[i].value = 2;
               score.value += NEAR_MISS_BONUS;
@@ -371,6 +413,7 @@ export function useRunnerLoop(dims: GameDimensions) {
               else if (def.power === 'double') doubleUntil.value = gameTime.value + POWER_DURATION.double;
               else if (def.power === 'slow') slowUntil.value = gameTime.value + POWER_DURATION.slow;
               lastCollectedPickup.value = pkpType[i].value + 1;
+              pickupCounts[pkpType[i].value].value += 1;
               popupBonus.value = comboBonus;
               popupCombo.value = airCombo.value;
               popupTrigger.value = (popupTrigger.value % 9999) + 1;
@@ -405,11 +448,23 @@ export function useRunnerLoop(dims: GameDimensions) {
         let freeSlot = -1;
         for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) { if (!obsActive[i].value) { freeSlot = i; break; } }
         if (freeSlot >= 0) {
-          const canFly = score.value > FLYING_OBSTACLE_MIN_SCORE && Math.random() < 0.3;
-          const poolLen = OBSTACLE_DEFS.length;
-          const typeIdx = canFly ? poolLen - 1 : Math.floor(Math.random() * (poolLen - 1));
+          const typeIdx = pickObstacleType(score.value);
+          const def = OBSTACLE_DEFS[typeIdx];
+          const chuteTime = DROP_START_HEIGHT / DROP_FALL_SPEED;
           obsType[freeSlot].value = typeIdx;
           obsX[freeSlot].value = dims.width + 50;
+          if (def.falling) {
+            // Compensation de la CHUTE seule (pas de la télégraphie) : la flaque tombe à
+            // ~screenW+50 (à droite du flacon) tandis que l'ombre reste visible ~0,3 s
+            // avant l'impact. Compenser aussi la télégraphie la rendrait hors écran.
+            obsX[freeSlot].value = dims.width + 50 + speed.value * chuteTime;
+            obsY[freeSlot].value = dims.groundY - DROP_START_HEIGHT;
+            dropAt[freeSlot].value = gameTime.value + DROP_TELEGRAPH;
+          } else if (def.airborne) {
+            obsY[freeSlot].value = dims.groundY - FLYING_OBSTACLE_Y_OFFSET;
+          } else {
+            obsY[freeSlot].value = dims.groundY - def.height;
+          }
           obsActive[freeSlot].value = true;
           nearMissState[freeSlot].value = 0;
 
@@ -417,10 +472,25 @@ export function useRunnerLoop(dims: GameDimensions) {
             let s2 = -1;
             for (let i = 0; i < OBSTACLE_POOL_SIZE; i++) { if (i !== freeSlot && !obsActive[i].value) { s2 = i; break; } }
             if (s2 >= 0) {
-              const canFly2 = score.value > FLYING_OBSTACLE_MIN_SCORE && Math.random() < 0.3;
-              const poolLen2 = OBSTACLE_DEFS.length;
-              obsType[s2].value = canFly2 ? poolLen2 - 1 : Math.floor(Math.random() * (poolLen2 - 1));
-              obsX[s2].value = obsX[freeSlot].value + OBSTACLE_DEFS[typeIdx].width + 80 + Math.random() * 60;
+              const typeIdx2 = pickObstacleType(score.value);
+              const def2 = OBSTACLE_DEFS[typeIdx2];
+              // Espacement basé sur la position d'ATTERRISSAGE effective du 1er obstacle
+              // (au sol) — évite la double compensation qui éloignait trop deux gouttes.
+              const land1 = obsX[freeSlot].value - (def.falling ? speed.value * (DROP_TELEGRAPH + chuteTime) : 0);
+              const land2 = land1 + def.width + 80 + Math.random() * 60;
+              obsType[s2].value = typeIdx2;
+              if (def2.falling) {
+                obsX[s2].value = land2 + speed.value * (DROP_TELEGRAPH + chuteTime);
+                obsY[s2].value = dims.groundY - DROP_START_HEIGHT;
+                dropAt[s2].value = gameTime.value + DROP_TELEGRAPH;
+              } else {
+                obsX[s2].value = land2;
+                if (def2.airborne) {
+                  obsY[s2].value = dims.groundY - FLYING_OBSTACLE_Y_OFFSET;
+                } else {
+                  obsY[s2].value = dims.groundY - def2.height;
+                }
+              }
               obsActive[s2].value = true;
               nearMissState[s2].value = 0;
             }
@@ -485,5 +555,6 @@ export function useRunnerLoop(dims: GameDimensions) {
     feverGauge,
     feverUntil,
     feverStartTrigger,
+    pickupCounts,
   };
 }

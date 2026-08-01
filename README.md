@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 397 tests, 44 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 414 tests, 44 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -299,6 +299,15 @@ Le bouton unfavorite utilise un cœur avec animation heartbeat (scale bounce 250
 Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive`
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
+## v8.18 — Flacon Runner : obstacles thématisés parfum (éclats, abeille, goutte) (01/08/2026)
+
+- **Éclats de flacon brisé** (reskin des 4 obstacles sol) — verre violet translucide à reflets, coins irréguliers.
+- **Abeille ondulante** (remplace le cristal volant) — trajectoire sinusoïdale, à sauter par-dessus ou glisser dessous.
+- **Goutte d'essence qui tombe** (nouvel obstacle type 5, dès 600 pts) — télégraphiée par une ombre au sol, chute rapide, flaque à sauter.
+- **Architecture** : position verticale centralisée `obsY[8]` (SharedValue), `pickObstacleType(score)` worklet, `RunnerObstacles` réécrit.
+- **Tests** : 44 suites, 414 tests. `tsc --noEmit` : 0 erreur global.
+
+---
 ## v8.17 — Flacon Runner v3 : game-feel, glissade, fièvre, rétention locale, pont catalogue (01/08/2026)
 
 - **Game-feel** : jump buffer (120 ms), hit-stop (60 ms de freeze à l'impact), premier saut doublable, combo aérien lisible (`RunnerCombo` « ×N », doré à ×4).
@@ -307,14 +316,20 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 - **Rétention locale** : carnet de runs lifetime (`runner-stats.ts`), missions 9 × 3 paliers bronze/argent/or + prochain objectif (`runner-missions.ts` réécrit), défi quotidien seedé par date (`runner-daily.ts`, hash murmur3 → LCG).
 - **Pont catalogue** : la composition de la course (notes collectées) suggère un vrai parfum au game over (`searchParfumsCached`) → fiche détail.
 - **Bugs** : skins intermédiaires débloqués d'un coup, safe-areas partout, milestones non sautés, Reduced Motion sur countdown/popup, overlay Settings supprimé → `router.push('/runner')`.
-- **Tests** : 44 suites, 397 tests (+14 : missions à paliers, défi quotidien, carnet). `tsc --noEmit` : 0 erreur global.
+- **Tests** : 44 suites, 414 tests (+14 : missions à paliers, défi quotidien, carnet). `tsc --noEmit` : 0 erreur global.
 
 ---
-## v8.16 — Récap perso « Ta semaine » + streak SOTD + Share v1 (front pur) (01/08/2026)
+## v8.16 — Onglet Communauté : pouls éditorial complet (P0 → motion) (01/08/2026)
 
-- **Récap « Ta semaine »** (Communauté) : service `recap.ts` + hook `useWeeklyRecap` — 4 counts sur 7 j glissants (scans, favoris, SOTD, verdicts), phrase unique « N flacons croisés · N cœurs · porté N jours · N avis posés », seuil ≥ 1 événement, Share v1 via landing profil public (gaté profil public).
-- **Streak SOTD** (Parfumerie) : `getSotdStreak` (série se terminant aujourd'hui ou hier), `useSotd` retourne `streak`, chip « N j » ≥ 2 sur `SOTDCard` (`tabular-nums`, pas de gamification).
-- **Tests** : 41 suites, 383 tests (inchangés). `tsc --noEmit` : 0 erreur global.
+- **Positionnement « pouls éditorial »** : utile avant d'être social. Hero « L'air du jour » (SOTD communautaire + météo en chip + ligne SOTD perso hairline/badge « Toi » ; rangée masquée si aucun autre SOTD public = pas d'effet miroir). Carte défi famille hebdo (« Le geste de la semaine », rotation déterministe `OLFACTORY_FAMILIES` → `/search?family=<key>`, CTA soft-fill `primarySoft` dans la row). Bloc « Ta semaine » (récap perso 7 j + Share via landing profil public, masqué si 0 activité, CTA largeur gelée). Zone « Les nez » (recherche pseudo en row ghost + « Activité de tes suivis » timeline unifiée + « Collections à découvrir » gatée ≥ 2 profils). « L'air du temps » (rangée communautaire fusionnée aimés+tendances dédupliqués : carousel si ≥ 3 cartes sinon lignes featured `mode=list`, complétée en dessous par un seed éditorial « la sélection de la maison » ; cartes `hidePrice` + chip ♥n gaté ≥ 3 via `socialLoves`, dormant en cold-start ; label adaptatif « par les premiers nez »/« par la communauté » selon Σ `love_count`). Footer Runner hairline permanent avec CTA « Jouer » + ton rang. Titres de section à pastille §4.9 (tint primary, marge 16 alignée sur le contenu via style).
+- **Données — agrégats honnêtes (migration `0046_community_honest_aggregates.sql`)** : rewrite `mv_top_loved`/`mv_trending` en `JOIN parfums` + `GROUP BY parfum_id` seul → corrige le bug « — € » (matviews lisaient `best_price` dénormalisé stale/null) et défragmente `love_count`/`activity_count`. Seuil `top_loved` dynamique `GREATEST(2, distinct_users/10)` ; `trending` exige `count(distinct user_id) >= 2`. `sotd_today` extrait en RPC dédiée `sotd_community_today()` (live, cache client 3 min).
+- **Récap perso « Ta semaine »** : service `recap.ts` + hook `useWeeklyRecap` — 4 counts `head` PostgREST sur 7 j glissants (`scans.scanned_at`, `favoris.added_at`, `sotd.day`, `user_parfum.tried_at` verdict non null), `Promise.all` + `safe` par requête. Phrase unique « N flacons croisés · N cœurs · porté N jours · N avis posés », seuil ≥ 1 événement. Share v1 = texte + `profileShareUrl(pseudo)`, gaté profil public.
+- **Streak SOTD** (Parfumerie) : `getSotdStreak(uid)` (série se terminant aujourd'hui ou hier), `useSotd` retourne `streak` (rechargé après `setTodaySotd`), chip « N j » ≥ 2 sur `SOTDCard` (`textMuted`/`surface2`, `tabular-nums`, pas de gamification §19).
+- **Polish micro-layout** : CTA défi déplacé dans la row (trou vertical supprimé) ; hero resserré (sans voile §4.14) ; CTA « Ta semaine » largeur gelée `minWidth:124` ; `recapCard` padding 12→14. Chip social `socialLoves` sur `ParfumCard` (gaté ≥ 3 interne, passé depuis Communauté uniquement, `arePropsEqual` mis à jour → 8 autres écrans inchangés).
+- **Motion & micro-interactions** : reveal d'entrée échelonné (`Reveal` = `FadeInDown.delay(index*70)`) sur hero→défi→semaine, fondu `FadeIn` sur l'état vide, feedback d'appui (`opacity:0.7`) sur les 4 actions, `heroTitle` 17→20 px. Tout coupé en Reduced Motion (§6.7).
+- **Fichiers créés** : `supabase/migrations/0046_community_honest_aggregates.sql`, `src/services/recap.ts`, `src/hooks/useWeeklyRecap.ts`.
+- **Fichiers modifiés** : `app/(tabs)/communaute.tsx` (réécrit), `src/services/community.ts`, `src/hooks/useCommunityHighlights.ts`, `src/hooks/useSotd.ts`, `src/features/wardrobe/SOTDCard.tsx`, `src/components/ParfumCard.tsx` (prop `socialLoves`), `src/components/SectionHeader.tsx` (pastille opt-in + `fontFamily` subtitle), `src/services/impl/profile.supabase.ts`, `src/models/profile.interface.ts`, `src/types/database.types.ts` (regen), `app/(tabs)/collection.tsx`, `.clinerules/reference.md`, `.clinerules/rules.md`.
+- **Tests** : 44 suites, 414 tests (inchangés — aucun test ne couvre `communaute.tsx`). `tsc --noEmit` : 0 erreur global.
 
 ---
 ## v8.15 — Renommage ParfumScan → Sillage (01/08/2026)

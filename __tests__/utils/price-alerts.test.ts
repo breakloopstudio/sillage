@@ -1,4 +1,4 @@
-import { suggestTargetPrice, alertVariation, formatVariation } from '../../src/utils/price-alerts';
+import { suggestTargetPrice, alertVariation, formatVariation, priceAlertDropAbs, priceAlertState } from '../../src/utils/price-alerts';
 
 describe('suggestTargetPrice', () => {
   it('returns null without a usable best price', () => {
@@ -55,6 +55,42 @@ describe('formatVariation', () => {
   });
 
   it('formats zero without a sign', () => {
-    expect(formatVariation(0)).toBe('0\u00A0%');
+    expect(formatVariation(0)).toBe('0 %');
+  });
+});
+
+describe('priceAlertDropAbs', () => {
+  it('returns null when the anchor or current price is missing', () => {
+    expect(priceAlertDropAbs(null, 80)).toBeNull();
+    expect(priceAlertDropAbs(100, null)).toBeNull();
+  });
+
+  it('returns a negative delta on a drop', () => {
+    expect(priceAlertDropAbs(100, 82)).toBe(-18);
+  });
+
+  it('returns a positive delta on a rise', () => {
+    expect(priceAlertDropAbs(100, 105)).toBe(5);
+  });
+});
+
+describe('priceAlertState', () => {
+  it('returns null without a target or current price', () => {
+    expect(priceAlertState(null, 80)).toBeNull();
+    expect(priceAlertState(70, null)).toBeNull();
+  });
+
+  it('is reached when the current price is at or below the target', () => {
+    expect(priceAlertState(70, 70)).toBe('reached');
+    expect(priceAlertState(70, 65)).toBe('reached');
+  });
+
+  it('is near when the current price is within 10% above the target', () => {
+    expect(priceAlertState(70, 77)).toBe('near');
+    expect(priceAlertState(70, 71)).toBe('near');
+  });
+
+  it('is watching when the current price is well above the target', () => {
+    expect(priceAlertState(70, 90)).toBe('watching');
   });
 });

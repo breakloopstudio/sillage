@@ -17,7 +17,7 @@ app/
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
 │   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills Tous/À traiter/Alertes, long-press FavoriSheet, prix visibles)
 │   ├── collection.tsx        # Ma Parfumerie (user_parfum uniquement, pills statut + filtre ♥, grille ParfumCard prix masqué + badge 🔔, long-press StatuerSheet, ligne SOTD avec chip streak « N j »)
-│   └── communaute.tsx        # Communauté « pouls éditorial » : hero « L'air du jour » (SOTD communautaire + météo en chip + ligne SOTD perso hairline/badge « Toi » ; rangée « Portés aujourd'hui » masquée si aucun autre SOTD public = pas d'effet miroir), carte défi famille hebdo (« Le geste de la semaine », rotation déterministe OLFACTORY_FAMILIES → /search?family=<key>, CTA soft-fill primarySoft aligné à droite), bloc « Ta semaine » (récap perso 7j + Share via landing profil public, masqué si 0 activité), zone « Les nez » (recherche pseudo en row ghost + « Activité de tes suivis » timeline unifiée + « Collections à découvrir » gatée ≥2 profils), « L'air du temps » (rangée communautaire fusionnée aimés+tendances dédupliqués : carousel si ≥3 cartes sinon lignes featured `mode=list`, complétée en dessous par un seed éditorial « la sélection de la maison » ; cartes hidePrice ; label adaptatif « par les premiers nez »/« par la communauté » selon Σ love_count), footer Runner (CTA Jouer + ton rang). Titres de section à pastille §4.9 (tint primary, marge 16 alignée sur le contenu via style)
+│   └── communaute.tsx        # Communauté « pouls éditorial » : hero « L'air du jour » (SOTD communautaire + météo en chip + ligne SOTD perso hairline/badge « Toi » ; rangée « Portés aujourd'hui » masquée si aucun autre SOTD public = pas d'effet miroir), carte défi famille hebdo (« Le geste de la semaine », rotation déterministe OLFACTORY_FAMILIES → /search?family=<key>, CTA soft-fill primarySoft dans la row), bloc « Ta semaine » (récap perso 7j + Share via landing profil public, masqué si 0 activité, CTA largeur gelée), zone « Les nez » (recherche pseudo en row ghost + « Activité de tes suivis » timeline unifiée + « Collections à découvrir » gatée ≥2 profils), « L'air du temps » (rangée communautaire fusionnée aimés+tendances dédupliqués : carousel si ≥3 cartes sinon lignes featured `mode=list`, complétée en dessous par un seed éditorial « la sélection de la maison » ; cartes hidePrice + chip ♥n gaté ≥3 via `socialLoves`, dormant en cold-start ; label adaptatif « par les premiers nez »/« par la communauté » selon Σ love_count), footer Runner (CTA Jouer + ton rang). Titres de section à pastille §4.9 (tint primary, marge 16 alignée sur le contenu via style)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
 │   └── register.tsx          # Inscription
@@ -222,7 +222,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 397 tests, 44 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 414 tests, 44 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
@@ -282,7 +282,7 @@ src/features/runner/
 ├── RunnerBottle.tsx       # Flacon joueur : squash/stretch aérien, landing spring, fissures liées aux vies, accroupi (glissade), aura fièvre
 ├── RunnerBackground.tsx   # Ciel/horizon gradients ancrés groundY, skyline de flacons
 ├── RunnerGround.tsx       # Piste gradient, crête lumineuse, stries 2 plans
-├── RunnerObstacles.tsx    # Pool de 8 cristaux (4 types + volant), spawn entry fade
+├── RunnerObstacles.tsx    # Pool de 8 obstacles (4 éclats de flacon + abeille ondulante + goutte d'essence qui tombe), spawn entry fade
 ├── RunnerPickups.tsx      # Pool de notes à pouvoirs (Bergamote/Santal/Ambre/Musc), spawn entry fade
 ├── RunnerSpeedLines.tsx   # Traits de vitesse horizontaux (opacité liée à la vitesse)
 ├── RunnerHud.tsx          # Chips pouvoirs actifs (barres de temps résiduel) + jauge de fièvre (UI thread)
@@ -301,8 +301,9 @@ src/features/runner/
 - **Pools fixes** — pas de mount/unmount pendant le jeu (pré-alloué en SharedValues)
 - **Collisions** : `checkAABB()` (worklet), hitbox obstacle = `width - 4`, bottle = `width-8 × height-6` (hauteur réduite en glissade)
 - **Game-feel** : jump buffer (`JUMP_BUFFER`=120 ms), hit-stop (`HIT_STOP_DURATION`=60 ms de freeze à l'impact), premier saut doublable
-- **Glissade** : swipe bas (`Gesture.Pan` en `Race` avec le Tap) = flacon couché `DUCK_DURATION`=0,6 s, passe sous les cristaux volants
-- **Fièvre** : jauge remplie par pickups/frôlés → `FEVER_DURATION`=4,5 s d'invincibilité + score ×2 + cristaux collectables
+- **Glissade** : swipe bas (`Gesture.Pan` en `Race` avec le Tap) = flacon couché `DUCK_DURATION`=0,6 s, passe sous l'abeille
+- **Fièvre** : jauge remplie par pickups/frôlés → `FEVER_DURATION`=4,5 s d'invincibilité + score ×2 + obstacles collectables
+- **Obstacles thématisés parfum** : éclats de flacon brisé (sol, à sauter) · abeille ondulante (volante, `BEE_AMPLITUDE`/`BEE_FREQ`, à sauter par-dessus ou glisser dessous) · goutte d'essence (télégraphiée par une ombre au sol `DROP_TELEGRAPH`, chute `DROP_FALL_SPEED`, flaque au sol à sauter ; spawn compensé selon la vitesse pour retomber à droite du flacon)
 - **Score chase** : JS-side rAF lissant les sauts de score (bonus pickups jusqu'à +800)
 - **Sons** : générés en base64 inline (zéro asset binaire), via `expo-audio` `useAudioPlayer`
 - **Persistance** : high score + skins + mute + missions + carnet + défi dans AsyncStorage, clé `@sillage/runner-*`

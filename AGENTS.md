@@ -754,7 +754,41 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 
 **Backlog** : P1 = landing SSR `share?type=recap` + RPC `public_weekly_recap` (migration, gatée taux Share). P2 inchangé : reorder mode SOLO/NETWORK (gated visuel) · chips ♥n/×n (de-striper `love_count`, gatés ≥ 3) · « Étagères à découvrir » (`public_shelf_overview`) · taste twins gatés · push « X a aimé un parfum que tu as » · hub jeux.
 
-## Notes v8.15 — Renommage ParfumScan → Sillage (01/08/2026)
+## Notes v8.17 — Communauté : polish micro-layout + chip social ♥n (brainstorm sur rendu) (01/08/2026)
+
+**Brainstorm orchestré sur le rendu réel** de v8.15/v8.16 (3 angles : micro-layout / cohérence langage cartes / clôture v1) → polish des défauts visibles à l'écran + premier signal social. Aucun changement de modèle ni de contrat service (`love_count` déjà mappé depuis 0046).
+
+**Polish micro-layout (visible à l'écran).** (A) Le CTA « Explorer » du défi était en bas-à-droite d'une **colonne** (`alignSelf:'flex-end'`) → grand trou vertical à gauche ; déplacé **dans** `challengeTop` (3ᵉ enfant de la row, `flexShrink:0`) → la carte passe de ~144 à ~88 px, plus de trou, langage « row + action à droite » uniforme. (B) Hero maigre à 1 user sans météo : **resserré** (`heroMeLine` marginTop 12→10, paddingVertical 8→6 → thumb 32+12 = 44 px exact), **sans voile** §4.14 (une lueur sur 2 lignes = maquillage de vide, refusé ; le plat est l'état jour-1 honnête). (C) CTA « Ta semaine » : **largeur gelée** `minWidth:124` + `justifyContent:'flex-end'` → plus de layout-shift entre « Rendre public » (long) et « Partager » (court) au moment du toggle profil public ; **label conservé** (c'est le levier de consentement, une icône seule l'enterrerait). (D) `recapCard` padding 12→14 → bord gauche de texte aligné à 30 px avec hero/défi.
+
+**Chip social ♥n (dormant en cold-start).** Prop optionnelle `socialLoves?: number` sur `ParfumCard` : gaté **≥ 3 interne**, rendu en tête des chips (carousel + list), `favorite`/`favoriteSoft`, `arePropsEqual` mis à jour → **8 autres écrans strictement inchangés** (la prop n'est passée que depuis Communauté). Passé sur les cartes communautaires (carousel `commFull` + featured `commThin`), **jamais sur le seed** (« maison » ≠ preuve sociale). `love_count` déjà dans le payload (matview 0046) → **0 backend**. Le cœur visiteur (`FavButton`) est **conservé** partout (canon v7.4, boucle communauté→curation). À 1-2 users le gate ≥ 3 n'est pas atteint → **chip invisible à l'émulateur maintenant**, prêt à apparaître dès que la masse arrive.
+
+**Décisions de clôture v1 (brainstorm).** L'onglet est **shippable v1** (aucun bloquant : honnêteté cold-start, rétention jour-1, différenciation vs Catalogue, conformité design, perf, auth optionnelle, zéro « — € » tous ✓). **Reorder SOLO/NETWORK reporté** : le basculement est organique (le bloc social s'allonge et pousse le perso par le scroll) ; le seuil est flou et le risque de casser le cold-start résolu l'emporte. **Partage du défi famille reporté v1.1** : sans landing web `share?type=family`, un partage scheme-only n'acquiert rien hors-app (incohérent avec le pattern maison URL web) → il faut l'Edge, donc pas en front pur. **Carte communautaire dédiée « attribution »** (« aimés par @a, @b ») reportée : la matview ne remonte pas les pseudos des amants (seulement le count) → nécessite une RPC, pas « déjà en base ».
+
+**Fichiers modifiés** : `app/(tabs)/communaute.tsx`, `src/components/ParfumCard.tsx` (prop `socialLoves` + rendu + `arePropsEqual`), `.clinerules/rules.md`, `AGENTS.md`.
+**Fichiers créés / supprimés** : aucun.
+
+**Tests** : 44 suites, 404 tests (inchangés — aucun test ne couvre `communaute.tsx` ni `ParfumCard`). `tsc --noEmit` : 0 erreur global.
+
+**⚠️ Rendu** : le **polish** est visible à l'émulateur (`start.bat` light/dark/RM) — trou du défi disparu, hero resserré, CTA « Ta semaine » stable, cartes alignées. Le **chip ♥n est dormant à 1 user** (gate ≥ 3) : il ne se verra pas maintenant, c'est attendu.
+
+## Notes v8.18 — Communauté : motion & micro-interactions (pièce vivante, sobriété conservée) (01/08/2026)
+
+**Passe de « vie » sur l'onglet** (front pur, aucun changement de modèle/contrat/service). Le socle v8.13→v8.17 était honnête mais statique ; cette passe lui donne du mouvement et du feedback **sans trahir la retenue « luxe malin »** (pas de nappe lumineuse, pas d'accent parasite, pas de blob — §1 réduction, §2.4 un accent, §4.14 refusé comme maquillage).
+
+**Reveal d'entrée échelonné.** Composant local `Reveal` (`Animated.View` + `entering={FadeInDown.delay(index*70).duration(420)}`) sur le premier écran : hero (0) → défi (1) → « Ta semaine » (2), pour un dévoilement en cascade à l'ouverture. L'état vide « Les membres arrivent » fond en `FadeIn`. **Tout est coupé en Reduced Motion** (`useReducedMotion()` → `entering={undefined}`, §6.7). Le `onLayout` du wrapper hero (ancre du `SOTDPicker`) est préservé (la transform d'entrée n'affecte pas la box mesurée). Les sections sous le pli ne sont PAS animées (leur `entering` au mount serait hors viewport, donc inutile — pas de churn).
+
+**Feedback d'appui.** Les 4 actions de l'onglet (CTA défi, CTA « Ta semaine », ligne SOTD perso, footer Runner) passent en `style={({pressed}) => [s.x, pressed && s.pressFade]}` (`opacity: 0.7`) — feedback perceptible conforme §7.1 (pas de scale spring, réservé au FAB/FavButton).
+
+**Hiérarchie d'ouverture.** `heroTitle` 17 → **20** (`lineHeight: 24`) : l'opener « L'air du jour » domine désormais le rituel (défi 18) et les sections (18), conformément au contraste de tailles voulu — sans toucher au H1 de page « Communauté » (28).
+
+**Fichiers modifiés** : `app/(tabs)/communaute.tsx` (import Reanimated étendu, `Reveal`, `reducedMotion`, wrappers, function-styles press, `pressFade`, `heroTitle`).
+**Fichiers créés / supprimés** : aucun.
+
+**Tests** : 44 suites, 414 tests (inchangés — aucun test ne couvre `communaute.tsx`). `tsc --noEmit` : 0 erreur global.
+
+**⚠️ Rendu** à vérifier à l'émulateur (`start.bat`) : cascade d'entrée au lancement de l'onglet (light/dark), **aucune animation avec Reduced Motion activé**, fondu de l'état vide, assombrissement à l'appui des 4 actions, titre « L'air du jour » plus présent. Le reveal ne se rejoue PAS au scroll (volontaire — c'est une animation d'ouverture, pas un scroll-reveal perpétuel).
+
+## Notes v8.19 — Renommage ParfumScan → Sillage (01/08/2026)
 
 **Renommage complet de la marque** (nom, slug, scheme, clés, identifiants natifs, backend, docs). L'app s'appelle désormais **Sillage**.
 
@@ -779,7 +813,7 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 
 **Reste manuel (post-commit)** : désinstaller l'ancienne app sur device, `start.bat build` (rebuild natif pour embarquer le nouveau package), vérifier Google Sign-In (nouveau client), supprimer l'ancien projet Expo `parfumscan` si inutile. Nom du dossier local `C:\dev\Sillage`.
 
-## Notes v8.17 — Flacon Runner v3 : game-feel, glissade, fièvre, rétention locale, pont catalogue (01/08/2026)
+## Notes v8.20 — Flacon Runner v3 : game-feel, glissade, fièvre, rétention locale, pont catalogue (01/08/2026)
 
 **Refonte du mini-jeu** en 3 vagues (brainstorm 4 angles × subagents). Aucun changement du modèle de données de l'app ; le jeu reste un easter egg « luxe malin » (scène sombre hors thème assumée, désormais documentée + couleurs regroupées dans `RUNNER_COLORS`).
 
@@ -803,4 +837,28 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 
 **⚠️ Rendu jamais validé à l'écran** → `start.bat` requis (light/dark/Reduced Motion) : geste de glissade (conflit Pan/Tap à confirmer), hit-stop, combo meter, jauge de fièvre, carte « geste du jour » sur l'accueil, carte parfum suggéré au game over.
 
-**Tests** : 44 suites, 397 tests (+14 : missions à paliers, défi quotidien, stats). `tsc --noEmit` : 0 erreur global.
+**Audit post-implémentation** (3 subagents en parallèle : bugs logiques/worklets, conformité design-guide, edge cases données) → corrections appliquées :
+- **Bug fonctionnel majeur** : `FLYING_OBSTACLE_Y_OFFSET` 110→52 — à 110 le flacon *debout* évitait déjà les cristaux volants, donc la glissade n'esquivait rien (feature cosmétique). À 52 le debout touche, l'accroupi (`DUCK_HEIGHT`) passe dessous.
+- **Coalescence same-frame** : `lastCollectedPickup` écrasé si 2 pickups la même frame (fréquent avec l'aimant) → composition/mission « Récolte »/suggestion faussées. Ajout de `pickupCounts` (SharedValues par type, comptage worklet précis) ; `collectedCounts` (JS) supprimé.
+- **Race `unlockSkin`** : `Promise.all` de read-modify-write non atomiques → skins perdus en persistence. `unlockSkins` batch (1 lecture + 1 écriture).
+- **Conformité** : Reduced Motion sur `RunnerSpeedLines` (§6.7 explicitement cité) · « Nouveau record ! »/« Fièvre ! » → sans « ! » (§3.6) · `RUNNER_COLORS` consommé par RunnerCombo/RunnerHud (+ commentaire honnête sur la migration progressive) · `accessibilityRole="button"` sur les boutons game over/pause · icônes `lock-closed`/`checkmark-circle` → outline · double haptique pickup+fièvre retirée (§2.6) · `goTimerRef` nettoyé au restart · commentaire « jauge se vide » corrigé (pas de drain).
+- **Tests** : +7 (`recordRun` merge/playDays/JSON corrompu, migration missions ancien format tableau→`{}`).
+
+**Tests** : 44 suites, 404 tests (+21 : missions à paliers, défi quotidien, stats, carnet). `tsc --noEmit` : 0 erreur global.
+
+## Notes v8.21 — Flacon Runner : obstacles thématisés parfum (éclats, abeille, goutte) (01/08/2026)
+
+**Remplacement des cristaux génériques** par un bestiaire/objet parfum (variété de comportements + ancrage « Sillage »). Aucun changement du modèle de données.
+
+- **Éclats de flacon brisé** (reskin des 4 obstacles sol) — verre violet translucide à reflets, coins irréguliers. Cohérent avec le game over « Flacon brisé ». Géométrie/collision inchangées.
+- **Abeille ondulante** (remplace le cristal volant) — corps rayé + ailes, **trajectoire sinusoïdale** (`obsY` piloté dans le loop : `groundY − FLYING_OFFSET + sin(gameTime·BEE_FREQ + i·1.7)·BEE_AMPLITUDE`). Ennemi vivant : à sauter par-dessus OU glisser dessous (`FLYING_OBSTACLE_Y_OFFSET` 52→62 = centre d'ondulation, calibré debout-touche / accroupi-passe).
+- **Goutte d'essence qui tombe** (nouvel obstacle, type 5, dès 600 pts) — télégraphiée par une **ombre au sol** (`DROP_TELEGRAPH`=0,35 s), chute rapide (`DROP_FALL_SPEED`=1000), devient une flaque au sol à sauter. Dangereuse seulement quasi au sol (`dropSafe`). **Spawn compensé selon la vitesse** — mais **de la chute seule** (`spawnX = screenW + 50 + speed·chuteTime`, PAS `+ speed·(DROP_TELEGRAPH + chuteTime)`) : compenser aussi la télégraphie faisait atterrir la goutte hors écran et rendait l'ombre invisible (bug détecté au recheck). Ainsi l'ombre reste visible ~0,3 s avant l'impact et la flaque retombe à droite du flacon.
+- **Architecture** : position verticale réelle centralisée dans `obsY[8]` (SharedValue par slot, lue par la collision ET le rendu) + `dropAt[8]` (télégraphie). `pickObstacleType(score)` (worklet) répartit éclats/abeille/goutte. `RunnerObstacles` réécrit (composants `Shard`/`Bee`/`Drop`/`DropShadow`, l'ombre rendue dans un conteneur séparé ancré au sol).
+
+**Fichiers modifiés** : `runner-types.ts` (`OBSTACLE_DEFS` 6 types + `falling`, constantes abeille/goutte, `pickObstacleType`), `useRunnerLoop.ts` (`obsY`/`dropAt`, update Y par type, collision `dropSafe`, spawn compensé), `RunnerObstacles.tsx` (réécrit).
+
+**⚠️ Équilibrage jamais validé à l'écran** → `start.bat` requis : ondulation de l'abeille (esquive saut/glissade), timing de la goutte (télégraphie + chute + flaque), taux de spawn (`pickObstacleType` 15 % goutte / 25 % abeille au-delà de 600 pts).
+
+**Recheck (2 subagents : bugs logiques + équilibrage)** : bug majeur corrigé — la télégraphie de la goutte était **invisible** (compensation de spawn trop forte → la goutte atterrissait hors écran) ; compensation réduite à la **chute seule** + constantes recalibrées (`DROP_TELEGRAPH` 0,45→0,35, `DROP_START_HEIGHT` 260→240, `DROP_FALL_SPEED` 950→1000), l'ombre est visible ~0,3 s. Double-goutte : espacement basé sur la position d'atterrissage (anti-double-compensation). Near-miss en glissade sous l'abeille ajouté (récompense le duck). Imports morts retirés. Équilibrage validé par le calcul (abeille : duck passe avec 10 px de marge, saut fenêtre 0,62 s ; goutte = saut uniquement ; aucun pattern impossible).
+
+**Note** : intègre le WIP parallèle « chip social ♥n » (`ParfumCard` + `price-alerts.ts` `priceAlertDropAbs`/`priceAlertState` + tests) — une accolade orpheline dans `price-alerts.test.ts` (coquille) a été retirée. **Tests** : 44 suites, 414 tests. `tsc --noEmit` : 0 erreur global.

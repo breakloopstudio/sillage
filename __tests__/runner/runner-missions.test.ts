@@ -1,4 +1,7 @@
-import { evaluateMissionTiers, nextObjective, MISSIONS, type MissionContext } from '../../src/features/runner/runner-missions';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { evaluateMissionTiers, nextObjective, getMissionTiers, MISSIONS, type MissionContext } from '../../src/features/runner/runner-missions';
+
+const mockGetItem = AsyncStorage.getItem as jest.Mock;
 
 function ctx(over: Partial<MissionContext> = {}): MissionContext {
   return {
@@ -46,5 +49,24 @@ describe('nextObjective', () => {
     const all: Record<string, number> = {};
     for (const m of MISSIONS) all[m.key] = m.tiers.length;
     expect(nextObjective(ctx({ score: 999999 }), all)).toBeNull();
+  });
+});
+
+describe('getMissionTiers (persistance + migration)', () => {
+  beforeEach(() => { mockGetItem.mockReset(); });
+
+  it('returns the stored tier map', async () => {
+    mockGetItem.mockResolvedValue(JSON.stringify({ score: 2, combo: 1 }));
+    expect(await getMissionTiers()).toEqual({ score: 2, combo: 1 });
+  });
+
+  it('migrates the legacy array format to an empty map', async () => {
+    mockGetItem.mockResolvedValue(JSON.stringify(['confirmed', 'legend']));
+    expect(await getMissionTiers()).toEqual({});
+  });
+
+  it('returns an empty map on corrupted JSON', async () => {
+    mockGetItem.mockResolvedValue('{oops');
+    expect(await getMissionTiers()).toEqual({});
   });
 });

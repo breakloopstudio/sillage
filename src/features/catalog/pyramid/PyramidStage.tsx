@@ -25,7 +25,7 @@ interface LayerDef {
 
 interface Props {
   layers: [LayerDef, LayerDef, LayerDef];
-  active: LayerKey | null;
+  selected: Set<LayerKey>;
   onSelect: (key: LayerKey) => void;
   onNotePress: (note: string, layer: LayerKey) => void;
   resolvedMode: 'light' | 'dark';
@@ -48,7 +48,7 @@ const ROW_GAP = 16;
 
 export default function PyramidStage({
   layers,
-  active,
+  selected,
   onSelect,
   onNotePress,
   resolvedMode,
@@ -84,7 +84,8 @@ export default function PyramidStage({
             key={layer.key}
             layer={layer}
             index={k}
-            active={active}
+            isActive={selected.has(layer.key)}
+            anyActive={selected.size > 0}
             onSelect={onSelect}
             onNotePress={onNotePress}
             reduced={reduced}
@@ -114,7 +115,7 @@ export default function PyramidStage({
             <RailNode
               key={`n-${layer.key}`}
               top={(rowY[k] as number) + SEG_CENTER_IN_ROW}
-              active={active === layer.key}
+              active={selected.has(layer.key)}
               color={layer.color}
               soft={layer.soft}
               reduced={reduced}
@@ -130,7 +131,8 @@ export default function PyramidStage({
 interface RowProps {
   layer: LayerDef;
   index: number;
-  active: LayerKey | null;
+  isActive: boolean;
+  anyActive: boolean;
   onSelect: (key: LayerKey) => void;
   onNotePress: (note: string, layer: LayerKey) => void;
   reduced: boolean;
@@ -143,7 +145,8 @@ interface RowProps {
 function StrateRow({
   layer,
   index,
-  active,
+  isActive,
+  anyActive,
   onSelect,
   onNotePress,
   reduced,
@@ -152,9 +155,6 @@ function StrateRow({
   textMuted,
   onRowLayout,
 }: RowProps) {
-  const isActive = active === layer.key;
-  const anyActive = active !== null;
-
   const emph = useSharedValue(isActive ? 1 : anyActive ? -1 : 0);
 
   useEffect(() => {
