@@ -1,6 +1,6 @@
 // src/services/weather.ts — Météo Open-Meteo (gratuit, sans clé API)
 
-const CACHE_DURATION_MS = 30 * 60 * 1000;
+const CACHE_DURATION_MS = 10 * 60 * 1000;
 
 export interface WeatherData {
   temperature: number;
@@ -45,11 +45,11 @@ function locationKey(lat: number, lon: number): string {
   return `${lat.toFixed(2)},${lon.toFixed(2)}`;
 }
 
-export async function fetchWeather(lat: number, lon: number): Promise<WeatherData | null> {
+export async function fetchWeather(lat: number, lon: number, force = false): Promise<WeatherData | null> {
   const now = Date.now();
   const key = locationKey(lat, lon);
 
-  if (cached && cached.key === key && (now - cached.data.fetchedAt) < CACHE_DURATION_MS) {
+  if (!force && cached && cached.key === key && (now - cached.data.fetchedAt) < CACHE_DURATION_MS) {
     return cached.data;
   }
 

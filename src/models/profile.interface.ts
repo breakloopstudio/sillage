@@ -8,6 +8,7 @@ export interface MyProfile {
   avatarUrl: string | null;
   bio: string | null;
   isPublic: boolean;
+  followingCount: number;
   createdAt: Date;
 }
 

@@ -33,12 +33,15 @@ export interface CommunityHighlights {
   top_loved: CommunityParfum[];
   trending: CommunityParfum[];
   public_profiles: CommunityProfile[];
-  sotd_today: CommunitySotd[];
 }
 
 const CACHE_TTL = 60 * 60 * 1000;
 let cached: { data: CommunityHighlights; at: number } | null = null;
 let pending: Promise<CommunityHighlights> | null = null;
+
+const SOTD_CACHE_TTL = 3 * 60 * 1000;
+let sotdCached: { data: CommunitySotd[]; at: number } | null = null;
+let sotdPending: Promise<CommunitySotd[]> | null = null;
 
 export async function getCommunityHighlights(): Promise<CommunityHighlights> {
   if (cached && Date.now() - cached.at < CACHE_TTL) return cached.data;
@@ -70,7 +73,6 @@ export async function getCommunityHighlights(): Promise<CommunityHighlights> {
       top_loved: ((raw.top_loved ?? []) as Record<string, unknown>[]).map(mapParfum),
       trending: ((raw.trending ?? []) as Record<string, unknown>[]).map(mapParfum),
       public_profiles: ((raw.public_profiles ?? []) as Record<string, unknown>[]).map(mapProfile),
-      sotd_today: (raw.sotd_today ?? []) as CommunitySotd[],
     };
 
     cached = { data: result, at: Date.now() };
@@ -84,8 +86,28 @@ export async function getCommunityHighlights(): Promise<CommunityHighlights> {
   }
 }
 
+export async function getSotdCommunityToday(): Promise<CommunitySotd[]> {
+  if (sotdCached && Date.now() - sotdCached.at < SOTD_CACHE_TTL) return sotdCached.data;
+  if (sotdPending) return sotdPending;
+
+  sotdPending = (async () => {
+    const { data, error } = await supabase.rpc('sotd_community_today');
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as CommunitySotd[];
+    sotdCached = { data: rows, at: Date.now() };
+    return rows;
+  })();
+
+  try {
+    return await sotdPending;
+  } finally {
+    sotdPending = null;
+  }
+}
+
 export function clearCommunityCache(): void {
   cached = null;
+  sotdCached = null;
 }
 
 export interface ParfumVerdict {

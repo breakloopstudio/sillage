@@ -11,6 +11,7 @@ function rowToMyProfile(row: Record<string, unknown>): MyProfile {
     avatarUrl: (row.avatar_url as string) ?? null,
     bio: (row.bio as string) ?? null,
     isPublic: row.is_public === true,
+    followingCount: toNum(row.following_count) ?? 0,
     createdAt: toDate(row.created_at) ?? new Date(),
   };
 }

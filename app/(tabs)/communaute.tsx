@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, Share, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, Share, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -12,13 +12,16 @@ import { useNavigationChrome } from '../../src/features/navigation/NavigationChr
 import { useCommunityHighlights } from '../../src/hooks/useCommunityHighlights';
 import { useSotd } from '../../src/hooks/useSotd';
 import { useWeather } from '../../src/hooks/useWeather';
+import { useMyProfile } from '../../src/hooks/useMyProfile';
 import { useNetwork } from '../../src/hooks/useNetwork';
 import { getFollowedHighlights, searchProfiles, type CommunityParfum, type CommunityProfile, type CommunitySotd, type FollowedVerdict, type FollowedHave, type ProfileSearchResult } from '../../src/services/community';
 import { getRunnerLeaderboard, type LeaderboardEntry } from '../../src/services/runner';
+import { getTopRatedParfums, getSeasonalParfums } from '../../src/services/catalog';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { normalizePseudo, parfumShareUrl } from '../../src/utils/share';
 import { getWmoMeta } from '../../src/utils/weather-codes';
-import { scoreWardrobeItemForWeather } from '../../src/utils/weather-scoring';
+import { currentSeason } from '../../src/utils/season';
+import { OLFACTORY_FAMILIES } from '../../src/utils/olfactory-families';
 import { hapticsLight } from '../../src/services/haptics';
 import ParfumCard from '../../src/components/ParfumCard';
 import SectionHeader from '../../src/components/SectionHeader';
@@ -32,6 +35,12 @@ const NIGHT_ICON: Record<string, string> = {
   'partly-sunny': 'cloudy-night',
 };
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+const MIN_ROW_CAROUSEL = 3;
+const MIN_ROW_GRID = 2;
+const USE_FEATURED_ROWS = true;
+
 function toParfum(cp: CommunityParfum): Parfum {
   return {
     id: cp.parfum_id,
@@ -41,6 +50,45 @@ function toParfum(cp: CommunityParfum): Parfum {
     familleOlactive: cp.famille_olfactive ?? '',
     bestPrice: cp.best_price ?? undefined,
   } as Parfum;
+}
+
+function dedupCommunity(items: CommunityParfum[]): CommunityParfum[] {
+  const seen = new Set<string>();
+  const out: CommunityParfum[] = [];
+  for (const it of items) {
+    if (seen.has(it.parfum_id)) continue;
+    seen.add(it.parfum_id);
+    out.push(it);
+  }
+  return out;
+}
+
+function dedupParfums(items: Parfum[]): Parfum[] {
+  const seen = new Set<string>();
+  const out: Parfum[] = [];
+  for (const it of items) {
+    if (seen.has(it.id)) continue;
+    seen.add(it.id);
+    out.push(it);
+  }
+  return out;
+}
+
+function verdictVerb(v: FollowedVerdict['verdict']): string {
+  return v === 'love' ? ' adore ' : v === 'like' ? ' aime ' : v === 'meh' ? ' mitigé sur ' : ' n’aime pas ';
+}
+
+interface TimelineRow {
+  key: string;
+  pseudo: string;
+  avatar_url: string | null;
+  parfum_id: string;
+  nom: string | null;
+  marque: string | null;
+  image_url: string | null;
+  mid: string;
+  tail: string;
+  date: string;
 }
 
 export default function CommunautePage() {
@@ -55,6 +103,8 @@ export default function CommunautePage() {
   const { sotd, setTodaySotd } = useSotd(isAuthenticated ? uid : null);
   const { weather, loading: weatherLoading } = useWeather(isAuthenticated && isOnline);
   const { items } = useUserParfumContext();
+  const { profile, loading: profileLoading } = useMyProfile(isAuthenticated ? uid : null);
+  const followingCount = profile?.followingCount ?? 0;
 
   const [pseudoQuery, setPseudoQuery] = useState('');
   const [suggestions, setSuggestions] = useState<ProfileSearchResult[]>([]);
@@ -65,21 +115,28 @@ export default function CommunautePage() {
   const [sotdHeroAnchor, setSotdHeroAnchor] = useState(0);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
+  const [topLovedSeed, setTopLovedSeed] = useState<Parfum[]>([]);
+  const [trendingSeed, setTrendingSeed] = useState<Parfum[]>([]);
+  const [seedLoading, setSeedLoading] = useState(false);
   const mountedRef = useRef(true);
+  const seedTriggeredRef = useRef(false);
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
   useEffect(() => {
     mountedRef.current = true;
-    if (!isAuthenticated) return;
+    return () => { mountedRef.current = false; if (suggestTimer.current) clearTimeout(suggestTimer.current); };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || profileLoading || followingCount <= 0) return;
     getFollowedHighlights().then((d) => {
       if (!mountedRef.current || !d) return;
       setFollowedVerdicts(d.recent_verdicts);
       setFollowedSotd(d.sotd_today);
       setFollowedHave(d.new_have);
     }).catch((e: unknown) => { console.warn('[communaute] followed highlights failed:', (e as Error)?.message ?? String(e)); });
-    return () => { mountedRef.current = false; if (suggestTimer.current) clearTimeout(suggestTimer.current); };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, profileLoading, followingCount]);
 
   const loadLeaderboard = useCallback((force = false) => {
     setLbLoading(true);
@@ -91,6 +148,23 @@ export default function CommunautePage() {
 
   useEffect(() => { loadLeaderboard(); }, [loadLeaderboard]);
 
+  useEffect(() => {
+    if (loading || seedTriggeredRef.current) return;
+    const commLen = dedupCommunity([...top_loved, ...trending]).length;
+    if (commLen >= MIN_ROW_CAROUSEL) return;
+    seedTriggeredRef.current = true;
+    setSeedLoading(true);
+    const season = currentSeason();
+    Promise.all([
+      getTopRatedParfums(10).catch(() => [] as Parfum[]),
+      getSeasonalParfums(season, 10).catch(() => [] as Parfum[]),
+    ]).then(([rated, seasonal]) => {
+      if (!mountedRef.current) return;
+      setTopLovedSeed(rated);
+      setTrendingSeed(seasonal);
+    }).finally(() => { if (mountedRef.current) setSeedLoading(false); });
+  }, [loading, top_loved, trending]);
+
   const handleRefresh = useCallback(() => {
     refresh();
     loadLeaderboard(true);
@@ -99,15 +173,15 @@ export default function CommunautePage() {
   const scrollHandler = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
 
   const sotdEligible = useMemo(() => items.filter(i => i.status === 'have'), [items]);
-  const sotdScore = useMemo(() => {
-    if (!weather || !sotd) return null;
-    const it = items.find(i => i.parfumId === sotd.parfumId);
-    return it ? scoreWardrobeItemForWeather(it, weather) : null;
-  }, [items, weather, sotd]);
 
   const handleParfumPress = useCallback((cp: CommunityParfum) => {
     setPendingParfum(toParfum(cp));
     router.push(`/catalog/${cp.parfum_id}`);
+  }, [router]);
+
+  const handleSeedPress = useCallback((p: Parfum) => {
+    setPendingParfum(p);
+    router.push(`/catalog/${p.id}`);
   }, [router]);
 
   const handleProfilePress = useCallback((pseudo: string) => {
@@ -163,8 +237,8 @@ export default function CommunautePage() {
     else Share.share({ message: `${text}\n${url}` }).catch(() => {});
   }, [sotd]);
 
-  const handleHeroLayout = useCallback((e: LayoutChangeEvent) => {
-    setSotdHeroAnchor(e.nativeEvent.layout.y + e.nativeEvent.layout.height);
+  const handleAnchorLayout = useCallback((y: number, h: number) => {
+    setSotdHeroAnchor(y + h);
   }, []);
 
   const handlePlay = useCallback(() => {
@@ -172,10 +246,47 @@ export default function CommunautePage() {
     router.push('/runner');
   }, [router]);
 
-  const hasContent = top_loved.length > 0 || trending.length > 0 || public_profiles.length > 0 || sotd_today.length > 0;
+  const comm = useMemo(() => dedupCommunity([...top_loved, ...trending]), [top_loved, trending]);
+  const seedMerged = useMemo(() => dedupParfums([...topLovedSeed, ...trendingSeed]), [topLovedSeed, trendingSeed]);
+  const commParfums = useMemo(() => comm.map(toParfum), [comm]);
+  const commLoveTotal = useMemo(() => comm.reduce((sum, c) => sum + (c.love_count ?? 0), 0), [comm]);
+  const commLabel = commLoveTotal < 5 ? 'par les premiers nez' : 'par la communauté';
 
-  const topLovedParfums = useMemo(() => top_loved.map(toParfum), [top_loved]);
-  const trendingParfums = useMemo(() => trending.map(toParfum), [trending]);
+  const commFull = !loading && comm.length >= MIN_ROW_CAROUSEL;
+  const commThin = !loading && comm.length >= 1 && comm.length < MIN_ROW_CAROUSEL;
+  const showSeedRow = !loading && seedMerged.length > 0;
+  const showAnyAir = !loading && (comm.length > 0 || seedMerged.length > 0);
+
+  const hasFollowedActivity = followedVerdicts.length > 0 || followedSotd.length > 0 || followedHave.length > 0;
+  const anything = comm.length > 0 || seedMerged.length > 0 || public_profiles.length > 0 || sotd_today.length > 0;
+
+  const myEntry = leaderboard.find((e) => e.isMe) ?? null;
+
+  const weekFamily = useMemo(
+    () => OLFACTORY_FAMILIES[Math.floor(Date.now() / WEEK_MS) % OLFACTORY_FAMILIES.length],
+    [],
+  );
+
+  const timeline = useMemo<TimelineRow[]>(() => {
+    const verdicts: TimelineRow[] = followedVerdicts.map((v) => ({
+      key: `v-${v.pseudo}-${v.parfum_id}-${v.updated_at}`,
+      pseudo: v.pseudo, avatar_url: v.avatar_url, parfum_id: v.parfum_id,
+      nom: v.nom, marque: v.marque, image_url: v.image_url,
+      mid: verdictVerb(v.verdict), tail: '', date: v.updated_at,
+    }));
+    const haves: TimelineRow[] = followedHave.map((h) => ({
+      key: `h-${h.pseudo}-${h.parfum_id}-${h.added_at}`,
+      pseudo: h.pseudo, avatar_url: h.avatar_url, parfum_id: h.parfum_id,
+      nom: h.nom, marque: h.marque, image_url: h.image_url,
+      mid: ' a ajouté ', tail: ' à sa parfumerie', date: h.added_at,
+    }));
+    return [...verdicts, ...haves].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  }, [followedVerdicts, followedHave]);
+
+  const handleFamilyExplore = useCallback(() => {
+    hapticsLight();
+    router.push(`/search?family=${encodeURIComponent(weekFamily.key)}`);
+  }, [router, weekFamily.key]);
 
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
@@ -191,51 +302,11 @@ export default function CommunautePage() {
           <Text style={s.title}>Communauté</Text>
         </View>
 
-        <View style={s.searchRow}>
-          <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
-          <TextInput
-            style={s.searchInput}
-            value={pseudoQuery}
-            onChangeText={handlePseudoChange}
-            placeholder="Chercher un pseudo…"
-            placeholderTextColor={theme.colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            onSubmitEditing={handlePseudoSearch}
-            keyboardAppearance={keyboardAppearance}
-          />
-          {pseudoQuery.length > 0 ? (
-            <Pressable onPress={() => { setPseudoQuery(''); setSuggestions([]); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Ionicons name="close-circle" size={16} color={theme.colors.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
-
-        {suggestions.length > 0 ? (
-          <View style={s.suggestionsBox}>
-            {suggestions.map((sg) => (
-              <Pressable key={sg.pseudo} style={s.suggestionRow} onPress={() => handleSuggestionPress(sg.pseudo)} accessibilityRole="button">
-                {sg.avatar_url ? (
-                  <Image source={{ uri: sg.avatar_url }} style={s.suggestionAvatar} contentFit="cover" transition={200} />
-                ) : (
-                  <View style={[s.suggestionAvatar, s.suggestionAvatarPlaceholder]}>
-                    <Text allowFontScaling={false} style={s.suggestionInitial}>{sg.pseudo.charAt(0).toUpperCase()}</Text>
-                  </View>
-                )}
-                <Text style={s.suggestionPseudo}>@{sg.pseudo}</Text>
-                <Text style={s.suggestionCount} allowFontScaling={false}>{sg.collection_count}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-
-        <View onLayout={handleHeroLayout}>
+        <View onLayout={(e) => handleAnchorLayout(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
           <TodayHero
             weather={weather}
             weatherLoading={weatherLoading}
             sotd={sotd}
-            sotdScore={sotdScore}
             sotdToday={sotd_today}
             isAuthenticated={isAuthenticated}
             onSotdPress={handleSotdPress}
@@ -247,29 +318,103 @@ export default function CommunautePage() {
           />
         </View>
 
+        <View style={s.challengeCard}>
+          <View style={s.challengeTop}>
+            <View style={s.challengeIcon}>
+              <Ionicons name={weekFamily.icon as never} size={20} color={theme.colors.primary} accessible={false} />
+            </View>
+            <View style={s.challengeTexts}>
+              <Text style={s.challengeOverline}>Le geste de la semaine</Text>
+              <Text style={s.challengeTitle} numberOfLines={1}>{weekFamily.label}</Text>
+              <Text style={s.challengeTagline} numberOfLines={2} maxFontSizeMultiplier={1.3}>{weekFamily.tagline}</Text>
+            </View>
+          </View>
+          <Pressable style={s.challengeCta} onPress={handleFamilyExplore} accessibilityRole="button" accessibilityLabel={`Explorer la famille ${weekFamily.label}`}>
+            <Text style={s.challengeCtaText}>Explorer</Text>
+            <Ionicons name="arrow-forward" size={16} color={theme.colors.primaryInk} accessible={false} />
+          </Pressable>
+        </View>
+
         <View style={s.section}>
-          <SectionHeader title="Flacon Runner" subtitle="Le classement" actionLabel="Jouer" onAction={handlePlay} />
-          {lbLoading && leaderboard.length === 0 ? (
-            <ActivityIndicator style={s.lbLoader} color={theme.colors.primary} />
-          ) : leaderboard.length === 0 ? (
-            <Pressable style={s.lbEmpty} onPress={handlePlay} accessibilityRole="button">
-              <Ionicons name="game-controller-outline" size={24} color={theme.colors.primary} />
-              <Text style={s.lbEmptyText}>Sois le premier au classement — lance une partie.</Text>
-            </Pressable>
-          ) : (
-            <View style={s.lbList}>
-              {leaderboard.slice(0, 10).map((e) => (
-                <LeaderboardRow
-                  key={e.pseudo ?? `rank-${e.rank}`}
-                  entry={e}
-                  isMe={e.isMe}
-                  styles={s}
-                  theme={theme}
-                  onPress={e.pseudo ? () => handleProfilePress(e.pseudo as string) : undefined}
-                />
+          <SectionHeader style={s.sectionHeader} title="Les nez" subtitle="Trouve et suis des passionnés" icon="people-outline" tint="primary" tintBg="primarySoft" />
+          <View style={s.pseudoRow}>
+            <Ionicons name="person-outline" size={16} color={theme.colors.textMuted} accessible={false} />
+            <TextInput
+              style={s.pseudoInput}
+              value={pseudoQuery}
+              onChangeText={handlePseudoChange}
+              placeholder="Chercher un pseudo…"
+              placeholderTextColor={theme.colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              onSubmitEditing={handlePseudoSearch}
+              keyboardAppearance={keyboardAppearance}
+            />
+            {pseudoQuery.length > 0 ? (
+              <Pressable onPress={() => { setPseudoQuery(''); setSuggestions([]); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Ionicons name="close-circle" size={16} color={theme.colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
+          {suggestions.length > 0 ? (
+            <View style={s.suggestionsBox}>
+              {suggestions.map((sg) => (
+                <Pressable key={sg.pseudo} style={s.suggestionRow} onPress={() => handleSuggestionPress(sg.pseudo)} accessibilityRole="button">
+                  {sg.avatar_url ? (
+                    <Image source={{ uri: sg.avatar_url }} style={s.suggestionAvatar} contentFit="cover" transition={200} />
+                  ) : (
+                    <View style={[s.suggestionAvatar, s.suggestionAvatarPlaceholder]}>
+                      <Text allowFontScaling={false} style={s.suggestionInitial}>{sg.pseudo.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <Text style={s.suggestionPseudo}>@{sg.pseudo}</Text>
+                  <Text style={s.suggestionCount} allowFontScaling={false}>{sg.collection_count}</Text>
+                </Pressable>
               ))}
             </View>
-          )}
+          ) : null}
+
+          {isAuthenticated && hasFollowedActivity ? (
+            <View style={s.followedBlock}>
+              <Text style={s.subLabel}>Activité de tes suivis</Text>
+              {followedSotd.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
+                  {followedSotd.map((item) => (
+                    <SotdCard key={`f-${item.pseudo}-${item.parfum_id}`} item={item} styles={s} theme={theme} onPress={() => handleProfilePress(item.pseudo)} />
+                  ))}
+                </ScrollView>
+              ) : null}
+              {timeline.map((row) => (
+                <Pressable key={row.key} style={s.activityRow} onPress={() => handleParfumPress({ parfum_id: row.parfum_id, nom: row.nom, marque: row.marque, image_url: row.image_url, famille_olfactive: null, best_price: null })} accessibilityRole="button">
+                  {row.avatar_url ? (
+                    <Image source={{ uri: row.avatar_url }} style={s.activityAvatar} contentFit="cover" transition={200} />
+                  ) : (
+                    <View style={[s.activityAvatar, s.activityAvatarPlaceholder]}>
+                      <Text allowFontScaling={false} style={s.activityInitial}>{row.pseudo.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <Text style={s.activityText} numberOfLines={2} maxFontSizeMultiplier={1.3}>
+                    <Text style={s.activityPseudo}>@{row.pseudo}</Text>
+                    {row.mid}
+                    <Text style={s.activityParfum}>{row.marque} {row.nom}</Text>
+                    {row.tail}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {public_profiles.length >= MIN_ROW_GRID ? (
+            <View style={s.profilesBlock}>
+              <Text style={s.subLabel}>Collections à découvrir</Text>
+              <View style={s.profilesGrid}>
+                {public_profiles.map((p) => (
+                  <ProfileCard key={p.pseudo} profile={p} styles={s} theme={theme} onPress={() => handleProfilePress(p.pseudo)} />
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {loading ? (
@@ -278,111 +423,65 @@ export default function CommunautePage() {
           <View style={s.stateWrap}>
             <Text style={s.stateText}>{error}</Text>
           </View>
-        ) : (
-          <>
-            {isAuthenticated && (followedVerdicts.length > 0 || followedSotd.length > 0 || followedHave.length > 0) ? (
-              <View style={s.section}>
-                <SectionHeader title="Nez que tu suis" subtitle="Cette semaine" />
-                {followedSotd.length > 0 ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                    {followedSotd.map((item) => (
-                      <SotdCard key={`f-${item.pseudo}-${item.parfum_id}`} item={item} styles={s} theme={theme} onPress={() => handleProfilePress(item.pseudo)} />
-                    ))}
-                  </ScrollView>
-                ) : null}
-                {followedVerdicts.map((v, i) => (
-                  <Pressable key={`${v.pseudo}-${v.parfum_id}-${i}`} style={s.activityRow} onPress={() => handleParfumPress({ parfum_id: v.parfum_id, nom: v.nom, marque: v.marque, image_url: v.image_url, famille_olfactive: null, best_price: null })} accessibilityRole="button">
-                    {v.avatar_url ? (
-                      <Image source={{ uri: v.avatar_url }} style={s.activityAvatar} contentFit="cover" transition={200} />
-                    ) : (
-                      <View style={[s.activityAvatar, s.activityAvatarPlaceholder]}>
-                        <Text allowFontScaling={false} style={s.activityInitial}>{v.pseudo.charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
-                    <Text style={s.activityText} numberOfLines={2} maxFontSizeMultiplier={1.3}>
-                      <Text style={s.activityPseudo}>@{v.pseudo}</Text>
-                      {v.verdict === 'love' ? ' adore ' : v.verdict === 'like' ? ' aime ' : v.verdict === 'meh' ? ' mitigé sur ' : ' n’aime pas '}
-                      <Text style={s.activityParfum}>{v.marque} {v.nom}</Text>
-                    </Text>
-                  </Pressable>
-                ))}
-                {followedHave.map((h, i) => (
-                  <Pressable key={`h-${h.pseudo}-${h.parfum_id}-${i}`} style={s.activityRow} onPress={() => handleParfumPress({ parfum_id: h.parfum_id, nom: h.nom, marque: h.marque, image_url: h.image_url, famille_olfactive: null, best_price: null })} accessibilityRole="button">
-                    {h.avatar_url ? (
-                      <Image source={{ uri: h.avatar_url }} style={s.activityAvatar} contentFit="cover" transition={200} />
-                    ) : (
-                      <View style={[s.activityAvatar, s.activityAvatarPlaceholder]}>
-                        <Text allowFontScaling={false} style={s.activityInitial}>{h.pseudo.charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
-                    <Text style={s.activityText} numberOfLines={2} maxFontSizeMultiplier={1.3}>
-                      <Text style={s.activityPseudo}>@{h.pseudo}</Text>
-                      {' a ajouté '}
-                      <Text style={s.activityParfum}>{h.marque} {h.nom}</Text>
-                      {' à sa parfumerie'}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-
-            {!hasContent ? (
-              <View style={s.stateWrap}>
-                <View style={s.iconCircle}>
-                  <Ionicons name="people-outline" size={32} color={theme.colors.primary} />
-                </View>
-                <Text style={s.stateHeading}>Les membres arrivent</Text>
-                <Text style={s.stateText}>
-                  {isAuthenticated
-                    ? 'Suis des nez pour voir leur activité ici, et rends ton profil visible pour être découvert.'
-                    : 'Rends ton profil visible pour être parmi les premiers nez de la communauté.'}
-                </Text>
-                <Pressable style={s.ctaBtn} onPress={() => router.push('/profile')} accessibilityRole="button">
-                  <Text style={s.ctaBtnText}>{isAuthenticated ? 'Mon profil public' : 'Créer mon profil'}</Text>
-                </Pressable>
+        ) : (!anything && !seedLoading) ? (
+          <View style={s.stateWrap}>
+            <View style={s.iconCircle}>
+              <Ionicons name="people-outline" size={32} color={theme.colors.primary} />
+            </View>
+            <Text style={s.stateHeading}>Les membres arrivent</Text>
+            <Text style={s.stateText}>
+              {isAuthenticated
+                ? 'Suis des nez pour voir leur activité ici, et rends ton profil visible pour être découvert.'
+                : 'Rends ton profil visible pour être parmi les premiers nez de la communauté.'}
+            </Text>
+            <Pressable style={s.ctaBtn} onPress={() => router.push('/profile')} accessibilityRole="button">
+              <Text style={s.ctaBtnText}>{isAuthenticated ? 'Mon profil public' : 'Créer mon profil'}</Text>
+            </Pressable>
+          </View>
+        ) : showAnyAir ? (
+          <View style={s.section}>
+            <SectionHeader style={s.sectionHeader} title="L’air du temps" subtitle="Ce qui se porte et se convoite" icon="trending-up-outline" tint="primary" tintBg="primarySoft" />
+            {commFull ? (
+              <View style={s.subSection}>
+                <Text style={s.subLabel}>{commLabel}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
+                  {commParfums.map((p, i) => (
+                    <View key={p.id} style={s.cardWrap}>
+                      <ParfumCard parfum={p} mode="carousel" hidePrice onPressOverride={() => handleParfumPress(comm[i])} />
+                    </View>
+                  ))}
+                </ScrollView>
               </View>
             ) : (
               <>
-                {top_loved.length > 0 ? (
-                  <View style={s.section}>
-                    <SectionHeader title="Les plus aimés" subtitle="Par la communauté" />
+                {commThin ? (
+                  <View style={s.subSection}>
+                    <Text style={s.subLabel}>{commLabel}</Text>
+                    {USE_FEATURED_ROWS ? commParfums.map((p, i) => (
+                      <View key={p.id} style={s.featuredRow}>
+                        <ParfumCard parfum={p} mode="list" hidePrice onPressOverride={() => handleParfumPress(comm[i])} />
+                      </View>
+                    )) : null}
+                  </View>
+                ) : null}
+                {showSeedRow ? (
+                  <View style={s.subSection}>
+                    <Text style={s.subLabel}>La sélection de la maison</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                      {topLovedParfums.map((p, i) => (
+                      {seedMerged.map((p) => (
                         <View key={p.id} style={s.cardWrap}>
-                          <ParfumCard parfum={p} mode="carousel" onPressOverride={() => handleParfumPress(top_loved[i])} />
+                          <ParfumCard parfum={p} mode="carousel" hidePrice onPressOverride={() => handleSeedPress(p)} />
                         </View>
                       ))}
                     </ScrollView>
-                  </View>
-                ) : null}
-
-                {trending.length > 0 ? (
-                  <View style={s.section}>
-                    <SectionHeader title="Tendances" subtitle="Cette semaine" />
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-                      {trendingParfums.map((p, i) => (
-                        <View key={p.id} style={s.cardWrap}>
-                          <ParfumCard parfum={p} mode="carousel" onPressOverride={() => handleParfumPress(trending[i])} />
-                        </View>
-                      ))}
-                    </ScrollView>
-                  </View>
-                ) : null}
-
-                {public_profiles.length > 0 ? (
-                  <View style={s.section}>
-                    <SectionHeader title="Collections à découvrir" />
-                    <View style={s.profilesGrid}>
-                      {public_profiles.map((p) => (
-                        <ProfileCard key={p.pseudo} profile={p} styles={s} theme={theme} onPress={() => handleProfilePress(p.pseudo)} />
-                      ))}
-                    </View>
                   </View>
                 ) : null}
               </>
             )}
-          </>
-        )}
+          </View>
+        ) : null}
+
+        <RunnerFooter entry={myEntry} loading={lbLoading} onPress={handlePlay} styles={s} theme={theme} />
       </Animated.ScrollView>
 
       <SOTDPicker
@@ -399,13 +498,12 @@ export default function CommunautePage() {
 }
 
 function TodayHero({
-  weather, weatherLoading, sotd, sotdScore, sotdToday, isAuthenticated,
+  weather, weatherLoading, sotd, sotdToday, isAuthenticated,
   onSotdPress, onSotdChange, onShareSotd, onSotdTodayPress, styles: s, theme,
 }: {
   weather: WeatherData | null;
   weatherLoading: boolean;
   sotd: SotdEntry | null;
-  sotdScore: number | null;
   sotdToday: CommunitySotd[];
   isAuthenticated: boolean;
   onSotdPress: () => void;
@@ -416,11 +514,6 @@ function TodayHero({
   theme: Theme;
 }) {
   const showWeather = weather !== null && !weatherLoading;
-  const showScore = typeof sotdScore === 'number' && !isNaN(sotdScore) && sotdScore >= 50;
-  const scColor = showScore
-    ? (sotdScore as number) >= 70 ? theme.colors.deal : (sotdScore as number) >= 40 ? theme.colors.fair : theme.colors.textMuted
-    : theme.colors.textMuted;
-
   const wmo = showWeather ? getWmoMeta((weather as WeatherData).weatherCode) : null;
   const iconName = wmo
     ? (weather as WeatherData).isDay
@@ -428,13 +521,16 @@ function TodayHero({
       : NIGHT_ICON[wmo.icon] ?? wmo.icon
     : null;
 
-  if (!showWeather && !isAuthenticated && sotdToday.length === 0) return null;
+  const meItem: CommunitySotd | null = isAuthenticated && sotd
+    ? { pseudo: 'moi', avatar_url: null, parfum_id: sotd.parfumId, nom: sotd.nom, marque: sotd.marque, image_url: sotd.imageUrl }
+    : null;
+  const showRow = sotdToday.length > 0;
 
   return (
     <View style={s.heroCard}>
       <View style={s.heroTop}>
         <View style={s.heroTitles}>
-          <Text style={s.heroTitle}>Aujourd’hui</Text>
+          <Text style={s.heroTitle}>L’air du jour</Text>
           <Text style={s.heroEditorial}>Ce que la journée porte.</Text>
         </View>
         {showWeather && wmo && iconName ? (
@@ -449,85 +545,66 @@ function TodayHero({
         ) : null}
       </View>
 
-      {isAuthenticated ? (
-        <View style={s.heroMeRow}>
-          <Pressable
-            style={s.heroMeMain}
-            onPress={sotd ? onSotdPress : onSotdChange}
-            onLongPress={sotd ? onShareSotd : undefined}
-            delayLongPress={400}
-            accessibilityRole="button"
-            accessibilityLabel={sotd ? `Ton parfum du jour : ${sotd.nom} ${sotd.marque}` : 'Choisir ton parfum du jour'}
-          >
-            <View style={s.heroMeThumbWrap}>
-              {sotd?.imageUrl ? (
-                <Image source={{ uri: sotd.imageUrl }} style={s.heroMeThumb} contentFit="contain" transition={200} />
-              ) : (
-                <Ionicons name={sotd ? 'flask-outline' : 'sunny-outline'} size={16} color={sotd ? theme.colors.primaryInk : theme.colors.secondary} accessible={false} />
-              )}
-            </View>
-            <View style={s.heroMeInfo}>
-              {sotd ? (
-                <>
-                  <Text style={s.heroMeName} numberOfLines={1}>{sotd.nom}</Text>
-                  <Text style={s.heroMeBrand} numberOfLines={1}>{sotd.marque}</Text>
-                </>
-              ) : (
-                <Text style={s.heroMeCta}>Choisis ton parfum du jour</Text>
-              )}
-            </View>
-            {showScore ? (
-              <View style={[s.heroMeScore, { backgroundColor: (sotdScore as number) >= 70 ? theme.colors.dealSoft : (sotdScore as number) >= 40 ? theme.colors.fairSoft : theme.colors.surface2 }]}>
-                <Text allowFontScaling={false} style={[s.heroMeScoreText, { color: scColor }]}>{sotdScore}%</Text>
-              </View>
-            ) : null}
-          </Pressable>
-          {sotd ? (
-            <Pressable onPress={onShareSotd} hitSlop={8} style={s.heroMeBtn} accessibilityRole="button" accessibilityLabel="Partager ton parfum du jour">
-              <Ionicons name="share-social-outline" size={16} color={theme.colors.primary} />
-            </Pressable>
+      {showRow ? <Text style={s.heroTodayLabel}>Portés aujourd’hui</Text> : null}
+
+      {showRow ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
+          {meItem ? (
+            <SotdCard key="me" item={meItem} isMe styles={s} theme={theme} onPress={onSotdPress} />
           ) : null}
-          <Pressable onPress={onSotdChange} hitSlop={8} style={s.heroMeBtn} accessibilityRole="button" accessibilityLabel="Changer ton parfum du jour">
-            <Ionicons name={sotd ? 'swap-horizontal-outline' : 'add-circle-outline'} size={16} color={theme.colors.primary} />
-          </Pressable>
-        </View>
+          {sotdToday.map((item) => (
+            <SotdCard key={`${item.pseudo}-${item.parfum_id}`} item={item} styles={s} theme={theme} onPress={() => onSotdTodayPress(item.pseudo)} />
+          ))}
+        </ScrollView>
       ) : null}
 
-      <View style={s.heroDivider} />
-
-      {sotdToday.length > 0 ? (
-        <>
-          <Text style={s.heroTodayLabel}>Portés aujourd’hui</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
-            {sotdToday.map((item) => (
-              <SotdCard key={`${item.pseudo}-${item.parfum_id}`} item={item} styles={s} theme={theme} onPress={() => onSotdTodayPress(item.pseudo)} />
-            ))}
-          </ScrollView>
-        </>
-      ) : isAuthenticated ? (
-        <Pressable style={s.heroTodayCta} onPress={onSotdChange} accessibilityRole="button" accessibilityLabel="Partager ton parfum du jour">
-          <Ionicons name="add-circle-outline" size={15} color={theme.colors.primary} />
-          <Text style={s.heroTodayCtaText}>Partage le tien</Text>
+      {isAuthenticated ? (
+        <Pressable
+          style={s.heroMeLine}
+          onPress={sotd ? onSotdPress : onSotdChange}
+          onLongPress={sotd ? onShareSotd : undefined}
+          delayLongPress={400}
+          accessibilityRole="button"
+          accessibilityLabel={sotd ? `Ton parfum du jour : ${sotd.nom} ${sotd.marque}. Appuie longuement pour partager.` : 'Choisir ton parfum du jour'}
+        >
+          <View style={s.heroMeThumbWrap}>
+            {sotd?.imageUrl ? (
+              <Image source={{ uri: sotd.imageUrl }} style={s.heroMeThumb} contentFit="contain" transition={200} />
+            ) : (
+              <Ionicons name={sotd ? 'flask-outline' : 'add-circle-outline'} size={16} color={theme.colors.primaryInk} accessible={false} />
+            )}
+          </View>
+          <Text style={s.heroMeLineText} numberOfLines={1}>
+            {sotd ? `Aujourd’hui tu portes ${sotd.nom}` : 'Choisis ton parfum du jour'}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} accessible={false} />
         </Pressable>
-      ) : (
+      ) : sotdToday.length === 0 ? (
         <Text style={s.heroTodayEmpty}>Les premiers flacons du jour apparaîtront ici.</Text>
-      )}
+      ) : null}
     </View>
   );
 }
 
-function SotdCard({ item, styles: s, theme, onPress }: { item: CommunitySotd; styles: ReturnType<typeof getStyles>; theme: Theme; onPress: () => void }) {
+function SotdCard({ item, isMe, styles: s, theme, onPress }: { item: CommunitySotd; isMe?: boolean; styles: ReturnType<typeof getStyles>; theme: Theme; onPress: () => void }) {
   return (
-    <Pressable style={s.sotdCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${item.pseudo} porte ${item.nom}`}>
-      {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={s.sotdImg} contentFit="contain" transition={200} />
-      ) : (
-        <View style={[s.sotdImg, s.sotdImgPlaceholder]}>
-          <Ionicons name="flask-outline" size={20} color={theme.colors.textMuted} />
-        </View>
-      )}
+    <Pressable style={s.sotdCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={isMe ? `Toi : ${item.nom}` : `${item.pseudo} porte ${item.nom}`}>
+      <View style={s.sotdImgWrap}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={s.sotdImg} contentFit="contain" transition={200} />
+        ) : (
+          <View style={[s.sotdImg, s.sotdImgPlaceholder]}>
+            <Ionicons name="flask-outline" size={20} color={theme.colors.textMuted} />
+          </View>
+        )}
+        {isMe ? (
+          <View style={s.sotdMeBadge}>
+            <Text allowFontScaling={false} style={s.sotdMeBadgeText}>Toi</Text>
+          </View>
+        ) : null}
+      </View>
       <Text style={s.sotdName} numberOfLines={1}>{item.nom}</Text>
-      <Text style={s.sotdPseudo} numberOfLines={1}>@{item.pseudo}</Text>
+      <Text style={s.sotdPseudo} numberOfLines={1}>{isMe ? 'ton parfum' : `@${item.pseudo}`}</Text>
     </Pressable>
   );
 }
@@ -562,26 +639,23 @@ function ProfileCard({ profile, styles: s, theme, onPress }: { profile: Communit
   );
 }
 
-function LeaderboardRow({ entry, isMe, styles: s, theme, onPress }: { entry: LeaderboardEntry; isMe: boolean; styles: ReturnType<typeof getStyles>; theme: Theme; onPress?: () => void }) {
-  const label = entry.pseudo ?? 'Nez anonyme';
-  const content = (
-    <>
-      <Text allowFontScaling={false} style={[s.lbRank, entry.rank <= 3 ? s.lbRankTop : null]}>{entry.rank}</Text>
-      {entry.avatarUrl ? (
-        <Image source={{ uri: entry.avatarUrl }} style={s.lbAvatar} contentFit="cover" transition={200} />
-      ) : (
-        <View style={[s.lbAvatar, s.lbAvatarPlaceholder]}>
-          <Text allowFontScaling={false} style={s.lbInitial}>{label.charAt(0).toUpperCase()}</Text>
-        </View>
-      )}
-      <Text style={[s.lbPseudo, isMe ? s.lbPseudoMe : null]} numberOfLines={1}>{isMe ? 'Toi' : `@${label}`}</Text>
-      <Text allowFontScaling={false} style={s.lbScore}>{entry.score}</Text>
-    </>
+function RunnerFooter({ entry, loading, onPress, styles: s, theme }: { entry: LeaderboardEntry | null; loading: boolean; onPress: () => void; styles: ReturnType<typeof getStyles>; theme: Theme }) {
+  const sub = loading
+    ? 'Chargement…'
+    : entry
+      ? `Ton rang #${entry.rank} · ${entry.score} pts`
+      : 'Lance une partie';
+  return (
+    <Pressable style={s.runnerFooter} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Flacon Runner, ${entry ? `ton rang ${entry.rank}, ${entry.score} points` : 'aucune partie jouée'}. Jouer`}>
+      <Ionicons name="game-controller-outline" size={16} color={theme.colors.textMuted} accessible={false} />
+      <View style={s.runnerFooterText}>
+        <Text style={s.runnerFooterTitle}>Flacon Runner</Text>
+        <Text style={s.runnerFooterSub} numberOfLines={1} allowFontScaling={false}>{sub}</Text>
+      </View>
+      <Text style={s.runnerFooterCta}>Jouer</Text>
+      <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} accessible={false} />
+    </Pressable>
   );
-  if (onPress) {
-    return <Pressable style={[s.lbRow, isMe ? s.lbRowMe : null]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Rang ${entry.rank}, ${label}, ${entry.score} points`}>{content}</Pressable>;
-  }
-  return <View style={[s.lbRow, isMe ? s.lbRowMe : null]} accessibilityLabel={`Rang ${entry.rank}, ${label}, ${entry.score} points`}>{content}</View>;
 }
 
 function getStyles(t: Theme) {
@@ -590,13 +664,6 @@ function getStyles(t: Theme) {
     content: { paddingBottom: 40 },
     header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 28, color: t.colors.text },
-
-    searchRow: {
-      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-      marginHorizontal: 16, marginVertical: 12, paddingHorizontal: 12, height: 44,
-      backgroundColor: t.colors.surface, borderRadius: t.radius.base, borderWidth: 1, borderColor: t.colors.border,
-    },
-    searchInput: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 15, color: t.colors.text, padding: 0 },
 
     loader: { marginTop: 60 },
     stateWrap: { alignItems: 'center' as const, paddingHorizontal: 32, paddingTop: 60 },
@@ -613,8 +680,12 @@ function getStyles(t: Theme) {
     ctaBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#FFFFFF' },
 
     section: { marginTop: 24 },
+    sectionHeader: { paddingHorizontal: 16 },
+    subSection: { marginTop: 16 },
+    subLabel: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.textMuted, marginHorizontal: 16, marginBottom: 10 },
     hRow: { paddingHorizontal: 16, gap: 10 },
     cardWrap: { width: 140 },
+    featuredRow: { marginHorizontal: 16, marginTop: 8 },
 
     heroCard: {
       backgroundColor: t.colors.surface, borderRadius: t.radius.card,
@@ -623,32 +694,58 @@ function getStyles(t: Theme) {
     heroTop: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, justifyContent: 'space-between' as const, gap: 12 },
     heroTitles: { flex: 1, minWidth: 0 },
     heroTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 17, color: t.colors.text },
-    heroEditorial: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 13, color: t.colors.textMuted, marginTop: 1 },
-    heroWeather: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, flexShrink: 0 },
-    heroTemp: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    heroEditorial: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15, color: t.colors.textMuted, marginTop: 2 },
+    heroWeather: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, flexShrink: 0,
+      backgroundColor: t.colors.surface2, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    },
+    heroTemp: { fontFamily: 'Inter_700Bold', fontSize: 13, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     heroDegree: { fontFamily: 'Inter_500Medium', fontSize: 11, color: t.colors.textMuted },
-    heroWeatherLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, maxWidth: 80 },
+    heroWeatherLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, maxWidth: 70 },
 
-    heroMeRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 12 },
-    heroMeMain: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, minWidth: 0 },
+    heroTodayLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: 1, color: t.colors.textMuted, marginTop: 14, marginBottom: 10 },
+    heroTodayEmpty: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, paddingVertical: 4 },
+
+    heroMeLine: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+      marginTop: 12, paddingVertical: 8, minHeight: 44,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.colors.border,
+    },
     heroMeThumbWrap: {
-      width: 36, height: 36, borderRadius: 8, backgroundColor: t.colors.primarySoft,
+      width: 32, height: 32, borderRadius: 8, backgroundColor: t.colors.primarySoft,
       justifyContent: 'center' as const, alignItems: 'center' as const, overflow: 'hidden' as const,
     },
-    heroMeThumb: { width: 36, height: 36, borderRadius: 8 },
-    heroMeInfo: { flex: 1, minWidth: 0 },
-    heroMeName: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.text },
-    heroMeBrand: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, marginTop: 1 },
-    heroMeCta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.primaryInk },
-    heroMeScore: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-    heroMeScoreText: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
-    heroMeBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center' as const, justifyContent: 'center' as const },
+    heroMeThumb: { width: 32, height: 32, borderRadius: 8 },
+    heroMeLineText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.text },
 
-    heroDivider: { height: 1, backgroundColor: t.colors.border, marginVertical: 12, opacity: 0.7 },
-    heroTodayLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: 1, color: t.colors.textMuted, marginBottom: 10 },
-    heroTodayCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 4 },
-    heroTodayCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
-    heroTodayEmpty: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, paddingVertical: 4 },
+    challengeCard: {
+      backgroundColor: t.colors.surface, borderRadius: t.radius.card,
+      marginHorizontal: 16, marginTop: 16, padding: 14, ...t.shadow.card,
+    },
+    challengeTop: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
+    challengeIcon: {
+      width: 40, height: 40, borderRadius: 20, backgroundColor: t.colors.primarySoft,
+      justifyContent: 'center' as const, alignItems: 'center' as const,
+    },
+    challengeTexts: { flex: 1, minWidth: 0 },
+    challengeOverline: { fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 1, color: t.colors.textMuted },
+    challengeTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text, marginTop: 2 },
+    challengeTagline: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, lineHeight: 18, marginTop: 2 },
+    challengeCta: {
+      marginTop: 12, alignSelf: 'flex-end' as const, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+      minHeight: 44, paddingHorizontal: 14, borderRadius: t.radius.base, backgroundColor: t.colors.primarySoft,
+    },
+    challengeCtaText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: t.colors.primaryInk },
+
+    pseudoRow: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+      marginHorizontal: 16, paddingHorizontal: 12, height: 44,
+      backgroundColor: t.colors.surface2, borderRadius: t.radius.base,
+    },
+    pseudoInput: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.text, padding: 0 },
+
+    followedBlock: { marginTop: 18 },
+    profilesBlock: { marginTop: 18 },
 
     profilesGrid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, paddingHorizontal: 12, gap: 8 },
     profileCard: {
@@ -666,8 +763,14 @@ function getStyles(t: Theme) {
     profileThumb: { width: 44, height: 58, borderRadius: 6, backgroundColor: t.colors.surface2 },
 
     sotdCard: { width: 100, alignItems: 'center' as const },
+    sotdImgWrap: { width: 72, height: 96, position: 'relative' as const },
     sotdImg: { width: 72, height: 96, borderRadius: 8, backgroundColor: t.colors.surface },
     sotdImgPlaceholder: { justifyContent: 'center' as const, alignItems: 'center' as const },
+    sotdMeBadge: {
+      position: 'absolute' as const, top: 4, left: 4, backgroundColor: t.colors.primary,
+      borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
+    },
+    sotdMeBadgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 9, color: '#FFFFFF' },
     sotdName: { fontFamily: 'Inter_500Medium', fontSize: 11, color: t.colors.text, marginTop: 6, textAlign: 'center' as const },
     sotdPseudo: { fontFamily: 'Inter_400Regular', fontSize: 10, color: t.colors.textMuted, marginTop: 2 },
 
@@ -687,22 +790,14 @@ function getStyles(t: Theme) {
     suggestionPseudo: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14, color: t.colors.text },
     suggestionCount: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted },
 
-    lbLoader: { marginTop: 24 },
-    lbEmpty: {
-      alignItems: 'center' as const, gap: 8, paddingVertical: 24, marginHorizontal: 16,
-      backgroundColor: t.colors.surface, borderRadius: t.radius.card, borderWidth: 1, borderColor: t.colors.border,
+    runnerFooter: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+      marginHorizontal: 16, marginTop: 24, paddingVertical: 12, minHeight: 44,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.colors.border,
     },
-    lbEmptyText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, textAlign: 'center' as const, paddingHorizontal: 24 },
-    lbList: { marginHorizontal: 16, backgroundColor: t.colors.surface, borderRadius: t.radius.card, borderWidth: 1, borderColor: t.colors.border, overflow: 'hidden' as const },
-    lbRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
-    lbRowMe: { backgroundColor: t.colors.primarySoft },
-    lbRank: { width: 22, fontFamily: 'Inter_700Bold', fontSize: 13, color: t.colors.textMuted, textAlign: 'center' as const, fontVariant: ['tabular-nums'] as never },
-    lbRankTop: { color: t.colors.secondary },
-    lbAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.colors.surface2 },
-    lbAvatarPlaceholder: { justifyContent: 'center' as const, alignItems: 'center' as const, backgroundColor: t.colors.primarySoft },
-    lbInitial: { fontFamily: 'Inter_700Bold', fontSize: 12, color: t.colors.primaryInk },
-    lbPseudo: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14, color: t.colors.text },
-    lbPseudoMe: { fontFamily: 'Inter_700Bold', color: t.colors.primaryInk },
-    lbScore: { fontFamily: 'Inter_800ExtraBold', fontSize: 14, color: t.colors.text, fontVariant: ['tabular-nums'] as never },
+    runnerFooterText: { flex: 1, minWidth: 0 },
+    runnerFooterTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.text },
+    runnerFooterSub: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, marginTop: 1, fontVariant: ['tabular-nums'] as never },
+    runnerFooterCta: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
   } as const;
 }

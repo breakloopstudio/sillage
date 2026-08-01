@@ -198,6 +198,20 @@ export type Database = {
             foreignKeyName: "parfum_votes_parfum_id_fkey"
             columns: ["parfum_id"]
             isOneToOne: false
+            referencedRelation: "mv_top_loved"
+            referencedColumns: ["parfum_id"]
+          },
+          {
+            foreignKeyName: "parfum_votes_parfum_id_fkey"
+            columns: ["parfum_id"]
+            isOneToOne: false
+            referencedRelation: "mv_trending"
+            referencedColumns: ["parfum_id"]
+          },
+          {
+            foreignKeyName: "parfum_votes_parfum_id_fkey"
+            columns: ["parfum_id"]
+            isOneToOne: false
             referencedRelation: "parfums"
             referencedColumns: ["id"]
           },
@@ -1353,6 +1367,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      sotd_community_today: { Args: never; Returns: Json }
       submit_runner_score: {
         Args: {
           p_distance?: number
