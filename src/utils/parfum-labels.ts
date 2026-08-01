@@ -24,6 +24,18 @@ export function genderLabel(v: string | null | undefined): string | null {
   return null;
 }
 
+export type GenderIcon = 'male-outline' | 'female-outline';
+
+export function genderIcons(v: string | null | undefined): GenderIcon[] {
+  if (!v) return [];
+  const k = v.toLowerCase().replace(/[^a-z]/g, '');
+  if (!k) return [];
+  if (k.includes('unisex') || k.includes('shared') || k.includes('mixte')) return ['male-outline', 'female-outline'];
+  if (k.includes('women') || k.includes('female') || k.includes('femme')) return ['female-outline'];
+  if (k.includes('men') || k.includes('male') || k.includes('homme')) return ['male-outline'];
+  return [];
+}
+
 const CONC_SUFFIXES = [
   'eau de parfum', 'eau de toilette', 'eau de cologne', 'extrait de parfum',
   'parfum', 'perfume', 'cologne', 'edp', 'edt', 'edc',

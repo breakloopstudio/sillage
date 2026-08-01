@@ -911,7 +911,7 @@ interface Props {
 Carte parfum 4 modes — point d'entree unique pour l'affichage catalogue, recherche, favoris, historique, wardrove.
 
 ```ts
-export type CardMode = 'compact' | 'comfortable' | 'compactPlus' | 'list';
+export type CardMode = 'carousel' | 'comfortable' | 'compactPlus' | 'list';
 
 interface Props {
   parfum: Parfum;
@@ -926,7 +926,7 @@ interface Props {
 
 | Mode | Usage | Taille image | Contenu |
 |---|---|---|---|
-| `compact` | Rangees horizontales | 140×186 | Marque + nom (2 lignes) + prix + badge promo (>10%) |
+| `carousel` | Rangées horizontales | 140×186 | Marque + nom (2 lignes) + chips (famille · note · genre) + prix + badge promo (>10%) |
 | `comfortable` | Grille 2 col (defaut) | ratio 3:4 | Marque + nom + tags (famille, annee) + notes de tete (3) + price dot (deal/fair/overpriced) + prix + badge promo |
 | `compactPlus` | Grille 2 col dense | 90px | Marque (abregee) + nom (1 ligne) + price dot + prix |
 | `list` | Liste verticale | 56×74 | Marque + nom + tags + price dot + prix + prix barre + chevron |
@@ -983,7 +983,7 @@ interface Props {
   onAction?: () => void;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
-  children: React.ReactNode;  // cartes ParfumCard en mode compact
+  children: React.ReactNode;  // cartes ParfumCard en mode carousel
 }
 ```
 

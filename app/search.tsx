@@ -413,7 +413,7 @@ export default function SearchScreen() {
           {discover !== null && discover.trends.length > 0 && (
             <CatalogRow title={discoverLabel} collapsible={false}>
               {discover.trends.map(p => (
-                <ParfumCard key={p.id} parfum={p} mode="compact" />
+                <ParfumCard key={p.id} parfum={p} mode="carousel" />
               ))}
             </CatalogRow>
           )}
@@ -421,7 +421,7 @@ export default function SearchScreen() {
           {discover !== null && discover.seasonal.length > 0 && (
             <CatalogRow title={`Parfaits pour ${SEASON_META[season].withArticle}`} collapsible={false}>
               {discover.seasonal.map(p => (
-                <ParfumCard key={p.id} parfum={p} mode="compact" />
+                <ParfumCard key={p.id} parfum={p} mode="carousel" />
               ))}
             </CatalogRow>
           )}

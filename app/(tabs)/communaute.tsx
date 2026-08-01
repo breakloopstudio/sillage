@@ -349,7 +349,7 @@ export default function CommunautePage() {
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
                       {topLovedParfums.map((p, i) => (
                         <View key={p.id} style={s.cardWrap}>
-                          <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(top_loved[i])} />
+                          <ParfumCard parfum={p} mode="carousel" onPressOverride={() => handleParfumPress(top_loved[i])} />
                         </View>
                       ))}
                     </ScrollView>
@@ -362,7 +362,7 @@ export default function CommunautePage() {
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
                       {trendingParfums.map((p, i) => (
                         <View key={p.id} style={s.cardWrap}>
-                          <ParfumCard parfum={p} mode="compact" onPressOverride={() => handleParfumPress(trending[i])} />
+                          <ParfumCard parfum={p} mode="carousel" onPressOverride={() => handleParfumPress(trending[i])} />
                         </View>
                       ))}
                     </ScrollView>

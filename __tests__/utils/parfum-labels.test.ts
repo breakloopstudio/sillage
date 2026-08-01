@@ -1,4 +1,4 @@
-import { typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration } from '../../src/utils/parfum-labels';
+import { typeParfumLabel, genderLabel, genderIcons, communityRatingLabel, concentrationFromName, resolveConcentration } from '../../src/utils/parfum-labels';
 import type { Parfum } from '../../src/models';
 
 const mk = (o: Partial<Parfum>): Parfum => o as Parfum;
@@ -44,6 +44,20 @@ describe('genderLabel', () => {
     expect(genderLabel('unknown')).toBeNull();
     expect(genderLabel(null)).toBeNull();
     expect(genderLabel('')).toBeNull();
+  });
+});
+
+describe('genderIcons', () => {
+  it('maps genders to icon glyph(s)', () => {
+    expect(genderIcons('men')).toEqual(['male-outline']);
+    expect(genderIcons('Women')).toEqual(['female-outline']);
+    expect(genderIcons('unisex')).toEqual(['male-outline', 'female-outline']);
+  });
+
+  it('returns an empty array for unknown or empty values', () => {
+    expect(genderIcons('unknown')).toEqual([]);
+    expect(genderIcons(null)).toEqual([]);
+    expect(genderIcons('')).toEqual([]);
   });
 });
 

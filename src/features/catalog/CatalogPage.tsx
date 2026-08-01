@@ -251,7 +251,7 @@ export default function CatalogPage({ scrollY }: Props) {
           defaultCollapsed={false}
         >
           {suggestionParfums.map(p => (
-            <ParfumCard key={p.id} parfum={p} mode="compact" />
+            <ParfumCard key={p.id} parfum={p} mode="carousel" />
           ))}
         </CatalogRow>
       )}
@@ -265,7 +265,7 @@ export default function CatalogPage({ scrollY }: Props) {
           defaultCollapsed={false}
         >
           {seasonal.map(p => (
-            <ParfumCard key={p.id} parfum={p} mode="compact" />
+            <ParfumCard key={p.id} parfum={p} mode="carousel" />
           ))}
         </CatalogRow>
       )}
@@ -279,7 +279,7 @@ export default function CatalogPage({ scrollY }: Props) {
           defaultCollapsed={false}
         >
           {topRatedDisplay.map(p => (
-            <ParfumCard key={p.id} parfum={p} mode="compact" />
+            <ParfumCard key={p.id} parfum={p} mode="carousel" />
           ))}
         </CatalogRow>
       )}
@@ -293,7 +293,7 @@ export default function CatalogPage({ scrollY }: Props) {
           defaultCollapsed={false}
         >
           {bestDeals.map(p => (
-            <ParfumCard key={p.id} parfum={p} mode="compact" />
+            <ParfumCard key={p.id} parfum={p} mode="carousel" />
           ))}
         </CatalogRow>
       )}

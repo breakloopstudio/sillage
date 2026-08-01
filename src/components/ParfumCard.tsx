@@ -1,5 +1,5 @@
 // src/components/ParfumCard.tsx — Carte parfum réutilisable (4 modes)
-// compact (rangées horizontales), comfortable (grille 2 col), compactPlus (grille dense), list
+// carousel (rangées horizontales), comfortable (grille 2 col), compactPlus (grille dense), list
 
 import { useMemo, useState, useCallback, memo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
@@ -11,7 +11,7 @@ import type { Parfum } from '../models';
 import { setPendingParfum } from '../services/catalog-bridge';
 import { translateNote } from '../utils/translate-note';
 import { getFamilyByValue } from '../utils/olfactory-families';
-import { genderLabel, communityRatingLabel, resolveConcentration } from '../utils/parfum-labels';
+import { genderLabel, genderIcons, communityRatingLabel, type GenderIcon } from '../utils/parfum-labels';
 import { textOn } from '../utils/contrast';
 import { formatPrice } from '../utils/format-price';
 import FavButton from './FavButton';
@@ -20,12 +20,13 @@ import { statusChipMeta, type StatusChipId } from '../utils/status-chips';
 import { formatVariation } from '../utils/price-alerts';
 import type { UserParfumStatus } from '../models/user-parfum.interface';
 
-export type CardMode = 'compact' | 'comfortable' | 'compactPlus' | 'list';
+export type CardMode = 'carousel' | 'comfortable' | 'compactPlus' | 'list';
 
 type CardChip =
   | { kind: 'family'; label: string }
   | { kind: 'neutral'; label: string }
-  | { kind: 'note'; value: string };
+  | { kind: 'note'; value: string }
+  | { kind: 'gender'; icons: GenderIcon[] };
 
 interface Props {
   parfum: Parfum;
@@ -85,10 +86,16 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
   const alertIsDrop = alertVariation != null && alertVariation < 0;
 
   const familyLabel = getFamilyByValue(parfum.familleOlactive)?.label ?? (parfum.familleOlactive ? translateNote(parfum.familleOlactive) : null);
-  const concLabel = resolveConcentration(parfum);
   const genderVal = genderLabel(parfum.gender);
+  const genderIc = genderIcons(parfum.gender);
   const commuRating = communityRatingLabel(parfum);
   const showCommu = commuRating !== null && !showRating;
+
+  const baseChips: CardChip[] = [
+    familyLabel ? { kind: 'family', label: familyLabel } : null,
+    showCommu ? { kind: 'note', value: commuRating! } : null,
+    genderIc.length > 0 ? { kind: 'gender', icons: genderIc } : null,
+  ].filter(Boolean) as CardChip[];
 
   const renderChip = (c: CardChip, i: number) => {
     if (c.kind === 'family') {
@@ -103,6 +110,15 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
         <View key={`c${i}`} style={s.tagNote}>
           <Ionicons name="star" size={9} color={theme.colors.textMuted} />
           <Text style={s.tagNoteValue} allowFontScaling={false}>{c.value}</Text>
+        </View>
+      );
+    }
+    if (c.kind === 'gender') {
+      return (
+        <View key={`c${i}`} style={s.tagGender}>
+          {c.icons.map((ic, j) => (
+            <Ionicons key={j} name={ic} size={11} color={theme.colors.textMuted} />
+          ))}
         </View>
       );
     }
@@ -144,39 +160,42 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
     );
   };
 
-  // ── Mode: compact (rangées horizontales) ──
-  if (mode === 'compact') {
-    const a11yLabelCompact = [parfum.nom, parfum.marque, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : ''].filter(Boolean).join(', ');
+  // ── Mode: carousel (rangées horizontales) ──
+  if (mode === 'carousel') {
+    const a11yLabelCarousel = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     return (
-      <Pressable style={s.cardCompact} onPress={goToDetail} onLongPress={onLongPress} delayLongPress={400} accessible={true} accessibilityLabel={a11yLabelCompact} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
+      <Pressable style={s.cardCarousel} onPress={goToDetail} onLongPress={onLongPress} delayLongPress={400} accessible={true} accessibilityLabel={a11yLabelCarousel} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
         {showImage ? (
-          <View style={s.imgWrapCompact}>
+          <View style={s.imgWrapCarousel}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
-            <Image source={imageSource!} style={s.imgCompact} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
-            {discount !== null && <View style={s.dealBadgeCompact}><Text style={s.dealBadgeTextCompact}>{`−${discount} %`}</Text></View>}
+            <Image source={imageSource!} style={s.imgCarousel} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
+            {discount !== null && <View style={s.dealBadgeCarousel}><Text style={s.dealBadgeTextCarousel}>{`−${discount} %`}</Text></View>}
             <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
-          <View style={[s.imgPlaceholderCompact, { backgroundColor: tint }]}>
-            <Text style={s.placeholderInitCompact}>{parfum.marque.charAt(0).toUpperCase()}</Text>
+          <View style={[s.imgPlaceholderCarousel, { backgroundColor: tint }]}>
+            <Text style={s.placeholderInitCarousel}>{parfum.marque.charAt(0).toUpperCase()}</Text>
             <FavButton parfum={parfum} size="sm" />
           </View>
         )}
-        <View style={s.headerCompact}>
-          <Text style={s.brandCompact} numberOfLines={1}>{parfum.marque}</Text>
-          <Text style={s.titleCompact} numberOfLines={2} ellipsizeMode="tail">{parfum.nom}</Text>
+        <View style={s.headerCarousel}>
+          <Text style={s.brandCarousel} numberOfLines={1}>{parfum.marque}</Text>
+          <Text style={s.titleCarousel} numberOfLines={2} ellipsizeMode="tail" maxFontSizeMultiplier={1.3}>{parfum.nom}</Text>
         </View>
-        {!hidePrice ? (<View style={s.priceRowCompact}>
+        {baseChips.length > 0 ? (
+          <View style={s.tagsCarousel}>{baseChips.map(renderChip)}</View>
+        ) : null}
+        {!hidePrice ? (<View style={s.priceRowCarousel}>
           {tier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[tier] }]} />}
           {bestPrice !== null ? (
             <>
-              <Text style={s.priceCompact}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
+              <Text style={s.priceCarousel}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
               {parfum.referencePrice && bestPrice < parfum.referencePrice && (
-                <Text style={s.priceRefCompact}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
+                <Text style={s.priceRefCarousel}>{formatPrice(parfum.referencePrice, { decimals: 0 })}</Text>
               )}
             </>
           ) : (
-            <Text style={s.priceCompactMuted}>— €</Text>
+            <Text style={s.priceCarouselMuted}>— €</Text>
           )}
         </View>) : null}
       </Pressable>
@@ -185,12 +204,8 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: comfortable (grille 2 col, défaut) ──
   if (mode === 'comfortable') {
-    const a11yLabel = [parfum.nom, parfum.marque, familyLabel, concLabel, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
-    const chips: CardChip[] = [
-      familyLabel ? { kind: 'family', label: familyLabel } : null,
-      concLabel ? { kind: 'neutral', label: concLabel } : null,
-      showCommu ? { kind: 'note', value: commuRating! } : null,
-    ].filter(Boolean) as CardChip[];
+    const a11yLabel = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const chips = baseChips;
     return (
       <Pressable
         style={s.cardComfortable}
@@ -245,11 +260,8 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: compactPlus (grille 2 col dense) ──
   if (mode === 'compactPlus') {
-    const a11yLabelCompact = [parfum.nom, parfum.marque, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
-    const chips: CardChip[] = [
-      familyLabel ? { kind: 'family', label: familyLabel } : null,
-      concLabel ? { kind: 'neutral', label: concLabel } : null,
-    ].filter(Boolean) as CardChip[];
+    const a11yLabelCompactPlus = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const chips = baseChips;
     return (
       <Pressable
         style={s.cardCompactPlus}
@@ -257,7 +269,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
         onLongPress={onLongPress}
         delayLongPress={400}
         accessible={true}
-        accessibilityLabel={a11yLabelCompact}
+        accessibilityLabel={a11yLabelCompactPlus}
         accessibilityHint="Appuyez pour voir le détail du parfum"
         accessibilityRole="button"
       >
@@ -299,12 +311,11 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: list ──
   if (mode === 'list') {
-    const a11yLabelList = [parfum.nom, parfum.marque, familyLabel, concLabel, parfum.annee ? String(parfum.annee) : null, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabelList = [parfum.nom, parfum.marque, familyLabel, parfum.annee ? String(parfum.annee) : null, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     const chips: CardChip[] = [
       familyLabel ? { kind: 'family', label: familyLabel } : null,
-      concLabel ? { kind: 'neutral', label: concLabel } : null,
       parfum.annee ? { kind: 'neutral', label: String(parfum.annee) } : null,
-      genderVal ? { kind: 'neutral', label: genderVal } : null,
+      genderIc.length > 0 ? { kind: 'gender', icons: genderIc } : null,
       showCommu ? { kind: 'note', value: commuRating! } : null,
     ].filter(Boolean) as CardChip[];
     return (
@@ -391,6 +402,7 @@ function getStyles(t: Theme) {
     tagNeutralText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
     tagNote: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.colors.surface2, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
     tagNoteValue: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    tagGender: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: t.colors.surface2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 20 },
     priceDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
     priceDotSmall: { width: 7, height: 7, borderRadius: 3.5, marginRight: 4 },
 
@@ -404,24 +416,25 @@ function getStyles(t: Theme) {
       had: { bg: t.colors.surface2, color: t.colors.textMuted },
     } as Record<StatusChipId, { bg: string; color: string }>,
 
-    // ── Compact (horizontal rows) ──
-    cardCompact: {
+    // ── Carousel (horizontal rows) ──
+    cardCarousel: {
       width: 140, borderRadius: t.radius.card, backgroundColor: t.colors.surface,
       overflow: 'hidden', ...t.shadow.card, marginBottom: 2,
     },
-    imgWrapCompact: { position: 'relative', height: 186, overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
-    imgCompact: { width: '100%', height: '100%', backgroundColor: t.colors.surface },
-    imgPlaceholderCompact: { position: 'relative', width: '100%', height: 186, justifyContent: 'center', alignItems: 'center' },
-    placeholderInitCompact: { fontSize: 48, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
-    dealBadgeCompact: { position: 'absolute', top: 8, left: 8, backgroundColor: t.colors.deal, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-    dealBadgeTextCompact: { color: textOn(t.colors.deal), fontFamily: 'Inter_600SemiBold', fontSize: 10 },
-    headerCompact: { padding: 10, paddingBottom: 2 },
-    brandCompact: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: t.colors.textMuted, fontFamily: 'Inter_400Regular' },
-    titleCompact: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 14, color: t.colors.text, lineHeight: 18 },
-    priceRowCompact: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: 10, paddingBottom: 10, gap: 4 },
-    priceCompact: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.text },
-    priceRefCompact: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, textDecorationLine: 'line-through' },
-    priceCompactMuted: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted },
+    imgWrapCarousel: { position: 'relative', height: 186, overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
+    imgCarousel: { width: '100%', height: '100%', backgroundColor: t.colors.surface },
+    imgPlaceholderCarousel: { position: 'relative', width: '100%', height: 186, justifyContent: 'center', alignItems: 'center' },
+    placeholderInitCarousel: { fontSize: 48, fontFamily: 'Inter_700Bold', color: '#FFFFFF', opacity: 0.5 },
+    dealBadgeCarousel: { position: 'absolute', top: 8, left: 8, backgroundColor: t.colors.deal, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+    dealBadgeTextCarousel: { color: textOn(t.colors.deal), fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+    headerCarousel: { padding: 10, paddingBottom: 2 },
+    brandCarousel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: t.colors.textMuted, fontFamily: 'Inter_400Regular' },
+    titleCarousel: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 14, color: t.colors.text, lineHeight: 18 },
+    tagsCarousel: { flexDirection: 'row', gap: 4, flexWrap: 'wrap', paddingHorizontal: 10, marginTop: 4, marginBottom: 2 },
+    priceRowCarousel: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: 10, paddingBottom: 10, gap: 4 },
+    priceCarousel: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.text },
+    priceRefCarousel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, textDecorationLine: 'line-through' },
+    priceCarouselMuted: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted },
 
     // ── Comfortable (grid 2 col) ──
     cardComfortable: {

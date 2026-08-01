@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 381](https://img.shields.io/badge/Tests-381%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 383](https://img.shields.io/badge/Tests-383%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 381 tests, 41 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 383 tests, 41 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -298,6 +298,13 @@ Le bouton unfavorite utilise un cœur avec animation heartbeat (scale bounce 250
 
 Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive`
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
+
+## v8.14 — Renommage `ParfumCard compact` → `carousel` + chips sur les rangées (01/08/2026)
+
+- **Renommage mode `compact` → `carousel`** : le mode des rangées horizontales (`ParfumCard`) s'appelle désormais `carousel` — le bouton « Compact » du toggle pilote toujours `compactPlus`, ce qui levait l'ambiguïté de nommage. `CardMode = 'carousel' | 'comfortable' | 'compactPlus' | 'list'` (9 call sites mis à jour).
+- **Chips sur les rangées** : les cartes des carrousels (« Pour vous », « Parfaits pour {saison} », « Les mieux notés », « Meilleures affaires », top aimés/tendances, similaires) affichent désormais famille · note communauté · genre, comme la grille — via `baseChips` factorisé partagé par `carousel`/`comfortable`/`compactPlus`.
+- **Docs resync** : `reference.md` + `design-guide.md` (§4.1 réécrit : le mode annonçait à tort « pas de zone prix » et une image 130 px → carte 140×186, badge promo top-left, chips, prix ; non soumis à la densité).
+- **Tests** : 41 suites, 383 tests. `tsc --noEmit` : 0 erreur global.
 
 ---
 ## v8.13 — Chips cartes & fiche détail, concentration fiable, suppression phrases éditoriales (01/08/2026)

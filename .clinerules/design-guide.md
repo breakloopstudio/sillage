@@ -189,7 +189,7 @@ fontWeight: '600'
 | Prix (hero fiche) | `Inter_700Bold` | 32–42 | Prix principal fiche détail |
 | Prix (barre d'action) | `Inter_800ExtraBold` | 20 | Barre flottante §4.11 |
 | Prix (carte) | `Inter_800ExtraBold` | 15–16 | ParfumCard comfortable / list |
-| Prix (compact) | `Inter_700Bold` | 13–14 | ParfumCard compact / compactPlus |
+| Prix (carousel) | `Inter_700Bold` | 13–14 | ParfumCard carousel / compactPlus |
 | Badge / chip | `Inter_500Medium` | 11–13 | Famille olfactive, année, notes |
 | Caption | `Inter_400Regular` | 11–13 | Texte d'aide, info secondaire |
 | Placeholder | `Inter_400Regular` | 12 | "Rechercher un parfum..." |
@@ -204,7 +204,7 @@ fontWeight: '600'
 
 ### 3.4 Letter spacing
 
-- Marque (overline) : `letterSpacing: 1.5` (12px) ou `1` (10px compact)
+- Marque (overline) : `letterSpacing: 1.5` (12px) ou `1` (10px carousel)
 - Étiquette "Tête/Cœur/Fond" : `letterSpacing: 1` — sauf en label signature (§3.2) où Playfair se passe de letterSpacing
 - Aucun autre letterSpacing dans l'app
 
@@ -262,27 +262,29 @@ Toute donnée chiffrée ou datée affichée passe par un helper de formatage —
 
 ### 4.1 Carte parfum (`ParfumCard`)
 
-#### Compact (grille, carrousel, similaires)
+#### Carousel (rangées horizontales)
 
 ```
-┌──────────────────────────┐
-│                          │
-│       [image 130]        │ badge -X% top-right
-│                          │
-├──────────────────────────┤
-│ MARQUE                    │
-│ Nom du parfum             │
-│ [Famille] [2024]          │
-└──────────────────────────┘
+┌──────────────────┐
+│ -X%          ❤️  │
+│   [image 186]    │
+│                  │
+├──────────────────┤
+│ MARQUE           │
+│ Nom du parfum    │
+│ [Famille] ★4,4 ♂ │
+│ — €              │
+└──────────────────┘
 ```
 
-- Largeur flexible (moitié d'écran en grille)
-- `margin: 4`, `borderRadius: card (16)`
-- Ombre `shadow.card`
-- Badge promo : `reward` (doré), texte `Inter_800ExtraBold` 10px
-- Titre 14px sur 2 lignes max avec `ellipsizeMode: 'tail'`
-- Pas de zone prix en compact
-- Image : `contentFit="contain"` (flacon entier, pas de crop), fond `surface` + `placeholder` pour le chargement
+- Largeur fixe 140 px, défilement horizontal dans un `CatalogRow` (carrousel)
+- `borderRadius: card (16)`, ombre `shadow.card`
+- Badge promo `deal` (teal) top-left ; cœur `FavButton` top-right
+- Titre Playfair 14 px sur 2 lignes max, `ellipsizeMode: 'tail'`
+- Chips sous le nom : famille · note communauté · genre (`flexWrap`, peut passer sur 2 lignes en 140 px)
+- Zone prix présente : prix + prix barré + price dot (deal/fair/overpriced)
+- Image : `contentFit="contain"` (flacon entier, pas de crop), fond `surface` + `placeholder`
+- **Non soumis à la densité** (§4.17) : le mode est forcé sur les rangées, le toggle de grille est sans effet ici
 
 #### Comfortable (liste, résultats de scan)
 
@@ -502,7 +504,7 @@ Trois densités de carte — `comfortable` (défaut), `compactPlus`, `list` — 
 - **Contrôle** : toggle d'icônes dans le header de grille (cycle comfortable → compactPlus → list), icônes 20 px `textMuted`, actif `primary`
 - **Persistance** : `useDensityPreference` (AsyncStorage) — une seule préférence pour toutes les grilles, pas de réglage par écran
 - **Interdiction** : changer de densité ne déclenche ni fetch ni re-tri (gridKey stable hors thème)
-- Les rangées éditoriales horizontales (`compact`) ne sont pas soumises à la densité
+- Les rangées éditoriales horizontales (`carousel`) ne sont pas soumises à la densité
 
 ### 4.18 Retour d'action (feedback)
 
@@ -551,7 +553,7 @@ xl   = 24  → padding CTA, espace après titre, espacement entre sections majeu
 | Type | Padding |
 |---|---|
 | Carte normale (ParfumCard comfortable) | header 16px, body 16px horizontal / 8px vertical |
-| Carte compacte (ParfumCard compact) | header 10px, body 10px horizontal / 4px vertical |
+| Carte de rangée (ParfumCard carousel) | header 10px, body 10px horizontal / 4px vertical |
 | PriceDisplay | 16px tout autour |
 | Zone deal (ParfumCard footer) | 12px tout autour |
 | OlfactoryPyramid container | 16px horizontal / 14px vertical |
@@ -682,7 +684,7 @@ Une seule source de vérité : `useReducedMotion()` (fourni par Reanimated) via 
 ### 6.8 Dataviz & information couleur-seule
 
 - Toute barre, jauge ou pastille dataviz porte un `accessibilityLabel` verbalisant la valeur relative — ex. colonnes de saison (§4.10, sans chiffres à l'écran) : « Été : 4 sur 5 »
-- Information couleur-seule (price dots deal/fair/overpriced en compact/compactPlus) : toujours doublée d'un texte adjacent ou d'un label a11y énonçant le verdict (« bonne affaire », « prix correct », « trop cher »)
+- Information couleur-seule (price dots deal/fair/overpriced en carousel/compactPlus) : toujours doublée d'un texte adjacent ou d'un label a11y énonçant le verdict (« bonne affaire », « prix correct », « trop cher »)
 - Contraste non-texte ≥ 3:1 entre fill et track des dataviz (barres saisonnières vs `surface2`) — re-mesurer à la première modification de ces tokens
 - Icônes décoratives : `accessible={false}` (ou `importantForAccessibility="no-hide-descendants"` sur le parent)
 - Cartes : pattern « label composé » — un seul `accessibilityLabel` de phrase (nom, marque, prix, verdict) plutôt que des enfants vocalisés séparément. Canonique : `ParfumCard`

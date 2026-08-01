@@ -448,7 +448,7 @@ export default function CatalogDetailPage() {
                         <View key={sim.id} style={s.similarCardWrap}>
                           <ParfumCard
                             parfum={sim}
-                            mode="compact"
+                            mode="carousel"
                             onPressOverride={() => {
                               setPendingParfum(sim);
                               router.push(`/catalog/${sim.id}`);
