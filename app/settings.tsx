@@ -99,7 +99,7 @@ export default function SettingsPage() {
               <Ionicons name="notifications-outline" size={20} color={theme.colors.text} />
               <View>
                 <Text style={s.rowLabel}>Alertes prix</Text>
-                <Text style={s.rowDesc}>Recevoir une notification quand un parfum de ta wishlist baisse de prix</Text>
+                <Text style={s.rowDesc}>Recevoir une notification quand le prix d'un parfum baisse</Text>
               </View>
             </View>
             <Switch value={priceAlerts} onValueChange={handlePriceAlerts} trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }} thumbColor={priceAlerts ? theme.colors.primary : theme.colors.textMuted} />

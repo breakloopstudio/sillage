@@ -105,6 +105,20 @@ export async function getParfumById(id: string): Promise<Parfum | undefined> {
   return rowToParfum(data as Record<string, unknown>);
 }
 
+/** Lecture batchée par ids (PK) — fallback d'affichage pour les alertes orphelines
+ *  (parfum ni en favoris ni en parfumerie). Lecture publique, pas de migration. */
+export async function getParfumsByIds(ids: string[]): Promise<Parfum[]> {
+  if (ids.length === 0) return [];
+  try {
+    const { data, error } = await supabase.from('parfums').select('*').in('id', ids);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+  } catch (e: unknown) {
+    console.warn('[catalog] getParfumsByIds failed:', (e as Error)?.message ?? String(e));
+    return [];
+  }
+}
+
 export async function updateParfum(id: string, fragranceData: Partial<Omit<Parfum, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
   const row = parfumToRow({ ...fragranceData, updatedAt: new Date() });
   // Changer l'image source invalide la version HD upscalée (dérivée de l'ancienne image).

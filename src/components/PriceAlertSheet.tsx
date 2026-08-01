@@ -18,7 +18,7 @@ import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight } from '../services/haptics';
 import { getLowestObservedPrice } from '../services/user-data';
 import { formatPrice } from '../utils/format-price';
-import { suggestTargetPrice } from '../utils/price-alerts';
+import { suggestTargetPrice, priceAlertState } from '../utils/price-alerts';
 import type { UserPriceAlert } from '../models/user-price-alert.interface';
 
 type AlertMode = 'drop' | 'target';
@@ -50,12 +50,14 @@ export default function PriceAlertSheet({
 
   const [active, setActive] = useState(false);
   const [mode, setMode] = useState<AlertMode>('drop');
-  const [targetValue, setTargetValue] = useState(0);
+  const [targetValue, setTargetValue] = useState(STEP);
   const [lowest, setLowest] = useState<number | null>(null);
 
   const translateY = useSharedValue(300);
   const backdropOpacity = useSharedValue(0);
   const knobX = useSharedValue(0);
+
+  const reached = priceAlertState(existingAlert?.targetPrice ?? null, bestPrice ?? null) === 'reached';
 
   useEffect(() => {
     if (visible) {
@@ -66,11 +68,11 @@ export default function PriceAlertSheet({
       if (existingAlert) {
         setActive(true);
         if (existingAlert.targetPrice != null) { setMode('target'); setTargetValue(existingAlert.targetPrice); }
-        else { setMode('drop'); setTargetValue(suggested ?? 0); }
+        else { setMode('drop'); setTargetValue(suggested ?? STEP); }
       } else {
         setActive(true);
         if (suggested != null) { setMode('target'); setTargetValue(suggested); }
-        else { setMode('drop'); setTargetValue(0); }
+        else { setMode('drop'); setTargetValue(STEP); }
       }
       setLowest(null);
       getLowestObservedPrice(parfumId).then(setLowest).catch(() => {});
@@ -106,7 +108,7 @@ export default function PriceAlertSheet({
   const handleInc = useCallback(() => { hapticsLight(); setTargetValue(v => v + STEP); }, []);
   const handleSave = useCallback(() => {
     hapticsLight();
-    onSave(active, active && mode === 'target' ? targetValue : null);
+    onSave(active, active && mode === 'target' ? Math.max(STEP, targetValue) : null);
   }, [active, mode, targetValue, onSave]);
 
   if (!mounted) return null;
@@ -140,6 +142,13 @@ export default function PriceAlertSheet({
             {referencePrice != null && referencePrice !== bestPrice ? (
               <Text style={s.priceRef} allowFontScaling={false}>{formatPrice(referencePrice, { decimals: 0 })}</Text>
             ) : null}
+          </View>
+        ) : null}
+
+        {reached ? (
+          <View style={s.reachedRow}>
+            <Ionicons name="checkmark-circle-outline" size={14} color={theme.colors.dealInk} accessible={false} />
+            <Text style={s.reachedText} allowFontScaling={false}>Ta cible est déjà atteinte</Text>
           </View>
         ) : null}
 
@@ -187,8 +196,8 @@ export default function PriceAlertSheet({
           </View>
         ) : null}
 
-        <Pressable style={[s.cta, !active && s.ctaOff]} onPress={handleSave} accessibilityRole="button" accessibilityLabel={active ? 'Enregistrer' : 'Désactiver l\u2019alerte'}>
-          <Text style={[s.ctaText, !active && s.ctaTextOff]}>{active ? 'Enregistrer' : 'Désactiver l\u2019alerte'}</Text>
+        <Pressable style={[s.cta, !active && s.ctaOff]} onPress={handleSave} accessibilityRole="button" accessibilityLabel={active ? 'Enregistrer' : 'Désactiver l’alerte'}>
+          <Text style={[s.ctaText, !active && s.ctaTextOff]}>{active ? 'Enregistrer' : 'Désactiver l’alerte'}</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -224,6 +233,9 @@ function getStyles(t: Theme) {
     priceLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted },
     priceCurrent: { fontFamily: 'Inter_700Bold', fontSize: 15, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     priceRef: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted, textDecorationLine: 'line-through' as const, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+
+    reachedRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 8, paddingBottom: 4 },
+    reachedText: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: t.colors.dealInk },
 
     toggleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingVertical: 12, paddingHorizontal: 8, gap: 12 },
     toggleLeft: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, flex: 1 },

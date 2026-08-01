@@ -163,6 +163,19 @@ describe('setPriceAlert', () => {
     expect(chain.eq).toHaveBeenCalledWith('user_id', 'uid1');
     expect(chain.eq).toHaveBeenCalledWith('parfum_id', 'p1');
   });
+
+  it('updates only target_price on edit (does not re-anchor initial/last price)', async () => {
+    const chain = chainMock({ data: { parfum_id: 'p1' }, error: null });
+    mockFrom.mockReturnValue(chain);
+    await setPriceAlert('uid1', 'p1', true, { currentPrice: 999, targetPrice: 60 });
+    expect(chain.maybeSingle).toHaveBeenCalled();
+    expect(chain.update).toHaveBeenCalled();
+    expect(chain.upsert).not.toHaveBeenCalled();
+    const arg = chain.update.mock.calls[0][0];
+    expect(arg.target_price).toBe(60);
+    expect(arg).not.toHaveProperty('initial_price');
+    expect(arg).not.toHaveProperty('last_price');
+  });
 });
 
 describe('getLowestObservedPrice', () => {

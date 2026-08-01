@@ -38,9 +38,13 @@ export function useSaveController(parfum: Parfum | null) {
     if (!uid || !id) { setItem(null); return; }
     setItem(null);
     let cancelled = false;
-    getUserParfum(uid, id).then((r) => {
-      if (!cancelled) setItem(r);
-    });
+    getUserParfum(uid, id)
+      .then((r) => {
+        if (!cancelled) setItem(r);
+      })
+      .catch((e: unknown) => {
+        console.warn('[save] getUserParfum failed:', (e as Error)?.message ?? String(e));
+      });
     return () => { cancelled = true; };
   }, [uid, id]);
 
@@ -176,12 +180,18 @@ export function useSaveController(parfum: Parfum | null) {
     }
   }, [uid, id]);
 
-  return {
+  return useMemo(() => ({
     item, saveLabel,
     showSaveSheet, showTrySheet, trySheetSaving,
     openSaveSheet, closeSaveSheet, closeTrySheet,
     setStatus, setVerdict, remove, addToTry, addPoss,
     setRating, setNotes, toggleShelf, toggleSignature,
     openFullNotes, handleTrySheetSave,
-  };
+  }), [
+    item, saveLabel, showSaveSheet, showTrySheet, trySheetSaving,
+    openSaveSheet, closeSaveSheet, closeTrySheet,
+    setStatus, setVerdict, remove, addToTry, addPoss,
+    setRating, setNotes, toggleShelf, toggleSignature,
+    openFullNotes, handleTrySheetSave,
+  ]);
 }

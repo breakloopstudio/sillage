@@ -135,7 +135,7 @@ export default function PrivacyCenterPage() {
               <Ionicons name="push-outline" size={20} color={theme.colors.text} />
               <View>
                 <Text style={s.rowLabel}>Notifications push</Text>
-                <Text style={s.rowDesc}>FCM désactivé et tokens supprimés à l'arrêt</Text>
+                <Text style={s.rowDesc}>Notifications désactivées et tokens supprimés à l'arrêt</Text>
               </View>
             </View>
             <Switch value={pushNotifs} onValueChange={handlePushNotifs} trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }} thumbColor={pushNotifs ? theme.colors.primary : theme.colors.textMuted} />

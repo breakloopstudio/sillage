@@ -14,7 +14,7 @@ import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import type { Parfum } from '../../src/models';
 import { translateNote } from '../../src/utils/translate-note';
-import { genderLabel, communityRatingLabel, resolveConcentration } from '../../src/utils/parfum-labels';
+import { genderLabel, communityRatingLabel, resolveConcentration, typeParfumLabel } from '../../src/utils/parfum-labels';
 import { getFamilyByValue } from '../../src/utils/olfactory-families';
 import { formatPrice } from '../../src/utils/format-price';
 import { parfumShareUrl } from '../../src/utils/share';
@@ -25,11 +25,11 @@ import PriceDisplay from '../../src/components/PriceDisplay';
 import Button from '../../src/components/Button';
 import AlertPriceToggle from '../../src/components/AlertPriceToggle';
 import SaveSheet from '../../src/features/catalog/SaveSheet';
-import SaveButton from '../../src/features/catalog/SaveButton';
 import RelationSection from '../../src/features/catalog/RelationSection';
 import { useSaveController } from '../../src/features/catalog/useSaveController';
 import AccordProfile from '../../src/features/catalog/AccordProfile';
 import PerformanceProfile from '../../src/features/catalog/PerformanceProfile';
+import { usePerfVotes } from '../../src/hooks/usePerfVotes';
 import TrySheet from '../../src/features/scentlist/TrySheet';
 import NoteDetailPopup from '../../src/components/NoteDetailPopup';
 import ImageViewerPopup from '../../src/components/ImageViewerPopup';
@@ -39,6 +39,9 @@ import CollapsingHeader from '../../src/features/catalog/CollapsingHeader';
 import StickyBottomBar from '../../src/features/catalog/StickyBottomBar';
 import CommunityVerdicts, { VerdictProfilesSheet } from '../../src/features/catalog/CommunityVerdicts';
 import type { ParfumVerdict } from '../../src/services/community';
+
+// Décalage (px) avant lequel la barre flottante prend le relais du prix in-flow.
+const STICKY_TRIGGER_OFFSET = 56;
 
 // ─── Titres de section ───────────────────────────────────────
 
@@ -81,6 +84,21 @@ export default function CatalogDetailPage() {
   const insets = useSafeAreaInsets();
 
   const save = useSaveController(parfum);
+  // Une seule instance du hook de votes (Performance + Season la partagent → 1 RPC).
+  const perfVotes = usePerfVotes(parfum?.id ?? null);
+
+  const scrollContentStyle = useMemo(
+    () => ({ paddingTop: insets.top + 70, paddingBottom: insets.bottom + 88 }),
+    [insets.top, insets.bottom],
+  );
+
+  // Fermer les sheets ouvertes si la session tombe (logout en cours de vue).
+  useEffect(() => {
+    if (!isAuthenticated) {
+      save.closeSaveSheet();
+      save.closeTrySheet();
+    }
+  }, [isAuthenticated, save.closeSaveSheet, save.closeTrySheet]);
 
   // Chargement auto-suffisant : bridge (preview) -> Firestore
   useEffect(() => {
@@ -166,8 +184,8 @@ export default function CatalogDetailPage() {
             updateParfum(parfum.id!, { similarIds: ids, similarIdsCachedAt: new Date() }).catch(() => {});
           }
         }
-      } catch {
-        // silent fail
+      } catch (e) {
+        console.warn('[detail] similars failed:', (e as Error)?.message ?? String(e));
       } finally {
         if (!cancelled) setSimilarsLoading(false);
       }
@@ -221,15 +239,20 @@ export default function CatalogDetailPage() {
   const metaAttrs = useMemo(() => {
     if (!parfum) return [];
     const parts: string[] = [];
-    const conc = resolveConcentration(parfum);
+    const conc = typeParfumLabel(parfum.typeParfum) ?? resolveConcentration(parfum);
     if (conc) parts.push(conc);
-    if (parfum.annee) parts.push(String(parfum.annee));
     const g = genderLabel(parfum.gender);
     if (g) parts.push(g);
     return parts;
   }, [parfum]);
 
   const ratingLabel = communityRatingLabel(parfum);
+
+  const country = useMemo(() => {
+    const c0 = parfum?.country?.trim();
+    if (!c0 || c0.length > 24 || /\d/.test(c0)) return null;
+    return c0;
+  }, [parfum?.country]);
 
   const perfumersList = useMemo(
     () => (parfum?.perfumers ? [...new Set(parfum.perfumers.filter(Boolean))] : []),
@@ -259,102 +282,32 @@ export default function CatalogDetailPage() {
           <CollapsingHeader scrollY={scrollY} brand={parfum.marque} name={parfum.nom} rightAction={{ icon: 'share-social-outline', onPress: handleShare, accessibilityLabel: 'Partager ce parfum' }} />
         <Animated.ScrollView
           style={{flex:1}}
-          contentContainerStyle={{paddingTop:insets.top+70}}
+          contentContainerStyle={scrollContentStyle}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
           <DetailHero
             imageUrl={heroUrl}
-            imageUrl2x={heroUrl2x}
             brand={parfum.marque}
             imgFailed={imgFailed}
             parfum={parfum}
             onImageError={handleImageError}
             onImagePress={handleImagePress}
-            onShare={handleShare}
           />
 
           <RelationSection parfum={parfum} save={save} />
 
           <View style={s.contentWrap}>
-            {/* ─── Méta : famille (action) + attributs passifs + note ─── */}
-            {(familyLabel || metaAttrs.length > 0 || ratingLabel) ? (
-              <View style={s.badgeRow}>
-                {familyLabel ? (
-                  familyKey ? (
-                    <Pressable
-                      onPress={handleFamilyPress}
-                      hitSlop={{ top: 6, bottom: 6 }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Explorer la famille ${familyLabel}`}
-                      style={({ pressed }) => [s.familyPill, { backgroundColor: t.colors.primarySoft }, pressed && { opacity: 0.7 }]}
-                    >
-                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
-                    </Pressable>
-                  ) : (
-                    <View style={[s.familyPill, { backgroundColor: t.colors.primarySoft }]}>
-                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
-                    </View>
-                  )
-                ) : null}
-                {metaAttrs.map(attr => (
-                  <View key={attr} style={s.attrPill}>
-                    <Text style={s.attrPillText} allowFontScaling={false}>{attr}</Text>
-                  </View>
-                ))}
-                {ratingLabel ? (
-                  <View style={s.notePill}>
-                    <Ionicons name="star" size={10} color={t.colors.textMuted} />
-                    <Text style={s.notePillValue} allowFontScaling={false}>{ratingLabel}</Text>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            {/* ─── La signature (maison + nez) ─── */}
-            <View style={s.signatureRow}>
-              <Pressable
-                style={({ pressed }) => [s.brandChip, pressed && { opacity: 0.7 }]}
-                hitSlop={{ top: 5, bottom: 5 }}
-                accessibilityRole="button"
-                accessibilityLabel={`Voir la maison ${parfum.marque}`}
-                onPress={handleBrandPress}
-              >
-                <Ionicons name="storefront-outline" size={12} color={t.colors.primaryInk} />
-                <Text style={s.brandChipText} allowFontScaling={false}>{parfum.marque}</Text>
-              </Pressable>
-              {perfumersList.map(name => (
-                <Pressable
-                  key={name}
-                  style={({ pressed }) => [s.noseChip, pressed && { opacity: 0.7 }]}
-                  hitSlop={{ top: 5, bottom: 5 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Voir les créations de ${name}`}
-                  onPress={() => {
-                    hapticsLight();
-                    router.push(`/perfumer/${encodeURIComponent(name)}`);
-                  }}
-                >
-                  <Ionicons name="finger-print-outline" size={12} color={t.colors.secondaryInk} />
-                  <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) — masquée si orpheline ─── */}
-            {(() => {
-              const segs = [
-                seasonProfile?.columns.find(col => col.isTop)?.label ?? null,
-                seasonProfile?.topOccasions[0]?.label ?? null,
-              ].filter(Boolean) as string[];
-              return segs.length >= 2 ? (
-                <Text style={s.editorialLine} maxFontSizeMultiplier={1.3}>{segs.join(' · ')}</Text>
-              ) : null;
-            })()}
-
-            {/* ─── Le prix (affichage unique dans le flux) ─── */}
-            <View ref={priceSectionRef} onLayout={(e: LayoutChangeEvent) => { priceSectionY.value = e.nativeEvent.layout.y + 20; }}>
+            {/* ─── Le prix (affichage unique, remonté sous le hero) ─── */}
+            <View
+              ref={priceSectionRef}
+              onLayout={() => {
+                priceSectionRef.current?.measureInWindow((_x, y) => {
+                  priceSectionY.value = y + scrollY.value - STICKY_TRIGGER_OFFSET;
+                });
+              }}
+            >
               {hasBestPrice ? (
                 <View style={s.dealSection}>
                   <PriceDisplay
@@ -371,9 +324,7 @@ export default function CatalogDetailPage() {
                 </View>
               ) : null}
 
-              {!save.item ? <SaveButton label={save.saveLabel} onPress={save.openSaveSheet} variant="flow" /> : null}
-
-              {isAuthenticated && user?.uid && id ? (
+              {isAuthenticated && user?.uid && id && hasBestPrice ? (
                 <AlertPriceToggle
                   parfumId={id}
                   uid={user.uid}
@@ -411,6 +362,87 @@ export default function CatalogDetailPage() {
               ) : null}
             </View>
 
+            {/* ─── Méta : famille (action) + attributs passifs + note ─── */}
+            {(familyLabel || metaAttrs.length > 0 || ratingLabel) ? (
+              <View style={s.badgeRow}>
+                {familyLabel ? (
+                  familyKey ? (
+                    <Pressable
+                      onPress={handleFamilyPress}
+                      hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Explorer la famille ${familyLabel}`}
+                      style={({ pressed }) => [s.familyPill, { backgroundColor: t.colors.primarySoft }, pressed && { opacity: 0.7 }]}
+                    >
+                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={[s.familyPill, { backgroundColor: t.colors.primarySoft }]}>
+                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
+                    </View>
+                  )
+                ) : null}
+                {metaAttrs.map(attr => (
+                  <View key={attr} style={s.attrPill}>
+                    <Text style={s.attrPillText} allowFontScaling={false}>{attr}</Text>
+                  </View>
+                ))}
+                {ratingLabel ? (
+                  <View style={s.notePill}>
+                    <Ionicons name="star" size={10} color={t.colors.textMuted} />
+                    <Text style={s.notePillValue} allowFontScaling={false}>{ratingLabel}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* ─── La signature (maison + nez + origine) ─── */}
+            <View style={s.signatureRow}>
+              <Pressable
+                style={({ pressed }) => [s.brandChip, pressed && { opacity: 0.7 }]}
+                hitSlop={{ top: 5, bottom: 5 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Voir la maison ${parfum.marque}`}
+                onPress={handleBrandPress}
+              >
+                <Ionicons name="storefront-outline" size={12} color={t.colors.primaryInk} />
+                <Text style={s.brandChipText} allowFontScaling={false}>{parfum.marque}</Text>
+              </Pressable>
+              {perfumersList.map(name => (
+                <Pressable
+                  key={name}
+                  style={({ pressed }) => [s.noseChip, pressed && { opacity: 0.7 }]}
+                  hitSlop={{ top: 5, bottom: 5 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Voir les créations de ${name}`}
+                  onPress={() => {
+                    hapticsLight();
+                    router.push(`/perfumer/${encodeURIComponent(name)}`);
+                  }}
+                >
+                  <Ionicons name="finger-print-outline" size={12} color={t.colors.textMuted} />
+                  <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
+                </Pressable>
+              ))}
+              {country ? (
+                <View style={s.countryChip}>
+                  <Ionicons name="location-outline" size={12} color={t.colors.textMuted} />
+                  <Text style={s.countryChipText} allowFontScaling={false}>{country}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) — masquée si orpheline ─── */}
+            {(() => {
+              const segs = [
+                seasonProfile?.columns.find(col => col.isTop)?.label ?? null,
+                seasonProfile?.topOccasions[0]?.label ?? null,
+              ].filter(Boolean) as string[];
+              return segs.length >= 2 ? (
+                <Text style={s.editorialLine} maxFontSizeMultiplier={1.3}>{segs.join(' · ')}</Text>
+              ) : null;
+            })()}
+
                 {/* ─── Pyramide olfactive ─── */}
                 <OlfactoryPyramid
                   topNotes={parfum.notesTete}
@@ -426,42 +458,55 @@ export default function CatalogDetailPage() {
                 />
 
                 <PerformanceProfile
-                  parfumId={parfum.id}
+                  key={parfum.id}
                   longevity={parfum.longevity}
                   sillage={parfum.sillage}
+                  perfVotes={perfVotes}
                 />
 
                 {/* ─── Quand le porter ─── */}
                 {seasonProfile ? (
-                  <SeasonProfile key={parfum?.id ?? 'season'} profile={seasonProfile} parfumId={parfum!.id} />
+                  <SeasonProfile key={parfum.id} profile={seasonProfile} perfVotes={perfVotes} />
                 ) : null}
 
                 {/* ─── La communauté (verdicts publics) ─── */}
                 {parfum ? <CommunityVerdicts parfumId={parfum.id} onOpenProfiles={handleOpenVerdictProfiles} /> : null}
 
-                {/* ─── Dans le même esprit (recommandations) ─── */}
+                {/* ─── Ça s'en rapproche (recommandations) ─── */}
                 {similars.length > 0 ? (
                   <View style={s.infoZone}>
-                    <SectionTitle icon="sparkles-outline" title="Dans le même esprit" subtitle="Sélection aux accords proches" s={s} t={t} />
+                    <SectionTitle icon="sparkles-outline" title="Ça s'en rapproche" subtitle="Même sillage, autre flacon" s={s} t={t} />
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.similarRow}>
-                      {similars.map(sim => (
-                        <View key={sim.id} style={s.similarCardWrap}>
-                          <ParfumCard
-                            parfum={sim}
-                            mode="carousel"
-                            onPressOverride={() => {
-                              setPendingParfum(sim);
-                              router.push(`/catalog/${sim.id}`);
-                            }}
-                          />
-                        </View>
-                      ))}
+                      {similars.map(sim => {
+                        const diff = (hasBestPrice && typeof sim.bestPrice === 'number' && sim.bestPrice > 0)
+                          ? sim.bestPrice - parfum.bestPrice!
+                          : null;
+                        return (
+                          <View key={sim.id} style={s.similarCardWrap}>
+                            <ParfumCard
+                              parfum={sim}
+                              mode="carousel"
+                              onPressOverride={() => {
+                                setPendingParfum(sim);
+                                router.push(`/catalog/${sim.id}`);
+                              }}
+                            />
+                            {diff !== null ? (
+                              <Text
+                                style={[s.similarDelta, { color: diff < 0 ? t.colors.dealInk : diff > 0 ? t.colors.overpricedInk : t.colors.textMuted }]}
+                                allowFontScaling={false}
+                              >
+                                {diff < 0 ? `−${formatPrice(Math.abs(diff), { decimals: 0 })}` : diff > 0 ? `+${formatPrice(diff, { decimals: 0 })}` : 'Même prix'}
+                              </Text>
+                            ) : null}
+                          </View>
+                        );
+                      })}
                     </ScrollView>
                   </View>
                 ) : null}
                 {similarsLoading ? <ActivityIndicator style={{ marginTop: 12 }} color={t.colors.primary} /> : null}
         </View>
-        <View style={{height:100}} />
         </Animated.ScrollView>
 
         <StickyBottomBar
@@ -536,7 +581,7 @@ function getStyles(t: Theme) {
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   contentWrap: { paddingHorizontal: t.spacing.md, paddingTop: 14, paddingBottom: t.spacing.xl, backgroundColor: t.colors.surface, borderRadius: t.radius.card, ...t.shadow.card },
   // ─── Méta ───
-  badgeRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 },
+  badgeRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6, marginTop: 4 },
   familyPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   familyPillText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
   attrPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: t.colors.surface2 },
@@ -548,30 +593,32 @@ function getStyles(t: Theme) {
   // ─── Prix ───
   dealSection: { marginBottom: 8, gap: 10 },
   buyBtn: { marginTop: 2 },
-  // ─── Sections ───
+  // ─── Sections ──
   infoZone: { marginTop: 24, gap: 8 },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
   sectionIconWrap: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   sectionTitleBody: { flex: 1 },
   sectionTitleText: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text },
   sectionSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted, marginTop: 1 },
-  // ─── La signature (maison + nez) ───
+  // ─── La signature (maison + nez + origine) ───
   signatureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 6 },
   brandChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.primarySoft },
   brandChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.primaryInk },
-  noseChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.secondarySoft },
-  noseChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.secondaryInk },
-  // ─── Accords ───
+  noseChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.surface2 },
+  noseChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.text },
+  countryChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.surface2 },
+  countryChipText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
   // ─── Recommandations ───
   similarRow: { gap: 12, paddingTop: 4 },
   similarCardWrap: { width: 160 },
+  similarDelta: { fontFamily: 'Inter_600SemiBold', fontSize: 11, textAlign: 'center', marginTop: 4 },
   // ─── Marchands ───
   offerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
   offerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   offerMerchant: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.text },
   offerVolume: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, backgroundColor: t.colors.surface2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   offerRight: { alignItems: 'flex-end' },
-  offerPrice: { fontFamily: 'Inter_700Bold', fontSize: 15, color: t.colors.primary },
+  offerPrice: { fontFamily: 'Inter_700Bold', fontSize: 15, color: t.colors.text },
   offerDiff: { fontFamily: 'Inter_500Medium', fontSize: 11, color: t.colors.overpricedInk },
 } as const;
 }

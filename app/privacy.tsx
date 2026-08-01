@@ -40,9 +40,8 @@ export default function PrivacyPage() {
           <Text style={s.subtitle}>2.2 Utilisation de l'application</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Dans le cadre de l'utilisation des fonctionnalités, nous stockons :{'\n'}
-            {'\u2022'} Vos parfums favoris{'\n'}
-            {'\u2022'} Votre collection et wishlist{'\n'}
-            {'\u2022'} Votre parfumerie (états de possession, notes personnelles, étagères){'\n'}
+            {'\u2022'} Vos parfums favoris (cœurs){'\n'}
+            {'\u2022'} Votre parfumerie (statuts, verdicts, notes personnelles, étagères, possessions){'\n'}
             {'\u2022'} Votre parfum du jour (SOTD){'\n'}
             {'\u2022'} L'historique de vos scans{'\n'}
             {'\u2022'} Vos préférences (notifications, alertes prix)
@@ -53,11 +52,11 @@ export default function PrivacyPage() {
           </Text>
           <Text style={s.subtitle}>2.4 Notifications push</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            Si vous activez les notifications, un token FCM (Firebase Cloud Messaging) est stocké pour vous envoyer des alertes de prix. Vous pouvez désactiver cette fonction à tout moment dans les paramètres.
+            Si vous activez les notifications, un token de notification (Expo Push Notifications) est stocké pour vous envoyer des alertes de prix et, si vous les activez, des suggestions liées à la météo. Vous pouvez désactiver ces notifications à tout moment dans les paramètres.
           </Text>
           <Text style={s.subtitle}>2.5 Données locales</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            Votre préférence de thème (clair/sombre/système) est stockée localement sur votre appareil via AsyncStorage. Aucune autre donnée n'est conservée localement.
+            Certaines préférences (thème, densité d'affichage, vues) et vos recherches récentes sont stockées localement sur votre appareil via AsyncStorage. Aucune donnée sensible (mot de passe, contenu de votre parfumerie) n'est conservée localement : celles-ci sont hébergées sur nos serveurs.
           </Text>
         </View>
 
@@ -66,27 +65,27 @@ export default function PrivacyPage() {
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Les traitements reposent sur les bases légales suivantes :{'\n'}
             {'\u2022'} <Text style={s.bold}>Consentement</Text> : création de compte, connexion Google, scan caméra, notifications push, suggestions météo (coordonnées géographiques approximatives){'\n'}
-            {'\u2022'} <Text style={s.bold}>Exécution du contrat</Text> : sauvegarde de vos favoris, collection, wishlist, parfumerie{'\n'}
+            {'\u2022'} <Text style={s.bold}>Exécution du contrat</Text> : sauvegarde de vos favoris et de votre parfumerie{'\n'}
             {'\u2022'} <Text style={s.bold}>Intérêt légitime</Text> : préférence de thème (stockage local uniquement)
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>4. Destinataires des données</Text>
-          <Text style={s.subtitle}>4.1 Services Firebase (Google)</Text>
+          <Text style={s.subtitle}>4.1 Hébergement et authentification (Supabase)</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            Firebase Auth, Firestore, Cloud Functions, Cloud Storage et Cloud Messaging sont utilisés pour l'authentification, le stockage et les notifications. Ces services sont fournis par Google LLC (États-Unis). Les serveurs Firestore et Cloud Functions sont configurés dans la région europe-west1 (Belgique).{'\n\n'}
-            Google est certifié sous le Data Privacy Framework (successeur du Privacy Shield) et applique des clauses contractuelles types pour les transferts hors UE.
+            L'authentification, la base de données, le stockage des images et les fonctions serveur (« Edge Functions ») sont assurés par Supabase (base de données PostgreSQL). Les données de votre compte, de vos favoris et de votre parfumerie sont hébergées dans la région Europe de Supabase.{'\n\n'}
+            Les notifications push sont acheminées par le service Expo Push Notifications (Expo / 650 Industries, États-Unis).{'\n\n'}
+            Supabase et Expo appliquent des clauses contractuelles types (CCT) de la Commission européenne pour les transferts de données hors Union européenne.
           </Text>
           <Text style={s.subtitle}>4.2 OpenAI (GPT-4o Vision)</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Les photos de flacons sont transmises à OpenAI pour analyse visuelle. OpenAI ne reçoit aucune donnée d'identification personnelle. Les images envoyées ne sont pas utilisées pour entraîner les modèles d'OpenAI et sont supprimées après traitement.{'\n\n'}
-            La clé API OpenAI est exclusivement stockée côté serveur (Cloud Functions) et n'est jamais exposée au client.
+            La clé API OpenAI est exclusivement stockée côté serveur (Edge Functions Supabase) et n'est jamais exposée au client.
           </Text>
           <Text style={s.subtitle}>4.3 Catalogue de parfums</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            Les données des parfums (marque, nom, notes olfactives, prix) sont hébergées dans notre base de données interne (Firestore). Aucune donnée personnelle n'est transmise à un service tiers pour les recherches de parfums.{"\n\n"}
-            Les recherches sont effectuées localement dans notre catalogue de 21 000+ parfums.
+            Les données des parfums (marque, nom, notes olfactives, prix) sont hébergées dans notre base de données PostgreSQL (Supabase). Les recherches sont effectuées dans notre catalogue de plus de 25 000 parfums, hébergé sur nos serveurs ; aucune donnée personnelle n'est transmise à un service tiers pour ces recherches.
           </Text>
           <Text style={s.subtitle}>4.4 Google Sign-In</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
@@ -97,10 +96,10 @@ export default function PrivacyPage() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>5. Transferts hors Union Européenne</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            Les services Firebase et OpenAI sont hébergés par des sociétés américaines. Ces transferts sont encadrés par :{'\n'}
+            Supabase, Expo, OpenAI et Google (connexion Google) sont des sociétés américaines. Les données principales sont toutefois hébergées dans la région Europe de Supabase, et ces transferts sont encadrés par :{'\n'}
             {'\u2022'} Le Data Privacy Framework (DPF) pour Google{'\n'}
             {'\u2022'} Les clauses contractuelles types (CCT) de la Commission européenne{'\n'}
-            {'\u2022'} Le stockage des données principales dans la région europe-west1
+            {'\u2022'} Le stockage des données principales dans la région Europe de Supabase
           </Text>
         </View>
 
@@ -108,11 +107,11 @@ export default function PrivacyPage() {
           <Text style={s.sectionTitle}>6. Durée de conservation</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
             {'\u2022'} Données du compte : jusqu'à la suppression du compte{'\n'}
-            {'\u2022'} Favoris, collection, wishlist, parfumerie : jusqu'à suppression manuelle ou suppression du compte{'\n'}
+            {'\u2022'} Favoris et parfumerie : jusqu'à suppression manuelle ou suppression du compte{'\n'}
             {'\u2022'} Historique des scans : jusqu'à suppression manuelle ou suppression du compte{'\n'}
             {'\u2022'} Photos transmises à OpenAI : non conservées (traitement immédiat, pas de stockage){'\n'}
-            {'\u2022'} Token FCM : jusqu'à désactivation des notifications ou suppression du compte{'\n'}
-            {'\u2022'} Préférence de thème : stockée localement jusqu'à désinstallation de l'application
+            {'\u2022'} Token de notification (Expo Push) : jusqu'à désactivation des notifications ou suppression du compte{'\n'}
+            {'\u2022'} Préférences locales : stockées localement jusqu'à désinstallation de l'application
           </Text>
         </View>
 
@@ -139,17 +138,17 @@ export default function PrivacyPage() {
           <Text style={s.sectionTitle}>8. Sécurité</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Nous mettons en œuvre les mesures techniques suivantes :{'\n'}
-            {'\u2022'} Authentification sécurisée via Firebase Auth{'\n'}
-            {'\u2022'} Règles Firestore restreignant l'accès aux données de chaque utilisateur{'\n'}
+            {'\u2022'} Authentification sécurisée via Supabase Auth{'\n'}
+            {'\u2022'} Règles de sécurité (Row Level Security) de la base PostgreSQL restreignant l'accès aux données de chaque utilisateur{'\n'}
             {'\u2022'} Transmission chiffrée (HTTPS) pour toutes les communications{'\n'}
-            {'\u2022'} Clés API tierces exclusivement côté serveur (Cloud Functions)
+            {'\u2022'} Clés API tierces exclusivement côté serveur (Edge Functions Supabase)
           </Text>
         </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>9. Cookies et stockage local</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'application mobile Sillage n'utilise pas de cookies. Le seul stockage local sur l'appareil concerne la préférence de thème (clair/sombre/système) via AsyncStorage.
+            L'application mobile Sillage n'utilise pas de cookies. Le stockage local sur l'appareil (via AsyncStorage) se limite à vos préférences (thème, densité d'affichage, vues) et à vos recherches récentes.
           </Text>
         </View>
 
@@ -167,7 +166,7 @@ export default function PrivacyPage() {
           </Text>
         </View>
 
-        <Text style={s.version}>Dernière mise à jour : juillet 2026</Text>
+        <Text style={s.version}>Dernière mise à jour : août 2026</Text>
       </ScrollView>
     </SafeAreaView>
   );

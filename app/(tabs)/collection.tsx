@@ -26,7 +26,7 @@ import { hapticsLight, hapticsError } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import { STATUS_CHIPS, chipForStatus, type StatusChipId } from '../../src/utils/status-chips';
-import { alertVariation } from '../../src/utils/price-alerts';
+import { alertVariation, priceAlertState } from '../../src/utils/price-alerts';
 import { profileShareUrl, parfumShareUrl, shelfShareUrl, normalizePseudo } from '../../src/utils/share';
 import {
   groupItemsByShelf,
@@ -480,7 +480,9 @@ export default function MaParfumeriePage() {
 
   const renderItem = useCallback(({ item }: { item: UserParfum }) => {
     const alert = byParfumId.get(item.parfumId) ?? null;
-    const variation = alert ? alertVariation(alert.initialPrice, alert.lastPrice ?? item.bestPrice ?? null) : null;
+    const currentPrice = alert ? (alert.lastPrice ?? item.bestPrice ?? null) : null;
+    const variation = alert ? alertVariation(alert.initialPrice, currentPrice) : null;
+    const alertState = alert ? priceAlertState(alert.targetPrice, currentPrice) : null;
     return (
       <View style={gridNumCols === 2 ? s.gridItemWrap : s.listItemWrap}>
         <ParfumCard
@@ -489,7 +491,7 @@ export default function MaParfumeriePage() {
           status={item.status}
           rating={item.rating}
           hidePrice
-          priceAlert={alert ? { variation } : null}
+          priceAlert={alert ? { variation, state: alertState } : null}
           onPressOverride={() => handleCardPress(item)}
           onLongPress={() => handleLongPress(item)}
         />

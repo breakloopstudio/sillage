@@ -20,16 +20,16 @@ import {
   type SeasonProfileData,
   type SeasonColumn,
 } from '../../utils/season-profile';
-import { usePerfVotes } from '../../hooks/usePerfVotes';
+import { type UsePerfVotes } from '../../hooks/usePerfVotes';
 import { useAuthContext } from '../../contexts/AuthContext';
 import VotePickerSheet, { type VoteOption } from '../../components/VotePickerSheet';
 
 interface Props {
   profile: SeasonProfileData;
-  parfumId: string;
+  perfVotes: UsePerfVotes;
 }
 
-export default function SeasonProfile({ profile, parfumId }: Props) {
+export default function SeasonProfile({ profile, perfVotes }: Props) {
   const { theme, resolvedMode } = useTheme();
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -37,7 +37,7 @@ export default function SeasonProfile({ profile, parfumId }: Props) {
   const router = useRouter();
   const { user } = useAuthContext();
 
-  const { perf, available, vote, removeVote } = usePerfVotes(parfumId);
+  const { perf, available, vote, removeVote } = perfVotes;
 
   // Colonnes recalculées depuis la fusion (frag×poids + user) quand la RPC répond,
   // sinon les colonnes Fragrantica (season_ranking) — la star suit le vécu combiné.
@@ -130,7 +130,7 @@ export default function SeasonProfile({ profile, parfumId }: Props) {
   }));
 
   return (
-    <Animated.View style={s.root} entering={FadeIn.duration(400)}>
+    <Animated.View style={s.root} entering={FadeIn.duration(reduced ? 0 : 400)}>
       <View style={s.header}>
         <View style={s.headerRow}>
           <View style={s.headerBadge}>
@@ -252,9 +252,9 @@ function MomentVotes({ dominant, myMoment, canVote, onVote, colors: c }: MomentP
           <Pressable
             key={it.key}
             onPress={canVote ? () => onVote(it.key) : undefined}
-            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
             accessibilityRole="button"
-            accessibilityLabel={canVote ? `Voter ${it.label}` : it.label}
+            accessibilityLabel={`${canVote ? `Voter ${it.label}` : it.label}${isMy ? ', ton vote' : ''}`}
             style={[
               sMomentChip,
               { backgroundColor: c.surface2 },
@@ -345,8 +345,8 @@ function SeasonColumn({ column, rank, isActive, anyActive, isMyVote, onSelect, r
   const fillColor = hasScore ? seasonColor : c.border;
   const ratioOutOfFive = hasScore ? Math.max(1, Math.round(column.ratio * 5)) : 0;
   const a11y = hasScore
-    ? `${column.label}, ${ratioOutOfFive} sur 5${isActive ? ', sélectionnée' : ''}`
-    : `${column.label}, peu votée${isActive ? ', sélectionnée' : ''}`;
+    ? `${column.label}, ${ratioOutOfFive} sur 5${isActive ? ', sélectionnée' : ''}${isMyVote ? ', ton vote' : ''}`
+    : `${column.label}, peu votée${isActive ? ', sélectionnée' : ''}${isMyVote ? ', ton vote' : ''}`;
 
   return (
     <Animated.View entering={FadeIn.delay(reduced ? 0 : rank * 80).duration(reduced ? 0 : 360)} style={sColWrap}>

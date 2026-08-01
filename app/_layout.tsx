@@ -5,6 +5,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuthContext } from '../src/contexts/AuthContext';
 import { FavorisProvider } from '../src/contexts/FavorisContext';
 import { UserParfumProvider } from '../src/contexts/UserParfumContext';
@@ -27,6 +28,13 @@ try {
   });
 } catch (e: unknown) { console.warn('[app] GoogleSignin.configure failed:', (e as Error)?.message ?? String(e)); }
 
+// Présentation des notifications app au premier plan (sinon iOS les tait).
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+  });
+} catch (e: unknown) { console.warn('[app] setNotificationHandler failed:', (e as Error)?.message ?? String(e)); }
+
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -46,6 +54,24 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
     return () => { if (fcmCleanupRef.current) fcmCleanupRef.current(); };
   }, [authReady, isAuthenticated, user]);
+
+  // Routage des notifications prix : tap (foreground/background) + démarrage à froid → fiche.
+  useEffect(() => {
+    const routeFrom = (data: Record<string, unknown> | null | undefined) => {
+      if (data && data.type === 'price_alert' && typeof data.parfumId === 'string') {
+        router.push(`/catalog/${data.parfumId}`);
+      }
+    };
+    let sub: { remove: () => void } | null = null;
+    try {
+      const last = Notifications.getLastNotificationResponse();
+      if (last) routeFrom((last.notification.request.content.data ?? undefined) as Record<string, unknown> | undefined);
+      sub = Notifications.addNotificationResponseReceivedListener((response) => {
+        routeFrom((response.notification.request.content.data ?? undefined) as Record<string, unknown> | undefined);
+      });
+    } catch (e: unknown) { console.warn('[app] notification response listener failed:', (e as Error)?.message ?? String(e)); }
+    return () => { if (sub) sub.remove(); };
+  }, [router]);
 
   useEffect(() => {
     if (authReady) {

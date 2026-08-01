@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 397](https://img.shields.io/badge/Tests-397%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
+[![Tests 415](https://img.shields.io/badge/Tests-415%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -29,10 +29,10 @@
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
 | ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix (cible custom + historique) |
 | 🗳️ **Votes communauté** | Performance olfactive réappropriée : votes utilisateurs sur Tenue & sillage et « Quand le porter » (saison + moment Jour/Soir), fusion Fragrantica bornée (`PERF_CAP=100`, jour 1 identique au scrape puis la communauté prend le relais), boutons 👍 → `VotePickerSheet` (vote courant + retirer), compteurs et marqueurs `myVote` temps réel, cron quotidien qui propage le consensus aux favoris/filtres/recherche |
-| ❤️ **Favoris** | Onglet dédié (couche intention) : tous les coups de cœur, section « Tes alertes », pills (Tous · À traiter · Alertes), alertes prix v2 (cible custom pré-remplie, badge 🔔), long-press `FavoriSheet` (fiche · alerte · graduation vers la Parfumerie) |
+| ❤️ **Favoris** | Onglet dédié (couche intention) : tous les coups de cœur, segmented Favoris/Alertes, vue Alertes = cartes riches (état « Objectif atteint »/« Bientôt à ta cible », prix + officiel barré + dot, baisses −%/−€, row « N objectifs atteints » filtrable, tap = édition / long-press = fiche, fallback catalogue `getParfumsByIds` pour alertes hors-favoris), alertes prix v2 (cible custom pré-remplie, badge 🔔), long-press `FavoriSheet` (fiche · alerte · graduation vers la Parfumerie) |
 | 👥 **Communauté** | « Pouls éditorial » : hero « L'air du jour » (SOTD communautaire + météo + ton SOTD), défi famille hebdo (« Le geste de la semaine » → /search?family=), récap perso « Ta semaine » (7 j + Share), vitrine (top aimés, tendances, collections à découvrir, recherche pseudo), « Activité de tes suivis » (timeline unifiée verdicts + have), verdicts publics sur la fiche (« Adoré par @x, @y »), follow asymétrique. **Étagères publiques** par étagère (visibilité `is_public`), landing SSR `type=shelf` (OG + deep link), page publique `/u/[pseudo]/shelf/[id]`, bouton « M'inspirer » (copie en lot → À sentir). Profils publics opt-in, partage landing SSR (OG + deep link) |
 | ⚙️ **Paramètres** | Alertes prix, devise EUR, notifs push, mentions légales |
-| 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (swap progressif image HD upscale ×4), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
+| 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (image HD 1x, 2x réservée à la lightbox), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
 | 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |
 | 📴 **Mode hors-ligne** | Bannière réseau globale (OfflineBanner dans `_layout.tsx`), état `reconnected` 2.5s, contenu dégradé via cache Firestore local |
 | 🌓 **Dark Mode** | 3 modes (système/clair/sombre), persistance AsyncStorage, SystemUI + NavigationBar theming, keyboardAppearance adaptatif |
@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 414 tests, 44 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 415 tests, 44 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -131,12 +131,12 @@ Sillage propose un mode sombre complet disponible **sans authentification**.
 
 ```
 app/
-├── _layout.tsx               # Root : ThemeProvider → GestureHandlerRootView → AuthProvider → AuthGuard → ErrorBoundary
+├── _layout.tsx               # Root : ThemeProvider → GestureHandlerRootView → AuthProvider → AuthGuard → ErrorBoundary + handler notif prix (tap → fiche)
 ├── index.tsx                 # Splash → redirection tabs
 ├── (tabs)/
 │   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
-│   ├── favoris.tsx           # Favoris (tous les ❤️, section « Tes alertes », pills, long-press FavoriSheet, prix visibles)
+│   ├── favoris.tsx           # Favoris (tous les ❤️ + segmented Favoris/Alertes ; vue Alertes : cartes riches avec état atteint/proche, row « N objectifs atteints » filtrable, tap = édition, long-press = fiche, fallback catalogue pour alertes orphelines, long-press FavoriSheet, prix visibles)
 │   ├── collection.tsx        # Ma Parfumerie : segmented Collection|Étagères, mode Collection (grille, statuts, filtres, ♥, densités), mode Étagères (ShelfCard+rayons+tri/pin+Non classés), CRUD drag+édition, assignment long-press, ajout direct, visibilité publique + partage + gate, badge 🔔, vues système Signature/Cœurs, M'inspirer
 │   └── communaute.tsx        # Communauté « pouls éditorial » (hero air du jour, défi famille, récap « Ta semaine », les nez, l'air du temps, footer Runner)
 ├── auth/
@@ -215,7 +215,7 @@ scrape Fragrantica      données factuelles     recherche tsvector + pg_trgm
 
 - **Format** : WebP 375×500 (1x, converti depuis les vignettes scrape JPG) + WebP 1500×2000 (2x HD, upscale Real-ESRGAN)
 - **Stockage** : Supabase Storage (bucket public `parfum-images`) → `parfums/{id}/primary.webp` (1x) + `primary_2x.webp` (HD)
-- **Affichage** : listes/grilles en 1x ; fiche détail + lightbox fondent de la 1x vers la 2x (`image_url_2x`)
+- **Affichage** : listes/grilles en 1x ; lightbox seule fond de la 1x vers la 2x (`image_url_2x`) — le hero de la fiche reste en 1x (v8.22)
 - **Fallback UI** : initiale de la marque sur fond coloré (si image absente)
 
 ### Mapping des données
@@ -299,6 +299,20 @@ Le bouton unfavorite utilise un cœur avec animation heartbeat (scale bounce 250
 Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive`
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
+---
+
+## v8.22+v8.23 — Fiche détail refonte + Alertes prix (correctifs, notif, harmonisation) (01/08/2026)
+
+- **Fiche détail v8.22** : cluster prix corrigé (barre flottante synchronisée au scroll, `STICKY_TRIGGER_OFFSET`), hero allégé (partage/expand/overlay 2x retirés), un seul accent (§2.4 : chip nez neutre, teinte `perf` dataviz documentée), Reduced Motion + a11y + cibles ≥ 44 px, `usePerfVotes` remonté (1 RPC par ouverture), étoile + compte d'avis, origine `country`, longévité en heures, similaires « Ça s'en rapproche » + delta de prix, `RelationSection` compacte (split outer/inner → résumé + « Gérer », ~250 px gagnés).
+- **Alertes prix (tab Favoris)** : alertes orphelines corrigées (fallback catalogue `getParfumsByIds` — une alerte créée depuis une fiche hors-favoris reste visible, le push a une destination) ; ancre `initial_price` réparée (prix live à la création, upsert conditionnel : l'édition ne ré-ancre plus ni n'écrase `last_price` du cron) ; carte alerte riche (état « Objectif atteint » teal / « Bientôt à ta cible » orange, prix + officiel barré + dot, baisses −%/−€, a11y §6.8) ; gestes tap = édition / long-press = fiche ; tri par buckets ; recherche + titre contextuel « Alertes · N » ; EmptyState dédié.
+- **Notif → fiche** : `setNotificationHandler` (SDK 57 : `shouldShowBanner`/`shouldShowList`) + `addNotificationResponseReceivedListener` + `getLastNotificationResponse()` → le tap sur « prix atteint » ouvre la fiche du parfum. Copy cron « Baisse de prix ! » → sans « ! ».
+- **Harmonisation cross-vues** : `ParfumCard` badge 🔔 coloré par état (teal atteint / orange proche — prop `priceAlert.state`, `arePropsEqual` à jour), `AlertPriceToggle` « Objectif atteint », `PriceAlertSheet` prix actuel + « Ta cible est déjà atteinte » + garde-fou stepper ≥ 5 €.
+- **Row « N objectifs atteints »** cliquable = filtre (conforme §4.18, sans persistance).
+- **Hotfix 0048** : `personalized_suggestions` lit `user_parfum` (tables mortes `wardrobe`/`scentlist` abandonnées depuis v8.0) → « Pour vous » retrouve ses deux signaux les plus forts (have ×5, verdicts ×4/×2.5).
+- **RGPD → Supabase** : `privacy`/`privacy-center`/`legal`/`settings` — FCM → Expo Push, Firestore → Postgres (RLS), région europe-west1 → Europe (Supabase), « wishlist » supprimée.
+- **Tests** : 44 suites, 415 tests (+1 `setPriceAlert` : l'édition ne ré-ancre pas). `tsc --noEmit` : 0 erreur global.
+
+---
 ## v8.18 — Flacon Runner : obstacles thématisés parfum (éclats, abeille, goutte) (01/08/2026)
 
 - **Éclats de flacon brisé** (reskin des 4 obstacles sol) — verre violet translucide à reflets, coins irréguliers.

@@ -8,8 +8,10 @@ import Animated, {
   interpolate,
   Extrapolation,
   runOnJS,
+  useReducedMotion,
   type SharedValue,
 } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
@@ -34,6 +36,7 @@ export default function StickyBottomBar({
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
   const [barVisible, setBarVisible] = useState(false);
 
   const hasPrice = bestPrice !== undefined && bestPrice > 0;
@@ -51,6 +54,10 @@ export default function StickyBottomBar({
   );
 
   const barStyle = useAnimatedStyle(() => {
+    const shown = scrollY.value > priceSectionY.value;
+    if (reduced) {
+      return { opacity: shown ? 1 : 0, transform: [{ translateY: 0 }] };
+    }
     const progress = interpolate(
       scrollY.value,
       [priceSectionY.value, priceSectionY.value + 40],
@@ -65,9 +72,15 @@ export default function StickyBottomBar({
 
   return (
     <Animated.View pointerEvents={barVisible ? 'auto' : 'none'} style={[s.root, { paddingBottom: insets.bottom + 12 }, barStyle]}>
+      <LinearGradient
+        pointerEvents="none"
+        colors={['transparent', theme.colors.background]}
+        locations={[0, 0.55]}
+        style={s.fade}
+      />
       <View style={s.inner}>
-        <View style={s.priceCol}>
-          {hasPrice ? (
+        {hasPrice ? (
+          <View style={s.priceCol}>
             <View style={s.priceRow}>
               <Text style={s.price} numberOfLines={1}>{formatPrice(bestPrice!)}</Text>
               {discountPct !== null && discountPct > 0 && discountPct <= 95 && (
@@ -76,10 +89,8 @@ export default function StickyBottomBar({
                 </View>
               )}
             </View>
-          ) : (
-            <Text style={s.noPrice}>— €</Text>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         <SaveButton label={saveLabel} onPress={onSavePress} variant="bar" />
 
@@ -98,15 +109,22 @@ function getStyles(t: Theme) {
     root: {
       position: 'absolute' as const,
       bottom: 0,
-      left: 12,
-      right: 12,
+      left: 0,
+      right: 0,
       zIndex: 20,
-      paddingTop: 6,
+    },
+    fade: {
+      position: 'absolute' as const,
+      top: -28,
+      bottom: 0,
+      left: 0,
+      right: 0,
     },
     inner: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
       gap: 8,
+      marginHorizontal: 12,
       backgroundColor: t.colors.surface,
       borderRadius: t.radius.card,
       paddingHorizontal: 12,
@@ -124,7 +142,7 @@ function getStyles(t: Theme) {
     },
     price: {
       fontFamily: 'Inter_800ExtraBold',
-      fontSize: 18,
+      fontSize: 20,
       color: t.colors.text,
       flexShrink: 1,
     },
@@ -138,15 +156,10 @@ function getStyles(t: Theme) {
       fontFamily: 'Inter_700Bold',
       color: textOn(t.colors.deal),
     },
-    noPrice: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 15,
-      color: t.colors.textMuted,
-    },
     cta: {
       backgroundColor: t.colors.primary,
       paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingVertical: 12,
       borderRadius: t.radius.base,
       ...t.shadow.button,
     },

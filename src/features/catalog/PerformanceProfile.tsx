@@ -20,19 +20,19 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight, hapticsSuccess } from '../../services/haptics';
 import { alpha } from '../../utils/alpha';
 import { buildPerformance, perfDimensionAt, type PerfDimension, type PerfDimensionKey } from '../../utils/performance-profile';
-import { usePerfVotes } from '../../hooks/usePerfVotes';
+import { type UsePerfVotes } from '../../hooks/usePerfVotes';
 import { useAuthContext } from '../../contexts/AuthContext';
 import VotePickerSheet, { type VoteOption } from '../../components/VotePickerSheet';
 
 interface Props {
-  parfumId: string;
   longevity?: string | null;
   sillage?: string | null;
+  perfVotes: UsePerfVotes;
 }
 
 const DIM_KEYS: PerfDimensionKey[] = ['longevity', 'sillage'];
 
-export default function PerformanceProfile({ parfumId, longevity, sillage }: Props) {
+export default function PerformanceProfile({ longevity, sillage, perfVotes }: Props) {
   const { theme } = useTheme();
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -40,7 +40,7 @@ export default function PerformanceProfile({ parfumId, longevity, sillage }: Pro
   const router = useRouter();
   const { user } = useAuthContext();
 
-  const { perf, available, vote, removeVote } = usePerfVotes(parfumId);
+  const { perf, available, vote, removeVote } = perfVotes;
 
   const fallback = useMemo(() => buildPerformance(longevity, sillage), [longevity, sillage]);
 
@@ -111,7 +111,7 @@ export default function PerformanceProfile({ parfumId, longevity, sillage }: Pro
   if (displayDims.length === 0) return null;
 
   return (
-    <Animated.View style={s.root} entering={FadeIn.duration(400)}>
+    <Animated.View style={s.root} entering={FadeIn.duration(reduced ? 0 : 400)}>
       <View style={s.header}>
         <View style={s.headerRow}>
           <View style={s.headerBadge}>
@@ -197,7 +197,7 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
             onPress={handleFocus}
             style={sHeadFocus}
             accessibilityRole="button"
-            accessibilityLabel={`${dim.label} : ${dim.valueLabel}, ${dim.ticks[dim.level - 1]}`}
+            accessibilityLabel={`${dim.label} : ${dim.valueLabel}${dim.hours ? ', ' + dim.hours : ''}, ${dim.ticks[dim.level - 1]}`}
             accessibilityState={{ selected: isActive }}
           >
             <View style={[sIcon, { backgroundColor: c.perfSoft }]}>
@@ -213,8 +213,8 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
                 </Text>
               </View>
             ) : null}
-            <Text allowFontScaling={false} style={[sValue, { color: c.perfInk }]}>
-              {dim.valueLabel}
+            <Text allowFontScaling={false} numberOfLines={1} style={[sValue, { color: c.perfInk }]}>
+              {dim.hours ? `${dim.valueLabel} · ${dim.hours}` : dim.valueLabel}
             </Text>
           </Pressable>
 
@@ -315,7 +315,7 @@ function Crank({ index, lit, reached, isMyVote, litColor, trackColor, perfColor,
     <Pressable
       onPress={onFocus}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={isMyVote ? `${label}, ton vote` : label}
       style={sCrank}
     >
       <View style={sCrankInner}>
@@ -426,7 +426,7 @@ const sCrank = {
 const sCrankInner = {
   alignItems: 'center' as const,
   paddingTop: 8,
-  minHeight: 40,
+  minHeight: 44,
 } as const;
 
 const sSeg = {

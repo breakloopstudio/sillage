@@ -1,6 +1,6 @@
 // app/(tabs)/favoris.tsx — Favoris (couche intention : tous les ❤️ + alertes prix)
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
@@ -16,6 +16,7 @@ import { useFavorisViewPreference, type FavorisView } from '../../src/hooks/useF
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
+import { getParfumsByIds, getParfumById } from '../../src/services/catalog';
 import { hapticsLight, hapticsError } from '../../src/services/haptics';
 import { favoriMatchesSearch } from '../../src/utils/favori-filters';
 import { alertVariation, formatVariation, priceAlertState, priceAlertDropAbs } from '../../src/utils/price-alerts';
@@ -46,6 +47,14 @@ const DENSITY_ICON: Record<string, string> = {
   compactPlus: 'apps-outline',
   list: 'list-outline',
 };
+
+interface DisplayInfo {
+  nom: string | null;
+  marque: string | null;
+  imageUrl: string | null;
+  bestPrice?: number;
+  referencePrice?: number;
+}
 
 function favoriToCard(f: UserFavori): Parfum {
   return {
@@ -81,6 +90,10 @@ interface AlertEditTarget {
   referencePrice?: number;
 }
 
+function isReached(r: AlertRow): boolean {
+  return priceAlertState(r.targetPrice, r.currentPrice) === 'reached';
+}
+
 export default function FavorisPage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -102,20 +115,44 @@ export default function FavorisPage() {
 
   const [activePill, setActivePill] = useState<FavPillId>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [reachedOnly, setReachedOnly] = useState(false);
   const [sheetItem, setSheetItem] = useState<UserFavori | null>(null);
   const [alertTarget, setAlertTarget] = useState<AlertEditTarget | null>(null);
+  const [catalogFallback, setCatalogFallback] = useState<Map<string, DisplayInfo>>(new Map());
 
-  const displayMap = useMemo(() => {
-    const m = new Map<string, { nom: string | null; marque: string | null; imageUrl: string | null; bestPrice?: number; referencePrice?: number }>();
-    for (const up of items) m.set(up.parfumId, { nom: up.nom, marque: up.marque, imageUrl: up.imageUrl, bestPrice: up.bestPrice });
+  const displayMap = useMemo<Map<string, DisplayInfo>>(() => {
+    const m = new Map<string, DisplayInfo>();
+    for (const up of items) m.set(up.parfumId, { nom: up.nom, marque: up.marque, imageUrl: up.imageUrl, bestPrice: up.bestPrice, referencePrice: up.referencePrice });
     for (const f of favoris) m.set(f.parfumId, { nom: f.nom ?? null, marque: f.marque ?? null, imageUrl: f.imageUrl ?? null, bestPrice: f.bestPrice, referencePrice: f.referencePrice });
     return m;
   }, [items, favoris]);
 
+  // Alertes orphelines : un parfum alerté depuis une fiche (ni favori ni en parfumerie)
+  // n'est dans aucune source utilisateur. On le résout via le catalogue pour qu'il reste
+  // visible (sinon le push « prix atteint » pointerait vers une alerte invisible).
+  const orphanIds = useMemo(() => alerts.filter(a => !displayMap.has(a.parfumId)).map(a => a.parfumId), [alerts, displayMap]);
+  useEffect(() => {
+    let cancelled = false;
+    if (orphanIds.length === 0) { setCatalogFallback(new Map()); return; }
+    getParfumsByIds(orphanIds).then((list) => {
+      if (cancelled) return;
+      const m = new Map<string, DisplayInfo>();
+      for (const p of list) m.set(p.id, { nom: p.nom, marque: p.marque, imageUrl: p.imageUrl ?? null, bestPrice: p.bestPrice, referencePrice: p.referencePrice });
+      setCatalogFallback(m);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [orphanIds]);
+
+  const mergedDisplay = useMemo<Map<string, DisplayInfo>>(() => {
+    const m = new Map(catalogFallback);
+    displayMap.forEach((v, k) => m.set(k, v));
+    return m;
+  }, [displayMap, catalogFallback]);
+
   const alertRows = useMemo<AlertRow[]>(() => {
     const rows: AlertRow[] = [];
     for (const a of alerts) {
-      const d = displayMap.get(a.parfumId);
+      const d = mergedDisplay.get(a.parfumId);
       if (!d) continue;
       const currentPrice = a.lastPrice ?? d.bestPrice ?? null;
       rows.push({
@@ -131,17 +168,28 @@ export default function FavorisPage() {
       });
     }
     return rows.sort((x, y) => {
-      const rx = priceAlertState(x.targetPrice, x.currentPrice) === 'reached' ? 1 : 0;
-      const ry = priceAlertState(y.targetPrice, y.currentPrice) === 'reached' ? 1 : 0;
-      return ry - rx || (x.variation ?? 0) - (y.variation ?? 0);
+      const bucket = (r: AlertRow) => {
+        if (isReached(r)) return 0;
+        const da = priceAlertDropAbs(r.initialPrice, r.currentPrice);
+        return da != null && da !== 0 ? 1 : 2;
+      };
+      const bx = bucket(x);
+      const by = bucket(y);
+      if (bx !== by) return bx - by;
+      if (bx === 1) return (priceAlertDropAbs(x.initialPrice, x.currentPrice) ?? 0) - (priceAlertDropAbs(y.initialPrice, y.currentPrice) ?? 0);
+      return (x.variation ?? 0) - (y.variation ?? 0);
     });
-  }, [alerts, displayMap]);
+  }, [alerts, mergedDisplay]);
+
+  const reachedCount = useMemo(() => alertRows.filter(isReached).length, [alertRows]);
 
   const alertRowsFiltered = useMemo(() => {
+    let r = alertRows;
+    if (reachedOnly && reachedCount > 0) r = r.filter(isReached);
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return alertRows;
-    return alertRows.filter(r => r.nom.toLowerCase().includes(q) || r.marque.toLowerCase().includes(q));
-  }, [alertRows, searchQuery]);
+    if (q) r = r.filter(x => x.nom.toLowerCase().includes(q) || x.marque.toLowerCase().includes(q));
+    return r;
+  }, [alertRows, reachedOnly, reachedCount, searchQuery]);
 
   const pillCounts = useMemo(() => {
     const counts: Record<FavPillId, number> = { all: favoris.length, untreated: 0 };
@@ -166,7 +214,7 @@ export default function FavorisPage() {
     router.push(`/catalog/${f.parfumId}`);
   }, [router]);
 
-  const handleLongPress = useCallback((f: UserFavori) => setSheetItem(f), []);
+  const handleLongPress = useCallback((f: UserFavori) => { hapticsLight(); setSheetItem(f); }, []);
 
   const handleSheetView = useCallback(() => {
     if (sheetItem) handleCardPress(sheetItem);
@@ -202,12 +250,27 @@ export default function FavorisPage() {
     setSheetItem(null);
   }, [sheetItem, removeFavori]);
 
-  const handleAlertSave = useCallback((active: boolean, targetPrice: number | null) => {
-    if (alertTarget) {
-      setAlert(alertTarget.parfumId, active, { targetPrice, currentPrice: alertTarget.bestPrice }).catch(() => { hapticsError(); });
-    }
+  const handleAlertSave = useCallback(async (active: boolean, targetPrice: number | null) => {
+    if (!alertTarget) { setAlertTarget(null); return; }
+    try {
+      if (active) {
+        const isCreate = !byParfumId.has(alertTarget.parfumId);
+        if (isCreate) {
+          let currentPrice = alertTarget.bestPrice;
+          try {
+            const live = (await getParfumById(alertTarget.parfumId))?.bestPrice;
+            if (live != null) currentPrice = live;
+          } catch { /* fallback sur le prix dénormalisé */ }
+          await setAlert(alertTarget.parfumId, true, { targetPrice, currentPrice });
+        } else {
+          await setAlert(alertTarget.parfumId, true, { targetPrice });
+        }
+      } else {
+        await setAlert(alertTarget.parfumId, false);
+      }
+    } catch { hapticsError(); }
     setAlertTarget(null);
-  }, [alertTarget, setAlert]);
+  }, [alertTarget, byParfumId, setAlert]);
 
   const handleAlertCardPress = useCallback((row: AlertRow) => {
     setAlertTarget({
@@ -221,11 +284,13 @@ export default function FavorisPage() {
   }, []);
 
   const handleAlertLongPress = useCallback((row: AlertRow) => {
+    hapticsLight();
     router.push(`/catalog/${row.parfumId}`);
   }, [router]);
 
   const handlePillTap = useCallback((pill: FavPillId) => { hapticsLight(); setActivePill(pill); }, []);
-  const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setViewPref(v); }, [setViewPref]);
+  const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setSearchQuery(''); setReachedOnly(false); setViewPref(v); }, [setViewPref]);
+  const handleToggleReached = useCallback(() => { hapticsLight(); setReachedOnly(v => !v); }, []);
   const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
 
   const gridNumCols = density === 'list' ? 1 : 2;
@@ -234,14 +299,16 @@ export default function FavorisPage() {
   const renderItem = useCallback(({ item }: { item: UserFavori }) => {
     const status = statusByParfumId.get(item.parfumId) ?? null;
     const alert = byParfumId.get(item.parfumId) ?? null;
-    const variation = alert ? alertVariation(alert.initialPrice, alert.lastPrice ?? item.bestPrice ?? null) : null;
+    const currentPrice = alert ? (alert.lastPrice ?? item.bestPrice ?? null) : null;
+    const variation = alert ? alertVariation(alert.initialPrice, currentPrice) : null;
+    const alertState = alert ? priceAlertState(alert.targetPrice, currentPrice) : null;
     return (
       <View style={gridNumCols === 2 ? s.gridItemWrap : s.listItemWrap}>
         <ParfumCard
           parfum={favoriToCard(item)}
           mode={density}
           status={status}
-          priceAlert={alert ? { variation } : null}
+          priceAlert={alert ? { variation, state: alertState } : null}
           onPressOverride={() => handleCardPress(item)}
           onLongPress={() => handleLongPress(item)}
         />
@@ -313,6 +380,8 @@ export default function FavorisPage() {
       </View>
     </View>
   );
+
+  const reachedLabel = `${reachedCount} objectif${reachedCount > 1 ? 's' : ''} atteint${reachedCount > 1 ? 's' : ''}`;
 
   const sheetStatus = sheetItem ? statusByParfumId.get(sheetItem.parfumId) ?? null : null;
   const sheetHasAlert = sheetItem ? byParfumId.has(sheetItem.parfumId) : false;
@@ -403,10 +472,24 @@ export default function FavorisPage() {
           windowSize={5}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
-          extraData={resolvedMode}
           ListHeaderComponent={
             <View>
               {topChrome}
+              {reachedCount > 0 ? (
+                <Pressable
+                  style={[s.reachedRow, reachedOnly && s.reachedRowActive]}
+                  onPress={handleToggleReached}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: reachedOnly }}
+                  accessibilityLabel={reachedLabel}
+                >
+                  <View style={s.reachedRowLeft}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={reachedOnly ? theme.colors.dealInk : theme.colors.deal} accessible={false} />
+                    <Text style={[s.reachedRowText, reachedOnly && s.reachedRowTextActive]} allowFontScaling={false}>{reachedLabel}</Text>
+                  </View>
+                  <Ionicons name={reachedOnly ? 'close-outline' : 'chevron-forward'} size={16} color={theme.colors.textMuted} accessible={false} />
+                </Pressable>
+              ) : null}
               {alertRows.length > 0 ? renderSearchRow('Nom ou marque...') : null}
             </View>
           }
@@ -420,7 +503,7 @@ export default function FavorisPage() {
             ) : (
               <View style={s.emptyFilter}>
                 <Ionicons name="search-outline" size={28} color={theme.colors.textMuted} />
-                <Text style={s.emptyFilterText}>Aucune alerte ne correspond à cette recherche</Text>
+                <Text style={s.emptyFilterText}>Aucune alerte ne correspond à cette vue</Text>
               </View>
             )
           }
@@ -428,7 +511,9 @@ export default function FavorisPage() {
             const tier = priceTier(row.currentPrice, row.referencePrice);
             const dropAbs = priceAlertDropAbs(row.initialPrice, row.currentPrice);
             const state = priceAlertState(row.targetPrice, row.currentPrice);
-            const a11y = `${row.marque} ${row.nom}${row.currentPrice != null ? `, ${formatPrice(row.currentPrice, { decimals: 0 })}` : ''}${state === 'reached' ? ', objectif atteint' : row.variation != null ? `, ${formatVariation(row.variation)}` : ', en veille'}`;
+            const tierLabel = tier === 'deal' ? ', bonne affaire' : tier === 'fair' ? ', prix correct' : tier === 'overpriced' ? ', trop cher' : '';
+            const stateLabel = state === 'reached' ? ', objectif atteint' : state === 'near' ? ', bientôt à ta cible' : row.variation != null ? `, ${formatVariation(row.variation)}` : ', en veille';
+            const a11y = `${row.marque} ${row.nom}${row.currentPrice != null ? `, ${formatPrice(row.currentPrice, { decimals: 0 })}` : ''}${tierLabel}${stateLabel}`;
             return (
               <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} onLongPress={() => handleAlertLongPress(row)} accessibilityRole="button" accessibilityLabel={a11y}>
                 {row.imageUrl ? (
@@ -530,6 +615,16 @@ function getStyles(t: Theme) {
     segmentActive: { backgroundColor: t.colors.surface, ...t.shadow.card },
     segmentText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
     segmentTextActive: { fontFamily: 'Inter_600SemiBold', color: t.colors.text },
+
+    reachedRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: t.colors.surface, borderRadius: t.radius.card, padding: 12,
+      borderWidth: 1, borderColor: t.colors.border, marginBottom: 10, ...t.shadow.card,
+    },
+    reachedRowActive: { backgroundColor: t.colors.dealSoft, borderColor: t.colors.deal },
+    reachedRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    reachedRowText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.deal },
+    reachedRowTextActive: { color: t.colors.dealInk },
 
     alertCard: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 12,

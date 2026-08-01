@@ -17,7 +17,7 @@ import { formatPrice } from '../utils/format-price';
 import FavButton from './FavButton';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { statusChipMeta, type StatusChipId } from '../utils/status-chips';
-import { formatVariation } from '../utils/price-alerts';
+import { formatVariation, priceAlertState, type PriceAlertState } from '../utils/price-alerts';
 import type { UserParfumStatus } from '../models/user-parfum.interface';
 
 export type CardMode = 'carousel' | 'comfortable' | 'compactPlus' | 'list';
@@ -39,8 +39,8 @@ interface Props {
   hidePrice?: boolean;
   /** Preuve sociale communautaire — chip « ♥ n » (gaté ≥3 interne). Passé depuis Communauté uniquement. */
   socialLoves?: number;
-  /** Alerte prix active — badge 🔔 + variation depuis l'activation. */
-  priceAlert?: { variation: number | null } | null;
+  /** Alerte prix active — badge 🔔 + variation depuis l'activation + état (atteint/proche). */
+  priceAlert?: { variation: number | null; state?: PriceAlertState | null } | null;
 }
 
 function getDiscount(p: Parfum): number | null {
@@ -145,8 +145,9 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
   const renderBadges = () => {
     if (!statusMeta && !showRating && !showAlert) return null;
     const bs = statusMeta ? s.statusColors[statusMeta.id] : null;
-    const alertBg = alertIsDrop ? theme.colors.dealSoft : theme.colors.primarySoft;
-    const alertInk = alertIsDrop ? theme.colors.dealInk : theme.colors.primaryInk;
+    const alertState = priceAlert?.state ?? null;
+    const alertBg = alertState === 'reached' ? theme.colors.dealSoft : alertState === 'near' ? theme.colors.fairSoft : alertIsDrop ? theme.colors.dealSoft : theme.colors.primarySoft;
+    const alertInk = alertState === 'reached' ? theme.colors.dealInk : alertState === 'near' ? theme.colors.fairInk : alertIsDrop ? theme.colors.dealInk : theme.colors.primaryInk;
     return (
       <View style={s.statusRow}>
         {statusMeta && bs ? (
@@ -401,7 +402,8 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.rating === next.rating &&
     prev.hidePrice === next.hidePrice &&
     prev.socialLoves === next.socialLoves &&
-    (prev.priceAlert?.variation ?? null) === (next.priceAlert?.variation ?? null)
+    (prev.priceAlert?.variation ?? null) === (next.priceAlert?.variation ?? null) &&
+    (prev.priceAlert?.state ?? null) === (next.priceAlert?.state ?? null)
   );
 }
 

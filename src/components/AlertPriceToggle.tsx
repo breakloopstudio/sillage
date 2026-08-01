@@ -7,6 +7,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { usePriceAlertsContext } from '../contexts/PriceAlertsContext';
 import { formatPrice } from '../utils/format-price';
+import { priceAlertState } from '../utils/price-alerts';
 import PriceAlertSheet from './PriceAlertSheet';
 
 interface Props {
@@ -27,6 +28,7 @@ export default function AlertPriceToggle({ parfumId, uid, currentPrice, referenc
 
   const alert = byParfumId.get(parfumId) ?? null;
   const active = alert !== null;
+  const reached = active && priceAlertState(alert?.targetPrice ?? null, currentPrice ?? null) === 'reached';
 
   const openSheet = useCallback(() => setSheetVisible(true), []);
   const closeSheet = useCallback(() => setSheetVisible(false), []);
@@ -35,18 +37,23 @@ export default function AlertPriceToggle({ parfumId, uid, currentPrice, referenc
     setSheetVisible(false);
   }, [parfumId, currentPrice, setAlert]);
 
-  const desc = active
-    ? (alert?.targetPrice != null ? `Cible ${formatPrice(alert.targetPrice, { decimals: 0 })} — tu seras notifié` : 'Activée — tu seras notifié')
-    : 'Sois prévenu quand le prix baisse';
+  const desc = reached
+    ? 'Objectif atteint'
+    : active
+      ? (alert?.targetPrice != null ? `Cible ${formatPrice(alert.targetPrice, { decimals: 0 })} — tu seras notifié` : 'Activée — tu seras notifié')
+      : 'Sois prévenu quand le prix baisse';
+
+  const iconName = reached ? 'checkmark-circle' : active ? 'notifications' : 'notifications-outline';
+  const iconColor = reached ? theme.colors.deal : active ? theme.colors.primary : theme.colors.textMuted;
 
   return (
     <>
       <Pressable onPress={openSheet} style={s.row} accessibilityRole="button" accessibilityLabel="Alerte prix">
         <View style={s.left}>
-          <Ionicons name={active ? 'notifications' : 'notifications-outline'} size={20} color={active ? theme.colors.primary : theme.colors.textMuted} />
+          <Ionicons name={iconName as never} size={20} color={iconColor} />
           <View style={s.textWrap}>
             <Text style={s.label}>Alerte prix</Text>
-            <Text style={s.desc}>{desc}</Text>
+            <Text style={[s.desc, reached && s.descReached]}>{desc}</Text>
           </View>
         </View>
         <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
@@ -95,6 +102,10 @@ function getStyles(t: Theme) {
       fontSize: 12,
       color: t.colors.textMuted,
       marginTop: 1,
+    },
+    descReached: {
+      color: t.colors.dealInk,
+      fontFamily: 'Inter_600SemiBold',
     },
   } as const;
 }

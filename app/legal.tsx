@@ -51,7 +51,7 @@ export default function LegalPage() {
             {LEGAL_HOST_NAME}{'\n'}
             {LEGAL_HOST_ADDRESS}{'\n'}
             Tél. : {LEGAL_HOST_PHONE}{'\n\n'}
-            Les données sont stockées dans la région europe-west1 (Belgique).
+            Les données sont stockées dans la région Europe.
           </Text>
         </View>
 

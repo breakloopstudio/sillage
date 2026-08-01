@@ -16,7 +16,7 @@ import Animated, {
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 import { alpha } from '../../utils/alpha';
-import { getNoteDescription, getNoteEmoji } from '../../utils/note-descriptions';
+import { getNoteDescription } from '../../utils/note-descriptions';
 import { buildAccords, type AccordRow } from '../../utils/accord-profile';
 
 interface Props {
@@ -47,11 +47,11 @@ export default function AccordProfile({ accords, percentages }: Props) {
   if (rows.length === 0) return null;
 
   return (
-    <Animated.View style={s.root} entering={FadeIn.duration(400)}>
+    <Animated.View style={s.root} entering={FadeIn.duration(reduced ? 0 : 400)}>
       <View style={s.header}>
         <View style={s.headerRow}>
           <View style={s.headerBadge}>
-            <Ionicons name="color-filter-outline" size={14} color={c.primary} />
+            <Ionicons name="color-filter-outline" size={14} color={c.primaryInk} />
           </View>
           <Text style={s.title}>Accords principaux</Text>
         </View>
@@ -98,7 +98,7 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
     emph.value = withTiming(isActive ? 1 : anyActive ? -1 : 0, { duration: reduced ? 0 : 250 });
   }, [isActive, anyActive]);
 
-  const ringColor = alpha(color, 0.5);
+  const ringColor = alpha(color, 0.4);
 
   const labelStyle = useAnimatedStyle(() => ({
     fontSize: isChar
@@ -123,7 +123,6 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
 
   const description = getNoteDescription(row.raw);
   const hasDesc = !!description && description.trim().length > 0;
-  const emoji = getNoteEmoji(row.raw);
 
   const barH = isChar ? 10 : 6;
 
@@ -132,7 +131,7 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
       <Pressable
         onPress={handlePress}
         accessibilityRole="button"
-        accessibilityLabel={`${row.display}${row.label ? ', ' + row.label : ''}`}
+        accessibilityLabel={`${row.display}, ${row.pct} %${row.label ? ', ' + row.label : ''}`}
         accessibilityState={{ selected: isActive }}
         style={sRow}
       >
@@ -147,7 +146,7 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
             {row.display}
           </Animated.Text>
           {row.label ? (
-            <Animated.Text allowFontScaling={false} style={[sQual, { color }, qualStyle]}>
+            <Animated.Text allowFontScaling={false} style={[sQual, { color: isActive ? color : c.textMuted }, qualStyle]}>
               {row.label}
             </Animated.Text>
           ) : null}
@@ -167,7 +166,6 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
         {isActive && hasDesc ? (
           <Animated.View entering={FadeInDown.duration(reduced ? 0 : 220)} style={sEmanation}>
             <View style={[sEmanBar, { backgroundColor: color }]} />
-            <Text style={{ fontSize: 14 }}>{emoji}</Text>
             <Text maxFontSizeMultiplier={1.3} style={[sEmanText, { color: c.textMuted }]}>
               {description}
             </Text>

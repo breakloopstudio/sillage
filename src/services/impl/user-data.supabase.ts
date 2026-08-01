@@ -263,19 +263,38 @@ export async function setPriceAlert(uid: string, parfumId: string, active: boole
   if (active) {
     try {
       const now = new Date().toISOString();
-      const current = opts?.currentPrice ?? null;
-      const { error } = await supabase.from('price_alerts').upsert({
-        user_id: uid,
-        parfum_id: parfumId,
-        added_at: now,
-        last_price: current,
-        last_checked: now,
-        initial_price: current,
-        target_price: opts?.targetPrice ?? null,
-      });
-      if (error) throw error;
+      const target = opts?.targetPrice ?? null;
+      // Édition vs création : l'ancre (initial_price/last_price) n'est posée qu'à la
+      // 1ʳᵉ activation. Une édition (cible/mode) met à jour target_price sans ré-ancrer
+      // ni écraser le last_price frais du cron.
+      const { data: existing } = await supabase
+        .from('price_alerts')
+        .select('parfum_id')
+        .eq('user_id', uid)
+        .eq('parfum_id', parfumId)
+        .maybeSingle();
+      if (existing) {
+        const { error } = await supabase
+          .from('price_alerts')
+          .update({ target_price: target, last_checked: now })
+          .eq('user_id', uid)
+          .eq('parfum_id', parfumId);
+        if (error) throw error;
+      } else {
+        const current = opts?.currentPrice ?? null;
+        const { error } = await supabase.from('price_alerts').upsert({
+          user_id: uid,
+          parfum_id: parfumId,
+          added_at: now,
+          last_price: current,
+          last_checked: now,
+          initial_price: current,
+          target_price: target,
+        });
+        if (error) throw error;
+      }
     } catch (e: unknown) {
-      console.warn('[user-data] setPriceAlert upsert failed:', (e as Error)?.message ?? String(e));
+      console.warn('[user-data] setPriceAlert failed:', (e as Error)?.message ?? String(e));
       throw e;
     }
   } else {

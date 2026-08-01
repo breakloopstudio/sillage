@@ -1,7 +1,7 @@
 ﻿import { useState, useCallback, useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 import { pickInitialLayer, type LayerKey } from './pyramid/geometry';
@@ -82,6 +82,8 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
     [onNotePress],
   );
 
+  const reduced = useReducedMotion();
+
   const hasAnyNotes = layers.some(l => l.notes.length > 0);
 
   if (!hasAnyNotes) {
@@ -100,11 +102,11 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
     };
 
     return (
-      <Animated.View style={s.root} entering={FadeIn.duration(400)}>
+      <Animated.View style={s.root} entering={FadeIn.duration(reduced ? 0 : 400)}>
         <View style={s.header}>
           <View style={s.headerRow}>
             <View style={s.headerBadge}>
-              <Ionicons name="layers-outline" size={14} color={c.primary} />
+              <Ionicons name="layers-outline" size={14} color={c.primaryInk} />
             </View>
             <Text style={s.title}>Notes</Text>
           </View>
@@ -115,12 +117,12 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
   }
 
   return (
-    <Animated.View style={s.root} entering={FadeIn.duration(400)}>
+    <Animated.View style={s.root} entering={FadeIn.duration(reduced ? 0 : 400)}>
       <View style={s.header}>
         <View style={s.headerBar}>
           <View style={s.headerRow}>
             <View style={s.headerBadge}>
-              <Ionicons name="layers-outline" size={14} color={c.primary} />
+              <Ionicons name="layers-outline" size={14} color={c.primaryInk} />
             </View>
             <Text style={s.title}>Pyramide olfactive</Text>
           </View>

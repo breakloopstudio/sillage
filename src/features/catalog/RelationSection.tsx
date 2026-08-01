@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, Alert, StyleSheet } from 'react-native';
+import { useMemo, useCallback } from 'react';
+import { View, Text, Pressable, Alert } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -7,19 +7,12 @@ import { useUserParfumContext } from '../../contexts/UserParfumContext';
 import { usePossessions } from '../../hooks/usePossessions';
 import { useShelvesContext } from '../../contexts/ShelvesContext';
 import { useSotd } from '../../hooks/useSotd';
-import { hapticsLight, hapticsError } from '../../services/haptics';
+import { hapticsLight } from '../../services/haptics';
 import { STATUS_CHIPS, chipForStatus } from '../../utils/status-chips';
 import { VERDICT_OPTIONS } from '../../utils/verdicts';
 import StarRating from '../wardrobe/StarRating';
 import { useSaveController } from './useSaveController';
 import type { Parfum } from '../../models';
-import type { UserParfumStatus, ScentVerdict, PossessionType } from '../../models/user-parfum.interface';
-
-const POSSESSION_META: Record<PossessionType, { label: string; icon: string }> = {
-  bottle: { label: 'Flacon', icon: 'flask-outline' },
-  decant: { label: 'Décant', icon: 'water-outline' },
-  sample: { label: 'Échantillon', icon: 'eyedrop-outline' },
-};
 
 const MAX_SIGNATURES = 3;
 
@@ -28,59 +21,33 @@ interface Props {
   save: ReturnType<typeof useSaveController>;
 }
 
+// Outer : lit seulement l'item. Aucun hook de données → pas de fetch à vide
+// quand il n'y a pas de relation (perf). L'édition lourde (statut, verdict,
+// possessions, notes, retirer) vit dans la SaveSheet via « Gérer ».
 export default function RelationSection({ parfum, save }: Props) {
-  const { theme, resolvedMode } = useTheme();
+  if (!save.item) return null;
+  return <RelationInner parfum={parfum} save={save} />;
+}
+
+function RelationInner({ parfum, save }: Props) {
+  const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user } = useAuthContext();
   const uid = user?.uid ?? null;
-  const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
-  const { item, setStatus, setVerdict, setRating, setNotes, toggleShelf, toggleSignature, remove } = save;
+  const { item, setRating, toggleShelf, toggleSignature, openSaveSheet } = save;
 
   const { items: allItems } = useUserParfumContext();
   const signatureCount = useMemo(() => allItems.filter(i => i.isSignature).length, [allItems]);
 
-  const { items: possessions, add: addPossession, remove: removePossession } = usePossessions(uid, parfum.id);
+  const { items: possessions } = usePossessions(uid, parfum.id);
   const { shelves } = useShelvesContext();
   const { sotd, setTodaySotd } = useSotd(uid);
-
-  const [showNotesEdit, setShowNotesEdit] = useState(false);
-  const [notesDraft, setNotesDraft] = useState('');
-
-  useEffect(() => {
-    setNotesDraft(item?.notes ?? '');
-  }, [item?.parfumId]);
-
-  const handleStatus = useCallback((st: UserParfumStatus) => {
-    if (!item || chipForStatus(item.status) === chipForStatus(st)) return;
-    hapticsLight();
-    setStatus(st);
-  }, [item, setStatus]);
-
-  const handleVerdict = useCallback((v: ScentVerdict) => {
-    if (!item) return;
-    hapticsLight();
-    setVerdict(v);
-  }, [item, setVerdict]);
 
   const handleRating = useCallback((r: number) => {
     hapticsLight();
     setRating(r === 0 ? null : r);
   }, [setRating]);
-
-  const handleAddPossession = useCallback(async (type: PossessionType) => {
-    if (!item) return;
-    hapticsLight();
-    try {
-      await addPossession(type);
-      if (item.status === 'to_try' || item.status === 'tried' || item.status === 'want') {
-        setStatus('have');
-      }
-    } catch (e: unknown) {
-      console.warn('[relation] addPossession failed:', (e as Error)?.message ?? String(e));
-      hapticsError();
-    }
-  }, [item, addPossession, setStatus]);
 
   const handleToggleShelf = useCallback((shelfId: string) => {
     hapticsLight();
@@ -105,122 +72,90 @@ export default function RelationSection({ parfum, save }: Props) {
     setTodaySotd(item).catch(() => {});
   }, [item, isSotd, setTodaySotd]);
 
-  const handleSaveNotes = useCallback(() => {
-    setNotes(notesDraft.trim() || null);
-    setShowNotesEdit(false);
-  }, [notesDraft, setNotes]);
-
-  const handleRemove = useCallback(() => {
-    Alert.alert('Retirer', 'Retirer ce parfum de ta parfumerie ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Retirer', style: 'destructive', onPress: () => { hapticsLight(); remove(); } },
-    ]);
-  }, [remove]);
-
-  if (!item) return null;
-
-  const showVerdict = item.status !== 'to_try' && item.status !== 'want';
-  const showPossessions = item.status === 'have';
+  // item est garanti non null par le outer.
+  const statusChip = STATUS_CHIPS.find(c => c.id === chipForStatus(item!.status)) ?? null;
+  const verdictOpt = item!.verdict ? VERDICT_OPTIONS.find(o => o.key === item!.verdict) ?? null : null;
+  const showVerdict = item!.status !== 'to_try' && item!.status !== 'want';
+  const possessionCount = possessions.length;
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={s.summaryRow}>
         <View style={s.headerIconWrap}>
-          <Ionicons name="bookmark-outline" size={14} color={theme.colors.primaryInk} />
+          <Ionicons name="bookmark" size={14} color={theme.colors.primaryInk} />
         </View>
         <Text style={s.headerTitle}>Ma relation</Text>
-      </View>
 
-      <View style={s.chips}>
-        {STATUS_CHIPS.map(chip => {
-          const active = chipForStatus(item.status) === chip.id;
-          return (
-            <Pressable
-              key={chip.id}
-              style={[s.chip, active && s.chipActive]}
-              onPress={() => handleStatus(chip.status)}
-              hitSlop={{ top: 4, bottom: 4 }}
-              accessibilityRole="button"
-              accessibilityLabel={active ? `${chip.label} (sélectionné)` : chip.label}
-            >
-              <Ionicons name={chip.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
-              <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false}>{chip.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {showVerdict ? (
-        <View style={s.block}>
-          <Text style={s.subLabel}>Ton verdict</Text>
-          <View style={s.chips}>
-            {VERDICT_OPTIONS.map(opt => {
-              const active = item.verdict === opt.key;
-              const color = (theme.colors as Record<string, string>)[opt.token];
-              const soft = `${opt.token}Soft`;
-              return (
-                <Pressable
-                  key={opt.key}
-                  style={[s.chip, active ? { backgroundColor: (theme.colors as Record<string, string>)[soft], borderColor: color } : null]}
-                  onPress={() => handleVerdict(opt.key)}
-                  hitSlop={{ top: 4, bottom: 4 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={opt.label}
-                >
-                  <Ionicons name={opt.icon as never} size={14} color={active ? color : theme.colors.textMuted} />
-                  <Text style={[s.chipText, active ? { color } : null]} allowFontScaling={false}>{opt.label}</Text>
-                </Pressable>
-              );
-            })}
+        {statusChip ? (
+          <View style={s.readChip}>
+            <Ionicons name={statusChip.icon as never} size={13} color={theme.colors.primaryInk} />
+            <Text style={s.readChipText} allowFontScaling={false}>{statusChip.label}</Text>
           </View>
-        </View>
-      ) : null}
+        ) : null}
+
+        {verdictOpt ? (
+          <View style={[s.readChip, { backgroundColor: (theme.colors as Record<string, string>)[`${verdictOpt.token}Soft`] }]}>
+            <Ionicons name={verdictOpt.icon as never} size={13} color={(theme.colors as Record<string, string>)[verdictOpt.token]} />
+            <Text style={[s.readChipText, { color: (theme.colors as Record<string, string>)[verdictOpt.token] }]} allowFontScaling={false}>{verdictOpt.label}</Text>
+          </View>
+        ) : null}
+
+        {possessionCount > 0 ? (
+          <View style={s.readChip}>
+            <Ionicons name="flask-outline" size={13} color={theme.colors.textMuted} />
+            <Text style={s.readChipMuted} allowFontScaling={false}>{possessionCount}</Text>
+          </View>
+        ) : null}
+
+        <Pressable
+          style={s.manageBtn}
+          onPress={openSaveSheet}
+          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Gérer ma relation"
+        >
+          <Text style={s.manageText}>Gérer</Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
+        </Pressable>
+      </View>
 
       {showVerdict ? (
         <View style={s.block}>
           <Text style={s.subLabel}>Ta note</Text>
-          <StarRating rating={item.rating ?? 0} size={28} onChange={handleRating} />
+          <StarRating rating={item!.rating ?? 0} size={26} onChange={handleRating} />
         </View>
       ) : null}
 
-      {showPossessions ? (
-        <View style={s.block}>
-          <Text style={s.subLabel}>Mes possessions</Text>
-          {possessions.length === 0 ? (
-            <Text style={s.emptyHint}>Aucun objet enregistré.</Text>
-          ) : (
-            possessions.map(p => (
-              <View key={p.id} style={s.possessionRow}>
-                <Ionicons name={POSSESSION_META[p.type].icon as never} size={18} color={theme.colors.textMuted} />
-                <Text style={s.possessionLabel}>
-                  {POSSESSION_META[p.type].label}
-                  {p.sizeMl ? ` · ${p.sizeMl} ml` : ''}
-                  {p.quantity > 1 ? ` ×${p.quantity}` : ''}
-                  {p.forSale ? ' · à vendre' : ''}
-                </Text>
-                <Pressable onPress={() => removePossession(p.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Supprimer">
-                  <Ionicons name="close" size={16} color={theme.colors.overpriced} />
-                </Pressable>
-              </View>
-            ))
-          )}
-          <View style={s.chips}>
-            {(Object.keys(POSSESSION_META) as PossessionType[]).map(type => (
-              <Pressable key={type} style={s.chip} onPress={() => handleAddPossession(type)} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel={`Ajouter ${POSSESSION_META[type].label.toLowerCase()}`}>
-                <Ionicons name="add" size={14} color={theme.colors.textMuted} />
-                <Text style={s.chipText} allowFontScaling={false}>{POSSESSION_META[type].label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ) : null}
+      <View style={s.toggleRow}>
+        <Pressable
+          style={[s.toggleChip, item!.isSignature && s.toggleChipActive]}
+          onPress={handleToggleSignature}
+          hitSlop={{ top: 4, bottom: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel={item!.isSignature ? 'Parfum signature (activé)' : 'Définir comme signature'}
+        >
+          <Ionicons name={item!.isSignature ? 'star' : 'star-outline'} size={14} color={item!.isSignature ? theme.colors.secondary : theme.colors.textMuted} />
+          <Text style={[s.toggleText, item!.isSignature && s.toggleTextActive]} allowFontScaling={false}>Signature</Text>
+        </Pressable>
+
+        <Pressable
+          style={[s.toggleChip, isSotd && s.toggleChipActive]}
+          onPress={handleSotd}
+          hitSlop={{ top: 4, bottom: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel={isSotd ? 'Porté aujourd’hui (activé)' : 'Marquer comme porté aujourd’hui'}
+        >
+          <Ionicons name={isSotd ? 'checkmark-circle' : 'sunny-outline'} size={14} color={isSotd ? theme.colors.primary : theme.colors.textMuted} />
+          <Text style={[s.toggleText, isSotd && s.toggleTextActive]} allowFontScaling={false}>Aujourd’hui</Text>
+        </Pressable>
+      </View>
 
       {shelves.length > 0 ? (
         <View style={s.block}>
           <Text style={s.subLabel}>Étagères</Text>
           <View style={s.chips}>
             {shelves.map(sh => {
-              const assigned = item.shelfIds.includes(sh.id);
+              const assigned = item!.shelfIds.includes(sh.id);
               return (
                 <Pressable
                   key={sh.id}
@@ -238,60 +173,6 @@ export default function RelationSection({ parfum, save }: Props) {
           </View>
         </View>
       ) : null}
-
-      <Pressable style={s.actionRow} onPress={handleToggleSignature} accessibilityRole="button" accessibilityLabel="Parfum signature">
-        <Ionicons name={item.isSignature ? 'star' : 'star-outline'} size={18} color={item.isSignature ? theme.colors.secondary : theme.colors.textMuted} />
-        <Text style={[s.actionLabel, item.isSignature && s.actionLabelActive]}>
-          {item.isSignature ? 'Parfum signature' : 'Définir comme signature'}
-        </Text>
-        <Text style={s.actionMeta} allowFontScaling={false}>{signatureCount}/{MAX_SIGNATURES}</Text>
-      </Pressable>
-
-      <Pressable style={[s.actionRow, isSotd && s.actionRowActive]} onPress={handleSotd} accessibilityRole="button" accessibilityLabel="Parfum du jour">
-        <Ionicons name={isSotd ? 'checkmark-circle' : 'sunny-outline'} size={18} color={isSotd ? theme.colors.primary : theme.colors.textMuted} />
-        <Text style={[s.actionLabel, isSotd && s.actionLabelActive]}>
-          {isSotd ? 'Porté aujourd\u2019hui' : 'Marquer comme porté aujourd\u2019hui'}
-        </Text>
-      </Pressable>
-
-      <View style={s.block}>
-        <Text style={s.subLabel}>Mes notes</Text>
-        {showNotesEdit ? (
-          <View style={s.notesEdit}>
-            <TextInput
-              style={s.notesInput}
-              multiline
-              placeholder="Mes impressions, souvenirs, anecdotes…"
-              placeholderTextColor={theme.colors.textMuted}
-              value={notesDraft}
-              onChangeText={setNotesDraft}
-              keyboardAppearance={keyboardAppearance}
-              autoFocus
-            />
-            <View style={s.notesActions}>
-              <Pressable onPress={() => setShowNotesEdit(false)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Annuler">
-                <Text style={s.notesCancel}>Annuler</Text>
-              </Pressable>
-              <Pressable onPress={handleSaveNotes} hitSlop={6} accessibilityRole="button" accessibilityLabel="Enregistrer les notes">
-                <Text style={s.notesSave}>Enregistrer</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Pressable style={s.notesPreview} onPress={() => { setNotesDraft(item.notes ?? ''); setShowNotesEdit(true); }} accessibilityRole="button" accessibilityLabel="Modifier mes notes">
-            {item.notes ? (
-              <Text style={s.notesText} maxFontSizeMultiplier={1.3}>{item.notes}</Text>
-            ) : (
-              <Text style={s.notesPlaceholder}>Ajouter des notes personnelles…</Text>
-            )}
-          </Pressable>
-        )}
-      </View>
-
-      <Pressable style={s.removeBtn} onPress={handleRemove} accessibilityRole="button" accessibilityLabel="Retirer de ma parfumerie">
-        <Ionicons name="trash-outline" size={16} color={theme.colors.overpriced} />
-        <Text style={s.removeText}>Retirer de ma parfumerie</Text>
-      </Pressable>
     </View>
   );
 }
@@ -308,7 +189,7 @@ function getStyles(t: Theme) {
       paddingBottom: 16,
       ...t.shadow.card,
     },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+    summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
     headerIconWrap: {
       width: 28,
       height: 28,
@@ -317,8 +198,21 @@ function getStyles(t: Theme) {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    headerTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text },
-    block: { marginTop: 16 },
+    headerTitle: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text, marginRight: 'auto' },
+    readChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+      backgroundColor: t.colors.primarySoft,
+    },
+    readChipText: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: t.colors.primaryInk },
+    readChipMuted: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: t.colors.textMuted },
+    manageBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 4 },
+    manageText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
+    block: { marginTop: 14 },
     subLabel: {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 11,
@@ -327,6 +221,21 @@ function getStyles(t: Theme) {
       color: t.colors.textMuted,
       marginBottom: 8,
     },
+    toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+    toggleChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 20,
+      backgroundColor: t.colors.surface2,
+      borderWidth: 1,
+      borderColor: 'transparent',
+    },
+    toggleChipActive: { backgroundColor: t.colors.primarySoft, borderColor: t.colors.primary },
+    toggleText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
+    toggleTextActive: { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: {
       flexDirection: 'row',
@@ -342,49 +251,5 @@ function getStyles(t: Theme) {
     chipActive: { backgroundColor: t.colors.primarySoft, borderColor: t.colors.primary },
     chipText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
     chipTextActive: { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' },
-    emptyHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: t.colors.textMuted, marginBottom: 8 },
-    possessionRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingVertical: 8,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: t.colors.border,
-    },
-    possessionLabel: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.text },
-    actionRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginTop: 12,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      borderRadius: t.radius.base,
-      backgroundColor: t.colors.surface2,
-    },
-    actionRowActive: { backgroundColor: t.colors.primarySoft },
-    actionLabel: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
-    actionLabelActive: { color: t.colors.primaryInk, fontFamily: 'Inter_600SemiBold' },
-    actionMeta: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted },
-    notesPreview: { backgroundColor: t.colors.surface2, borderRadius: t.radius.base, padding: 12, minHeight: 56 },
-    notesText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.text, lineHeight: 20 },
-    notesPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, fontStyle: 'italic' },
-    notesEdit: { backgroundColor: t.colors.surface2, borderRadius: t.radius.base, padding: 12 },
-    notesInput: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.text, lineHeight: 20, minHeight: 80, textAlignVertical: 'top' },
-    notesActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16, marginTop: 8 },
-    notesCancel: { fontFamily: 'Inter_500Medium', fontSize: 13, color: t.colors.textMuted },
-    notesSave: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: t.colors.primary },
-    removeBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      marginTop: 20,
-      paddingVertical: 12,
-      borderRadius: t.radius.base,
-      borderWidth: 1,
-      borderColor: t.colors.overpricedSoft,
-    },
-    removeText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: t.colors.overpriced },
   } as const;
 }

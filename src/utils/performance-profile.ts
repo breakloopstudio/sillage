@@ -6,6 +6,7 @@ export interface PerfDimension {
   icon: string;
   level: number;
   valueLabel: string;
+  hours?: string;
   ticks: string[];
   emanation: string;
 }
@@ -46,6 +47,14 @@ const SILL_EMANATION: Record<number, string> = {
   4: 'Il emplit l’espace autour de vous — on sent votre passage avant de vous voir.',
 };
 
+// Estimation en heures dérivée du cran de longévité (traduction, pas une mesure).
+const LONG_HOURS: Record<number, string> = {
+  1: '< 3 h',
+  2: '4 – 6 h',
+  3: '8 – 10 h',
+  4: '12 h +',
+};
+
 // Source strings (Fragrantica / legacy): very weak | weak | moderate | long lasting | eternal
 // (and legacy "very long lasting"). 5 source levels → 4 UI cranks (very weak + weak share crank 1).
 export function longevityLevel(v: string | null | undefined): number {
@@ -83,6 +92,7 @@ export function buildPerformance(
         icon: 'time-outline',
         level: ll,
         valueLabel: LONG_VALUE[ll] ?? 'Modérée',
+        hours: LONG_HOURS[ll] ?? LONG_HOURS[2],
         ticks: LONG_TICKS,
         emanation: LONG_EMANATION[ll] ?? LONG_EMANATION[2],
       }
@@ -115,6 +125,7 @@ export function perfDimensionAt(key: PerfDimensionKey, level: number | null): Pe
       icon: 'time-outline',
       level,
       valueLabel: LONG_VALUE[level] ?? 'Modérée',
+      hours: LONG_HOURS[level] ?? LONG_HOURS[2],
       ticks: LONG_TICKS,
       emanation: LONG_EMANATION[level] ?? LONG_EMANATION[2],
     };

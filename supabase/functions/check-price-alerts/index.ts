@@ -123,7 +123,7 @@ Deno.serve(async (req: Request) => {
       const tokenList = (tokens as { token: string }[]).map(t => t.token);
 
       for (const item of items) {
-        const title = item.isTarget ? '🎯 Prix cible atteint' : '💰 Baisse de prix !';
+        const title = item.isTarget ? '🎯 Prix cible atteint' : '💰 Baisse de prix';
         const body = item.isTarget
           ? `${item.displayName} est à ${item.currentPrice.toFixed(0)} € — ton objectif est atteint.`
           : `${item.displayName} est passé à ${item.currentPrice.toFixed(0)} € (-${Math.round(item.dropPct * 100)}%)`;

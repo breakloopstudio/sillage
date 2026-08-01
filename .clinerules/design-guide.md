@@ -72,6 +72,7 @@
 | `seasonSpring` / `seasonSummer` / `seasonFall` / `seasonWinter` | Identité chromatique des saisons — remplissage des barres de saison et icônes actives (fiche détail, « Quand le porter »). Ne jamais substituer `deal`/`fair`/`secondary` à ces usages. |
 | `seasonSpringSoft` → `seasonWinterSoft` | Pastille de la meilleure saison (fond atténué). |
 | `reward` / `rewardSoft` | Badge promo (-X%), fond de badge. Identique à `secondary`/`secondarySoft`. |
+| `perf` / `perfSoft` / `perfInk` | Teinte **dataviz** de la performance olfactive (section « Tenue & sillage » : pastille, crans, bouton de vote). Acier froid, délibérément hors du conflit d'accent chaud violet/doré — **ne pas la remplacer par `reward`/`secondary`** (cela réintroduirait un 2ᵉ accent chaud, §2.4). |
 | `danger` | État d'erreur, bouton destructif. |
 | `success` | État de succès, confirmation. |
 | `warning` | État d'avertissement, attention. |
@@ -439,7 +440,7 @@ placeholderTextColor: t.colors.textMuted
 
 ### 4.9 Titre de section éditorial (fiche détail)
 
-Pastille 28×28 (`tintSoft`) + Ionicons 14px (`tint`) + titre PlayfairDisplay_600SemiBold 18px + sous-titre optionnel Inter_400Regular 12px `textMuted`. La teinte est sémantique : `deal` → marchands/prix, `reward` → performance, `secondary` → temporalité, `primary` (défaut) → contenu olfactif et recommandation. Remplace tout titre de section à emoji.
+Pastille 28×28 (`tintSoft`) + Ionicons 14px (`tint`) + titre PlayfairDisplay_600SemiBold 18px + sous-titre optionnel Inter_400Regular 12px `textMuted`. La teinte est sémantique : `deal` → marchands/prix, `perf` → performance (« Tenue & sillage », pastille + crans), `primary` (défaut) → contenu olfactif, temporalité (« Quand le porter ») et recommandation. `secondary`/`reward` restent strictement décoratifs (badge promo, distinction « signature ») — **jamais** une pastille de section ni une action de navigation (sinon 2ᵉ accent chaud, §2.4). Remplace tout titre de section à emoji.
 
 ### 4.10 Colonnes de saison (dataviz)
 

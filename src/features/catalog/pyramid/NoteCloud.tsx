@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { type Theme } from '../../../theme/ThemeContext';
 import { translateNote } from '../../../utils/translate-note';
 import { getNoteEmoji } from '../../../utils/note-descriptions';
@@ -30,6 +30,8 @@ export default function NoteCloud({ layer, onNotePress }: Props) {
     [layer, onNotePress],
   );
 
+  const reduced = useReducedMotion();
+
   if (layer === null) return null;
 
   if (layer.notes.length === 0) {
@@ -47,11 +49,11 @@ export default function NoteCloud({ layer, onNotePress }: Props) {
       {layer.notes.map((note, i) => (
         <Animated.View
           key={`${layer.key}-${i}`}
-          entering={FadeInDown.delay(Math.min(i, 8) * 35).duration(200)}
+          entering={reduced ? undefined : FadeInDown.delay(Math.min(i, 8) * 35).duration(200)}
         >
           <Pressable
             onPress={() => handlePress(note)}
-            hitSlop={{ top: 4, bottom: 4 }}
+            hitSlop={{ top: 7, bottom: 7 }}
             accessibilityRole="button"
             accessibilityLabel={`Note ${translateNote(note)}`}
             style={({ pressed }) => [
@@ -103,5 +105,4 @@ const sEmpty = {
 const sEmptyText = {
   fontFamily: 'Inter_400Regular',
   fontSize: 13,
-  fontStyle: 'italic' as const,
 };
