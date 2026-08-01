@@ -742,4 +742,4 @@ Nécessite la clé service_role Supabase (scripts d'import/migration uniquement)
 
 **Docs** : AGENTS.md, README.md, `.clinerules/*` (rules, reference, design-guide, SPEC), `docs/*` — titres, scheme, clés, badges (repo `breakloopstudio/sillage`).
 
-**Reste manuel (post-commit)** : désinstaller l'ancienne app sur device, `start.bat build` (rebuild natif pour embarquer le nouveau package), vérifier Google Sign-In (nouveau client), supprimer l'ancien projet Expo `parfumscan` si inutile. Nom du dossier local `C:\dev\ParfumScan_react` conservé (chemins `.bat`/venv — pur filesystem).
+**Reste manuel (post-commit)** : désinstaller l'ancienne app sur device, `start.bat build` (rebuild natif pour embarquer le nouveau package), vérifier Google Sign-In (nouveau client), supprimer l'ancien projet Expo `parfumscan` si inutile. Nom du dossier local `C:\dev\Sillage`.

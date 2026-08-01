@@ -7,7 +7,7 @@ echo ======================================
 echo.
 echo [%time%] Demarrage Gradle...
 echo.
-C:\dev\ParfumScan_react\android\gradlew.bat -p C:\dev\ParfumScan_react\android assembleRelease
+C:\dev\Sillage\android\gradlew.bat -p C:\dev\Sillage\android assembleRelease
 if %errorlevel%==0 (
     echo.
     echo ======================================

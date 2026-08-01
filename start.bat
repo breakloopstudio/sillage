@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-cd /d C:\dev\ParfumScan_react
+cd /d C:\dev\Sillage
 set ANDROID_HOME=C:\Users\Pierre-Louis\AppData\Local\Android\Sdk
 set PATH=%ANDROID_HOME%\platform-tools;%ANDROID_HOME%\emulator;%PATH%
 

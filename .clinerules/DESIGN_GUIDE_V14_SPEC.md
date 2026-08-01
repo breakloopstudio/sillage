@@ -1,7 +1,7 @@
 # SPECIFICATION — Design Guide v1.4 (échelle d'opacité, copy, iconographie)
 
 > **Destinataire** : agent d'implémentation (DeepSeek V4 Pro).
-> **Projet** : Sillage React — `C:\dev\ParfumScan_react`.
+> **Projet** : Sillage React — `C:\dev\Sillage`.
 > **Mission** : faire passer `.clinerules/design-guide.md` de v1.3 à v1.4 en ajoutant trois sections normatives (Phase A), puis aligner 4 valeurs d'opacité dans le code (Phase B).
 > **Regle absolue** : ce document est un contrat. Les textes à insérer sont fournis **complets et définitifs** — les reproduire tels quels, en respectant les ancres d'insertion. Toute impossibilité technique doit etre signalee plutot qu'improvisee.
 
