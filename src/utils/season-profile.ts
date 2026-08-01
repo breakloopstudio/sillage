@@ -47,25 +47,6 @@ export function rankAndDedupe(ranking: { name: string; score: number }[] | null 
   return [...byLabel.values()].sort((a, b) => b.score - a.score);
 }
 
-// ─── Phrases d'émanation par saison (affichées au tap, descriptives) ─────────
-
-export const SEASON_PHRASES: Record<SeasonKey, string> = {
-  spring: 'Il s’épanouit quand l’air se réchauffe et que la peau se découvre.',
-  summer: 'Chaleur, sel et lumière : il donne le meilleur sous le soleil.',
-  fall:   'Il épouse l’air frais et les matières qui reviennent.',
-  winter: 'Il se love dans le froid et réchauffe de l’intérieur.',
-};
-
-// Accroche lookbook par saison dominante (voix aphoristique, ≤ 6 mots, métaphore
-// sensorielle). Distincte de la ligne factuelle du hero (« Hiver · Soirée ») :
-// c'est l'italic #2 de la fiche, non adjacente (pyramide + accords + perf entre).
-export const SEASON_HEADLINE: Record<SeasonKey, string> = {
-  spring: 'La peau se découvre',
-  summer: 'L’éclat des beaux jours',
-  fall:   'Il épouse la fraîcheur',
-  winter: 'Une chaleur intime',
-};
-
 // ─── Moment de la journée (dérivé du vote, pas inventé) ──────────────────────
 // Les votes `day`/`night` existent dans season_ranking mais ne sont pas des
 // saisons → on les lit à part. On n'affiche un moment que si l'écart est net.

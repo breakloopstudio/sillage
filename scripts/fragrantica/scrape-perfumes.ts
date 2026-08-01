@@ -156,7 +156,6 @@ const LONGEVITY_LABELS = ['very weak', 'weak', 'moderate', 'long lasting', 'eter
 const SILLAGE_LABELS = ['intimate', 'moderate', 'strong', 'enormous'];
 const PRICE_VALUE_LABELS = ['way overpriced', 'overpriced', 'ok', 'good value', 'great value'];
 const RATING_LABELS = ['hate', 'dislike', 'ok', 'like', 'love'];
-const CONCENTRATION_RE = /eau de parfum|eau de toilette|eau de cologne|extrait de parfum|perfume extract|perfume|cologne|edp|edt|edc/i;
 const PROGRESS_FILE = path.resolve('data/migration/scrape-perfumes-progress.json');
 const WATCH_DIR = path.resolve('data', 'watch');
 
@@ -358,11 +357,11 @@ async function parsePerfumePage(html: string, job: PerfumeJob): Promise<RawEntry
     ? decodeEntities(descM[1]).trim()
     : (job.brandNameHint ?? urlBrandSlug.replace(/-/g, ' '));
 
-  // Concentration : cherchée dans le <title> (partie avant « - »)
+  // Le <title> SEO de Fragrantica injecte un mot-clé de concentration générique
+  // (« cologne » pour les hommes, « perfume » pour les femmes) qui ne reflète PAS
+  // le flacon réel. On ne l'utilise donc plus : la concentration officielle vit dans
+  // le nom (h1) et est dérivée par parseTitle / l'app via concentrationFromName.
   const titleTag = extractTitleTag(html);
-  const titleLeft = titleTag.split(' - ')[0] ?? '';
-  const concM = CONCENTRATION_RE.exec(titleLeft);
-  const concentration = concM ? concM[0] : 'perfume';
 
   // Année : fin du <title>, sinon « launched in YYYY » dans la description
   let year: number | null = null;
@@ -375,7 +374,7 @@ async function parsePerfumePage(html: string, job: PerfumeJob): Promise<RawEntry
   }
 
   // Titre reconstruit au format Apify : « <nom> <marque> <type> - a fragrance for ... <année> »
-  const title = `${h1.h1Text} ${concentration} - a fragrance ${h1.genderText || 'for women and men'}${year ? ` ${year}` : ''}`;
+  const title = `${h1.h1Text} - a fragrance ${h1.genderText || 'for women and men'}${year ? ` ${year}` : ''}`;
 
   const gender = h1.genderText.includes('women and men') ? 'unisex' : h1.genderText.includes('women') ? 'female' : h1.genderText.includes('men') ? 'male' : null;
 

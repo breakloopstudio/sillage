@@ -57,11 +57,11 @@ src/
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (3)         # env, index, legal (firebase.config supprimé — migration Supabase)
 ├── models/       (8)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
-├── utils/        (24)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-4 + ticks), season-profile (profil saisons + occasions + moment)
+├── utils/        (25)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-4 + ticks), season-profile (profil saisons + occasions + moment), parfum-labels (typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration — labels canoniques + concentration fiable depuis le nom)
 └── types/        (1)         # database.types.ts — types Database générés (`supabase gen types typescript --linked`) ; type le client Supabase + payloads d'écriture (M4)
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0044) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044)…), cron pg_cron, stats, image_url_2x
+├── migrations/   (0001→0045) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045)
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
@@ -214,6 +214,7 @@ supabase/                     # Backend Supabase (versionné)
 - RLS : `parfums` en lecture publique, écriture réservée aux admins (table `admins`)
 - Images hébergées sur **Supabase Storage** (bucket public `parfum-images`) : `parfums/{parfumId}_{ts}_{name}` ; migration via `scripts/migrate-storage.ts`
 - `source: 'seed'` — distingue les données importées des données saisies manuellement (`'manual'`)
+- **Concentration** : `type_parfum` dérivé du **nom officiel** (suffixe via `concentrationFromName` de `parfum-labels.ts`), jamais du `<title>` SEO de Fragrantica (mot-clé générique `cologne`/`perfume` bruité) — extraction corrigée (scrape + `parseTitle`) + backfill SQL `0045`
 - Pas d'API externe pour les données de catalogue
 
 ---
@@ -221,7 +222,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 356 tests, 39 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 381 tests, 41 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique

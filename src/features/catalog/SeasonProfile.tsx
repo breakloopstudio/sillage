@@ -10,7 +10,6 @@ import Animated, {
   interpolateColor,
   Extrapolation,
   FadeIn,
-  FadeInDown,
   useReducedMotion,
 } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
@@ -18,8 +17,6 @@ import { hapticsLight, hapticsSuccess } from '../../services/haptics';
 import { alpha } from '../../utils/alpha';
 import { SEASON_ORDER, SEASON_META, type SeasonKey } from '../../utils/season';
 import {
-  SEASON_PHRASES,
-  SEASON_HEADLINE,
   type SeasonProfileData,
   type SeasonColumn,
 } from '../../utils/season-profile';
@@ -44,7 +41,7 @@ export default function SeasonProfile({ profile, parfumId }: Props) {
 
   // Colonnes recalculées depuis la fusion (frag×poids + user) quand la RPC répond,
   // sinon les colonnes Fragrantica (season_ranking) — la star suit le vécu combiné.
-  const { displayColumns, showSeasons, topKey } = useMemo(() => {
+  const { displayColumns, showSeasons } = useMemo(() => {
     if (!available || !perf) {
       return { displayColumns: profile.columns, showSeasons: profile.seasonMax > 0, topKey: profile.topSeasonKey };
     }
@@ -79,7 +76,6 @@ export default function SeasonProfile({ profile, parfumId }: Props) {
   const [active, setActive] = useState<SeasonKey | null>(null);
   const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
   const anyActive = active !== null;
-  const activeColumn = active ? displayColumns.find(col => col.key === active) ?? null : null;
 
   const handleSelect = useCallback((key: SeasonKey) => {
     hapticsLight();
@@ -133,9 +129,6 @@ export default function SeasonProfile({ profile, parfumId }: Props) {
     color: c[SEASON_META[key].token],
   }));
 
-  const headline = topKey ? SEASON_HEADLINE[topKey] : null;
-  const headlineColor = topKey ? c[SEASON_META[topKey].token] : c.textMuted;
-
   return (
     <Animated.View style={s.root} entering={FadeIn.duration(400)}>
       <View style={s.header}>
@@ -164,14 +157,6 @@ export default function SeasonProfile({ profile, parfumId }: Props) {
           ) : null}
         </View>
 
-        {headline ? (
-          <View style={s.headlineRow}>
-            <View style={[s.headlineDot, { backgroundColor: headlineColor }]} />
-            <Text maxFontSizeMultiplier={1.3} style={s.headline}>
-              {headline}
-            </Text>
-          </View>
-        ) : null}
       </View>
 
       {showSeasons ? (
@@ -191,27 +176,6 @@ export default function SeasonProfile({ profile, parfumId }: Props) {
             />
           ))}
         </View>
-      ) : null}
-
-      {activeColumn ? (
-        <Animated.View
-          key={active}
-          entering={FadeInDown.duration(reduced ? 0 : 220)}
-          style={s.emanation}
-        >
-          <View style={[s.emanBar, { backgroundColor: c[activeColumn.token] }]} />
-          <View style={s.emanBody}>
-            <Text
-              allowFontScaling={false}
-              style={[s.emanOverline, { color: c[activeColumn.token] }]}
-            >
-              {activeColumn.label}
-            </Text>
-            <Text maxFontSizeMultiplier={1.3} style={[s.emanText, { color: c.textMuted }]}>
-              {SEASON_PHRASES[activeColumn.key]}
-            </Text>
-          </View>
-        </Animated.View>
       ) : null}
 
       <MomentVotes
@@ -446,15 +410,7 @@ function getStyles(t: Theme) {
       justifyContent: 'center' as const,
     },
     title: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: c.text },
-    headlineRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 8, marginLeft: 36 },
-    headlineDot: { width: 6, height: 6, borderRadius: 3 },
-    headline: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15, color: c.text },
     row: { flexDirection: 'row' as const, gap: 8, marginTop: 4 },
-    emanation: { flexDirection: 'row' as const, alignItems: 'stretch' as const, gap: 10, marginTop: 16 },
-    emanBar: { width: 2, borderRadius: 1 },
-    emanBody: { flex: 1, gap: 3 },
-    emanOverline: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' as const },
-    emanText: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 19 },
     occasionRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, justifyContent: 'center' as const },
     occasionChip: {
       flexDirection: 'row' as const,

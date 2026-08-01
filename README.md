@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 340](https://img.shields.io/badge/Tests-340%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
+[![Tests 381](https://img.shields.io/badge/Tests-381%20passed-brightgreen)](https://github.com/breakloopstudio/parfumscan-react)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 356 tests, 39 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 381 tests, 41 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -168,10 +168,10 @@ src/
 ├── features/                 # scan, catalog (+ RelationSection, PerformanceProfile, SeasonProfile), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager/ShelfCard/BottleThumb), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner
 ├── models/       (8)         # Parfum (+imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
 ├── config/       (2)         # env, index
-└── utils/        (24)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share, alpha, brand-color, shelf-grouping, price-tier, accord-profile, perf-fusion, performance-profile, season-profile
+└── utils/        (25)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share, alpha, brand-color, shelf-grouping, price-tier, accord-profile, perf-fusion, performance-profile, season-profile, parfum-labels
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0044) # extensions, types, tables (dont shelf_items position+pin, parfum_votes 0042-0044), index, RLS, RPC (search_parfums, reorder_shelves, public_shelf/public_shelf_items, add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items, cast_vote/parfum_perf...), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles, public shelves, grants
+├── migrations/   (0001→0045) # extensions, types, tables (dont shelf_items position+pin, parfum_votes 0042-0044), index, RLS, RPC (search_parfums, reorder_shelves, public_shelf/public_shelf_items, add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items, cast_vote/parfum_perf...), cron pg_cron, image_url_2x, user_parfum, price_alerts v2, profiles, public shelves, grants, backfill type_parfum (0045)
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 └── config.toml               # config projet (secrets via env(...))
 ```
@@ -222,7 +222,8 @@ scrape Fragrantica      données factuelles     recherche tsvector + pg_trgm
 
 | Colonne Postgres | Source raw |
 |---|---|
-| `nom`, `annee`, `type_parfum` | Parsé depuis `title` |
+| `nom`, `annee` | Parsé depuis `title` |
+| `type_parfum` | **Dérivé du nom officiel** (suffixe via `concentrationFromName`), jamais du `<title>` SEO — backfill `0045` |
 | `notes_tete/coeur/fond` | `pyramid.topNotes/middleNotes/baseNotes[].name` |
 | `main_accords` | `mainAccords[].accord` (noms uniquement, pas les couleurs) |
 | `search_text` / `search_vector` | **générées** (normalisation + tsvector) pour la recherche |
@@ -299,6 +300,15 @@ Les documents `UserFavori` et `UserScan` stockent `imageUrl` et `familleOlactive
 dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
+## v8.13 — Chips cartes & fiche détail, concentration fiable, suppression phrases éditoriales (01/08/2026)
+
+- **Chips fiche détail (bandeau sous l'image)** : famille olfactive regroupée en 6 (cliquable → `/search?family=`), attributs passifs en pills neutres `surface2` (concentration · année · genre), ★ communautaire neutre (distincte de la note perso), marque dans la signature (maison + nez), overline header passive, ligne saison masquée si orpheline.
+- **Chips cartes (`ParfumCard`)** : famille regroupée en 6, concentration (nom officiel), genre, ★ communautaire — matrice `list` (complet) / `comfortable` (borné) / `compactPlus` (famille + concentration) / `compact` (inchangé). `arePropsEqual` complété.
+- **Concentration fiable** : le champ `type_parfum` stockait un mot-clé SEO générique (`cologne`/`perfume`) tiré du `<title>` Fragrantica — désormais dérivé du **nom officiel** (`concentrationFromName`), partagé app ↔ `parseTitle`/scrape. Backfill SQL `0045` (appliqué) : plus de bruit, valeurs canoniques ou `NULL`.
+- **Suppression des phrases éditoriales poétiques** saisonnières (`SEASON_HEADLINE`/`SEASON_PHRASES` de `season-profile.ts`) — seule la ligne factuelle du haut (« Été · Jour ») est conservée.
+- **Helpers** : `src/utils/parfum-labels.ts` (`typeParfumLabel`, `genderLabel`, `communityRatingLabel`, `concentrationFromName`, `resolveConcentration`).
+- **Tests** : 41 suites, 381 tests (dont `__tests__/scripts/parse-title.test.ts` qui verrouille la **formule d'id** face aux anciens titres bruités). `tsc --noEmit` : 0 erreur global.
+
 ## v8.12 — Check-up architectural : crash + sécurité + données + UX (31/07/2026)
 
 - **Audit complet en 6 angles** → 37 corrections en 6 lots (aucun changement de modèle de données ni de navigation).

@@ -2,8 +2,6 @@ import {
   buildSeasonProfile,
   dayNightLabel,
   rankAndDedupe,
-  SEASON_PHRASES,
-  SEASON_HEADLINE,
 } from '../../src/utils/season-profile';
 
 describe('dayNightLabel', () => {
@@ -84,21 +82,5 @@ describe('buildSeasonProfile', () => {
     expect(p!.seasonMax).toBe(0);
     expect(p!.topSeasonKey).toBeNull();
     expect(p!.topOccasions).toHaveLength(1);
-  });
-});
-
-describe('season editorial copy', () => {
-  it('provides a phrase for every season', () => {
-    for (const k of ['spring', 'summer', 'fall', 'winter'] as const) {
-      expect(SEASON_PHRASES[k].trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  it('provides a short lookbook headline (<= 6 words) for every season', () => {
-    for (const k of ['spring', 'summer', 'fall', 'winter'] as const) {
-      const headline = SEASON_HEADLINE[k].trim();
-      expect(headline.length).toBeGreaterThan(0);
-      expect(headline.split(/\s+/).length).toBeLessThanOrEqual(6);
-    }
   });
 });

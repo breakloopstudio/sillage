@@ -14,6 +14,8 @@ import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import type { Parfum } from '../../src/models';
 import { translateNote } from '../../src/utils/translate-note';
+import { genderLabel, communityRatingLabel, resolveConcentration } from '../../src/utils/parfum-labels';
+import { getFamilyByValue } from '../../src/utils/olfactory-families';
 import { formatPrice } from '../../src/utils/format-price';
 import { parfumShareUrl } from '../../src/utils/share';
 import OlfactoryPyramid from '../../src/features/catalog/OlfactoryPyramid';
@@ -37,16 +39,6 @@ import CollapsingHeader from '../../src/features/catalog/CollapsingHeader';
 import StickyBottomBar from '../../src/features/catalog/StickyBottomBar';
 import CommunityVerdicts, { VerdictProfilesSheet } from '../../src/features/catalog/CommunityVerdicts';
 import type { ParfumVerdict } from '../../src/services/community';
-
-function typeParfumLabel(v: string): string {
-  const k = v.toLowerCase().replace(/[^a-z]/g, '');
-  if (k.includes('extrait') || k.includes('pure')) return 'Extrait';
-  if (k.includes('edp') || k.includes('eaudeparfum')) return 'Eau de Parfum';
-  if (k.includes('edt') || k.includes('eaudetoilette')) return 'Eau de Toilette';
-  if (k.includes('edc') || k.includes('eaudecologne')) return 'Eau de Cologne';
-  return v;
-}
-
 
 // ─── Titres de section ───────────────────────────────────────
 
@@ -217,17 +209,44 @@ export default function CatalogDetailPage() {
   const heroUrl2x = parfum?.imageUrl2x ?? null;
   const hasBestPrice = typeof parfum?.bestPrice === 'number' && parfum.bestPrice > 0;
 
-  const ratingDisplay: number | undefined = (() => {
-    const p = parfum;
-    if (!p) return undefined;
-    if (typeof p.ratingScore === 'number') return Number.isNaN(p.ratingScore) ? undefined : p.ratingScore;
-    if (typeof p.rating === 'string') { const v = parseFloat(p.rating); return Number.isNaN(v) ? undefined : v; }
-    return undefined;
-  })();
 
   // « Quand le porter » : saisons + occasions + moment de la journée, calculés
   // une fois (util partagé avec SeasonProfile et la ligne éditoriale de tête).
   const seasonProfile = useMemo(() => buildSeasonProfile(parfum), [parfum]);
+
+  const familyDef = useMemo(() => getFamilyByValue(parfum?.familleOlactive), [parfum?.familleOlactive]);
+  const familyKey = familyDef?.key;
+  const familyLabel = familyDef?.label ?? (parfum?.familleOlactive ? translateNote(parfum.familleOlactive) : null);
+
+  const metaAttrs = useMemo(() => {
+    if (!parfum) return [];
+    const parts: string[] = [];
+    const conc = resolveConcentration(parfum);
+    if (conc) parts.push(conc);
+    if (parfum.annee) parts.push(String(parfum.annee));
+    const g = genderLabel(parfum.gender);
+    if (g) parts.push(g);
+    return parts;
+  }, [parfum]);
+
+  const ratingLabel = communityRatingLabel(parfum);
+
+  const perfumersList = useMemo(
+    () => (parfum?.perfumers ? [...new Set(parfum.perfumers.filter(Boolean))] : []),
+    [parfum?.perfumers],
+  );
+
+  const handleBrandPress = useCallback(() => {
+    if (!parfum) return;
+    hapticsLight();
+    router.push(`/brand/${encodeURIComponent(parfum.marque)}`);
+  }, [parfum, router]);
+
+  const handleFamilyPress = useCallback(() => {
+    if (!familyKey) return;
+    hapticsLight();
+    router.push(`/search?family=${encodeURIComponent(familyKey)}`);
+  }, [familyKey, router]);
 
   const content = (
     <>
@@ -259,31 +278,39 @@ export default function CatalogDetailPage() {
           <RelationSection parfum={parfum} save={save} />
 
           <View style={s.contentWrap}>
-            {/* ─── Méta : famille, concentration, année, note ─── */}
-            <View style={s.badgeRow}>
-              <View style={[s.badgeCompact, { backgroundColor: t.colors.primarySoft }]}>
-                <Text style={[s.badgeCompactText, { color: t.colors.primaryInk }]}>{translateNote(parfum.familleOlactive)}</Text>
+            {/* ─── Méta : famille (action) + attributs passifs + note ─── */}
+            {(familyLabel || metaAttrs.length > 0 || ratingLabel) ? (
+              <View style={s.badgeRow}>
+                {familyLabel ? (
+                  familyKey ? (
+                    <Pressable
+                      onPress={handleFamilyPress}
+                      hitSlop={{ top: 6, bottom: 6 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Explorer la famille ${familyLabel}`}
+                      style={({ pressed }) => [s.familyPill, { backgroundColor: t.colors.primarySoft }, pressed && { opacity: 0.7 }]}
+                    >
+                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={[s.familyPill, { backgroundColor: t.colors.primarySoft }]}>
+                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
+                    </View>
+                  )
+                ) : null}
+                {metaAttrs.map(attr => (
+                  <View key={attr} style={s.attrPill}>
+                    <Text style={s.attrPillText} allowFontScaling={false}>{attr}</Text>
+                  </View>
+                ))}
+                {ratingLabel ? (
+                  <View style={s.notePill}>
+                    <Ionicons name="star" size={10} color={t.colors.textMuted} />
+                    <Text style={s.notePillValue} allowFontScaling={false}>{ratingLabel}</Text>
+                  </View>
+                ) : null}
               </View>
-              {parfum.typeParfum ? (
-                <View style={[s.badgeCompact, { backgroundColor: t.colors.surface2 }]}>
-                  <Text style={[s.badgeCompactText, { color: t.colors.textMuted }]}>{typeParfumLabel(parfum.typeParfum)}</Text>
-                </View>
-              ) : null}
-              {parfum.annee ? (
-                <View style={[s.badgeCompact, { backgroundColor: t.colors.secondarySoft }]}>
-                  <Text style={[s.badgeCompactText, { color: t.colors.secondaryInk }]}>{parfum.annee}</Text>
-                </View>
-              ) : null}
-              {ratingDisplay !== undefined ? (
-                <View style={[s.badgeCompact, s.ratingChip, { backgroundColor: t.colors.fairSoft }]}>
-                  <Ionicons name="star" size={10} color={t.colors.fairInk} />
-                  <Text style={[s.badgeCompactText, { color: t.colors.fairInk }]}>{ratingDisplay}</Text>
-                </View>
-              ) : null}
-              {__DEV__ && (
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: parfum.source === 'seed' || parfum.source === 'manual' ? t.colors.primary : t.colors.overpriced, alignSelf: 'center' }} />
-              )}
-            </View>
+            ) : null}
 
             {/* ─── La signature (maison + nez) ─── */}
             <View style={s.signatureRow}>
@@ -292,45 +319,39 @@ export default function CatalogDetailPage() {
                 hitSlop={{ top: 5, bottom: 5 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Voir la maison ${parfum.marque}`}
-                onPress={() => {
-                  hapticsLight();
-                  router.push(`/brand/${encodeURIComponent(parfum.marque)}`);
-                }}
+                onPress={handleBrandPress}
               >
                 <Ionicons name="storefront-outline" size={12} color={t.colors.primaryInk} />
                 <Text style={s.brandChipText} allowFontScaling={false}>{parfum.marque}</Text>
               </Pressable>
-              {parfum.perfumers && parfum.perfumers.filter(Boolean).length > 0
-                ? [...new Set(parfum.perfumers.filter(Boolean))].map(name => (
-                    <Pressable
-                      key={name}
-                      style={({ pressed }) => [s.noseChip, pressed && { opacity: 0.7 }]}
-                      hitSlop={{ top: 5, bottom: 5 }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Voir les créations de ${name}`}
-                      onPress={() => {
-                        hapticsLight();
-                        router.push(`/perfumer/${encodeURIComponent(name)}`);
-                      }}
-                    >
-                      <Ionicons name="finger-print-outline" size={12} color={t.colors.secondaryInk} />
-                      <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
-                    </Pressable>
-                  ))
-                : null}
+              {perfumersList.map(name => (
+                <Pressable
+                  key={name}
+                  style={({ pressed }) => [s.noseChip, pressed && { opacity: 0.7 }]}
+                  hitSlop={{ top: 5, bottom: 5 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Voir les créations de ${name}`}
+                  onPress={() => {
+                    hapticsLight();
+                    router.push(`/perfumer/${encodeURIComponent(name)}`);
+                  }}
+                >
+                  <Ionicons name="finger-print-outline" size={12} color={t.colors.secondaryInk} />
+                  <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
+                </Pressable>
+              ))}
             </View>
 
-            {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) ─── */}
-            {seasonProfile?.topSeasonKey || (seasonProfile?.topOccasions.length ?? 0) > 0 ? (
-              <Text style={s.editorialLine} maxFontSizeMultiplier={1.3}>
-                {[
-                  seasonProfile?.columns.find(col => col.isTop)?.label ?? null,
-                  seasonProfile?.topOccasions[0]?.label ?? null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-            ) : null}
+            {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) — masquée si orpheline ─── */}
+            {(() => {
+              const segs = [
+                seasonProfile?.columns.find(col => col.isTop)?.label ?? null,
+                seasonProfile?.topOccasions[0]?.label ?? null,
+              ].filter(Boolean) as string[];
+              return segs.length >= 2 ? (
+                <Text style={s.editorialLine} maxFontSizeMultiplier={1.3}>{segs.join(' · ')}</Text>
+              ) : null;
+            })()}
 
             {/* ─── Le prix (affichage unique dans le flux) ─── */}
             <View ref={priceSectionRef} onLayout={(e: LayoutChangeEvent) => { priceSectionY.value = e.nativeEvent.layout.y + 20; }}>
@@ -515,12 +536,15 @@ function getStyles(t: Theme) {
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   contentWrap: { paddingHorizontal: t.spacing.md, paddingTop: 14, paddingBottom: t.spacing.xl, backgroundColor: t.colors.surface, borderRadius: t.radius.card, ...t.shadow.card },
   // ─── Méta ───
-  badgeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 },
-  badgeCompact: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeCompactText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
-  ratingChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  badgeRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 },
+  familyPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  familyPillText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  attrPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: t.colors.surface2 },
+  attrPillText: { fontSize: 11, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
+  notePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: t.colors.surface2 },
+  notePillValue: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
   // ─── Ligne éditoriale ───
-  editorialLine: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15, color: t.colors.textMuted, marginTop: -2, marginBottom: 8 },
+  editorialLine: { fontFamily: 'PlayfairDisplay_700Bold_Italic', fontSize: 15, color: t.colors.textMuted, marginTop: 2, marginBottom: 8 },
   // ─── Prix ───
   dealSection: { marginBottom: 8, gap: 10 },
   buyBtn: { marginTop: 2 },

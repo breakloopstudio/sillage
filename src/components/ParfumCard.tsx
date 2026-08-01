@@ -10,6 +10,8 @@ import { useTheme, type Theme } from '../theme/ThemeContext';
 import type { Parfum } from '../models';
 import { setPendingParfum } from '../services/catalog-bridge';
 import { translateNote } from '../utils/translate-note';
+import { getFamilyByValue } from '../utils/olfactory-families';
+import { genderLabel, communityRatingLabel, resolveConcentration } from '../utils/parfum-labels';
 import { textOn } from '../utils/contrast';
 import { formatPrice } from '../utils/format-price';
 import FavButton from './FavButton';
@@ -19,6 +21,11 @@ import { formatVariation } from '../utils/price-alerts';
 import type { UserParfumStatus } from '../models/user-parfum.interface';
 
 export type CardMode = 'compact' | 'comfortable' | 'compactPlus' | 'list';
+
+type CardChip =
+  | { kind: 'family'; label: string }
+  | { kind: 'neutral'; label: string }
+  | { kind: 'note'; value: string };
 
 interface Props {
   parfum: Parfum;
@@ -76,6 +83,35 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
   const alertVariation = priceAlert?.variation ?? null;
   const showAlert = priceAlert != null;
   const alertIsDrop = alertVariation != null && alertVariation < 0;
+
+  const familyLabel = getFamilyByValue(parfum.familleOlactive)?.label ?? (parfum.familleOlactive ? translateNote(parfum.familleOlactive) : null);
+  const concLabel = resolveConcentration(parfum);
+  const genderVal = genderLabel(parfum.gender);
+  const commuRating = communityRatingLabel(parfum);
+  const showCommu = commuRating !== null && !showRating;
+
+  const renderChip = (c: CardChip, i: number) => {
+    if (c.kind === 'family') {
+      return (
+        <View key={`c${i}`} style={s.tagFamily}>
+          <Text style={s.tagFamilyText} allowFontScaling={false}>{c.label}</Text>
+        </View>
+      );
+    }
+    if (c.kind === 'note') {
+      return (
+        <View key={`c${i}`} style={s.tagNote}>
+          <Ionicons name="star" size={9} color={theme.colors.textMuted} />
+          <Text style={s.tagNoteValue} allowFontScaling={false}>{c.value}</Text>
+        </View>
+      );
+    }
+    return (
+      <View key={`c${i}`} style={s.tagNeutral}>
+        <Text style={s.tagNeutralText} allowFontScaling={false}>{c.label}</Text>
+      </View>
+    );
+  };
 
   const renderBadges = () => {
     if (!statusMeta && !showRating && !showAlert) return null;
@@ -149,7 +185,12 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: comfortable (grille 2 col, défaut) ──
   if (mode === 'comfortable') {
-    const a11yLabel = [parfum.nom, parfum.marque, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabel = [parfum.nom, parfum.marque, familyLabel, concLabel, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const chips: CardChip[] = [
+      familyLabel ? { kind: 'family', label: familyLabel } : null,
+      concLabel ? { kind: 'neutral', label: concLabel } : null,
+      showCommu ? { kind: 'note', value: commuRating! } : null,
+    ].filter(Boolean) as CardChip[];
     return (
       <Pressable
         style={s.cardComfortable}
@@ -178,15 +219,8 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
           <Text style={s.brandComfortable} numberOfLines={1}>{parfum.marque}</Text>
           <Text style={s.titleComfortable} numberOfLines={2} ellipsizeMode="tail" maxFontSizeMultiplier={1.3}>{parfum.nom}</Text>
           {renderBadges()}
-          {parfum.familleOlactive || parfum.annee ? (
-            <View style={s.tags}>
-              {parfum.familleOlactive ? (
-                <View style={s.tagFamily}><Text style={s.tagFamilyText}>{translateNote(parfum.familleOlactive)}</Text></View>
-              ) : null}
-              {parfum.annee ? (
-                <View style={s.tagYear}><Text style={s.tagYearText}>{parfum.annee}</Text></View>
-              ) : null}
-            </View>
+          {chips.length > 0 ? (
+            <View style={s.tags}>{chips.map(renderChip)}</View>
           ) : null}
           {parfum.notesTete?.length > 0 && (
             <Text style={s.notesText} numberOfLines={1}>{parfum.notesTete!.slice(0, 3).map(translateNote).join(' · ')}</Text>
@@ -212,6 +246,10 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
   // ── Mode: compactPlus (grille 2 col dense) ──
   if (mode === 'compactPlus') {
     const a11yLabelCompact = [parfum.nom, parfum.marque, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const chips: CardChip[] = [
+      familyLabel ? { kind: 'family', label: familyLabel } : null,
+      concLabel ? { kind: 'neutral', label: concLabel } : null,
+    ].filter(Boolean) as CardChip[];
     return (
       <Pressable
         style={s.cardCompactPlus}
@@ -240,13 +278,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
           <Text style={s.brandCompactPlus} numberOfLines={1}>{parfum.marque}</Text>
           <Text style={s.titleCompactPlus} numberOfLines={1} ellipsizeMode="tail" maxFontSizeMultiplier={1.3}>{parfum.nom}</Text>
           {renderBadges()}
-          {parfum.familleOlactive ? (
-            <View style={s.tagsCompact}>
-              <View style={s.tagFamily}><Text style={s.tagFamilyText}>{translateNote(parfum.familleOlactive)}</Text></View>
-            </View>
-          ) : (
-            <View style={s.tagsCompact} />
-          )}
+          <View style={s.tagsCompact}>{chips.map(renderChip)}</View>
           {!hidePrice ? (<View style={s.priceRowCompactPlus}>
             {tier && <View style={[s.priceDotSmall, { backgroundColor: theme.colors[tier] }]} />}
             {bestPrice !== null ? (
@@ -267,7 +299,14 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: list ──
   if (mode === 'list') {
-    const a11yLabelList = [parfum.nom, parfum.marque, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabelList = [parfum.nom, parfum.marque, familyLabel, concLabel, parfum.annee ? String(parfum.annee) : null, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const chips: CardChip[] = [
+      familyLabel ? { kind: 'family', label: familyLabel } : null,
+      concLabel ? { kind: 'neutral', label: concLabel } : null,
+      parfum.annee ? { kind: 'neutral', label: String(parfum.annee) } : null,
+      genderVal ? { kind: 'neutral', label: genderVal } : null,
+      showCommu ? { kind: 'note', value: commuRating! } : null,
+    ].filter(Boolean) as CardChip[];
     return (
       <Pressable
         style={s.cardList}
@@ -293,14 +332,9 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
           <Text style={s.brandList} numberOfLines={1}>{parfum.marque}</Text>
           <Text style={s.titleList} numberOfLines={1} ellipsizeMode="tail" maxFontSizeMultiplier={1.3}>{parfum.nom}</Text>
           {renderBadges()}
-          <View style={s.tagsList}>
-            {parfum.familleOlactive ? (
-              <View style={s.tagFamily}><Text style={s.tagFamilyText}>{translateNote(parfum.familleOlactive)}</Text></View>
-            ) : null}
-            {parfum.annee ? (
-              <View style={s.tagYear}><Text style={s.tagYearText}>{parfum.annee}</Text></View>
-            ) : null}
-          </View>
+          {chips.length > 0 ? (
+            <View style={s.tagsList}>{chips.map(renderChip)}</View>
+          ) : null}
         </View>
         <View style={s.trailingList}>
           <FavButton parfum={parfum} inline />
@@ -333,6 +367,10 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.parfum.imageUrl === next.parfum.imageUrl &&
     prev.parfum.bestPrice === next.parfum.bestPrice &&
     prev.parfum.referencePrice === next.parfum.referencePrice &&
+    prev.parfum.familleOlactive === next.parfum.familleOlactive &&
+    prev.parfum.annee === next.parfum.annee &&
+    prev.parfum.gender === next.parfum.gender &&
+    prev.parfum.ratingScore === next.parfum.ratingScore &&
     prev.mode === next.mode &&
     prev.status === next.status &&
     prev.rating === next.rating &&
@@ -349,8 +387,10 @@ function getStyles(t: Theme) {
     imgBgFull: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
     tagFamily: { backgroundColor: t.colors.primarySoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
     tagFamilyText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.primaryInk },
-    tagYear: { backgroundColor: t.colors.rewardSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-    tagYearText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.rewardInk },
+    tagNeutral: { backgroundColor: t.colors.surface2, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    tagNeutralText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
+    tagNote: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.colors.surface2, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+    tagNoteValue: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     priceDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
     priceDotSmall: { width: 7, height: 7, borderRadius: 3.5, marginRight: 4 },
 

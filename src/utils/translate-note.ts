@@ -290,6 +290,7 @@ const ACCORD_DICT: Record<string, string> = {
   "lavender": "lavande",
   "patchouli": "patchouli",
   "violet": "violette",
+  "soapy": "savonneux",
 };
 
 // ─── Dictionnaire fusionné ──────────────────────────────────
