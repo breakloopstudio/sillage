@@ -34,7 +34,6 @@ function rowToParfum(row: Record<string, unknown>): Parfum {
     typeParfum: (row.type_parfum as string | null) ?? undefined,
     source: row.source as Parfum['source'],
     cachedAt: toDate(row.cached_at),
-    imageVerified: (row.image_verified as boolean) ?? undefined,
     searchText: (row.search_text as string) ?? undefined,
     purchaseUrl: (row.purchase_url as string | null) ?? undefined,
     mainAccords: (row.main_accords as string[]) ?? undefined,
@@ -42,17 +41,14 @@ function rowToParfum(row: Record<string, unknown>): Parfum {
     sillage: (row.sillage as string | null) ?? undefined,
     gender: (row.gender as string | null) ?? undefined,
     rating: (row.rating as string | null) ?? undefined,
-    popularity: (row.popularity as string | null) ?? undefined,
     popularityScore: toNum(row.popularity_score) ?? undefined,
     ratingScore: toNum(row.rating_score) ?? undefined,
     reviewCount: toNum(row.review_count) ?? undefined,
     ratingCount: toNum(row.rating_count) ?? undefined,
     priceValue: (row.price_value as string | null) ?? undefined,
-    country: (row.country as string) ?? undefined,
     mainAccordsPercentage: (row.main_accords_percentage as Record<string, string>) ?? undefined,
     generalNotes: (row.general_notes as string[]) ?? undefined,
     perfumers: (row.perfumers as string[]) ?? undefined,
-    confidence: (row.confidence as string) ?? undefined,
     seasonRanking: (row.season_ranking as Parfum['seasonRanking']) ?? undefined,
     occasionRanking: (row.occasion_ranking as Parfum['occasionRanking']) ?? undefined,
     similarIds: (row.similar_ids as string[]) ?? undefined,
@@ -70,14 +66,14 @@ const WRITE_MAP: Record<string, string> = {
   imageUrl: 'image_url', imageUrl2x: 'image_url_2x',
   bestPrice: 'best_price', referencePrice: 'reference_price',
   offers: 'offers', source: 'source', cachedAt: 'cached_at',
-  imageVerified: 'image_verified', typeParfum: 'type_parfum', purchaseUrl: 'purchase_url',
+  typeParfum: 'type_parfum', purchaseUrl: 'purchase_url',
   mainAccords: 'main_accords', longevity: 'longevity', sillage: 'sillage',
-  gender: 'gender', rating: 'rating', popularity: 'popularity',
+  gender: 'gender', rating: 'rating',
   popularityScore: 'popularity_score', ratingScore: 'rating_score',
   reviewCount: 'review_count', ratingCount: 'rating_count',
-  priceValue: 'price_value', country: 'country',
+  priceValue: 'price_value',
   mainAccordsPercentage: 'main_accords_percentage', generalNotes: 'general_notes',
-  perfumers: 'perfumers', confidence: 'confidence',
+  perfumers: 'perfumers',
   seasonRanking: 'season_ranking', occasionRanking: 'occasion_ranking',
   similarIds: 'similar_ids', similarIdsCachedAt: 'similar_ids_cached_at',
   createdAt: 'created_at', updatedAt: 'updated_at',
@@ -93,7 +89,23 @@ function parfumToRow(data: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
-const CATALOG_CARD_SELECT = 'id,' + Object.values(WRITE_MAP).join(',');
+// Projection allégée pour les listes (cartes) — miroir de la vue SQL parfum_card
+// (migrations 0054/0057). Exclut search_vector / search_text (tsvector, jamais lus) et
+// les champs fiche-détail (offers, occasion_ranking, main_accords_percentage,
+// general_notes, similar_ids, purchase_url). rating est inclus (fallback du chip ★,
+// communityRatingLabel). season_ranking est CONSERVÉ (dénormalisation filtres favoris —
+// buildFavoriFilterFields). La fiche détail reste en select('*') (getParfumById / getParfumsByIds).
+const CARD_COLUMNS =
+  'id, nom, marque, annee, famille_olfactive, ' +
+  'notes_tete, notes_coeur, notes_fond, ' +
+  'image_url, image_url_2x, ' +
+  'best_price, reference_price, price_value, ' +
+  'type_parfum, gender, ' +
+  'main_accords, longevity, sillage, ' +
+  'rating, popularity_score, rating_score, review_count, rating_count, ' +
+  'perfumers, season_ranking, ' +
+  'source, cached_at, ' +
+  'created_at, updated_at';
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
@@ -115,7 +127,7 @@ export async function getParfumsByIds(ids: string[]): Promise<Parfum[]> {
   try {
     const { data, error } = await supabase.from('parfums').select('*').in('id', ids);
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch (e: unknown) {
     console.warn('[catalog] getParfumsByIds failed:', (e as Error)?.message ?? String(e));
     return [];
@@ -156,7 +168,7 @@ export async function searchParfumsCached(queryStr: string): Promise<Parfum[]> {
     const { data, error } = await supabase.rpc('search_parfums', { q, max_results: 50 });
     if (error) throw error;
 
-    const rows = ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
     const deduped = dedupByMarqueNom(rows);
     if (__DEV__) console.log(`[search] "${q}" — RPC:${Date.now() - t0}ms (${deduped.length} results)`);
     _searchCache.set(q, deduped);
@@ -282,7 +294,7 @@ export async function getPopularParfums(limitCount: number = 6): Promise<Parfum[
   try {
     const { data, error } = await supabase
       .from('parfums')
-      .select(CATALOG_CARD_SELECT)
+      .select(CARD_COLUMNS)
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(limitCount);
     if (error) throw error;
@@ -302,7 +314,7 @@ export async function getSuggestionIndex(limitCount: number = 300): Promise<Sugg
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(limitCount);
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(r => ({
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(r => ({
       id: r.id as string,
       nom: r.nom as string,
       marque: r.marque as string,
@@ -318,7 +330,7 @@ export async function getTopRatedParfums(limitCount: number = 12): Promise<Parfu
   try {
     const { data, error } = await supabase
       .from('parfums')
-      .select(CATALOG_CARD_SELECT)
+      .select(CARD_COLUMNS)
       .not('rating_score', 'is', null)
       .gte('review_count', 50)
       .not('image_url', 'is', null)
@@ -338,13 +350,13 @@ export async function getParfumsByFamily(values: string[], limitCount: number = 
   try {
     const { data, error } = await supabase
       .from('parfums')
-      .select('*')
+      .select(CARD_COLUMNS)
       .in('famille_olfactive', values)
       .not('image_url', 'is', null)
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(limitCount);
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch {
     return [];
   }
@@ -388,7 +400,7 @@ export async function getSeasonalParfums(season: SeasonKey, limitCount: number =
       lim: limitCount,
     });
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch {
     return [];
   }
@@ -404,7 +416,7 @@ export async function getPersonalizedSuggestions(
   try {
     const { data, error } = await supabase.rpc('personalized_suggestions', { lim: limitCount });
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch (e: unknown) {
     console.warn('[supabase] getPersonalizedSuggestions failed:', (e as Error)?.message ?? String(e));
     return [];
@@ -422,7 +434,7 @@ export async function getSimilarParfums(mainAccords: string[], excludeId: string
       lim: limitCount,
     });
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch {
     return [];
   }
@@ -432,12 +444,12 @@ export async function getParfumsByPerfumer(name: string): Promise<Parfum[]> {
   try {
     const { data, error } = await supabase
       .from('parfums')
-      .select('*')
+      .select(CARD_COLUMNS)
       .contains('perfumers', [name])
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(50);
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch (e: unknown) {
     console.warn('[catalog] getParfumsByPerfumer failed:', (e as Error)?.message ?? String(e));
     return [];
@@ -448,12 +460,12 @@ export async function getParfumsByMarque(marque: string): Promise<Parfum[]> {
   try {
     const { data, error } = await supabase
       .from('parfums')
-      .select('*')
+      .select(CARD_COLUMNS)
       .eq('marque', marque)
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(1000);
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch (e: unknown) {
     console.warn('[catalog] getParfumsByMarque failed:', (e as Error)?.message ?? String(e));
     return [];

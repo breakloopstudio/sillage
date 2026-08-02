@@ -301,6 +301,28 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
 
+## v9.1 — Audit & durcissement base de données (02/08/2026)
+
+Audit complet du schéma Supabase (4 subagents : migrations/index, RPC/fonctions, cron/triggers/RLS, usage client) suivi de 8 migrations correctives (`0050→0057`).
+
+- **Sécurité (0050)** : `parfum_perf` (SECURITY DEFINER) lisait le vote individuel via un `p_user_id` fourni par le client → forcé à `auth.uid()` (plus de fuite de vote « privé ») ; les RPC étagères (`add_to_shelf`, `remove_from_shelf`, `pin_shelf_item`, `reorder_shelf_items`) valident la propriété de `p_shelf_id` ; `public_followers`/`public_following` plafonnent `lim` à 100.
+- **Cleanup (0051)** : DROP des tables mortes `collection`/`wardrobe`/`scentlist` + enums orphelins `ownership_type`/`scent_status` + 3 index redondants (`push_tokens_token`, `price_history_parfum_captured`, `parfums_review_count_desc`) ; `possessions` retirée de la publication realtime (aucun listener client).
+- **Index manquants (0052)** : `user_parfum(user_id, updated_at)`, `price_alerts(parfum_id)`, `shelf_items(user_id, parfum_id)`.
+- **Intégrité (0053)** : triggers `updated_at` sur `parfum_votes`/`shelves`/`price_alerts`/`sotd` ; CHECK de validation sur `parfum_votes.value` (par dimension, `NOT VALID`).
+- **Perf réseau (0054/0057)** : nouvelle vue `parfum_card` (projection allégée) — les 4 RPC catalogue (`search_parfums`, `seasonal_parfums`, `similar_parfums`, `personalized_suggestions`) retournent `SETOF parfum_card` au lieu de `parfums.*` (plus de `search_vector` tsvector ni jsonb fiche-détail transférés sur l'opération la plus fréquente) ; constante `CARD_COLUMNS` côté client pour les requêtes de liste ; N+1 similaires de la fiche remplacé par `getParfumsByIds`.
+- **Perf serveur (0055)** : `recompute_perf_strings` réécrit set-based (1 `UPDATE` au lieu de ~8 requêtes/parfum) + neutralise le trigger `updated_at` pendant le cron ; matviews communauté rafraîchies /30 min (au lieu de /10).
+- **Cleanup colonnes (0056)** : DROP de 4 colonnes mortes de `parfums` (`popularity`, `country`, `confidence`, `image_verified`) + scripts `import-fresh`/`import-supabase` adaptés. Colonnes conservées (usage vérifié) : `rating` (fallback chip ★), `rating_count` (popBonus SQL), `general_notes`, `similar_ids`, `offers`.
+- **Statut quo documenté** : `seasonal_parfums` (cache client SWR), double cron météo (idempotence), fraîcheur des prix dénormalisés (prix masqués en Parfumerie + cron alertes).
+- **Vérifié** : `tsc --noEmit` 0 erreur, 633 tests / 61 suites OK.
+
+---
+
+## v9.0 — Perf catalogue cold-start (02/08/2026)
+
+- Degating du rendu, projections étroites, cache disque SWR + prefetch splash, boot découplé de l'auth, carousels virtualisés, index partiel top-rated (0049). 633 tests / 61 suites.
+
+---
+
 ## v8.24 — Traduction & descriptions 100 % + polish a11y/robustesse + couverture tests (02/08/2026)
 
 - **Traduction notes/accords 100 %** (`translate-note.ts`) : dictionnaire EN→FR étendu de 248 → ~1 750 entrées ; **0 note et 0 accord non traduits** sur les 1 682 notes / 88 accords du catalogue (vérifié par scan de `data/clean/`). Pyramide et accords s'affichent tous en français (ex. *Bourbon Geranium* → Géranium Bourbon, *Peru Balsam* → Baume du Pérou, *Orris Root* → Racine d'iris).

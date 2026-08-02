@@ -30,7 +30,6 @@ export interface Parfum {
   // --- Métadonnées du catalogue ---
   source?: 'seed' | 'manual';
   cachedAt?: Date;
-  imageVerified?: boolean;
   typeParfum?: string | null;
   searchText?: string;
   purchaseUrl?: string | null;
@@ -39,17 +38,14 @@ export interface Parfum {
   sillage?: string | null;
   gender?: string | null;
   rating?: string | null;
-  popularity?: string | null;
   popularityScore?: number;
   ratingScore?: number;
   reviewCount?: number;
   ratingCount?: number;
   priceValue?: string | null;
-  country?: string;
   mainAccordsPercentage?: Record<string, string>;
   generalNotes?: string[];
   perfumers?: string[];
-  confidence?: string;
   seasonRanking?: { name: string; score: number }[];
   occasionRanking?: { name: string; score: number }[];
   similarIds?: string[];

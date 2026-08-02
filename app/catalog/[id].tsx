@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
-import { getParfumById, updateParfum, getSimilarParfums } from '../../src/services/catalog';
+import { getParfumById, getParfumsByIds, updateParfum, getSimilarParfums } from '../../src/services/catalog';
 import { consumePendingParfum, setPendingParfum } from '../../src/services/catalog-bridge';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
@@ -173,9 +173,7 @@ export default function CatalogDetailPage() {
       if (simSimilarIds && simSimilarIds.length > 0 && simCachedAt) {
         const age = Date.now() - simCachedAt.getTime();
         if (age < 86400000) {
-          const cached = (await Promise.all(
-            simSimilarIds.map((id: string) => getParfumById(id).catch(() => undefined))
-          )).filter(Boolean) as Parfum[];
+          const cached = await getParfumsByIds(simSimilarIds);
 
           if (cached.length >= 3) {
             if (!cancelled) {

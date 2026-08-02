@@ -1,4 +1,4 @@
-# Sillage — Environment & Commands (v9.0)
+# Sillage — Environment & Commands (v9.1)
 
 ## Environnement local (Windows)
 | Variable | Valeur |
@@ -115,7 +115,7 @@ DockBar custom (verre dépoli, 3 états : expanded/compact/hidden). Accès profi
 - **Local** : `supabase start` (Docker) · DB `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
 - **Edge Functions** (Deno) : `analyze-perfume-image`, `transcribe-voice`, `check-price-alerts`, `send-notification`, `send-weather-notifications`, `delete-user-account`, `share` (landing SSR)
 - **Secrets** : `supabase secrets set` (OPENAI_API_KEY, CRON_SERVICE_ROLE_KEY) — jamais en dur dans config.toml
-- **Migrations** : `supabase/migrations/0001→0048`
+- **Migrations** : `supabase/migrations/0001→0057`
 
 ## Règles critiques
 
@@ -202,3 +202,5 @@ Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/imag
 | v8.20–v8.21 | Flacon Runner v3 (game-feel, glissade, fièvre, rétention locale, pont catalogue, obstacles thématisés) |
 | v8.22–v8.23 | Fiche détail refonte (cluster prix, hero allégé, 1 accent, RelationSection compacte), alertes prix correctifs + carte riche + notif → fiche |
 | v8.24 | Traduction notes/accords 100 % + descriptions popup (pyramide 1 679 notes + 88 accords, catégories `mineral`/`abstract`, `getAccordDescription`), polish a11y/cibles/typo, robustesse dock (reset/`pointerEvents`) + barre flottante, montée couverture tests |
+| v9.0 | Perf catalogue cold-start : degating rendu, projections étroites, cache disque SWR + prefetch splash, boot découplé de l'auth, carousels virtualisés, index partiel top-rated (0049) |
+| v9.1 | Audit & durcissement BDD (0050→0057) : sécurité RPC (`parfum_perf` force `auth.uid()`, garde propriété shelf, `lim` plafonné), cleanup tables/index/enums morts + `possessions` hors realtime, index manquants, intégrité (`updated_at` 4 tables + CHECK `parfum_votes.value`), vue `parfum_card` (RPC catalogue allégées du tsvector/jsonb), perf serveur (`recompute_perf_strings` set-based, matviews /30min), DROP 4 colonnes mortes + scripts d'import adaptés |

@@ -60,7 +60,7 @@ src/
 └── types/        (1)         # database.types.ts — types Database générés (`supabase gen types typescript --linked`) ; type le client Supabase + payloads d'écriture (M4)
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0048) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045)
+├── migrations/   (0001→0057) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057 : sécurité RPC, cleanup tables/index/enums morts, index manquants, intégrité updated_at/CHECK, vue parfum_card, perf serveur, DROP colonnes mortes)
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
@@ -137,6 +137,7 @@ supabase/                     # Backend Supabase (versionné)
 - **Taxonomie 6 familles** (`src/utils/olfactory-families.ts`) : regroupe ~46 valeurs anglaises de `famille_olfactive` en familles FR (boisée, florale, hespéridée, ambrée, gourmande, aromatique). `FamilyAmbianceCards` data-driven, recherche en mode famille (`/search?family=<key>`)
 - Rangées éditoriales : « Parfaits pour {saison} » (RPC `seasonal_parfums`), « Les mieux notés » (`getTopRatedParfums`), « Pour vous » (personnalisé) / populaires (fallback)
 - Fonctions catalogue : `getParfumCount`, `getTopRatedParfums`, `getParfumsByFamily`, `getFamilyOverviews`, `getSeasonalParfums`, `getPersonalizedSuggestions` (RPC 0048 : signaux sur `user_parfum`, plus de tables mortes wardrobe/scentlist), `getSimilarParfums`, `getParfumsByIds` (lecture batchée PK — fallback d'affichage des alertes orphelines)
+- **Projection `parfum_card`** (0054/0057) : les RPC de liste (`search_parfums`, `seasonal_parfums`, `similar_parfums`, `personalized_suggestions`) retournent `SETOF parfum_card` (vue allégée : sans `search_vector`/`search_text` tsvector ni jsonb fiche-détail) au lieu de `parfums.*`. Côté client, les requêtes PostgREST de liste utilisent `CARD_COLUMNS` (miroir de la vue) ; la fiche détail (`getParfumById`/`getParfumsByIds`) reste en `select('*')`.
 - Tri : pertinence / prix croissant / prix décroissant
 - Dédoublonnage automatique par `marque+nom` normalisé (côté RPC + sécurité client)
 - **Images HD** : `image_url_2x` (upscale ×4, fiche détail/lightbox uniquement) — cf. §16b

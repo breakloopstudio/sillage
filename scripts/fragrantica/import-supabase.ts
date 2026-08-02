@@ -22,11 +22,11 @@ const COLUMNS = [
   'id', 'nom', 'marque', 'annee', 'famille_olfactive',
   'notes_tete', 'notes_coeur', 'notes_fond',
   'image_url', 'best_price', 'reference_price', 'offers',
-  'source', 'cached_at', 'image_verified', 'type_parfum', 'purchase_url',
-  'main_accords', 'longevity', 'sillage', 'gender', 'rating', 'popularity',
+  'source', 'cached_at', 'type_parfum', 'purchase_url',
+  'main_accords', 'longevity', 'sillage', 'gender', 'rating',
   'popularity_score', 'rating_score', 'review_count', 'rating_count',
-  'price_value', 'country', 'main_accords_percentage', 'general_notes',
-  'perfumers', 'confidence', 'season_ranking', 'occasion_ranking',
+  'price_value', 'main_accords_percentage', 'general_notes',
+  'perfumers', 'season_ranking', 'occasion_ranking',
   'similar_ids', 'similar_ids_cached_at', 'created_at', 'updated_at',
 ] as const;
 
@@ -54,10 +54,6 @@ function toNum(v: unknown): number | null {
 function toInt(v: unknown): number | null {
   const n = toNum(v);
   return n === null ? null : Math.round(n);
-}
-
-function toBool(v: unknown): boolean | null {
-  return typeof v === 'boolean' ? v : null;
 }
 
 function toStrArr(v: unknown): string[] {
@@ -89,7 +85,6 @@ function mapRowObject(obj: Record<string, unknown>): RowObject {
     offers: obj.offers ?? [],                    // jsonb NOT NULL — absent de la plupart des docs
     source: toSource(obj.source),
     cached_at: toStr(obj.cachedAt),
-    image_verified: toBool(obj.imageVerified),
     type_parfum: toStr(obj.typeParfum),
     purchase_url: toStr(obj.purchaseUrl),
     main_accords: toStrArr(obj.mainAccords),
@@ -97,17 +92,14 @@ function mapRowObject(obj: Record<string, unknown>): RowObject {
     sillage: toStr(obj.sillage),
     gender: toStr(obj.gender),
     rating: toStr(obj.rating),
-    popularity: toStr(obj.popularity),
     popularity_score: toNum(obj.popularityScore),
     rating_score: toNum(obj.ratingScore),
     review_count: toInt(obj.reviewCount) ?? 0,   // NOT NULL
     rating_count: toInt(obj.ratingCount) ?? 0,   // NOT NULL
     price_value: toStr(obj.priceValue),
-    country: toStr(obj.country),
     main_accords_percentage: obj.mainAccordsPercentage ?? null,
     general_notes: toStrArr(obj.generalNotes),
     perfumers: toStrArr(obj.perfumers),
-    confidence: toStr(obj.confidence),
     season_ranking: obj.seasonRanking ?? null,
     occasion_ranking: obj.occasionRanking ?? null,
     similar_ids: toStrArr(obj.similarIds),
