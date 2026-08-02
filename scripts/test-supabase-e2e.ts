@@ -1,6 +1,6 @@
 // scripts/test-supabase-e2e.ts — Test end-to-end du backend Supabase (cloud)
 // Simule exactement ce que l'app fait en mode USE_SUPABASE=true :
-// recherche RPC (anon), signup, favoris, realtime postgres_changes, wardrobe,
+// recherche RPC (anon), signup, favoris, realtime postgres_changes, user_parfum,
 // set_sotd, settings, personalized_suggestions. Cleanup : suppression du user test.
 //
 //   npx tsx scripts/test-supabase-e2e.ts
@@ -103,11 +103,6 @@ async function main(): Promise<void> {
   // ─── 4. Realtime postgres_changes ───
   console.log('\n4. Realtime postgres_changes');
   {
-    // Utiliser le client `user` (session active) — le token est automatiquement
-    // passé à la websocket realtime (pas besoin de setAuth manuel sur un client séparé)
-    // Le canal realtime cloud peut rater le 1er événement juste après SUBSCRIBED
-    // (cold-start). On rend le test déterministe : timeout généreux + rejeu d'un
-    // INSERT (parfum_id différent => nouvel événement, pas un UPDATE) à +5s.
     const eventReceived = new Promise<boolean>((resolve) => {
       let done = false;
       let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -118,22 +113,24 @@ async function main(): Promise<void> {
         if (retryTimer) clearTimeout(retryTimer);
         resolve(v);
       };
-      const timer = setTimeout(() => finish(false), 30000);
+      const timer = setTimeout(() => finish(false), 45000);
       user.channel(`e2e-favoris-${Date.now()}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'favoris', filter: `user_id=eq.${userId}` }, () => finish(true))
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
-            await user.from('favoris').upsert({
-              user_id: userId, parfum_id: 'chanel_no5', nom: 'N°5', marque: 'Chanel',
-              added_at: new Date().toISOString(),
-            } as never);
+            setTimeout(() => {
+              void user.from('favoris').upsert({
+                user_id: userId, parfum_id: 'chanel_no5', nom: 'N°5', marque: 'Chanel',
+                added_at: new Date().toISOString(),
+              } as never);
+            }, 2000);
             retryTimer = setTimeout(() => {
               if (done) return;
               void user.from('favoris').upsert({
                 user_id: userId, parfum_id: 'chanel_allure', nom: 'Allure', marque: 'Chanel',
                 added_at: new Date().toISOString(),
               } as never);
-            }, 5000);
+            }, 8000);
           }
         });
     });
@@ -142,19 +139,19 @@ async function main(): Promise<void> {
   }
 
   // ─── 5. Wardrobe + set_sotd (RPC transactionnelle) ───
-  console.log('\n5. Wardrobe + SOTD');
+  console.log('\n5. User_parfum + SOTD');
   {
-    const { error } = await user.from('wardrobe').upsert({
-      user_id: userId, parfum_id: 'dior_sauvage', ownership: 'have',
+    const { error } = await user.from('user_parfum').upsert({
+      user_id: userId, parfum_id: 'dior_sauvage', status: 'have',
       nom: 'Sauvage', marque: 'Dior', added_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     } as never);
-    check('add wardrobe', !error, error?.message);
+    check('add user_parfum', !error, error?.message);
 
     const { error: sotdErr } = await user.rpc('set_sotd', { p_parfum_id: 'dior_sauvage', p_nom: 'Sauvage', p_marque: 'Dior' });
     check('RPC set_sotd', !sotdErr, sotdErr?.message);
 
-    const { data: w } = await user.from('wardrobe').select('sotd_count').eq('user_id', userId).eq('parfum_id', 'dior_sauvage').single();
-    check('sotd_count incrémenté (=1)', (w as { sotd_count: number } | null)?.sotd_count === 1, `=${(w as { sotd_count: number } | null)?.sotd_count}`);
+    const { data: up } = await user.from('user_parfum').select('sotd_count').eq('user_id', userId).eq('parfum_id', 'dior_sauvage').single();
+    check('sotd_count incrémenté (=1)', (up as { sotd_count: number } | null)?.sotd_count === 1, `=${(up as { sotd_count: number } | null)?.sotd_count}`);
 
     const { data: sotd } = await user.from('sotd').select('parfum_id').eq('user_id', userId);
     check('entrée sotd du jour écrite', (sotd?.length ?? 0) === 1);
@@ -177,9 +174,9 @@ async function main(): Promise<void> {
   console.log('\n7. Export RGPD');
   {
     const { data, error } = await user.rpc('export_user_data');
-    const d = data as { collections?: { favoris?: unknown[]; wardrobe?: unknown[] } } | null;
+    const d = data as { collections?: { favoris?: unknown[]; userParfum?: unknown[] } } | null;
     check('RPC export_user_data', !error && d?.collections !== undefined, error?.message);
-    check('export contient favoris + wardrobe', (d?.collections?.favoris?.length ?? 0) >= 1 && (d?.collections?.wardrobe?.length ?? 0) >= 1);
+    check('export contient favoris + user_parfum', (d?.collections?.favoris?.length ?? 0) >= 1 && (d?.collections?.userParfum?.length ?? 0) >= 1);
   }
 
   // ─── 8. Cleanup : suppression du user test (admin API) ───
@@ -194,10 +191,10 @@ async function main(): Promise<void> {
     // CASCADE : toutes les lignes user supprimées
     const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
     const { data: fav } = await admin.from('favoris').select('parfum_id').eq('user_id', userId);
-    const { data: war } = await admin.from('wardrobe').select('parfum_id').eq('user_id', userId);
+    const { data: up } = await admin.from('user_parfum').select('parfum_id').eq('user_id', userId);
     const { data: sotd } = await admin.from('sotd').select('day').eq('user_id', userId);
     check('CASCADE favoris', (fav?.length ?? 0) === 0);
-    check('CASCADE wardrobe', (war?.length ?? 0) === 0);
+    check('CASCADE user_parfum', (up?.length ?? 0) === 0);
     check('CASCADE sotd', (sotd?.length ?? 0) === 0);
   }
 
