@@ -82,10 +82,10 @@ export default function StickyBottomBar({
         {hasPrice ? (
           <View style={s.priceCol}>
             <View style={s.priceRow}>
-              <Text style={s.price} numberOfLines={1}>{formatPrice(bestPrice!)}</Text>
+              <Text style={s.price} numberOfLines={1} allowFontScaling={false}>{formatPrice(bestPrice!)}</Text>
               {discountPct !== null && discountPct > 0 && discountPct <= 95 && (
                 <View style={[s.discountBadge, { backgroundColor: theme.colors.deal }]}>
-                  <Text style={s.discountText}>{`−${discountPct} %`}</Text>
+                  <Text style={s.discountText} allowFontScaling={false}>{`−${discountPct} %`}</Text>
                 </View>
               )}
             </View>
@@ -95,7 +95,7 @@ export default function StickyBottomBar({
         <SaveButton label={saveLabel} onPress={onSavePress} variant="bar" />
 
         {purchaseUrl ? (
-          <Pressable onPress={onPurchasePress} style={s.cta} accessibilityRole="button" accessibilityLabel="Voir l'offre">
+          <Pressable onPress={onPurchasePress} style={s.cta} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel="Voir l'offre">
             <Text style={s.ctaText}>Voir l'offre</Text>
           </Pressable>
         ) : null}

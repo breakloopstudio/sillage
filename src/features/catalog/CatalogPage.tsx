@@ -440,7 +440,7 @@ function getStyles(t: Theme) {
     segmentBtnTextActive: {
       fontFamily: 'Inter_600SemiBold', color: t.colors.text,
     },
-    gridContent: { paddingBottom: t.spacing.md },
+    gridContent: { paddingBottom: 88 },
     gridRow: { gap: 10, paddingHorizontal: t.spacing.md, marginBottom: 10 },
     gridItemWrap: { flex: 1 },
     listItemWrap: { paddingHorizontal: t.spacing.md, marginBottom: 8 },

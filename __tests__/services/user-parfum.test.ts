@@ -2,22 +2,11 @@ import { supabase } from '../../src/services/supabase';
 import {
   addUserParfum, updateUserParfum, markTried, removeUserParfum, getUserParfum,
 } from '../../src/services/user-parfum';
+import type { Parfum } from '../../src/models';
+import { chainMock } from '../helpers/supabase-chain';
 
 const mockFrom = supabase.from as jest.Mock;
 const mockRpc = supabase.rpc as jest.Mock;
-
-function chainMock(resolved: unknown = { data: null, error: null }) {
-  const chain: Record<string, jest.Mock> = {};
-  const methods = ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'neq', 'in', 'order', 'limit', 'maybeSingle', 'single'];
-  for (const m of methods) {
-    chain[m] = jest.fn().mockImplementation(() => {
-      if (m === 'maybeSingle' || m === 'single') return Promise.resolve(resolved);
-      return chain;
-    });
-  }
-  chain.then = (resolve: (v: unknown) => void) => resolve(resolved);
-  return chain;
-}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -32,7 +21,8 @@ describe('addUserParfum', () => {
       familleOlactive: 'woody', bestPrice: 89, referencePrice: 120,
       notesTete: ['bergamot'], notesCoeur: ['lavender'], notesFond: ['amber'],
       longevity: 'long', sillage: 'moderate', seasonRanking: [],
-    } as never;
+      createdAt: new Date(), updatedAt: new Date(),
+    } as Parfum;
     await addUserParfum('uid1', 'p1', 'have', parfum);
     expect(mockFrom).toHaveBeenCalledWith('user_parfum');
     expect(chain.upsert).toHaveBeenCalled();

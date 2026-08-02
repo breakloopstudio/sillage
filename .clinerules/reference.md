@@ -92,9 +92,17 @@ export async function getUserParfum(uid: string, parfumId: string): Promise<User
 
 // Shelves — étagères custom
 export function onShelves(uid: string, cb: (shelves: Shelf[]) => void): () => void;
-export async function createShelf(uid: string, name: string, icon?: string, color?: string): Promise<string>;
-export async function updateShelf(uid: string, shelfId: string, data: Partial<Pick<Shelf, 'name' | 'icon' | 'color' | 'order'>>): Promise<void>;
+export async function createShelf(uid: string, name: string, icon?: string, color?: string, description?: string): Promise<string>;
+export async function updateShelf(uid: string, shelfId: string, data: Partial<Pick<Shelf, 'name' | 'icon' | 'color' | 'description' | 'isPublic' | 'order'>>): Promise<void>;
 export async function deleteShelf(uid: string, shelfId: string): Promise<void>;
+
+// Shelf items — position + pin par étagère (RPC atomiques)
+export function onShelfItems(uid: string, cb: (items: ShelfItem[]) => void): () => void;
+export async function addToShelf(uid: string, parfumId: string, shelfId: string): Promise<void>;
+export async function removeFromShelf(uid: string, parfumId: string, shelfId: string): Promise<void>;
+export async function pinShelfItem(uid: string, shelfId: string, parfumId: string, pinned: boolean): Promise<void>;
+export async function reorderShelfItems(uid: string, shelfId: string, items: { parfumId: string; position: number }[]): Promise<void>;
+export async function reorderShelves(uid: string, items: { id: string; order: number }[]): Promise<void>;
 
 // SOTD — Parfum du jour (stocké par date YYYY-MM-DD)
 export async function getTodaySotd(uid: string): Promise<SotdEntry | null>;
@@ -105,7 +113,6 @@ export async function setSotd(uid: string, parfumId: string, nom: string, marque
 ```ts
 // Possessions — objets physiques (multiples par parfum)
 export async function getPossessions(uid: string, parfumId: string): Promise<Possession[]>;
-export async function getAllPossessions(uid: string): Promise<Possession[]>;
 export async function addPossession(uid: string, parfumId: string, type: PossessionType, sizeMl?: number | null, quantity?: number, forSale?: boolean, notes?: string | null): Promise<string>;
 export async function updatePossession(uid: string, possessionId: string, data: Partial<Pick<Possession, 'type' | 'sizeMl' | 'quantity' | 'forSale' | 'notes'>>): Promise<void>;
 export async function removePossession(uid: string, possessionId: string): Promise<void>;
@@ -119,6 +126,8 @@ export function getMyProfile(uid: string): Promise<MyProfile | null>;
 export function upsertMyProfile(uid: string, input: ProfileInput): Promise<void>;   // throw (code 23505 = pseudo pris)
 export function getPublicProfile(pseudo: string): Promise<PublicProfile | null>;    // RPC public_profile (null si privé/introuvable)
 export function getPublicCollection(pseudo: string): Promise<PublicCollectionItem[]>; // RPC public_collection (notes perso exclues)
+export function getPublicShelf(pseudo: string, shelfId: string): Promise<PublicShelf | null>; // RPC public_shelf
+export function getPublicShelfItems(pseudo: string, shelfId: string): Promise<PublicShelfItem[]>; // RPC public_shelf_items (notes perso exclues)
 ```
 
 ### `src/services/community.ts`
@@ -138,6 +147,8 @@ export function getPublicFollowers(pseudo: string, limit?: number): Promise<Foll
 export function getPublicFollowing(pseudo: string, limit?: number): Promise<FollowEntry[]>;
 export function getFollowedHighlights(): Promise<FollowedHighlights | null>;
 // RPC followed_highlights (authenticated) : SOTD + verdicts + nouveaux « have » des suivis
+export function searchProfiles(prefix: string, limit?: number): Promise<ProfileSearchResult[]>;
+// Recherche profils publics par préfixe pseudo (row « Les nez » de Communauté)
 ```
 
 ### `src/services/recap.ts`
@@ -205,7 +216,7 @@ export function clearWeatherCoords(uid: string): Promise<void>;
 ```ts
 // Open-Meteo API (gratuit, sans clé) + cache 30 min — GPS uniquement (pas de fallback ville, v6.18)
 export interface WeatherData { temperature: number; weatherCode: number; isDay: boolean; dailyMax: number; dailyMin: number; dailyWeatherCode: number; fetchedAt: number; }
-export function fetchWeather(lat: number, lon: number): Promise<WeatherData | null>;
+export function fetchWeather(lat: number, lon: number, force?: boolean): Promise<WeatherData | null>;
 ```
 
 ### `src/services/haptics.ts`
@@ -236,6 +247,16 @@ export function castVote(parfumId: string, dimension: PerfVoteDimension, value: 
 // value null = retirer le vote. Auth requise (auth.uid()).
 // ⚠️ PIÈGE `this` : supabase.rpc doit être appelé en forme méthode ou `.bind(supabase)` —
 //    une référence détachée plante (« Cannot read property 'rest' of undefined »).
+```
+
+### `src/services/runner.ts`
+```ts
+// Leaderboard Flacon Runner (table runner_scores + RPC submit_runner_score / runner_leaderboard)
+export interface LeaderboardEntry { rank: number; isMe: boolean; pseudo: string | null; avatarUrl: string | null; score: number; distance: number; maxCombo: number; skin: string; createdAt: string; }
+export interface ScoreSubmission { score: number; distance: number; maxCombo: number; skin: string; }
+export async function submitRunnerScore(input: ScoreSubmission): Promise<number | null>;
+export async function getRunnerLeaderboard(limit?: number, force?: boolean): Promise<LeaderboardEntry[]>;
+export function clearRunnerLeaderboardCache(): void;
 ```
 
 ---
@@ -284,7 +305,7 @@ export function useFavorisContext(): FavorisContextValue;
 
 ### `useScans(uid)` — `src/hooks/useScans.ts`
 ```ts
-// Hook Firestore temps réel pour l'historique des scans
+// Hook Supabase temps réel pour l'historique des scans
 export function useScans(uid: string | null): {
   scans: UserScan[];
   loading: boolean;
@@ -423,14 +444,18 @@ export function useDensityPreference(): {
 ### `useVoiceSearch()` — `src/hooks/useVoiceSearch.ts`
 ```ts
 // Reconnaissance vocale on-device (expo-speech-recognition) + enregistrement audio (expo-audio)
-// Architecture dual-mode : STT local + fallback Whisper (Cloud Function)
-export function useVoiceSearch(): {
-  state: 'idle' | 'listening' | 'processing' | 'error';
+// Architecture dual-mode : STT local + fallback Whisper (Edge Function)
+export type VoiceState = 'idle' | 'listening' | 'processing' | 'error';
+export interface VoiceResult { text?: string; audioBase64?: string; }
+export function useVoiceSearch(
+  onResult: (result: VoiceResult) => void,
+  onError?: (msg: string) => void,
+): {
+  state: VoiceState;
   transcript: string;
-  start(config?: { continuous?: boolean }): Promise<void>;
-  stop(): Promise<void>;
-  cancel(): void;
-  getAudioForFallback(): Promise<{ audioBase64: string; mimeType: string } | null>;
+  start: (opts?: { continuous?: boolean }) => Promise<void>;
+  stop: () => void;
+  cancel: () => void;
 };
 ```
 
@@ -569,6 +594,28 @@ interface UserScan {
 
 > Fichier **supprimé en v8.0** (modèle unifié `user_parfum`). `WardrobeItem` → `UserParfum` ; `Shelf`, `ShelfItem`, `SotdEntry` vivent désormais dans `src/models/user-parfum.interface.ts`.
 
+### `src/models/user-parfum.interface.ts`
+```ts
+export type UserParfumStatus = 'to_try' | 'tried' | 'want' | 'have' | 'had';
+export type ScentVerdict = 'love' | 'like' | 'meh' | 'dislike';
+export type PossessionType = 'bottle' | 'decant' | 'sample';
+
+export interface UserParfum {
+  parfumId: string; status: UserParfumStatus; verdict: ScentVerdict | null;
+  rating: number | null; notes: string | null; triedAt: Date | null;
+  shelfIds: string[]; sotdCount: number; isSignature: boolean;
+  nom: string | null; marque: string | null; imageUrl: string | null;
+  familleOlactive: string | null; bestPrice?: number; referencePrice?: number;
+  longevity?: string | null; sillage?: string | null;
+  seasonScores?: { spring?: number; summer?: number; fall?: number; winter?: number } | null;
+  allNotes?: string[] | null; addedAt: Date; updatedAt: Date;
+}
+export interface Possession { id: string; parfumId: string; type: PossessionType; sizeMl: number | null; quantity: number; forSale: boolean; notes: string | null; addedAt: Date; }
+export interface Shelf { id: string; name: string; icon: string | null; color: string | null; description: string | null; isPublic: boolean; order: number; createdAt: Date; }
+export interface ShelfItem { shelfId: string; parfumId: string; position: number; pinned: boolean; addedAt: Date; }
+export interface SotdEntry { parfumId: string; nom: string; marque: string; imageUrl: string | null; }
+```
+
 ### `src/models/user-price-alert.interface.ts`
 ```ts
 interface UserPriceAlert {
@@ -614,7 +661,11 @@ export function buildAccords(accords: string[] | undefined, percentages: Record<
 ### `src/utils/translate-note.ts`
 ```ts
 export function translateNote(note: string): string;
-// Traduit les noms de notes olfactives EN → FR
+// Traduit un nom de note ou d'accord EN → FR (1re lettre capitalisée), fallback = original.
+// Dictionnaires NOTE_DICT + ACCORD_DICT fusionnés (~1 750 entrées) couvrant 100 % des
+// notes de pyramide et des 88 accords du catalogue (0 non traduit). Clés normalisées
+// (lowercase + trim) ; variantes apostrophe typographique/droite gérées à l'import.
+// ⚠️ Traduit à l'affichage uniquement — NE PAS utiliser au stockage.
 ```
 
 ### `src/utils/error-translator.ts`
@@ -625,9 +676,19 @@ export function translateSupabaseError(e: unknown): string;
 
 ### `src/utils/note-descriptions.ts`
 ```ts
-// Descriptions détaillées des notes olfactives (FR)
+// Catégories olfactives (→ emoji du popup) + descriptions FR des notes et des accords.
+// NOTE_CATEGORIES : 16 familles (citrus/fruit/spice/floral/woody/resin/musk/green/
+//   gourmand/synthetic/alcohol/leather/powdery/aquatic + mineral 🪨 / abstract 💭).
+// NOTE_DESCRIPTIONS + ACCORD_DESCRIPTIONS couvrent 100 % des notes de pyramide (1 679)
+// et des 88 accords du catalogue — plus de fallback générique au tap.
+export const NOTE_CATEGORIES: Record<string, string>;
 export const NOTE_DESCRIPTIONS: Record<string, string>;
-export function getNoteDescription(note: string): string | null;
+export const ACCORD_DESCRIPTIONS: Record<string, string>;
+export function getNoteEmoji(noteName: string): string;            // ✨ si inconnu
+export function getNoteDescription(noteName: string): string;      // fallback générique si inconnu (popup note pyramide)
+export function getAccordDescription(accordName: string): string | null;
+// Accord → description dédiée, sinon description de note (accords-ingrédients), sinon null
+// (le composant masque alors l'émanation). Utilisé par AccordProfile (« Accords principaux »).
 ```
 
 ### `src/utils/season.ts`
@@ -772,6 +833,7 @@ auth gate (→ `/auth/login` si déconnecté), coupé en Reduced Motion. Se posi
 interface Props {
   parfum: Parfum;
   size?: 'xs' | 'sm' | 'lg';  // xs 26px (liste), sm 32px (cartes), lg 40px (hero)
+  inline?: boolean;            // positionnement inline (pas absolute)
 }
 ```
 
@@ -790,12 +852,14 @@ interface Props {
 
 ### `EmptyState` — `src/components/EmptyState.tsx`
 
-État vide 5 variantes : `collection | favoris | historique | wardrobe | scentlist`.
+État vide 6 variantes : `collection | favoris | historique | wardrobe | scentlist | alertes`.
 
 ```ts
 interface Props {
-  variant: 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist';
-  onAction?: () => void;
+  variant: 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist' | 'alertes';
+  onAction: () => void;
+  style?: ViewStyle;
+  actionLabel?: string;
 }
 ```
 
@@ -945,10 +1009,12 @@ interface Props {
   parfum: Parfum;
   mode?: CardMode;         // defaut: 'comfortable'
   onPressOverride?: () => void;
+  onLongPress?: () => void;
   status?: UserParfumStatus | null;  // badge statut dans le body (Ma Parfumerie)
   rating?: number | null;            // pastille ★ dans le body
   hidePrice?: boolean;               // masque prix + badge -X% (contexte perso Ma Parfumerie)
-  priceAlert?: { variation: number | null } | null;  // badge 🔔 + variation depuis l'activation
+  socialLoves?: number;              // chip ♥n (gaté ≥3)
+  priceAlert?: { variation: number | null; state?: PriceAlertState | null } | null;  // badge 🔔 + état reached/near
 }
 ```
 

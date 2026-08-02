@@ -1,22 +1,7 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
-import { ThemeProvider } from '../../src/theme/ThemeContext';
+import { screen, fireEvent } from '@testing-library/react-native';
 import EmptyState from '../../src/components/EmptyState';
-
-jest.mock('../../src/services/theme-storage', () => ({
-  getThemeMode: () => Promise.resolve('system'),
-  setThemeMode: () => Promise.resolve(),
-}));
-
-const Wrapper = ({ children }: { children: React.ReactNode }) => (
-  <ThemeProvider>{children}</ThemeProvider>
-);
-
-async function renderWithTheme(ui: React.ReactElement) {
-  const result = render(ui, { wrapper: Wrapper });
-  await waitFor(() => expect(screen.toJSON()).toBeTruthy(), { timeout: 2000 });
-  return result;
-}
+import { renderWithTheme } from '../helpers/render';
 
 describe('EmptyState', () => {
   const onAction = jest.fn();

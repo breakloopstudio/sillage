@@ -16,7 +16,7 @@ import Animated, {
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 import { alpha } from '../../utils/alpha';
-import { getNoteDescription } from '../../utils/note-descriptions';
+import { getAccordDescription } from '../../utils/note-descriptions';
 import { buildAccords, type AccordRow } from '../../utils/accord-profile';
 
 interface Props {
@@ -121,7 +121,7 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
 
   const handlePress = useCallback(() => onSelect(row.raw), [onSelect, row.raw]);
 
-  const description = getNoteDescription(row.raw);
+  const description = getAccordDescription(row.raw);
   const hasDesc = !!description && description.trim().length > 0;
 
   const barH = isChar ? 10 : 6;

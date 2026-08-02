@@ -1,7 +1,7 @@
 // src/hooks/usePerfVotes.ts — État des votes utilisateurs d'un parfum
 // (fetch parfum_perf + vote optimiste + refetch + fallback quand la RPC est indisponible).
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { getParfumPerf, castVote, type ParfumPerf, type PerfVoteDimension } from '../services/perf-votes';
 import { useAuthContext } from '../contexts/AuthContext';
@@ -93,7 +93,7 @@ export function usePerfVotes(parfumId: string | null): UsePerfVotes {
 
   const removeVote = useCallback((dimension: PerfVoteDimension) => vote(dimension, null), [vote]);
 
-  return { perf, available, loading, vote, removeVote, refresh };
+  return useMemo(() => ({ perf, available, loading, vote, removeVote, refresh }), [perf, available, loading, vote, removeVote, refresh]);
 }
 
 /** Patch optimiste du champ myVote + compteur communauté, avant le refetch. */

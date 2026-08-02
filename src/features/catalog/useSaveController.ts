@@ -111,10 +111,14 @@ export function useSaveController(parfum: Parfum | null) {
 
   const addPoss = useCallback(async (type: PossessionType, sizeMl?: number | null) => {
     if (!uid || !id) return;
-    await addPossession(uid, id, type, sizeMl);
-    const cur = itemRef.current;
-    if (!cur || cur.status === 'to_try' || cur.status === 'tried' || cur.status === 'want') {
-      await setStatus('have');
+    try {
+      await addPossession(uid, id, type, sizeMl);
+      const cur = itemRef.current;
+      if (!cur || cur.status === 'to_try' || cur.status === 'tried' || cur.status === 'want') {
+        await setStatus('have');
+      }
+    } catch (e: unknown) {
+      console.warn('[save] addPossession failed:', (e as Error)?.message ?? String(e));
     }
   }, [uid, id, setStatus]);
 

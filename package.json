@@ -97,6 +97,10 @@
       "<rootDir>/dist/",
       "<rootDir>/android/",
       "<rootDir>/data/"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/__tests__/helpers/"
     ]
   },
   "private": true,

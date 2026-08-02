@@ -724,7 +724,7 @@ function RunnerFooter({ entry, loading, onPress, styles: s, theme }: { entry: Le
 function getStyles(t: Theme) {
   return {
     container: { flex: 1, backgroundColor: t.colors.background },
-    content: { paddingBottom: 40 },
+    content: { paddingBottom: 88 },
     header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
     title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 28, color: t.colors.text },
 

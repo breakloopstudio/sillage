@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 415](https://img.shields.io/badge/Tests-415%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
+[![Tests 618](https://img.shields.io/badge/Tests-618%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -54,7 +54,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 415 tests, 44 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 618 tests, 59 suites + E2E Supabase (24 checks) |
 
 ---
 
@@ -258,7 +258,7 @@ La page `app/catalog/[id].tsx` affiche les métadonnées du catalogue Firestore 
 - Prix, réduction, lien affilié
 - Pyramide olfactive v5 (SVG unifié interactif au touch, légende 3 boutons avec compteurs, notes cliquables → popup détail)
 - Photo cliquable → popup plein écran (ImageViewerPopup)
-- Accords principaux (barres triees par score decroissant - traduits en francais)
+- Accords principaux (barres triees par score decroissant, traduits FR + description au tap via `getAccordDescription`)
 - Saisonnalite
 - Occasions
 - Badge famille olfactive (traduit FR)
@@ -301,6 +301,16 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
 
+## v8.24 — Traduction & descriptions 100 % + polish a11y/robustesse + couverture tests (02/08/2026)
+
+- **Traduction notes/accords 100 %** (`translate-note.ts`) : dictionnaire EN→FR étendu de 248 → ~1 750 entrées ; **0 note et 0 accord non traduits** sur les 1 682 notes / 88 accords du catalogue (vérifié par scan de `data/clean/`). Pyramide et accords s'affichent tous en français (ex. *Bourbon Geranium* → Géranium Bourbon, *Peru Balsam* → Baume du Pérou, *Orris Root* → Racine d'iris).
+- **Descriptions popup 100 %** (`note-descriptions.ts`) : chaque note de pyramide (1 679) a désormais une catégorie emoji + une description FR dédiée (plus de fallback générique au tap) ; 2 catégories créées pour les notes hors-nature (`mineral` 🪨, `abstract` 💭). Nouveau `ACCORD_DESCRIPTIONS` (88 accords) + `getAccordDescription()` : le popup « Accords principaux » (`AccordProfile`) affiche une description orientée *famille olfactive* (ex. *Épicé frais*, *Ambré*) au lieu du texte générique ; fallback sur la description de note pour les accords-ingrédients, `null` sinon (émanation masquée).
+- **Polish a11y / typo / cibles** : `hitSlop` ≥ 44 px sur `RelationSection` (Gérer/signature/SOTD/étagères) + CTA `StickyBottomBar` ; `allowFontScaling={false}` sur prix + badge −% de la barre flottante (§6.6) ; espace fine insécable « ml » (§3.7) ; année ajoutée aux pills attributs de la fiche.
+- **Robustesse navigation** : `resetDock()` au changement de vue segmented (Favoris/Parfumerie) + `suppressNext` anti yo-yo ; `DockBar` passe `pointerEvents="none"` quand caché (le dock hidden ne capture plus les taps) ; seuil de la barre flottante recalibré de façon déterministe via `onLayout` (plus de `measureInWindow` qui se décalibrait au chargement tardif de « Ma relation ») ; retrait du chip « origine/pays » de la signature ; `paddingBottom` 88 pour dégager le dock flottant.
+- **Durcissement** : `try/catch` sur `addPossession` (§10) ; `usePerfVotes` return mémoïsé ; alpha `perf` 0.5→0.4 (palier §2.5).
+- **Couverture de tests** : 44 → **59 suites**, 415 → **618 tests** (nouveaux : contexts, hooks `useCommunityHighlights`/`usePerfVotes`/`useSaveController`/`useSotd`, services `community`/`perf-votes`/`recap`/`runner`/`weather`/`sql-utils`/`subscribe-user-table`, runner `storage`/`types`, utils `weather-scoring` ; helpers partagés exclus via `testPathIgnorePatterns`). `tsc --noEmit` : 0 erreur global.
+
+---
 ## v8.22+v8.23 — Fiche détail refonte + Alertes prix (correctifs, notif, harmonisation) (01/08/2026)
 
 - **Fiche détail v8.22** : cluster prix corrigé (barre flottante synchronisée au scroll, `STICKY_TRIGGER_OFFSET`), hero allégé (partage/expand/overlay 2x retirés), un seul accent (§2.4 : chip nez neutre, teinte `perf` dataviz documentée), Reduced Motion + a11y + cibles ≥ 44 px, `usePerfVotes` remonté (1 RPC par ouverture), étoile + compte d'avis, origine `country`, longévité en heures, similaires « Ça s'en rapproche » + delta de prix, `RelationSection` compacte (split outer/inner → résumé + « Gérer », ~250 px gagnés).

@@ -33,12 +33,14 @@ export function NavigationChromeProvider({ children }: { children: React.ReactNo
   const dockCompact = useSharedValue(0);
   const compactTarget = useSharedValue(0);
   const hideTarget = useSharedValue(0);
+  const suppressNext = useSharedValue(0);
   const reduceMotion = useReducedMotion();
 
   useAnimatedReaction(
     () => scrollY.value,
     (current, prev) => {
       if (prev === null) return;
+      if (suppressNext.value) { suppressNext.value = 0; return; }
       const dur = reduceMotion ? 0 : DOCK_DURATION;
       const delta = current - (prev as number);
       const goingDown = delta > 0;
@@ -68,6 +70,7 @@ export function NavigationChromeProvider({ children }: { children: React.ReactNo
   const value = useMemo<NavigationChromeContextValue>(() => ({
     resetDock: () => {
       const dur = reduceMotion ? 0 : DOCK_DURATION;
+      suppressNext.value = 1;
       scrollY.value = 0;
       compactTarget.value = 0;
       hideTarget.value = 0;
@@ -77,7 +80,7 @@ export function NavigationChromeProvider({ children }: { children: React.ReactNo
     dockTranslateY,
     dockCompact,
     scrollY,
-  }), [dockTranslateY, dockCompact, scrollY, compactTarget, hideTarget, reduceMotion]);
+  }), [dockTranslateY, dockCompact, scrollY, compactTarget, hideTarget, suppressNext, reduceMotion]);
 
   return (
     <NavigationChromeContext.Provider value={value}>

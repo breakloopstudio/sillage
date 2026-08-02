@@ -1,4 +1,4 @@
-import { getNoteDescription, getNoteEmoji } from '../../src/utils/note-descriptions';
+import { getNoteDescription, getNoteEmoji, getAccordDescription } from '../../src/utils/note-descriptions';
 
 describe('getNoteDescription', () => {
   it('returns a description for known notes', () => {
@@ -56,5 +56,31 @@ describe('getNoteEmoji', () => {
   it('is case-insensitive', () => {
     expect(getNoteEmoji('BERGAMOT')).toBe('🍋');
     expect(getNoteEmoji('Rose')).toBe('🌸');
+  });
+});
+
+describe('getAccordDescription', () => {
+  it('returns a dedicated accord description for olfactory families', () => {
+    const desc = getAccordDescription('fresh spicy');
+    expect(desc).toContain('épices froides');
+  });
+
+  it('prefers the accord description over the note one (amber)', () => {
+    const desc = getAccordDescription('amber');
+    expect(desc).toContain('résineux');
+    expect(desc).not.toBe(getNoteDescription('amber'));
+  });
+
+  it('falls back to the note description for ingredient-accords', () => {
+    expect(getAccordDescription('bergamot')).toBe(getNoteDescription('bergamot'));
+  });
+
+  it('is case-insensitive and trims whitespace', () => {
+    expect(getAccordDescription('  WOODY  ')).toBe(getAccordDescription('woody'));
+  });
+
+  it('returns null for unknown accords', () => {
+    expect(getAccordDescription('nonexistent_accord_xyz')).toBeNull();
+    expect(getAccordDescription('')).toBeNull();
   });
 });

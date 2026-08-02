@@ -8,23 +8,10 @@ import {
   setPriceAlert, getLowestObservedPrice,
 } from '../../src/services/user-data';
 import type { Parfum } from '../../src/models';
+import { chainMock } from '../helpers/supabase-chain';
 
 const mockFrom = supabase.from as jest.Mock;
 const mockRpc = supabase.rpc as jest.Mock;
-
-// Chaîne de mock query builder
-function chainMock(resolved: unknown = { data: null, error: null }) {
-  const chain: Record<string, jest.Mock> = {};
-  const methods = ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'neq', 'in', 'order', 'limit', 'maybeSingle', 'single'];
-  for (const m of methods) {
-    chain[m] = jest.fn().mockImplementation(() => {
-      if (m === 'maybeSingle' || m === 'single') return Promise.resolve(resolved);
-      return chain;
-    });
-  }
-  chain.then = (resolve: (v: unknown) => void) => resolve(resolved);
-  return chain;
-}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -85,7 +72,7 @@ describe('saveScan', () => {
   it('inserts scan with mapped fields', async () => {
     const chain = chainMock();
     mockFrom.mockReturnValue(chain);
-    await saveScan('uid1', { marque: 'Dior', nom: 'Sauvage', status: 'success', rawText: 'dior sauvage' } as never);
+    await saveScan('uid1', { marque: 'Dior', nom: 'Sauvage', status: 'success', rawText: 'dior sauvage' });
     expect(mockFrom).toHaveBeenCalledWith('scans');
     expect(chain.insert).toHaveBeenCalled();
     const arg = chain.insert.mock.calls[0][0];

@@ -110,7 +110,7 @@ function RelationInner({ parfum, save }: Props) {
         <Pressable
           style={s.manageBtn}
           onPress={openSaveSheet}
-          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Gérer ma relation"
         >
@@ -130,7 +130,7 @@ function RelationInner({ parfum, save }: Props) {
         <Pressable
           style={[s.toggleChip, item!.isSignature && s.toggleChipActive]}
           onPress={handleToggleSignature}
-          hitSlop={{ top: 4, bottom: 4 }}
+          hitSlop={{ top: 6, bottom: 6 }}
           accessibilityRole="button"
           accessibilityLabel={item!.isSignature ? 'Parfum signature (activé)' : 'Définir comme signature'}
         >
@@ -141,7 +141,7 @@ function RelationInner({ parfum, save }: Props) {
         <Pressable
           style={[s.toggleChip, isSotd && s.toggleChipActive]}
           onPress={handleSotd}
-          hitSlop={{ top: 4, bottom: 4 }}
+          hitSlop={{ top: 6, bottom: 6 }}
           accessibilityRole="button"
           accessibilityLabel={isSotd ? 'Porté aujourd’hui (activé)' : 'Marquer comme porté aujourd’hui'}
         >
@@ -161,7 +161,7 @@ function RelationInner({ parfum, save }: Props) {
                   key={sh.id}
                   style={[s.chip, assigned && s.chipActive]}
                   onPress={() => handleToggleShelf(sh.id)}
-                  hitSlop={{ top: 4, bottom: 4 }}
+                  hitSlop={{ top: 6, bottom: 6 }}
                   accessibilityRole="button"
                   accessibilityLabel={sh.name}
                 >

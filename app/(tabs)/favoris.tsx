@@ -106,7 +106,7 @@ export default function FavorisPage() {
   const { items, loading: upLoading, add, update, statusByParfumId } = useUserParfumContext();
   const { alerts, byParfumId, setAlert } = usePriceAlertsContext();
   const { density, setDensity } = useDensityPreference();
-  const { scrollY } = useNavigationChrome();
+  const { scrollY, resetDock } = useNavigationChrome();
 
   const scrollHandler = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
 
@@ -289,7 +289,7 @@ export default function FavorisPage() {
   }, [router]);
 
   const handlePillTap = useCallback((pill: FavPillId) => { hapticsLight(); setActivePill(pill); }, []);
-  const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setSearchQuery(''); setReachedOnly(false); setViewPref(v); }, [setViewPref]);
+  const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setSearchQuery(''); setReachedOnly(false); setViewPref(v); resetDock(); }, [setViewPref, resetDock]);
   const handleToggleReached = useCallback(() => { hapticsLight(); setReachedOnly(v => !v); }, []);
   const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
 

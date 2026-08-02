@@ -122,7 +122,7 @@ export default function MaParfumeriePage() {
   const { sotd, streak, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
   const { weather, loading: weatherLoading, coords } = useWeather(isAuthenticated && isOnline);
-  const { scrollY } = useNavigationChrome();
+  const { scrollY, resetDock } = useNavigationChrome();
   const { density, setDensity } = useDensityPreference();
   const { view: viewPref, setView: setViewPref } = useParfumerieViewPreference();
 
@@ -438,7 +438,7 @@ export default function MaParfumeriePage() {
   const handleShelvesScrollOffset = useCallback((offset: number) => { scrollY.value = offset; }, [scrollY]);
 
   const handleToggleFavOnly = useCallback(() => { hapticsLight(); setFavOnly(v => !v); }, []);
-  const handleSelectView = useCallback((v: ParfumerieView) => { hapticsLight(); setViewPref(v); }, [setViewPref]);
+  const handleSelectView = useCallback((v: ParfumerieView) => { hapticsLight(); setViewPref(v); resetDock(); }, [setViewPref, resetDock]);
   const canShareCollection = !!profile?.isPublic && !!profile?.pseudo;
   const handleShareCollection = useCallback(() => {
     if (!profile?.pseudo) return;

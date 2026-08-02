@@ -81,6 +81,12 @@ export default function CatalogDetailPage() {
   const scrollY = useSharedValue(0);
   const priceSectionY = useSharedValue(9999);
   const priceSectionRef = useRef<View>(null);
+  // Mesure déterministe du seuil de la barre flottante, dans le repère du
+  // contenu scrollé : position de la carte (contentWrap) + position du prix
+  // dans la carte. L'onLayout de contentWrap se redéclenche quand la relation
+  // (rendue au-dessus) se charge tard → le seuil se recalibre tout seul.
+  const contentWrapYRef = useRef(-1);
+  const priceInWrapYRef = useRef(-1);
   const insets = useSafeAreaInsets();
 
   const save = useSaveController(parfum);
@@ -91,6 +97,16 @@ export default function CatalogDetailPage() {
     () => ({ paddingTop: insets.top + 70, paddingBottom: insets.bottom + 88 }),
     [insets.top, insets.bottom],
   );
+
+  const recomputePriceThreshold = useCallback(() => {
+    const wrapY = contentWrapYRef.current;
+    const priceY = priceInWrapYRef.current;
+    if (wrapY >= 0 && priceY >= 0) {
+      // Seuil = position du prix dans le contenu − hauteur sous laquelle le
+      // header collant le masque (safe area + header replié).
+      priceSectionY.value = wrapY + priceY - (insets.top + STICKY_TRIGGER_OFFSET);
+    }
+  }, [insets.top, priceSectionY]);
 
   // Fermer les sheets ouvertes si la session tombe (logout en cours de vue).
   useEffect(() => {
@@ -241,18 +257,13 @@ export default function CatalogDetailPage() {
     const parts: string[] = [];
     const conc = typeParfumLabel(parfum.typeParfum) ?? resolveConcentration(parfum);
     if (conc) parts.push(conc);
+    if (parfum.annee) parts.push(String(parfum.annee));
     const g = genderLabel(parfum.gender);
     if (g) parts.push(g);
     return parts;
   }, [parfum]);
 
   const ratingLabel = communityRatingLabel(parfum);
-
-  const country = useMemo(() => {
-    const c0 = parfum?.country?.trim();
-    if (!c0 || c0.length > 24 || /\d/.test(c0)) return null;
-    return c0;
-  }, [parfum?.country]);
 
   const perfumersList = useMemo(
     () => (parfum?.perfumers ? [...new Set(parfum.perfumers.filter(Boolean))] : []),
@@ -298,15 +309,14 @@ export default function CatalogDetailPage() {
 
           <RelationSection parfum={parfum} save={save} />
 
-          <View style={s.contentWrap}>
+          <View
+            style={s.contentWrap}
+            onLayout={(e) => { contentWrapYRef.current = e.nativeEvent.layout.y; recomputePriceThreshold(); }}
+          >
             {/* ─── Le prix (affichage unique, remonté sous le hero) ─── */}
             <View
               ref={priceSectionRef}
-              onLayout={() => {
-                priceSectionRef.current?.measureInWindow((_x, y) => {
-                  priceSectionY.value = y + scrollY.value - STICKY_TRIGGER_OFFSET;
-                });
-              }}
+              onLayout={(e) => { priceInWrapYRef.current = e.nativeEvent.layout.y; recomputePriceThreshold(); }}
             >
               {hasBestPrice ? (
                 <View style={s.dealSection}>
@@ -348,7 +358,7 @@ export default function CatalogDetailPage() {
                     >
                       <View style={s.offerLeft}>
                         <Text style={s.offerMerchant}>{offer.marchand}</Text>
-                        {offer.volumeMl ? <Text style={s.offerVolume}>{offer.volumeMl} ml</Text> : null}
+                        {offer.volumeMl ? <Text style={s.offerVolume}>{offer.volumeMl} ml</Text> : null}
                       </View>
                       <View style={s.offerRight}>
                         <Text style={s.offerPrice}>{formatPrice(offer.prix, { decimals: 0 })}</Text>
@@ -396,7 +406,7 @@ export default function CatalogDetailPage() {
               </View>
             ) : null}
 
-            {/* ─── La signature (maison + nez + origine) ─── */}
+            {/* ─── La signature (maison + nez) ─── */}
             <View style={s.signatureRow}>
               <Pressable
                 style={({ pressed }) => [s.brandChip, pressed && { opacity: 0.7 }]}
@@ -424,12 +434,6 @@ export default function CatalogDetailPage() {
                   <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
                 </Pressable>
               ))}
-              {country ? (
-                <View style={s.countryChip}>
-                  <Ionicons name="location-outline" size={12} color={t.colors.textMuted} />
-                  <Text style={s.countryChipText} allowFontScaling={false}>{country}</Text>
-                </View>
-              ) : null}
             </View>
 
             {/* ─── Ligne éditoriale (voix lookbook, Playfair italique) — masquée si orpheline ─── */}
@@ -458,7 +462,7 @@ export default function CatalogDetailPage() {
                 />
 
                 <PerformanceProfile
-                  key={parfum.id}
+                  key={`perf-${parfum.id}`}
                   longevity={parfum.longevity}
                   sillage={parfum.sillage}
                   perfVotes={perfVotes}
@@ -466,7 +470,7 @@ export default function CatalogDetailPage() {
 
                 {/* ─── Quand le porter ─── */}
                 {seasonProfile ? (
-                  <SeasonProfile key={parfum.id} profile={seasonProfile} perfVotes={perfVotes} />
+                  <SeasonProfile key={`season-${parfum.id}`} profile={seasonProfile} perfVotes={perfVotes} />
                 ) : null}
 
                 {/* ─── La communauté (verdicts publics) ─── */}
@@ -600,14 +604,12 @@ function getStyles(t: Theme) {
   sectionTitleBody: { flex: 1 },
   sectionTitleText: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: t.colors.text },
   sectionSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 12, color: t.colors.textMuted, marginTop: 1 },
-  // ─── La signature (maison + nez + origine) ───
+  // ─── La signature (maison + nez) ───
   signatureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 6 },
   brandChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.primarySoft },
   brandChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.primaryInk },
   noseChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.surface2 },
   noseChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: t.colors.text },
-  countryChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.colors.surface2 },
-  countryChipText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: t.colors.textMuted },
   // ─── Recommandations ───
   similarRow: { gap: 12, paddingTop: 4 },
   similarCardWrap: { width: 160 },

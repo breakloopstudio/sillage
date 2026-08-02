@@ -187,7 +187,7 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
   }));
 
   const handleFocus = useCallback(() => onSelect(dim.key), [onSelect, dim.key]);
-  const litColor = alpha(c.perf, 0.5);
+  const litColor = alpha(c.perf, 0.4);
 
   return (
     <Animated.View entering={FadeIn.delay(reduced ? 0 : rank * 110).duration(reduced ? 0 : 380)}>

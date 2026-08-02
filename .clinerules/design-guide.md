@@ -49,7 +49,7 @@
 | `border` | Bordures : séparateurs de liste, divider, contour de carte si pas d'ombre. `StyleSheet.hairlineWidth` par défaut. |
 | `text` | Texte principal : titre, corps, label actif. |
 | `textMuted` | Texte secondaire : sous-titre, métadonnée, placeholder, caption. |
-| `textInverse` | Texte sur fond sombre. Utiliser `#FFFFFF` en dur — cette valeur est invariante entre light/dark mode et ne dépend pas du thème. |
+| `textInverse` | Texte sur fond sombre (light) / fond clair (dark). En pratique, utiliser `#FFFFFF` en dur sur les boutons colorés et overlays — cette valeur est invariante et ne dépend pas du thème. Le token `textInverse` lui-même varie (`#FFFFFF` light / `#0B0712` dark) et sert aux textes sur surfaces inversées. |
 | `primary` | Bouton principal, icône active, texte d'action, indicateur sélectionné. |
 | `primarySoft` | Fond d'icône, fond de chip actif (famille olfactive), fond d'état vide, hover/pressé sur ghost. |
 | `primaryInk` | Texte sur fond `primarySoft` (chips, pastilles, labels). Plus foncé que `primary` en light, plus clair en dark. |
@@ -73,6 +73,7 @@
 | `seasonSpringSoft` → `seasonWinterSoft` | Pastille de la meilleure saison (fond atténué). |
 | `reward` / `rewardSoft` | Badge promo (-X%), fond de badge. Identique à `secondary`/`secondarySoft`. |
 | `perf` / `perfSoft` / `perfInk` | Teinte **dataviz** de la performance olfactive (section « Tenue & sillage » : pastille, crans, bouton de vote). Acier froid, délibérément hors du conflit d'accent chaud violet/doré — **ne pas la remplacer par `reward`/`secondary`** (cela réintroduirait un 2ᵉ accent chaud, §2.4). |
+| `accord0` → `accord7` | Palette 8 couleurs des accords olfactifs (AccordProfile, §4.12). Chaque accord est mappé à un index via `accordColorIndex()`. Utilisés en fond de barre + texte `accordNInk`. |
 | `danger` | État d'erreur, bouton destructif. |
 | `success` | État de succès, confirmation. |
 | `warning` | État d'avertissement, attention. |
@@ -388,7 +389,7 @@ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10
 
 ### 4.5 Empty State (`EmptyState`)
 
-5 variantes : `collection | favoris | historique | wardrobe | scentlist`.
+6 variantes : `collection | favoris | historique | wardrobe | scentlist | alertes`.
 
 ```
         ┌──────┐
@@ -912,7 +913,7 @@ function getStyles(t: Theme) {
 
 ### A.4 Tokens dépréciés
 
-- `spacing.lg` (20), ancien `spacing.xl` (devenu 24), `radius.lg` (20), `radius.xl` (24) — supprimés, ne pas réintroduire
+- `spacing.lg` (20), ancien `spacing.xl` (devenu 24), `radius.lg` (20), `radius.xl` (24) — morts (0 consommateur dans `src/`), toujours présents dans `theme.ts` pour rétrocompatibilité ; ne pas utiliser dans le nouveau code
 - `violetInk` — doublon exact de `primaryInk` (mêmes valeurs light/dark) ; consommé par 3 composants (ParfumCard, ScanClarify, FamilyAmbianceCards) : migrer vers `primaryInk` à la prochaine retouche de ces fichiers, puis retirer l'alias
 
 ---
@@ -985,6 +986,7 @@ Implémentations canoniques à imiter (ne pas réinventer) :
 
 ## Changelog
 
+- **1.6** (août 2026) : §2.1 ajout `accord0`–`accord7` ; `textInverse` clarifié (token variable ≠ convention `#FFFFFF` invariante) ; §A.4 corrigé (tokens morts ≠ supprimés) ; EmptyState 6 variantes (+ `alertes`).
 - **1.5** (juillet 2026) : §0 quick reference ; §2.6 haptique ; §3.7 formatage données (`formatPrice`) ; §4.16 sheets unifiés ; §4.17 densité ; §4.18 feedback ; §6.7 Reduced Motion ; §6.8 dataviz a11y ; §7.6 shared element ; §8.6 dark optique ; §9 adaptive ; §A.4 tokens dépréciés ; Annexe C. Corrections datées : EmptyState 5 variantes, `textMuted` light `#6E6963`, mentions onboarding supprimées, échelle prix §3.2, §4.7 assoupli.
 - **1.4** (juillet 2026) : échelle d'opacité §2.5, copy & voix §3.6, iconographie §4.15.
 - **1.3 et avant** : voir l'historique git.

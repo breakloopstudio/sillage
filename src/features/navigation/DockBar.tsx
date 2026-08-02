@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
@@ -6,12 +6,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedReaction,
   useReducedMotion,
   withSpring,
   withTiming,
   withSequence,
   interpolate,
   Extrapolation,
+  runOnJS,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -89,6 +91,12 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
   const { dockTranslateY, dockCompact } = useNavigationChrome();
   const { width: windowWidth } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
+
+  const [isDockHidden, setIsDockHidden] = useState(false);
+  useAnimatedReaction(
+    () => dockTranslateY.value > 60,
+    (hidden) => { runOnJS(setIsDockHidden)(hidden); },
+  );
 
   const fabScale = useSharedValue(1);
   const indicatorCenter = useSharedValue(
@@ -210,7 +218,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
   };
 
   return (
-    <Animated.View style={[s.wrapper, { paddingBottom: 8 + insets.bottom }, dockStyle]} pointerEvents="box-none">
+    <Animated.View style={[s.wrapper, { paddingBottom: 8 + insets.bottom }, dockStyle]} pointerEvents={isDockHidden ? 'none' : 'box-none'}>
       <Animated.View style={[s.bar, m.border, m.barShadow, barHeightStyle]}>
         <BlurView
           intensity={24}
