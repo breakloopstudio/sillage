@@ -1,10 +1,14 @@
 // src/features/catalog/CatalogRow.tsx — Rangée éditoriale horizontale avec collapse
 
-import { useState, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { useState, useMemo, useCallback, Children, type ReactElement } from 'react';
+import { View, Text, Pressable, FlatList } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import SectionHeader from '../../components/SectionHeader';
+
+const CAROUSEL_CARD_WIDTH = 140;
+const CAROUSEL_GAP = 12;
+const CAROUSEL_STEP = CAROUSEL_CARD_WIDTH + CAROUSEL_GAP;
 
 interface Props {
   title: string;
@@ -28,6 +32,25 @@ export default function CatalogRow({
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  const items = useMemo(() => Children.toArray(children) as ReactElement[], [children]);
+
+  const renderItem = useCallback(({ item }: { item: ReactElement }) => item, []);
+
+  const keyExtractor = useCallback(
+    (item: ReactElement, index: number) => item.key ?? String(index),
+    [],
+  );
+
+  const pad = theme.spacing.md;
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<ReactElement> | null | undefined, index: number) => ({
+      length: CAROUSEL_STEP,
+      offset: pad + CAROUSEL_STEP * index,
+      index,
+    }),
+    [pad],
+  );
 
   return (
     <View style={s.container}>
@@ -71,14 +94,19 @@ export default function CatalogRow({
         </View>
       </Pressable>
       {!collapsed && (
-        <ScrollView
+        <FlatList
+          data={items}
           horizontal
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          getItemLayout={getItemLayout}
+          initialNumToRender={8}
+          maxToRenderPerBatch={4}
+          windowSize={3}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.scrollContent}
           style={s.scrollView}
-        >
-          {children}
-        </ScrollView>
+        />
       )}
     </View>
   );
@@ -114,6 +142,6 @@ function getStyles(t: Theme) {
       alignItems: 'center',
     },
     scrollView: { marginTop: 4 },
-    scrollContent: { paddingHorizontal: t.spacing.md, gap: 12 },
+    scrollContent: { paddingHorizontal: t.spacing.md, gap: CAROUSEL_GAP },
   } as const;
 }

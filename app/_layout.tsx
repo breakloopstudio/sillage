@@ -17,6 +17,9 @@ import OfflineBanner, { OFFLINE_BANNER_BAND } from '../src/components/OfflineBan
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useNetwork } from '../src/hooks/useNetwork';
 import { createNotificationChannels, startFcmRegistration } from '../src/services/push';
+import { getOrFetch } from '../src/services/impl/home-cache';
+import { getPopularParfums, getTopRatedParfums, getSeasonalParfums } from '../src/services/catalog';
+import { currentSeason } from '../src/utils/season';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { PlayfairDisplay_500Medium, PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, PlayfairDisplay_700Bold_Italic } from '@expo-google-fonts/playfair-display';
@@ -74,10 +77,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
-    if (authReady) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [authReady]);
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!authReady) return;
@@ -86,7 +87,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (isAuthenticated && inAuth) router.replace('/(tabs)');
   }, [authReady, isAuthenticated, segments]);
 
-  if (!authReady) return null;
   return <>{children}</>;
 }
 
@@ -166,6 +166,14 @@ export default function RootLayout() {
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
     PlayfairDisplay_500Medium, PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, PlayfairDisplay_700Bold_Italic,
   });
+
+  useEffect(() => {
+    const s = currentSeason();
+    void getOrFetch('popular', () => getPopularParfums(120));
+    void getOrFetch('top', () => getTopRatedParfums(12));
+    void getOrFetch('seasonal:' + s, () => getSeasonalParfums(s, 12));
+  }, []);
+
   if (!fontsLoaded) return null;
   return (
     <ThemeProvider>

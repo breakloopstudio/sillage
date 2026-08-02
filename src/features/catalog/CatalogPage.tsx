@@ -3,25 +3,26 @@
 // Suppression des chips famille olfactive — dilution dans des sections nommées
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { Link, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useAuthContext } from '../../contexts/AuthContext';
 import ParfumCard from '../../components/ParfumCard';
-import SectionHeader from '../../components/SectionHeader';
 import BrandCapsules from './BrandCapsules';
 import CatalogRow from './CatalogRow';
 import FamilyAmbianceCards from './FamilyAmbianceCards';
 import BrandSheet from './BrandSheet';
 import { getPopularParfums, getPersonalizedSuggestions, getTopRatedParfums, getSeasonalParfums, getParfumCount } from '../../services/catalog';
 import { useDensityPreference, GRID_MODES } from '../../hooks/useDensityPreference';
+import { useStaleWhileRevalidate } from '../../hooks/useStaleWhileRevalidate';
 import type { CardMode } from '../../components/ParfumCard';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { currentSeason, SEASON_META } from '../../utils/season';
 import type { Parfum } from '../../models';
+import { getCached, setCached } from '../../services/impl/home-cache';
 
 function seededShuffle<T>(arr: T[], seed: number): T[] {
   const shuffled = [...arr];
@@ -69,43 +70,28 @@ export default function CatalogPage({ scrollY }: Props) {
   const [suggestionParfums, setSuggestionParfums] = useState<Parfum[]>([]);
   const [suggestionLabel, setSuggestionLabel] = useState('Parfums populaires');
   const [suggestionLoading, setSuggestionLoading] = useState(true);
+  const [personalizedFailed, setPersonalizedFailed] = useState(false);
 
   const [bestDeals, setBestDeals] = useState<Parfum[]>([]);
   const [dealsLoading, setDealsLoading] = useState(true);
 
-  const [topRated, setTopRated] = useState<Parfum[]>([]);
-  const [topRatedLoading, setTopRatedLoading] = useState(true);
-
-  const [seasonal, setSeasonal] = useState<Parfum[]>([]);
-  const [seasonalLoading, setSeasonalLoading] = useState(true);
-
   const season = useMemo(() => currentSeason(), []);
+  const today = Math.floor(Date.now() / 86400000);
+
+  const { data: topRated, loading: topRatedLoading } = useStaleWhileRevalidate('top', () => getTopRatedParfums(12));
+  const { data: seasonal, loading: seasonalLoading } = useStaleWhileRevalidate('seasonal:' + season, () => getSeasonalParfums(season, 12));
+  const { data: sharedPool, loading: sharedLoading } = useStaleWhileRevalidate('popular', () => getPopularParfums(120));
 
   const [gridParfums, setGridParfums] = useState<Parfum[]>([]);
   const [gridLoading, setGridLoading] = useState(true);
   const [brandSheetVisible, setBrandSheetVisible] = useState(false);
 
-  const [sharedPool, setSharedPool] = useState<Parfum[]>([]);
-  const [sharedLoading, setSharedLoading] = useState(true);
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
-  const today = Math.floor(Date.now() / 86400000);
-
-  // ── Shared pool: 1 seul fetch Firestore pour toutes les rangées ──
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const popular = await getPopularParfums(120);
-        if (!cancelled) setSharedPool(popular);
-        const urls = popular.map(p => p.imageUrl).filter((u): u is string => !!u).slice(0, 24);
-        if (urls.length > 0) Image.prefetch(urls, 'memory-disk').catch(() => {});
-      } catch (e) { console.warn('[catalog] getPopularParfums failed:', e); }
-      if (!cancelled) setSharedLoading(false);
-    }
-    load();
-    return () => { cancelled = true; };
-  }, []);
+    const urls = sharedPool.map(p => p.imageUrl).filter((u): u is string => !!u).slice(0, 24);
+    if (urls.length > 0) Image.prefetch(urls, 'memory-disk').catch(() => {});
+  }, [sharedPool]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,36 +99,54 @@ export default function CatalogPage({ scrollY }: Props) {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Suggestions (Pour vous / Populaires) — depuis le pool partagé ──
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (isAuthenticated && user) {
-        try {
-          const personalized = await getPersonalizedSuggestions(user.uid, 16);
-          if (!cancelled && personalized.length > 0) {
-            const exploit = personalized.slice(0, 5);
-            const discover = seededShuffle(personalized.slice(5), today).slice(0, 3);
-            setSuggestionParfums([...exploit, ...discover]);
-            setSuggestionLabel('Pour vous');
-            setSuggestionLoading(false);
-            return;
-          }
-        } catch (e: unknown) { console.warn('[catalog] getPersonalizedSuggestions failed:', (e as Error)?.message ?? String(e)); }
-      }
-      if (sharedPool.length > 0) {
-        if (!cancelled) {
-          setSuggestionParfums(seededShuffle(sharedPool, today).slice(0, 8));
-          setSuggestionLabel('Tendances du moment');
-          setSuggestionLoading(false);
-        }
-      } else if (!sharedLoading) {
-        if (!cancelled) { setSuggestionParfums([]); setSuggestionLoading(false); }
-      }
+    if (!authReady) return;
+    setPersonalizedFailed(false);
+    if (!isAuthenticated || !user) {
+      setPersonalizedFailed(true);
+      return;
     }
-    load();
+    let cancelled = false;
+    const uid = user.uid;
+    const apply = (raw: Parfum[]) => {
+      const exploit = raw.slice(0, 5);
+      const discover = seededShuffle(raw.slice(5), today).slice(0, 3);
+      setSuggestionParfums([...exploit, ...discover]);
+      setSuggestionLabel('Pour vous');
+      setSuggestionLoading(false);
+    };
+    getCached('personalized:' + uid).then((cached) => {
+      if (cancelled) return;
+      if (cached && cached.data.length > 0) apply(cached.data);
+    });
+    getPersonalizedSuggestions(uid, 16)
+      .then((personalized) => {
+        if (cancelled) return;
+        if (personalized.length > 0) {
+          void setCached('personalized:' + uid, personalized);
+          apply(personalized);
+        } else {
+          setPersonalizedFailed(true);
+        }
+      })
+      .catch((e: unknown) => {
+        console.warn('[catalog] getPersonalizedSuggestions failed:', (e as Error)?.message ?? String(e));
+        if (!cancelled) setPersonalizedFailed(true);
+      });
     return () => { cancelled = true; };
-  }, [authReady, isAuthenticated, user?.uid, sharedPool, sharedLoading]);
+  }, [authReady, isAuthenticated, user?.uid]);
+
+  useEffect(() => {
+    if (!personalizedFailed) return;
+    if (sharedLoading) return;
+    if (sharedPool.length > 0) {
+      setSuggestionParfums(seededShuffle(sharedPool, today).slice(0, 8));
+      setSuggestionLabel('Tendances du moment');
+    } else {
+      setSuggestionParfums([]);
+    }
+    setSuggestionLoading(false);
+  }, [personalizedFailed, sharedPool, sharedLoading]);
 
   // ── Meilleures affaires (ratio-based) — depuis le pool partagé ──
   useEffect(() => {
@@ -162,26 +166,6 @@ export default function CatalogPage({ scrollY }: Props) {
     setGridParfums(seededShuffle(sharedPool.slice(0, 40), today));
     setGridLoading(false);
   }, [sharedPool, sharedLoading]);
-
-  // ── Les mieux notés (note + plancher de reviews) — fetch dédié ──
-  useEffect(() => {
-    let cancelled = false;
-    getTopRatedParfums(12)
-      .then(list => { if (!cancelled) setTopRated(list); })
-      .catch((e) => console.warn('[catalog] getTopRatedParfums', e))
-      .finally(() => { if (!cancelled) setTopRatedLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
-
-  // ── Parfaits pour la saison (saison dominante) — fetch dédié ──
-  useEffect(() => {
-    let cancelled = false;
-    getSeasonalParfums(season, 12)
-      .then(list => { if (!cancelled) setSeasonal(list); })
-      .catch((e) => console.warn('[catalog] getSeasonalParfums', e))
-      .finally(() => { if (!cancelled) setSeasonalLoading(false); });
-    return () => { cancelled = true; };
-  }, [season]);
 
   // Dédup : un parfum dominant en saison ET bien noté ne doit pas apparaître
   // dans deux rangées adjacentes. La rangée saison garde la priorité.
@@ -328,7 +312,7 @@ export default function CatalogPage({ scrollY }: Props) {
   ), [
     s, suggestionParfums, suggestionLabel, suggestionLoading,
     seasonal, seasonalLoading, topRatedDisplay, topRatedLoading, season,
-    bestDeals, dealsLoading, gridDensity,
+    bestDeals, dealsLoading, gridDensity, totalCount,
     handleViewAllBrands, handleBrandTap, handleFamilyTap, scrollToGrid, handleDensityChange,
   ]);
 
@@ -350,27 +334,26 @@ export default function CatalogPage({ scrollY }: Props) {
         </View>
       </View>
 
-      {gridLoading ? (
-        <View style={s.loadingWrap}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : (
-        <Animated.FlatList
-          ref={flatListRef}
-          key={gridKey}
-          data={gridParfums}
-          extraData={gridDensity}
-          numColumns={gridNumCols}
-          keyExtractor={p => p.id}
-          renderItem={renderGridItem}
-          ListHeaderComponent={listHeader}
-          contentContainerStyle={s.gridContent}
-          columnWrapperStyle={gridNumCols === 2 ? s.gridRow : undefined}
-          showsVerticalScrollIndicator={false}
-          onScroll={scrollHandler}
-          scrollEventThrottle={16}
-        />
-      )}
+      <Animated.FlatList
+        ref={flatListRef}
+        key={gridKey}
+        data={gridParfums}
+        extraData={gridDensity}
+        numColumns={gridNumCols}
+        keyExtractor={p => p.id}
+        renderItem={renderGridItem}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={gridLoading ? (
+          <View style={s.gridFooterLoading}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          </View>
+        ) : null}
+        contentContainerStyle={s.gridContent}
+        columnWrapperStyle={gridNumCols === 2 ? s.gridRow : undefined}
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      />
 
       <BrandSheet
         visible={brandSheetVisible}
@@ -400,7 +383,7 @@ function getStyles(t: Theme) {
     },
     heroTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 28, color: t.colors.text },
     heroSub: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted, marginTop: 4 },
-    loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    gridFooterLoading: { paddingVertical: 32, alignItems: 'center' },
 
     gridControls: {
       paddingHorizontal: t.spacing.md,

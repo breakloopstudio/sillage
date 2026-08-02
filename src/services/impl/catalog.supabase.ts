@@ -9,6 +9,7 @@ import type { SuggestionRow } from '../../utils/suggest';
 import { supabase } from '../supabase';
 import type { Database } from '../../types/database.types';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
+import { clearHomeCache } from './home-cache';
 import { toNum, toDate } from './sql-utils';
 
 export { SearchError };
@@ -92,6 +93,8 @@ function parfumToRow(data: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+const CATALOG_CARD_SELECT = 'id,' + Object.values(WRITE_MAP).join(',');
+
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
 export async function getParfumById(id: string): Promise<Parfum | undefined> {
@@ -137,6 +140,7 @@ const _searchCache = new LRUCache(200);
 /** Vide le cache de recherche (après une mutation admin). */
 export function clearSearchCache(): void {
   _searchCache.clear();
+  void clearHomeCache();
 }
 
 export async function searchParfumsCached(queryStr: string): Promise<Parfum[]> {
@@ -278,11 +282,11 @@ export async function getPopularParfums(limitCount: number = 6): Promise<Parfum[
   try {
     const { data, error } = await supabase
       .from('parfums')
-      .select('*')
+      .select(CATALOG_CARD_SELECT)
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(limitCount);
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch {
     return [];
   }
@@ -314,7 +318,7 @@ export async function getTopRatedParfums(limitCount: number = 12): Promise<Parfu
   try {
     const { data, error } = await supabase
       .from('parfums')
-      .select('*')
+      .select(CATALOG_CARD_SELECT)
       .not('rating_score', 'is', null)
       .gte('review_count', 50)
       .not('image_url', 'is', null)
@@ -322,7 +326,7 @@ export async function getTopRatedParfums(limitCount: number = 12): Promise<Parfu
       .order('review_count', { ascending: false })
       .limit(limitCount);
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(rowToParfum);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch {
     return [];
   }
