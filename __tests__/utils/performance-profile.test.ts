@@ -5,13 +5,13 @@ import {
 } from '../../src/utils/performance-profile';
 
 describe('longevityLevel', () => {
-  it('maps the five Fragrantica levels onto four cranks without skipping crank 3', () => {
+  it('maps the five Fragrantica levels onto five cranks (1:1)', () => {
     expect(longevityLevel('very weak')).toBe(1);
-    expect(longevityLevel('weak')).toBe(1);
-    expect(longevityLevel('moderate')).toBe(2);
-    expect(longevityLevel('long lasting')).toBe(3);
-    expect(longevityLevel('eternal')).toBe(4);
-    expect(longevityLevel('very long lasting')).toBe(4);
+    expect(longevityLevel('weak')).toBe(2);
+    expect(longevityLevel('moderate')).toBe(3);
+    expect(longevityLevel('long lasting')).toBe(4);
+    expect(longevityLevel('eternal')).toBe(5);
+    expect(longevityLevel('very long lasting')).toBe(5);
   });
 
   it('returns 0 for missing input', () => {
@@ -43,8 +43,8 @@ describe('buildPerformance', () => {
     const p = buildPerformance('long lasting', 'moderate');
     expect(p.longevity).not.toBeNull();
     expect(p.sillage).not.toBeNull();
-    expect(p.longevity!.level).toBe(3);
-    expect(p.longevity!.ticks).toHaveLength(4);
+    expect(p.longevity!.level).toBe(4);
+    expect(p.longevity!.ticks).toHaveLength(5);
     expect(p.longevity!.valueLabel).toBe('Longue');
     expect(p.sillage!.level).toBe(2);
     expect(p.sillage!.valueLabel).toBe('Modéré');

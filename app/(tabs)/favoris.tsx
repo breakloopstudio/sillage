@@ -294,7 +294,7 @@ export default function FavorisPage() {
   const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
 
   const gridNumCols = density === 'list' ? 1 : 2;
-  const gridKey = `${gridNumCols}col-${resolvedMode}`;
+  const gridKey = `${gridNumCols}col`;
 
   const renderItem = useCallback(({ item }: { item: UserFavori }) => {
     const status = statusByParfumId.get(item.parfumId) ?? null;

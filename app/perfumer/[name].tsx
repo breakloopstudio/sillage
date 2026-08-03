@@ -48,7 +48,7 @@ export default function PerfumerPage() {
   ), [gridDensity, s, handleParfumPress]);
 
   const gridNumCols = gridDensity === 'list' ? 1 : 2;
-  const gridKey = `${gridNumCols}col-${resolvedMode}`;
+  const gridKey = `${gridNumCols}col`;
   const countLabel = `${parfums.length >= MAX_RESULTS ? `${MAX_RESULTS}+` : parfums.length} création${parfums.length > 1 ? 's' : ''}`;
 
   return (

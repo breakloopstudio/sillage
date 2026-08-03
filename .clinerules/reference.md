@@ -507,6 +507,9 @@ interface Theme {
   radius: { /* sm, base, card, full */ };
   spacing: { /* xs → 3xl */ };
   shadow: { /* card, elevated, button, scanCircle */ };
+  cardShadow: { /* light : shadow.card ; dark : noShadow (zéro ombre) */ };
+  cardBorder: { /* light : border 1px ; dark : 0.5px rgba(255,255,255,0.06) */ };
+  hairline: { /* light : transparent ; dark : 0.5px rgba(255,255,255,0.06) */ };
 }
 ```
 
@@ -779,15 +782,17 @@ export function normalizePseudo(input: string): string;       // trim + lowercas
 ### `src/utils/perf-fusion.ts`
 ```ts
 // Fusion Fragrantica bornée + votes utilisateurs (miroir client des helpers SQL _perf_cranks/_perf_score)
-export function perfCranks(breakout: { name: string; score: number }[] | null | undefined, dimension: 'longevity' | 'sillage'): number[];
-// Normalise le breakout Fragrantica en 4 crans UI (very weak+weak→1, moderate→2, long lasting→3, eternal→4 ; intimate→1, moderate→2, strong→3, enormous→4)
+export function perfCranks(breakout: Record<string, number>[] | null | undefined, dimension: 'longevity' | 'sillage'): number[];
+// Normalise le breakout Fragrantica en crans UI : longévité 5 crans 1:1 (very weak→1 … eternal→5), sillage 4 crans (intimate→1 … enormous→4)
 export function perfScore(fragCranks: number[], userCranks: number[], cap?: number): number | null;
-// Moyenne pondérée 1..4 ; Fragrantica plafonné à cap (PERF_CAP = 100) en conservant sa forme ; null si 0 vote des deux côtés
+// Moyenne pondérée sur les crans de la dimension ; Fragrantica plafonné à cap (PERF_CAP = 100) en conservant sa forme ; null si 0 vote des deux côtés
+export function perfLevel(score: number | null, dimension: PerfDimensionKey): number | null;
+// Score → cran affiché, arrondi borné (5 longévité, 4 sillage)
 ```
 
 ### `src/utils/performance-profile.ts`
 ```ts
-// Crans UI 1-4 de longévité/sillage : mapping des strings legacy → niveau, ticks (Matin/Midi/Soir/Nuit, Peau/Proche/Bras/Pièce), libellés FR, émanations
+// Crans UI 1-5 longévité / 1-4 sillage : mapping des strings legacy → niveau ('very weak'→1 avant 'weak'→2), ticks (Matin/Midi/Soir/Nuit/Nuit +, Peau/Proche/Bras/Pièce), libellés FR, émanations
 export type PerfDimensionKey = 'longevity' | 'sillage';
 export function longevityLevel(v: string | null | undefined): number;
 export function sillageLevel(v: string | null | undefined): number;
@@ -1237,7 +1242,7 @@ Couche d'organisation visuelle (étagères déjà en base) + couche communautair
 - `PublicShelfItem { parfumId, nom, marque, imageUrl, familleOlactive, bestPrice? }`.
 
 ### Composants
-- `ShelfCard` (`features/wardrobe`) : `name / icon / accent / tagline / items: ShelfCardItem[] / variant: 'user' | 'system' / expanded / isPublic / onToggleExpand / onPressBottle / onAdd? / onOpenMenu?`. Rayon teinté, collapse/expand, badge `globe`. `ShelfCardItem` = interface minimale (`parfumId / nom / marque / imageUrl`) satisfaite structurellement par `UserParfum` et `PublicShelfItem` (réutilisation privé/public sans cast).
+- `ShelfCard` (`features/wardrobe`) : `name / icon / accent / tagline / items: ShelfCardItem[] / variant: 'user' | 'system' / expanded / isPublic / onToggleExpand / onPressBottle / onAdd? / onOpenMenu? / onMoveUp? / onMoveDown? / canMoveUp? / canMoveDown?`. Rayon teinté, collapse/expand, badge `globe`, colonne de déplacement ↕ (variant `user` uniquement, cibles ≥ 44 px via hitSlop). `ShelfCardItem` = interface minimale (`parfumId / nom / marque / imageUrl`) satisfaite structurellement par `UserParfum` et `PublicShelfItem` (réutilisation privé/public sans cast).
 - `BottleThumb` (`features/wardrobe`) : vignette flacon nu (`contain`), placeholder couleur de marque, `accessibilityLabel = `${marque} ${nom}``.
 - `ShelfManager` (`features/wardrobe`) : modal centré sur `DraggableFlatList` (drag = long-press sur poignée), édition inline (nom + note + icône + couleur), création en `ListFooterComponent`.
 - `AddToShelfSheet` (`components`) : `onAdd: (id) => Promise<boolean>` + rollback du masquage optimiste.

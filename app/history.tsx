@@ -162,6 +162,7 @@ function ScanHistoryCardBase({
   if (!isSuccess) {
     const tint = brandColor(scan.marque ?? '');
     return (
+      <View style={s.cardNoResultWrap}>
       <Pressable style={s.cardNoResult} onLongPress={onLongPress} delayLongPress={400}>
         <View style={[s.dotBadge, { backgroundColor: dotColor }]} />
         {scan.imageUrl ? (
@@ -182,6 +183,7 @@ function ScanHistoryCardBase({
           </View>
         </View>
       </Pressable>
+      </View>
     );
   }
 
@@ -495,15 +497,20 @@ function getCardStyles(t: Theme) {
     },
 
     // No-result card
+    cardNoResultWrap: {
+      borderRadius: t.radius.card,
+      marginHorizontal: 16,
+      backgroundColor: t.colors.surface,
+      ...t.cardShadow,
+    },
     cardNoResult: {
       flexDirection: 'row',
       backgroundColor: t.colors.surface,
       borderRadius: t.radius.card,
-      marginHorizontal: 16,
       padding: 12,
       gap: 12,
       overflow: 'hidden' as const,
-      ...t.shadow.card,
+      ...t.hairline,
     },
     image: {
       width: 56,

@@ -245,9 +245,9 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
         {state.routes[1] && renderTab(state.routes[1].key, state.routes[1].name, 1)}
 
         <View style={s.fabSlot}>
-          <Animated.View style={[s.fabOuter, fabStyle]}>
+          <Animated.View style={[s.fabOuter, m.fabShadow, m.fabRing, fabStyle]}>
             <Pressable
-              style={[s.fab, m.fabRing, m.fabShadow]}
+              style={[s.fab, m.fabRing]}
               onPressIn={handleFabIn}
               onPressOut={handleFabOut}
               onPress={handleFabPress}
@@ -342,6 +342,7 @@ const s = StyleSheet.create({
   fabOuter: {
     width: FAB_SIZE,
     height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
     justifyContent: 'center',
     alignItems: 'center',
   },

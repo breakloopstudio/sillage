@@ -52,8 +52,10 @@ interface Props {
   onOpenMenu?: () => void;
   onPressEmblem?: () => void;
   emblemAccessibilityLabel?: string;
-  drag?: () => void;
-  isDragging?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -102,8 +104,10 @@ export default function ShelfCard({
   onOpenMenu,
   onPressEmblem,
   emblemAccessibilityLabel,
-  drag,
-  isDragging,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
 }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
@@ -138,7 +142,7 @@ export default function ShelfCard({
   const showSortBtn = showSort && !isPublic && options.length > 1;
   const sortActive = sortKey !== options[0];
   const canCollapse = items.length > cols * ROWS_COLLAPSED;
-  const toggleA11yLabel = canCollapse ? toggleLabel : drag ? `Réorganiser ${name}` : undefined;
+  const toggleA11yLabel = canCollapse ? toggleLabel : undefined;
 
   const emblemNode = (
     <View style={[s.emblem, { backgroundColor: dyn.emblemBg }]}>
@@ -158,17 +162,15 @@ export default function ShelfCard({
   ) : null;
 
   return (
+    <View style={s.cardWrap}>
     <View style={s.card}>
       <View style={[s.header, { backgroundColor: dyn.headerBg }]}>
         {emblemPressable}
         <Pressable
           style={s.toggleZone}
-          onPress={!isDragging && canCollapse ? onToggleExpand : undefined}
-          onLongPress={drag}
-          delayLongPress={250}
-          accessibilityRole={canCollapse || drag ? 'button' : undefined}
+          onPress={canCollapse ? onToggleExpand : undefined}
+          accessibilityRole={canCollapse ? 'button' : undefined}
           accessibilityLabel={toggleA11yLabel}
-          accessibilityHint={drag ? 'Maintiens pour réorganiser' : undefined}
         >
           {onPressEmblem ? null : emblemNode}
           <View style={s.titles}>
@@ -215,13 +217,37 @@ export default function ShelfCard({
           </Pressable>
         ) : null}
         {canCollapse ? (
-          <Pressable onPress={isDragging ? undefined : onToggleExpand} hitSlop={10} style={s.headerBtn} accessible={false}>
+          <Pressable onPress={onToggleExpand} hitSlop={10} style={s.headerBtn} accessible={false}>
             <Ionicons
               name={expanded ? 'chevron-down' : 'chevron-forward'}
               size={18}
               color={theme.colors.textMuted}
             />
           </Pressable>
+        ) : null}
+        {variant === 'user' ? (
+          <View style={s.moveCol} accessible={false}>
+            <Pressable
+              onPress={canMoveUp ? onMoveUp : undefined}
+              hitSlop={{ top: 22, bottom: 0, left: 10, right: 10 }}
+              style={s.moveBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Monter ${name}`}
+              accessibilityState={{ disabled: !canMoveUp }}
+            >
+              <Ionicons name="chevron-up" size={14} color={canMoveUp ? theme.colors.textMuted : theme.colors.border} accessible={false} />
+            </Pressable>
+            <Pressable
+              onPress={canMoveDown ? onMoveDown : undefined}
+              hitSlop={{ top: 0, bottom: 22, left: 10, right: 10 }}
+              style={s.moveBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Descendre ${name}`}
+              accessibilityState={{ disabled: !canMoveDown }}
+            >
+              <Ionicons name="chevron-down" size={14} color={canMoveDown ? theme.colors.textMuted : theme.colors.border} accessible={false} />
+            </Pressable>
+          </View>
         ) : null}
       </View>
 
@@ -252,17 +278,23 @@ export default function ShelfCard({
         )}
       </View>
     </View>
+    </View>
   );
 }
 
 function getStyles(t: Theme) {
   return {
+    cardWrap: {
+      backgroundColor: t.colors.surface,
+      borderRadius: t.radius.card,
+      marginBottom: t.spacing.md,
+      ...t.cardShadow,
+    },
     card: {
       backgroundColor: t.colors.surface,
       borderRadius: t.radius.card,
       overflow: 'hidden' as const,
-      marginBottom: t.spacing.md,
-      ...t.shadow.card,
+      ...t.hairline,
     },
     header: {
       flexDirection: 'row' as const,
@@ -329,6 +361,17 @@ function getStyles(t: Theme) {
       width: 30,
       height: 30,
       borderRadius: 15,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+    },
+    moveCol: {
+      gap: 0,
+      marginLeft: 2,
+    },
+    moveBtn: {
+      width: 24,
+      height: 22,
+      borderRadius: 8,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
     },

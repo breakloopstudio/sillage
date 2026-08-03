@@ -815,7 +815,7 @@ En dark mode, les ombres noires sont invisibles. Tous les `shadow` tokens sont r
 | `shadow.button` | ombre violette `shadowOpacity: 0.3` | `borderWidth: 1`, `borderColor: rgba(139,108,246,0.25)` |
 | `shadow.scanCircle` | ombre violette `shadowOpacity: 0.4` | `borderWidth: 1.5`, `borderColor: rgba(139,108,246,0.30)` |
 
-**En pratique** : le spread `...t.shadow.card` fonctionne dans les deux thèmes sans changement de code.
+**En pratique** : le spread `...t.shadow.card` fonctionne dans les deux thèmes sans changement de code. Pour une carte à contenu clippé (`overflow: 'hidden'`), le pattern canonique est un **wrapper non clippé** portant `t.cardShadow` (light : ombre ; dark : `noShadow`) + bordure `t.cardBorder`/`t.hairline` sur le contenu clippé — l'elevation Android ne doit pas être coupée par le radius.
 
 ### 8.3 Contraste
 
@@ -933,7 +933,7 @@ function getStyles(t: Theme) {
 - [ ] Icônes → tailles §4.15 (14/16/20/24/32), outline, couleur selon contexte
 - [ ] Copy → tutoiement, cadratin `–`, `·`, pas de « ! », ligne éditoriale ≤ 6 mots à métaphore sensorielle
 - [ ] Couleurs via tokens (`t.colors.xxx`), jamais en dur (sauf §2.3)
-- [ ] Ombres via `t.shadow.xxx`, jamais en dur
+- [ ] Ombres via `t.shadow.xxx`, jamais en dur (cartes clippées : wrapper `t.cardShadow` + `t.cardBorder`/`t.hairline`)
 - [ ] Radius via `t.radius.xxx`
 - [ ] Cibles tactiles ≥ 44 px (ou `hitSlop` explicite)
 - [ ] Safe areas gérées si plein écran

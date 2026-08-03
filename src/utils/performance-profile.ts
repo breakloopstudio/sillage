@@ -16,14 +16,15 @@ export interface PerformanceProfile {
   sillage: PerfDimension | null;
 }
 
-const LONG_TICKS = ['Matin', 'Midi', 'Soir', 'Nuit'];
+const LONG_TICKS = ['Matin', 'Midi', 'Soir', 'Nuit', 'Nuit +'];
 const SILL_TICKS = ['Peau', 'Proche', 'Bras', 'Pièce'];
 
 const LONG_VALUE: Record<number, string> = {
-  1: 'Courte',
-  2: 'Modérée',
-  3: 'Longue',
-  4: 'Très longue',
+  1: 'Très courte',
+  2: 'Courte',
+  3: 'Modérée',
+  4: 'Longue',
+  5: 'Très longue',
 };
 
 const SILL_VALUE: Record<number, string> = {
@@ -34,10 +35,11 @@ const SILL_VALUE: Record<number, string> = {
 };
 
 const LONG_EMANATION: Record<number, string> = {
-  1: "Elle s'estompe avant la fin de la matinée — à réserver aux occasions courtes.",
-  2: "Elle vous accompagne jusqu'au milieu de journée, puis s'efface doucement.",
-  3: 'Du café du matin au dernier verre : elle tient la distance, sans retouche.',
-  4: 'Elle traverse la journée et s’attarde encore — une seconde peau qui ne vous quitte pas.',
+  1: 'Un éclat d’ouverture, déjà un souvenir.',
+  2: "Elle s'estompe avant la fin de la matinée — à réserver aux occasions courtes.",
+  3: "Elle vous accompagne jusqu'au milieu de journée, puis s'efface doucement.",
+  4: 'Du café du matin au dernier verre : elle tient la distance, sans retouche.',
+  5: 'Elle traverse la journée et s’attarde encore — une seconde peau qui ne vous quitte pas.',
 };
 
 const SILL_EMANATION: Record<number, string> = {
@@ -49,22 +51,25 @@ const SILL_EMANATION: Record<number, string> = {
 
 // Estimation en heures dérivée du cran de longévité (traduction, pas une mesure).
 const LONG_HOURS: Record<number, string> = {
-  1: '< 3 h',
-  2: '4 – 6 h',
-  3: '8 – 10 h',
-  4: '12 h +',
+  1: '< 2 h',
+  2: '2 – 4 h',
+  3: '4 – 8 h',
+  4: '8 – 12 h',
+  5: '12 h +',
 };
 
-// Source strings (Fragrantica / legacy): very weak | weak | moderate | long lasting | eternal
-// (and legacy "very long lasting"). 5 source levels → 4 UI cranks (very weak + weak share crank 1).
+// Source strings (Fragrantica / legacy) : very weak | weak | moderate | long lasting | eternal
+// (and legacy "very long lasting"). 5 source levels → 5 UI cranks (1:1).
+// Ordre imposé : 'very weak' avant 'weak', 'very long' avant 'long' (includes()).
 export function longevityLevel(v: string | null | undefined): number {
   if (!v) return 0;
   const k = v.toLowerCase().trim();
-  if (k.includes('eternal') || k.includes('very long')) return 4;
-  if (k.includes('long')) return 3;
-  if (k.includes('moderate') || k.includes('modér')) return 2;
-  if (k.includes('weak') || k.includes('short') || k.includes('court')) return 1;
-  return 2;
+  if (k.includes('eternal') || k.includes('very long')) return 5;
+  if (k.includes('long')) return 4;
+  if (k.includes('moderate') || k.includes('modér')) return 3;
+  if (k.includes('very weak')) return 1;
+  if (k.includes('weak') || k.includes('short') || k.includes('court')) return 2;
+  return 3;
 }
 
 // Source strings: intimate | moderate | strong | enormous (and legacy "heavy …").

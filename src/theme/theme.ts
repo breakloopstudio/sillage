@@ -223,6 +223,18 @@ const darkShadow = {
   },
 } as const;
 
+const lightCardBorder = { borderWidth: 1, borderColor: lightColors.border } as const;
+const darkCardBorder = { borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' } as const;
+const lightHairline = { borderWidth: 0, borderColor: 'transparent' } as const;
+const darkHairline = { borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' } as const;
+const noShadow = {
+  shadowColor: 'transparent',
+  shadowOffset: { width: 0, height: 0 },
+  shadowOpacity: 0,
+  shadowRadius: 0,
+  elevation: 0,
+} as const;
+
 // ── Tokens partagés (identiques dans les deux thèmes) ──
 const shared = {
   fonts: {
@@ -279,18 +291,27 @@ export interface Theme {
     button: ViewStyle;
     scanCircle: ViewStyle;
   };
+  cardBorder: ViewStyle;
+  hairline: ViewStyle;
+  cardShadow: ViewStyle;
 }
 
 export const lightTheme: Theme = {
   colors: lightColors,
   ...shared,
   shadow: lightShadow,
+  cardBorder: lightCardBorder,
+  hairline: lightHairline,
+  cardShadow: lightShadow.card,
 };
 
 export const darkTheme: Theme = {
   colors: darkColors,
   ...shared,
   shadow: darkShadow,
+  cardBorder: darkCardBorder,
+  hairline: darkHairline,
+  cardShadow: noShadow,
 };
 
 // Rétrocompatibilité — les anciens imports continuent de fonctionner

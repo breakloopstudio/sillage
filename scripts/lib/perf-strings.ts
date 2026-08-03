@@ -14,10 +14,11 @@
  * (réparation de la base existante) — single source of truth des seuils.
  */
 
-// Longévité : votes 1..5 (poor, weak, moderate, long lasting, eternal).
-// L'historique en base n'a pas de "poor" → les deux niveaux bas fusionnent en "weak".
+// Longévité : votes 1..5 (very weak, weak, moderate, long lasting, eternal).
+// Buckets centrés sur les entiers, seuils à x.5 — 1:1 avec les 5 crans UI (0058).
 export function longevityString(avg: number | undefined | null): string | null {
   if (avg == null || avg <= 0) return null;
+  if (avg < 1.5) return 'very weak';
   if (avg < 2.5) return 'weak';
   if (avg < 3.5) return 'moderate';
   if (avg < 4.5) return 'long lasting';

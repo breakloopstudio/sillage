@@ -47,7 +47,7 @@ interface Props {
 }
 
 export default function CatalogPage({ scrollY }: Props) {
-  const { theme, resolvedMode } = useTheme();
+  const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
@@ -61,6 +61,7 @@ export default function CatalogPage({ scrollY }: Props) {
 
   const pendingScrollRef = useRef<number | null>(null);
   const prevGridKeyRef = useRef<string | null>(null);
+  const personalizedAppliedRef = useRef(false);
 
   const handleDensityChange = useCallback((mode: CardMode) => {
     if (scrollY) pendingScrollRef.current = scrollY.value;
@@ -102,6 +103,7 @@ export default function CatalogPage({ scrollY }: Props) {
   useEffect(() => {
     if (!authReady) return;
     setPersonalizedFailed(false);
+    personalizedAppliedRef.current = false;
     if (!isAuthenticated || !user) {
       setPersonalizedFailed(true);
       return;
@@ -114,6 +116,8 @@ export default function CatalogPage({ scrollY }: Props) {
       setSuggestionParfums([...exploit, ...discover]);
       setSuggestionLabel('Pour vous');
       setSuggestionLoading(false);
+      personalizedAppliedRef.current = true;
+      setPersonalizedFailed(false);
     };
     getCached('personalized:' + uid).then((cached) => {
       if (cancelled) return;
@@ -125,13 +129,13 @@ export default function CatalogPage({ scrollY }: Props) {
         if (personalized.length > 0) {
           void setCached('personalized:' + uid, personalized);
           apply(personalized);
-        } else {
+        } else if (!personalizedAppliedRef.current) {
           setPersonalizedFailed(true);
         }
       })
       .catch((e: unknown) => {
         console.warn('[catalog] getPersonalizedSuggestions failed:', (e as Error)?.message ?? String(e));
-        if (!cancelled) setPersonalizedFailed(true);
+        if (!cancelled && !personalizedAppliedRef.current) setPersonalizedFailed(true);
       });
     return () => { cancelled = true; };
   }, [authReady, isAuthenticated, user?.uid]);

@@ -105,7 +105,7 @@ export default function BrandPage() {
   ), [gridDensity, s, handleParfumPress]);
 
   const gridNumCols = gridDensity === 'list' ? 1 : 2;
-  const gridKey = `${gridNumCols}col-${resolvedMode}`;
+  const gridKey = `${gridNumCols}col`;
   const currentSortLabel = SORT_OPTIONS.find(o => o.key === activeSort)?.label ?? 'Tri';
   const countLabel = `${displayed.length >= MAX_RESULTS ? `${MAX_RESULTS}+` : displayed.length} parfum${displayed.length > 1 ? 's' : ''}`;
   const colors = theme.colors as Record<string, string>;

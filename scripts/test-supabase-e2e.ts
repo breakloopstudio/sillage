@@ -114,22 +114,23 @@ async function main(): Promise<void> {
         resolve(v);
       };
       const timer = setTimeout(() => finish(false), 45000);
+      const insert = (parfumId: string, nom: string) => {
+        void user.from('favoris').upsert({
+          user_id: userId, parfum_id: parfumId, nom, marque: 'Chanel',
+          added_at: new Date().toISOString(),
+        } as never).then(({ error }) => {
+          if (error) console.log(`     insert ${parfumId} échoué : ${error.message}`);
+        });
+      };
       user.channel(`e2e-favoris-${Date.now()}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'favoris', filter: `user_id=eq.${userId}` }, () => finish(true))
-        .subscribe(async (status) => {
+        .subscribe(async (status, err) => {
+          if (err) console.log(`     channel : ${status} — ${String(err)}`);
           if (status === 'SUBSCRIBED') {
-            setTimeout(() => {
-              void user.from('favoris').upsert({
-                user_id: userId, parfum_id: 'chanel_no5', nom: 'N°5', marque: 'Chanel',
-                added_at: new Date().toISOString(),
-              } as never);
-            }, 2000);
+            setTimeout(() => insert('chanel_no5', 'N°5'), 2000);
             retryTimer = setTimeout(() => {
               if (done) return;
-              void user.from('favoris').upsert({
-                user_id: userId, parfum_id: 'chanel_allure', nom: 'Allure', marque: 'Chanel',
-                added_at: new Date().toISOString(),
-              } as never);
+              insert('chanel_allure', 'Allure');
             }, 8000);
           }
         });
@@ -179,8 +180,30 @@ async function main(): Promise<void> {
     check('export contient favoris + user_parfum', (d?.collections?.favoris?.length ?? 0) >= 1 && (d?.collections?.userParfum?.length ?? 0) >= 1);
   }
 
-  // ─── 8. Cleanup : suppression du user test (admin API) ───
-  console.log('\n8. Cleanup');
+  // ─── 8. Votes performance (cast_vote + parfum_perf) ───
+  console.log('\n8. Votes performance (5 crans longévité)');
+  {
+    const { error } = await user.rpc('cast_vote', { p_parfum_id: 'dior_sauvage', p_dimension: 'longevity', p_value: '5' });
+    check('cast_vote longevity=5', !error, error?.message);
+
+    const { data: perf } = await user.rpc('parfum_perf', { p_parfum_id: 'dior_sauvage' });
+    const pl = (perf as { longevity?: { myVote?: number | null; level?: number | null } } | null)?.longevity;
+    check('parfum_perf myVote=5 + level 1..5', pl?.myVote === 5 && (pl?.level === null || (pl.level >= 1 && pl.level <= 5)), `myVote=${pl?.myVote}, level=${pl?.level}`);
+
+    const { error: e6 } = await user.rpc('cast_vote', { p_parfum_id: 'dior_sauvage', p_dimension: 'longevity', p_value: '6' });
+    check('cast_vote longevity=6 refusé', !!e6, e6?.message ?? '');
+
+    const { error: es5 } = await user.rpc('cast_vote', { p_parfum_id: 'dior_sauvage', p_dimension: 'sillage', p_value: '5' });
+    check('cast_vote sillage=5 refusé', !!es5, es5?.message ?? '');
+
+    const { error: eNull } = await user.rpc('cast_vote', { p_parfum_id: 'dior_sauvage', p_dimension: 'longevity', p_value: null });
+    const { data: perf2 } = await user.rpc('parfum_perf', { p_parfum_id: 'dior_sauvage' });
+    const pl2 = (perf2 as { longevity?: { myVote?: number | null } } | null)?.longevity;
+    check('cast_vote null retire le vote', !eNull && pl2?.myVote === null, `myVote=${pl2?.myVote}`);
+  }
+
+  // ─── 9. Cleanup : suppression du user test (admin API) ───
+  console.log('\n9. Cleanup');
   {
     const res = await fetch(`${URL}/auth/v1/admin/users/${userId}`, {
       method: 'DELETE',

@@ -178,6 +178,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
   if (mode === 'carousel') {
     const a11yLabelCarousel = [parfum.nom, parfum.marque, familyLabel, genderVal, showSocial ? `aimé par ${socialLoves} nez` : null, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     return (
+      <View style={s.cardCarouselWrap}>
       <Pressable style={s.cardCarousel} onPress={goToDetail} onLongPress={onLongPress} delayLongPress={400} accessible={true} accessibilityLabel={a11yLabelCarousel} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
         {showImage ? (
           <View style={s.imgWrapCarousel}>
@@ -213,6 +214,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
           )}
         </View>) : null}
       </Pressable>
+      </View>
     );
   }
 
@@ -221,6 +223,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
     const a11yLabel = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     const chips = baseChips;
     return (
+      <View style={s.cardComfortableWrap}>
       <Pressable
         style={s.cardComfortable}
         onPress={goToDetail}
@@ -269,6 +272,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
           </View>) : null}
         </View>
       </Pressable>
+      </View>
     );
   }
 
@@ -436,9 +440,13 @@ function getStyles(t: Theme) {
     } as Record<StatusChipId, { bg: string; color: string }>,
 
     // ── Carousel (horizontal rows) ──
+    cardCarouselWrap: {
+      width: 140, borderRadius: t.radius.card, backgroundColor: t.colors.surface,
+      ...t.cardShadow, marginBottom: 2,
+    },
     cardCarousel: {
       width: 140, borderRadius: t.radius.card, backgroundColor: t.colors.surface,
-      overflow: 'hidden', ...t.shadow.card, marginBottom: 2,
+      overflow: 'hidden', ...t.hairline,
     },
     imgWrapCarousel: { position: 'relative', height: 186, overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
     imgCarousel: { width: '100%', height: '100%', backgroundColor: t.colors.surface },
@@ -456,9 +464,13 @@ function getStyles(t: Theme) {
     priceCarouselMuted: { fontFamily: 'Inter_400Regular', fontSize: 14, color: t.colors.textMuted },
 
     // ── Comfortable (grid 2 col) ──
+    cardComfortableWrap: {
+      borderRadius: t.radius.card, backgroundColor: t.colors.surface,
+      ...t.cardShadow,
+    },
     cardComfortable: {
       borderRadius: t.radius.card, backgroundColor: t.colors.surface,
-      overflow: 'hidden', borderWidth: 1, borderColor: t.colors.border, ...t.shadow.card,
+      overflow: 'hidden', ...t.cardBorder,
     },
     imgWrapComfortable: { position: 'relative', aspectRatio: 3/4, overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.border },
     imgComfortable: { width: '100%', height: '100%', backgroundColor: t.colors.surface },

@@ -52,15 +52,15 @@ src/
 │   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
 │   ├── scentlist/            # TrySheet (éditeur « Notes détaillées » de la fiche unifiée)
 │   ├── search/     (2)       # SearchChrome (barre recherche + voix) + VoiceOverlay
-│   └── wardrobe/             # SOTDCard, SOTDPicker, StarRating, ShelfManager (DraggableFlatList), ShelfCard (meuble : rayon teinté, tri ↕, badge globe), BottleThumb (flacon nu, long-press)
+│   └── wardrobe/             # SOTDCard, SOTDPicker, StarRating, ShelfManager (DraggableFlatList), ShelfCard (meuble : rayon teinté, tri ↕, badge globe, déplacement étagère ↕), BottleThumb (flacon nu, long-press)
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (3)         # env, index, legal (firebase.config supprimé — migration Supabase)
 ├── models/       (8)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
-├── utils/        (25)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-4 + ticks), season-profile (profil saisons + occasions + moment), parfum-labels (typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration — labels canoniques + concentration fiable depuis le nom)
+├── utils/        (25)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-5 longévité / 1-4 sillage + ticks), season-profile (profil saisons + occasions + moment), parfum-labels (typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration — labels canoniques + concentration fiable depuis le nom)
 └── types/        (1)         # database.types.ts — types Database générés (`supabase gen types typescript --linked`) ; type le client Supabase + payloads d'écriture (M4)
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0057) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057 : sécurité RPC, cleanup tables/index/enums morts, index manquants, intégrité updated_at/CHECK, vue parfum_card, perf serveur, DROP colonnes mortes)
+├── migrations/   (0001→0059) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057 : sécurité RPC, cleanup tables/index/enums morts, index manquants, intégrité updated_at/CHECK, vue parfum_card, perf serveur, DROP colonnes mortes), longévité 5 crans 1:1 + reset votes perf (0058), grant SELECT parfum_card (0059)
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
@@ -174,7 +174,7 @@ supabase/                     # Backend Supabase (versionné)
 - **Persistance** : `src/services/theme-storage.ts` — AsyncStorage, clé `@sillage/theme`
 - **3 modes** : `system` (défaut, suit `Appearance`/`useColorScheme()`), `light`, `dark`
 - **Pattern composant** : `getStyles(t: Theme)` (fonction pure hors composant) + `const s = useMemo(() => getStyles(theme), [theme])` dans le composant
-- **Ombres** : remplacées par des bordures subtiles en dark mode (`borderWidth` + `borderColor` rgba)
+- **Ombres** : remplacées par des bordures subtiles en dark mode (`borderWidth` + `borderColor` rgba) ; pattern carte canonique : wrapper non clippé `t.cardShadow` + bordure `t.cardBorder`/`t.hairline` sur le contenu clippé (`overflow: 'hidden'`)
 - **StatusBar** : gérée automatiquement par `ThemeProvider` (texte clair en dark, foncé en light)
 - **Toggle UI** : segmented control 3 segments (Clair / Système / Sombre) dans `app/settings.tsx`
 - **Règle** : pas de couleurs hardcodées hors du thème — tout passe par `t.colors.xxx`
@@ -222,9 +222,9 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 415 tests, 44 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 633 tests, 61 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
-- Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 24 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
+- Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 29 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
 - Build debug : `npx expo run:android`
 - Build release : `.\build_release.bat`
@@ -359,8 +359,8 @@ src/features/runner/
 
 ## §21 — Votes utilisateurs & fusion performance (v8.10)
 
-- **Table `parfum_votes`** : PK `(parfum_id, user_id, dimension)`, RLS owner, votes individuels **privés** — l'agrégat public passe exclusivement par la RPC `parfum_perf` (SECURITY DEFINER). Dimensions : `longevity`/`sillage` (`'1'..'4'`), `season` (spring/summer/fall/winter), `moment` (day/night). **Jamais saison+moment sous la même dimension** (conflit PK — fix 0044).
-- **Fusion Fragrantica bornée** : `_perf_cranks` normalise le breakout en 4 crans UI (longévité : very weak+weak→1, moderate→2, long lasting→3, eternal→4 ; sillage : intimate→1, moderate→2, strong→3, enormous→4) ; `_perf_score` plafonne Fragrantica à `PERF_CAP = 100` équivalents en conservant sa forme (`poids = min(CAP,total)/total`) et ajoute les votes users à plein poids → moyenne pondérée 1..4. À 0 vote user, résultat strictement Fragrantica. Saisons/moment : fusion de comptes (`score_frag × poids + nb_votes_user`), barres relatives.
+- **Table `parfum_votes`** : PK `(parfum_id, user_id, dimension)`, RLS owner, votes individuels **privés** — l'agrégat public passe exclusivement par la RPC `parfum_perf` (SECURITY DEFINER). Dimensions : `longevity` (`'1'..'5'`), `sillage` (`'1'..'4'`), `season` (spring/summer/fall/winter), `moment` (day/night). **Jamais saison+moment sous la même dimension** (conflit PK — fix 0044).
+- **Fusion Fragrantica bornée** : `_perf_cranks` normalise le breakout en crans UI — longévité 5 crans 1:1 (very weak→1, weak→2, moderate→3, long lasting→4, eternal→5, depuis 0058), sillage 4 crans (intimate→1, moderate→2, strong→3, enormous→4) ; `_perf_score` plafonne Fragrantica à `PERF_CAP = 100` équivalents en conservant sa forme (`poids = min(CAP,total)/total`) et ajoute les votes users à plein poids → moyenne pondérée 1..5 (longévité) / 1..4 (sillage). À 0 vote user, résultat strictement Fragrantica. Saisons/moment : fusion de comptes (`score_frag × poids + nb_votes_user`), barres relatives.
 - **Cron `recompute_perf_strings`** (3h15 UTC) : réécrit `parfums.longevity`/`sillage` des parfums ≥ 1 vote user → propagation aux favoris/filtres/recherche.
 - **Client** : `getParfumPerf`/`castVote` (`services/perf-votes.ts`), hook `usePerfVotes` (optimiste + refetch + auto-réparation au focus), affordances 👍 (`VotePickerSheet`), auth requise (`cast_vote` exige `auth.uid()`).
 - **Piège `this`** : ne jamais détacher `supabase.rpc` du client — `supabase.rpc.bind(supabase)` obligatoire (sinon « Cannot read property 'rest' of undefined »).

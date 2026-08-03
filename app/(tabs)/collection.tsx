@@ -1,8 +1,7 @@
 import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Share, Alert, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
-import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import Animated, { useAnimatedScrollHandler, useReducedMotion, LinearTransition } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
@@ -127,6 +126,7 @@ export default function MaParfumeriePage() {
   const { view: viewPref, setView: setViewPref } = useParfumerieViewPreference();
 
   const scrollHandler = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
+  const reduced = useReducedMotion();
 
   const [activePill, setActivePill] = useState<ParfPillId>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -431,11 +431,16 @@ export default function MaParfumeriePage() {
     setOrphanHelpOpen(true);
   }, []);
 
-  const handleReorderShelves = useCallback(({ data }: { data: ShelfGroup[] }) => {
-    reorder(data.map((g, i) => ({ id: g.shelf.id, order: i }))).catch(() => { hapticsError(); });
-  }, [reorder]);
-
-  const handleShelvesScrollOffset = useCallback((offset: number) => { scrollY.value = offset; }, [scrollY]);
+  const handleMoveShelf = useCallback((shelfId: string, dir: -1 | 1) => {
+    const from = shelfGroups.findIndex((g) => g.shelf.id === shelfId);
+    if (from < 0) return;
+    const to = from + dir;
+    if (to < 0 || to >= shelfGroups.length) return;
+    const ids = shelfGroups.map((g) => g.shelf.id);
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    hapticsLight();
+    reorder(ids.map((id, order) => ({ id, order }))).catch(() => { hapticsError(); });
+  }, [shelfGroups, reorder]);
 
   const handleToggleFavOnly = useCallback(() => { hapticsLight(); setFavOnly(v => !v); }, []);
   const handleSelectView = useCallback((v: ParfumerieView) => { hapticsLight(); setViewPref(v); resetDock(); }, [setViewPref, resetDock]);
@@ -476,7 +481,7 @@ export default function MaParfumeriePage() {
   const handleEmptyExplore = useCallback(() => router.push('/(tabs)'), [router]);
 
   const gridNumCols = density === 'list' ? 1 : 2;
-  const gridKey = `${gridNumCols}col-${resolvedMode}`;
+  const gridKey = `${gridNumCols}col`;
 
   const renderItem = useCallback(({ item }: { item: UserParfum }) => {
     const alert = byParfumId.get(item.parfumId) ?? null;
@@ -544,27 +549,27 @@ export default function MaParfumeriePage() {
     </View>
   );
 
-  const renderShelfGroup = useCallback(({ item, drag, isActive }: { item: ShelfGroup; drag: () => void; isActive: boolean }) => (
-    <ScaleDecorator>
-      <ShelfCard
-        name={item.shelf.name}
-        icon={item.shelf.icon}
-        accent={item.shelf.color}
-        tagline={item.shelf.description}
-        items={orderForShelf(item.shelf.id, item.items)}
-        variant="user"
-        isPublic={item.shelf.isPublic}
-        expanded={expanded?.has(item.shelf.id) ?? false}
-        onToggleExpand={() => handleToggleExpand(item.shelf.id)}
-        onPressBottle={handleShelfBottle}
-        onLongPressBottle={handleShelfBottleLong}
-        onAdd={() => handleOpenAddToShelf(item.shelf.id)}
-        onOpenMenu={() => handleOpenShelfMenu(item.shelf)}
-        drag={drag}
-        isDragging={isActive}
-      />
-    </ScaleDecorator>
-  ), [orderForShelf, expanded, handleToggleExpand, handleShelfBottle, handleShelfBottleLong, handleOpenAddToShelf, handleOpenShelfMenu]);
+  const renderShelfGroup = useCallback(({ item, index }: { item: ShelfGroup; index: number }) => (
+    <ShelfCard
+      name={item.shelf.name}
+      icon={item.shelf.icon}
+      accent={item.shelf.color}
+      tagline={item.shelf.description}
+      items={orderForShelf(item.shelf.id, item.items)}
+      variant="user"
+      isPublic={item.shelf.isPublic}
+      expanded={expanded?.has(item.shelf.id) ?? false}
+      onToggleExpand={() => handleToggleExpand(item.shelf.id)}
+      onPressBottle={handleShelfBottle}
+      onLongPressBottle={handleShelfBottleLong}
+      onAdd={() => handleOpenAddToShelf(item.shelf.id)}
+      onOpenMenu={() => handleOpenShelfMenu(item.shelf)}
+      onMoveUp={() => handleMoveShelf(item.shelf.id, -1)}
+      onMoveDown={() => handleMoveShelf(item.shelf.id, 1)}
+      canMoveUp={index > 0}
+      canMoveDown={index < shelfGroups.length - 1}
+    />
+  ), [orderForShelf, expanded, handleToggleExpand, handleShelfBottle, handleShelfBottleLong, handleOpenAddToShelf, handleOpenShelfMenu, handleMoveShelf, shelfGroups.length]);
 
   const shelvesHeader = (
     <View>
@@ -778,15 +783,16 @@ export default function MaParfumeriePage() {
           }
         />
       ) : (
-        <DraggableFlatList
+        <Animated.FlatList
           data={shelfGroups}
           keyExtractor={(g) => g.shelf.id}
           renderItem={renderShelfGroup}
-          onDragEnd={handleReorderShelves}
-          onScrollOffsetChange={handleShelvesScrollOffset}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.content}
           extraData={shelvesExtraData}
+          itemLayoutAnimation={reduced ? undefined : LinearTransition}
           ListHeaderComponent={<>{topChrome}{shelvesHeader}</>}
           ListFooterComponent={shelvesFooter}
         />

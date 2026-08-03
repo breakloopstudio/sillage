@@ -7,8 +7,6 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
-  withSequence,
-  withSpring,
   interpolate,
   interpolateColor,
   Extrapolation,
@@ -283,28 +281,18 @@ interface CrankProps {
 
 function Crank({ index, lit, reached, isMyVote, litColor, trackColor, perfColor, label, labelLit, labelInk, labelMuted, reduced, onFocus }: CrankProps) {
   const enter = useSharedValue(lit && !reduced ? 0 : 1);
-  const pop = useSharedValue(1);
 
   useEffect(() => {
     if (reduced) {
       enter.value = 1;
-      pop.value = 1;
       return;
     }
     enter.value = withDelay(index * 120, withTiming(lit ? 1 : 0.0001, { duration: 380 }));
-    if (lit && reached) {
-      pop.value = 1;
-      pop.value = withDelay(
-        index * 120 + 320,
-        withSequence(withTiming(1.3, { duration: 130 }), withSpring(1, { damping: 6, stiffness: 320 })),
-      );
-    }
-  }, [lit, reached, reduced]);
+  }, [lit, reduced]);
 
   const segStyle = useAnimatedStyle(() => ({
     opacity: lit ? enter.value : 1,
     backgroundColor: lit ? litColor : trackColor,
-    transform: [{ scaleX: reached ? pop.value : 1 }],
   }));
 
   const labStyle = useAnimatedStyle(() => ({

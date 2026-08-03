@@ -25,7 +25,7 @@
 | 🖼️ **Import galerie** | Photo existante → même pipeline IA, sans permissions supplémentaires |
 | 📚 **Catalogue** | Catalogue ~25K parfums (seed Postgres), taxonomie 6 familles olfactives (cartes d'ambiance data-driven), rangées éditoriales (« Parfaits pour {saison} », « Les mieux notés »), capsules marques, grille 3 densités + persistance, recherche RPC Postgres (tsvector + pg_trgm) avec cache + prefix cache |
 | 🏛️ **Page marque** | Catalogue complet d'une maison (depuis la fiche détail, les capsules et le sheet marques) : tri cyclique (populaires · prix · nouveautés), filtre par famille olfactive (6 familles, compteurs), densité partagée |
-| 🧪 **Ma Parfumerie** | Meuble d'étagères (segmented Collection/Étagères, ShelfCard à rayons + flacons nus + tri ↕ + pin ★ + badge globe), CRUD enrichi avec drag (DraggableFlatList), édition inline, assignment long-press + ajout direct, visibilité publique + partage + « M'inspirer » (copie en lot). Pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ + badge 🔔, possessions, signature, SOTD+météo, partage collection, mode Collection (grille, statuts, filtres, ♥, densités) |
+| 🧪 **Ma Parfumerie** | Meuble d'étagères (segmented Collection/Étagères, ShelfCard à rayons + flacons nus + tri ↕ + pin ★ + badge globe), CRUD enrichi (réordonnancement des étagères par chevrons ↕, édition inline), assignment long-press + ajout direct, visibilité publique + partage + « M'inspirer » (copie en lot). Pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ + badge 🔔, possessions, signature, SOTD+météo, partage collection, mode Collection (grille, statuts, filtres, ♥, densités) |
 | 🧪 **Décants & échantillons** | Tailles dédiées 2–30ml, distinctes des formats full-size (30–200ml) |
 | ⭐ **Parcours de statut** | Un parfum = une ligne `user_parfum` dont le statut évolue (À sentir → Je l'ai → Fini), verdict + note + impressions, alertes prix (cible custom + historique) |
 | 🗳️ **Votes communauté** | Performance olfactive réappropriée : votes utilisateurs sur Tenue & sillage et « Quand le porter » (saison + moment Jour/Soir), fusion Fragrantica bornée (`PERF_CAP=100`, jour 1 identique au scrape puis la communauté prend le relais), boutons 👍 → `VotePickerSheet` (vote courant + retirer), compteurs et marqueurs `myVote` temps réel, cron quotidien qui propage le consensus aux favoris/filtres/recherche |
@@ -50,11 +50,11 @@
 | **Frontend** | React Native 0.86, Expo SDK 57, Expo Router 57 |
 | **Langage** | TypeScript 6.0 (strict) |
 | **Navigation** | Expo Router (file-based) + react-native-pager-view (native pan) |
-| **Animations** | React Native Reanimated 4, Gesture Handler 2, react-native-svg, react-native-draggable-flatlist 4 |
+| **Animations** | React Native Reanimated 4, Gesture Handler 2, react-native-svg, react-native-draggable-flatlist 4 (modal ShelfManager) |
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT-4o Vision (analyse photo), OpenAI Whisper-1 (transcription vocale), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 618 tests, 59 suites + E2E Supabase (24 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 633 tests, 61 suites + E2E Supabase (29 checks) |
 
 ---
 
@@ -137,7 +137,7 @@ app/
 │   ├── _layout.tsx           # TopTabs (4 onglets swipeables) + DockBar custom (FAB Scan central) + SearchChrome (barre recherche + avatar profil rond) + NavigationChromeProvider
 │   ├── index.tsx             # Catalogue (hôte CatalogPage)
 │   ├── favoris.tsx           # Favoris (tous les ❤️ + segmented Favoris/Alertes ; vue Alertes : cartes riches avec état atteint/proche, row « N objectifs atteints » filtrable, tap = édition, long-press = fiche, fallback catalogue pour alertes orphelines, long-press FavoriSheet, prix visibles)
-│   ├── collection.tsx        # Ma Parfumerie : segmented Collection|Étagères, mode Collection (grille, statuts, filtres, ♥, densités), mode Étagères (ShelfCard+rayons+tri/pin+Non classés), CRUD drag+édition, assignment long-press, ajout direct, visibilité publique + partage + gate, badge 🔔, vues système Signature/Cœurs, M'inspirer
+│   ├── collection.tsx        # Ma Parfumerie : segmented Collection|Étagères, mode Collection (grille, statuts, filtres, ♥, densités), mode Étagères (ShelfCard+rayons+tri/pin+Non classés), CRUD + réordonnancement ↕ + édition, assignment long-press, ajout direct, visibilité publique + partage + gate, badge 🔔, vues système Signature/Cœurs, M'inspirer
 │   └── communaute.tsx        # Communauté « pouls éditorial » (hero air du jour, défi famille, récap « Ta semaine », les nez, l'air du temps, footer Runner)
 ├── auth/
 │   ├── login.tsx             # Connexion email + Google
@@ -301,6 +301,16 @@ dénormalisés → affichage direct sans appel API Firestore supplémentaire.
 
 ---
 
+## v9.2 — Longévité 5 crans 1:1 Fragrantica + étagères & polish UI (03/08/2026)
+
+- **Longévité sur 5 crans (0058)** : fusion et UI alignées 1:1 sur les 5 niveaux Fragrantica (very weak→1 … eternal→5), sillage inchangé (4 crans) ; `_perf_cranks`/`_perf_score`/`_user_cranks`/`_perf_label`/`parfum_perf`/`cast_vote`/`recompute_perf_strings` adaptés ; CHECK `parfum_votes.value` scindé (longevity `'1'..'5'`) + validé ; reset des votes longevity/sillage + normalisation one-shot des strings (Fragrantica pur) ; cran 1 écrit `'very weak'` ; parsers clients alignés (`longevityLevel` teste `'very weak'` avant `'weak'`) ; ticks `Matin/Midi/Soir/Nuit/Nuit +` ; import (`perf-strings`) : `avg < 1.5 → 'very weak'` ; e2e +5 checks (29).
+- **Fix prod (0059)** : `GRANT SELECT` sur `parfum_card` — les 4 RPC catalogue (security invoker depuis 0054) échouaient en « permission denied » pour anon/authenticated ; casse masquée par le cache disque SWR (v9.0).
+- **Étagères & polish UI** : réordonnancement des étagères en vue par chevrons ↕ sur `ShelfCard` (drag retiré de la vue, conservé dans le modal `ShelfManager`), `Animated.FlatList` + `LinearTransition` (coupée en Reduced Motion) ; nouveau pattern ombres cartes — tokens thème `cardShadow`/`cardBorder`/`hairline` (+ `noShadow` en dark) + wrapper non clippé (`ParfumCard` carousel/comfortable, `ShelfCard`, carte no-result historique) ; grilles sans remount au changement de thème (`gridKey` sans `resolvedMode` : catalogue, favoris, collection, brand, perfumer) ; ombre circulaire du FAB DockBar corrigée (shadow sur le conteneur arrondi, suit le press) ; fix race « Pour vous » (le cache appliqué n'est plus écrasé par une réponse réseau vide/échouée) ; retrait de l'animation « pop » scaleX des crans Tenue & sillage à l'ouverture ; cibles ↕ ShelfCard ≥ 44 px.
+- **Script** : `scripts/images/purge-2x.ts` — purge les HD 2x du bucket `parfum-images` + reset `image_url_2x` (`npx tsx scripts/images/purge-2x.ts -- --dry-run`, `--limit=N`), régénérable via `migrate-upscale`.
+- **Vérifié** : `tsc --noEmit` 0 erreur, 633 tests / 61 suites, e2e cloud 29/29.
+
+---
+
 ## v9.1 — Audit & durcissement base de données (02/08/2026)
 
 Audit complet du schéma Supabase (4 subagents : migrations/index, RPC/fonctions, cron/triggers/RLS, usage client) suivi de 8 migrations correctives (`0050→0057`).
@@ -421,7 +431,7 @@ Audit complet du schéma Supabase (4 subagents : migrations/index, RPC/fonctions
 - **Historique virtualisé** : `history.tsx` passe de `ScrollView`+`.map` (non borné, **O(n²)**) à **`SectionList`** (`windowSize=5`/`initialNumToRender=10`/`maxToRenderPerBatch=10`). `ScanHistoryCard` mémoïsée. L'entrée stagger RN Animated (qui ignorait le Reduced Motion) est remplacée par `FadeInDown` respectueux du Reduced Motion.
 - **Virtualisation FlatList** : `initialNumToRender` sur `brand/[name]`, `windowSize`+`initialNumToRender`+`maxToRenderPerBatch` sur `u/[pseudo]`.
 - **Images expo-image** : `memory-disk`+`recyclingKey` sur `SOTDPicker`, les no-result de `history`, `AddToShelfSheet`, `InspireShelfSheet`.
-- **Mémoïsation** : `contentContainerStyle` de `BrandSheet` et `extraData` de la DraggableFlatList (`collection`) mémoïsés.
+- **Mémoïsation** : `contentContainerStyle` de `BrandSheet` et `extraData` de la liste des étagères (`collection`) mémoïsés.
 - **Décisions assumées** : pas de lazy des providers realtime (synchro cœur↔grille v7.4, produit), pas d'`AbortController` RPC (guards `mountedRef` suffisent), pas de subset polices (risque typo), pas de `useSyncExternalStore` pour FavButton (disproportionné).
 - **Tests** : 340 tests, 36 suites. `tsc --noEmit` : 0 erreur app/ + src/. Validé visuellement (light/dark/Reduced Motion).
 
@@ -450,7 +460,7 @@ Audit complet du schéma Supabase (4 subagents : migrations/index, RPC/fonctions
 
 ## v8.7 — Étagères « meuble » + communauté d'étagères (28/07/2026)
 
-- **Meuble privé (P0–P1).** Segmented `Collection | Étagères` (vue adaptative), pile de `ShelfCard` (rayons + flacons nus) : vues système (Signature, Cœurs), étagères custom, Non classés. CRUD enrichi + drag (DraggableFlatList), édition inline. Assignment long-press, ajout direct, persistance du dépliage.
+- **Meuble privé (P0–P1).** Segmented `Collection | Étagères` (vue adaptative), pile de `ShelfCard` (rayons + flacons nus) : vues système (Signature, Cœurs), étagères custom, Non classés. CRUD enrichi + réordonnancement par chevrons ↕ (ShelfCard), édition inline ; drag réservé au modal ShelfManager. Assignment long-press, ajout direct, persistance du dépliage.
 - **Communauté d'étagères (P2–P3).** Visibilité `is_public` par étagère + badge globe ; gate d'activation inline du profil ; partage `shelfShareUrl`/`shelfDeepLink` + landing SSR `?type=shelf` ; page publique `/u/[pseudo]/shelf/[id]` ; « M'inspirer » (copie en lot vers `to_try`).
 - **Ordre & pin (B-réel).** Table `shelf_items` (position + pin), 4 RPC atomiques miroir `shelf_ids`, trigger nettoyage orphelins. Tri ↕ par étagère (Personnalisé/Nom/Maison/Famille/Récents). Pin ★ dans la StatuerSheet. Fallback si migration non poussée (rien ne casse).
 - **Migrations** : 0037 (description/is_public), 0038 (reorder_shelves), 0039 (public_shelf*), 0040 (shelf_items + RPC atomiques + trigger).

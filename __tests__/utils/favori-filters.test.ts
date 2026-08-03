@@ -14,6 +14,7 @@ describe('longevityBucket', () => {
     expect(longevityBucket('Long Lasting')).toBe('long');
     expect(longevityBucket('Moderate')).toBe('moderate');
     expect(longevityBucket('Weak')).toBe('weak');
+    expect(longevityBucket('very weak')).toBe('weak');
   });
 
   it('returns null for unknown or empty', () => {

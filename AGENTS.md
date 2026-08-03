@@ -64,10 +64,10 @@ npx tsc --noEmit     # 0 erreur attendu (global)
 
 ### Tests
 ```bash
-npx jest --ci         # 618 tests, 59 suites
+npx jest --ci         # 633 tests, 61 suites
 npm test              # watch mode
 npm run test:ci       # CI mode avec couverture
-npm run test:supabase # E2E backend cloud (24 checks)
+npm run test:supabase # E2E backend cloud (29 checks)
 ```
 
 ### Lint
@@ -78,7 +78,7 @@ react-native 0.86.0 · expo ~57 · expo-router ~57
 @supabase/supabase-js · expo-camera ~57 · expo-image ~57 · expo-splash-screen ~57
 react-native-gesture-handler ~2.32 · react-native-reanimated ~4.5 · react-native-worklets 0.10
 react-native-svg ^15 · react-native-pager-view ^8.0 · react-native-tab-view ^4.3 · @react-native-vector-icons/ionicons ^13
-react-native-draggable-flatlist ^4.0 (réordonnancement des étagères, JS pur)
+react-native-draggable-flatlist ^4.0 (modal ShelfManager ; réordonnancement en vue = chevrons ↕ ShelfCard)
 @react-native-async-storage/async-storage · expo-navigation-bar ~57 · expo-system-ui ~57 · typescript ~6.0
 react-hook-form ^7.81 · zod ^4.4
 expo-speech-recognition ^56 · expo-audio ~57 · expo-file-system ~57 · expo-location ~57
@@ -115,7 +115,7 @@ DockBar custom (verre dépoli, 3 états : expanded/compact/hidden). Accès profi
 - **Local** : `supabase start` (Docker) · DB `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
 - **Edge Functions** (Deno) : `analyze-perfume-image`, `transcribe-voice`, `check-price-alerts`, `send-notification`, `send-weather-notifications`, `delete-user-account`, `share` (landing SSR)
 - **Secrets** : `supabase secrets set` (OPENAI_API_KEY, CRON_SERVICE_ROLE_KEY) — jamais en dur dans config.toml
-- **Migrations** : `supabase/migrations/0001→0057`
+- **Migrations** : `supabase/migrations/0001→0059`
 
 ## Règles critiques
 
@@ -165,6 +165,7 @@ Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/imag
 | `npm run import-fresh` | Import depuis `data/clean/` : transforme + image + WebP + upsert Postgres |
 | `npm run import-supabase` | Upsert Postgres (local ou `--target=cloud`) |
 | `npm run migrate-upscale` | Upscale HD ×4 (Real-ESRGAN + CUDA) → `image_url_2x` |
+| `npx tsx scripts/images/purge-2x.ts` | Purge HD 2x Storage + reset `image_url_2x` (`-- --dry-run`, `--limit=N` ; régénérable via `migrate-upscale`) |
 | `npm run generate-notes` / `upload-notes` | Images de notes olfactives + upload Storage |
 
 **Flux nouveau scrape** : `clean-data` → `import-fresh --target=cloud` → `migrate-upscale`.
@@ -204,3 +205,4 @@ Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/imag
 | v8.24 | Traduction notes/accords 100 % + descriptions popup (pyramide 1 679 notes + 88 accords, catégories `mineral`/`abstract`, `getAccordDescription`), polish a11y/cibles/typo, robustesse dock (reset/`pointerEvents`) + barre flottante, montée couverture tests |
 | v9.0 | Perf catalogue cold-start : degating rendu, projections étroites, cache disque SWR + prefetch splash, boot découplé de l'auth, carousels virtualisés, index partiel top-rated (0049) |
 | v9.1 | Audit & durcissement BDD (0050→0057) : sécurité RPC (`parfum_perf` force `auth.uid()`, garde propriété shelf, `lim` plafonné), cleanup tables/index/enums morts + `possessions` hors realtime, index manquants, intégrité (`updated_at` 4 tables + CHECK `parfum_votes.value`), vue `parfum_card` (RPC catalogue allégées du tsvector/jsonb), perf serveur (`recompute_perf_strings` set-based, matviews /30min), DROP 4 colonnes mortes + scripts d'import adaptés |
+| v9.2 | Longévité sur 5 crans 1:1 Fragrantica (0058) : `_perf_cranks`/`_perf_score`/`_user_cranks`/`_perf_label`/`parfum_perf`/`cast_vote`/`recompute_perf_strings` adaptés (sillage inchangé 4 crans), CHECK `parfum_votes.value` scindé + validé, reset des votes longevity/sillage + normalisation one-shot des strings, cran 1 → `'very weak'`, parsers clients alignés (`longevityLevel` 'very weak' avant 'weak'), e2e +5 checks, 0059 grant SELECT `parfum_card` (fix RPC catalogue invoker 0054) ; étagères & polish UI : réordonnancement ↕ en vue (drag retiré, ShelfManager conservé), tokens `cardShadow`/`cardBorder`/`hairline` + wrapper ombres cartes, `gridKey` sans remount thème, ombre FAB circulaire, race « Pour vous », pop scaleX des crans retiré, script `purge-2x` |
