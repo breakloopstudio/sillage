@@ -1,7 +1,10 @@
 export type { Parfum, PriceOffer } from './parfum.interface';
 export type { UserFavori } from './user-favori.interface';
 export type { UserScan } from './user-scan.interface';
-export type { ScanResult, ScanFailureReason } from './scan-result.interface';
+export type {
+  ScanResult, ScanFailureReason,
+  CollectionDetection, CollectionScanResult, CollectionMatch,
+} from './scan-result.interface';
 export type {
   UserParfum, UserParfumStatus, ScentVerdict, Possession, PossessionType,
   Shelf, SotdEntry,

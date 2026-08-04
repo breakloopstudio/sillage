@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useState } from 'react';
 import { View, Text, Pressable, BackHandler } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, useReducedMotion, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ interface Props {
 export default function ActionSheet({ visible, title, actions, onClose }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
@@ -98,7 +100,7 @@ export default function ActionSheet({ visible, title, actions, onClose }: Props)
         ))}
 
         <Pressable style={s.cancelBtn} onPress={onClose}>
-          <Text style={s.cancelText}>Annuler</Text>
+          <Text style={s.cancelText}>{t('cancel')}</Text>
         </Pressable>
       </Animated.View>
     </View>

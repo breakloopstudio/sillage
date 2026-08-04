@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { supabase, isSupabaseReady } from '../services/supabase';
+import i18next from 'i18next';
 import { translateSupabaseError } from '../utils/error-translator';
 
 // ─── Type commun ─────────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ export function useAuth() {
         throw Object.assign(new Error('cancel'), { code: 'auth/cancelled' });
       }
       const idToken = signInResult.data?.idToken;
-      if (!idToken) throw new Error('Google Sign-In annulé.');
+      if (!idToken) throw new Error(i18next.t('auth.googleCancelled'));
 
       const { data, error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
       if (error) throw error;

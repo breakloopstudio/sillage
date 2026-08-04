@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { getWmoMeta } from '../../utils/weather-codes';
 import type { WeatherData } from '../../services/weather';
@@ -45,6 +46,7 @@ function scoreBg(score: number | null | undefined, t: Theme) {
 
 export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, streak, onPress, onChangePress, onShare, onWeatherEnablePress }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const s = useMemo(() => getStyles(theme), [theme]);
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -91,10 +93,10 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, str
             onPress={onWeatherEnablePress}
             hitSlop={{ top: 7, bottom: 7 }}
             accessibilityRole="button"
-            accessibilityLabel="Activer la météo locale"
+            accessibilityLabel={t('sotd.enableWeatherA11y')}
           >
             <Ionicons name="partly-sunny-outline" size={14} color={theme.colors.textMuted} accessible={false} />
-            <Text style={s.weatherEnableLabel} numberOfLines={1}>Météo</Text>
+            <Text style={s.weatherEnableLabel} numberOfLines={1}>{t('sotd.weather')}</Text>
           </Pressable>
           {sotd ? <Text allowFontScaling={false} style={s.sep}>·</Text> : null}
         </>
@@ -108,8 +110,8 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, str
           delayLongPress={400}
           hitSlop={{ top: 7, bottom: 7 }}
           accessibilityRole="button"
-          accessibilityLabel={`Parfum du jour : ${sotd.nom} ${sotd.marque}${showStreak ? `, porté ${streak} jours de suite` : ''}`}
-          accessibilityHint="Appuyez longuement pour partager"
+          accessibilityLabel={`${t('sotd.sotdA11y', { nom: sotd.nom, marque: sotd.marque })}${showStreak && streak != null ? `, ${t('sotd.streakA11y', { count: streak })}` : ''}`}
+          accessibilityHint={t('sotd.shareHint')}
         >
           <View style={s.thumbWrap}>
             {sotd.imageUrl && !imgFailed ? (

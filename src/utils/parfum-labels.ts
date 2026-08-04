@@ -1,4 +1,6 @@
 import type { Parfum } from '../models';
+import i18next from 'i18next';
+import { formatDecimal } from './format-price';
 
 export function typeParfumLabel(v: string | null | undefined): string | null {
   if (!v) return null;
@@ -18,9 +20,9 @@ export function genderLabel(v: string | null | undefined): string | null {
   if (!v) return null;
   const k = v.toLowerCase().replace(/[^a-z]/g, '');
   if (!k) return null;
-  if (k.includes('unisex') || k.includes('shared') || k.includes('mixte')) return 'Mixte';
-  if (k.includes('women') || k.includes('female') || k.includes('femme')) return 'Femme';
-  if (k.includes('men') || k.includes('male') || k.includes('homme')) return 'Homme';
+  if (k.includes('unisex') || k.includes('shared') || k.includes('mixte')) return i18next.t('genders.mixed');
+  if (k.includes('women') || k.includes('female') || k.includes('femme')) return i18next.t('genders.female');
+  if (k.includes('men') || k.includes('male') || k.includes('homme')) return i18next.t('genders.male');
   return null;
 }
 
@@ -70,5 +72,5 @@ export function communityRatingLabel(p: Parfum | null | undefined): string | nul
     if (!Number.isNaN(parsed)) v = parsed;
   }
   if (v === null) return null;
-  return v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return formatDecimal(v, 1);
 }

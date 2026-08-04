@@ -1,6 +1,7 @@
 // src/features/runner/runner-storage.ts — High score + skins AsyncStorage
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18next from 'i18next';
 
 const HIGH_SCORE_KEY = '@sillage/runner-highscore';
 const SKINS_KEY = '@sillage/runner-skins';
@@ -8,10 +9,10 @@ const SELECTED_SKIN_KEY = '@sillage/runner-selected-skin';
 const MUTED_KEY = '@sillage/runner-muted';
 
 export const SKINS = [
-  { key: 'default', label: 'Violette', threshold: 0, bottle: '#6C3ED9', cap: '#D4A960' },
-  { key: 'amber', label: 'Ambre', threshold: 500, bottle: '#D97706', cap: '#FBBF24' },
-  { key: 'frost', label: 'Givre', threshold: 1500, bottle: '#06B6D4', cap: '#67E8F9' },
-  { key: 'noir', label: 'Noir', threshold: 3000, bottle: '#2A2238', cap: '#D4A960' },
+  { key: 'default', get label() { return i18next.t('runner.skinViolette'); }, threshold: 0, bottle: '#6C3ED9', cap: '#D4A960' },
+  { key: 'amber', get label() { return i18next.t('runner.skinAmbre'); }, threshold: 500, bottle: '#D97706', cap: '#FBBF24' },
+  { key: 'frost', get label() { return i18next.t('runner.skinGivre'); }, threshold: 1500, bottle: '#06B6D4', cap: '#67E8F9' },
+  { key: 'noir', get label() { return i18next.t('runner.skinNoir'); }, threshold: 3000, bottle: '#2A2238', cap: '#D4A960' },
 ] as const;
 
 export function getSkinForScore(score: number): typeof SKINS[number] {

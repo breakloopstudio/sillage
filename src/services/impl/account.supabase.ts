@@ -6,6 +6,7 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
+import i18next from 'i18next';
 import { supabase, type UserTableName } from '../supabase';
 import { translateSupabaseError } from '../../utils/error-translator';
 
@@ -53,13 +54,13 @@ export async function reauthenticate(password?: string): Promise<void> {
       throw new Error('AUTH_CANCELLED');
     }
     const idToken = signInResult.data?.idToken;
-    if (!idToken) throw new Error('Connexion Google annulée.');
+    if (!idToken) throw new Error(i18next.t('account.googleCancelled'));
     const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
     if (error) throw error;
   } catch (e: unknown) {
     const err = e as Error;
     if (err.message === 'AUTH_CANCELLED' || err.message === 'REAUTH_REQUIRED') throw err;
-    throw new Error(translateSupabaseError(e) || err.message || 'Réauthentification échouée.');
+    throw new Error(translateSupabaseError(e) || err.message || i18next.t('account.reauthFailed'));
   }
 }
 
@@ -84,10 +85,10 @@ export async function exportAccountData(): Promise<string> {
 export async function shareAccountData(): Promise<void> {
   const uri = await exportAccountData();
   const available = await Sharing.isAvailableAsync();
-  if (!available) throw new Error('Partage non disponible sur cet appareil.');
+  if (!available) throw new Error(i18next.t('account.shareUnavailable'));
   await Sharing.shareAsync(uri, {
     mimeType: 'application/json',
-    dialogTitle: 'Exporter mes données',
+    dialogTitle: i18next.t('account.exportDialogTitle'),
     UTI: 'public.json',
   });
 }

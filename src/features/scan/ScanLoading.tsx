@@ -14,15 +14,17 @@ import Animated, {
   useReducedMotion,
 } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 const PARTICLES = 8;
-const TEXTS = [
-  'Analyse des notes...',
-  'Comparaison des prix...',
-  'Identification en cours...',
-  'Recherche du meilleur deal...',
-  'Presque...',
-];
+// Clés i18n résolues au render (§23) — cycle animé des messages d'analyse.
+const TEXT_KEYS = [
+  'scan.loadingNotes',
+  'scan.loadingPrices',
+  'scan.loadingIdentifying',
+  'scan.loadingDeal',
+  'scan.loadingAlmost',
+] as const;
 
 function Particle({ index, t }: { index: number; t: Theme }) {
   const translateY = useSharedValue(0);
@@ -118,12 +120,13 @@ interface Props {
 export function ScanLoading({ onCancel, thumbnail }: Props) {
   const { theme } = useTheme();
   const m = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const [textIndex, setTextIndex] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      setTextIndex(prev => (prev + 1) % TEXTS.length);
+      setTextIndex(prev => (prev + 1) % TEXT_KEYS.length);
     }, 800);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -154,11 +157,11 @@ export function ScanLoading({ onCancel, thumbnail }: Props) {
         </View>
       </View>
 
-      <Text style={m.text}>{TEXTS[textIndex]}</Text>
+      <Text style={m.text}>{t(TEXT_KEYS[textIndex])}</Text>
 
       {onCancel && (
         <Pressable onPress={onCancel} style={m.cancelBtn} hitSlop={12}>
-          <Text style={m.cancelText}>Annuler</Text>
+          <Text style={m.cancelText}>{t('cancel')}</Text>
         </Pressable>
       )}
     </View>

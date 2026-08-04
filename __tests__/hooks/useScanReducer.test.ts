@@ -1,6 +1,6 @@
 import { scanReducer } from '../../src/hooks/useScanReducer';
 import type { ScanState, ScanAction } from '../../src/hooks/useScanReducer';
-import type { ScanResult, Parfum } from '../../src/models';
+import type { ScanResult, Parfum, CollectionMatch } from '../../src/models';
 
 function makeParfum(overrides: Partial<Parfum> = {}): Parfum {
   return {
@@ -89,6 +89,33 @@ describe('scanReducer', () => {
         kind: 'results',
         parfums: [],
       });
+    });
+  });
+
+  describe('COLLECTION_SCAN_SUCCESS', () => {
+    const matches: CollectionMatch[] = [
+      { parfum: makeParfum(), confidence: 'high', textRead: true, visualMatch: false },
+    ];
+
+    it('transitions from scanning to collection-results', () => {
+      expect(scanReducer(scanning, { type: 'COLLECTION_SCAN_SUCCESS', matches, estimatedCount: 3 })).toEqual({
+        kind: 'collection-results',
+        matches,
+        estimatedCount: 3,
+      });
+    });
+
+    it('works with empty matches array', () => {
+      expect(scanReducer(scanning, { type: 'COLLECTION_SCAN_SUCCESS', matches: [], estimatedCount: 0 })).toEqual({
+        kind: 'collection-results',
+        matches: [],
+        estimatedCount: 0,
+      });
+    });
+
+    it('collection-results → RESET → idle', () => {
+      const state: ScanState = { kind: 'collection-results', matches, estimatedCount: 2 };
+      expect(scanReducer(state, { type: 'RESET' })).toEqual({ kind: 'idle' });
     });
   });
 

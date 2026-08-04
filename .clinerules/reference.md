@@ -2,6 +2,29 @@
 
 ## §1 — Service Layer
 
+### `src/i18n/index.ts` (+ `config.ts`, `options.ts`, `resources.ts`)
+```ts
+// i18next — init, détection de langue, changement de langue (rules.md §23).
+export function initI18n(): Promise<void>;       // app : préférence AsyncStorage → locale appareil → fallback
+export function getActiveLanguage(): AppLanguage;
+export function setAppLanguage(pref: LanguagePreference): Promise<void>;  // Settings : applique puis persiste, ne reject jamais
+export function resolveInitialLanguage(pref: LanguagePreference): AppLanguage;
+// options.ts : buildInitOptions(lng) — fabrique d'InitOptions SANS dépendance native ;
+// jest-setup.js l'importe pour initialiser en fr sans toucher au mock AsyncStorage.
+// config.ts : SUPPORTED_LANGUAGES (['fr'], s'enrichit aux phases 2-3), AVAILABLE_LANGUAGES,
+// SOURCE_LANGUAGE ('fr'), UNSUPPORTED_FALLBACK_LANGUAGE ('fr' → 'en' quand EN complet),
+// SYSTEM_LANGUAGE ('system'), DEFAULT_NS ('common'), isSupportedLanguage(v), nativeLabelFor(code).
+// resources.ts : JSON bundlés src/locales/{lang}/{ns}.json — clés typées via src/types/i18next.d.ts.
+// ⚠️ Nouvelle langue : ne pas oublier l'import dans resources.ts (sinon fallback silencieux).
+```
+
+### `src/services/language-storage.ts`
+```ts
+// Persistance de la préférence de langue (AsyncStorage, clé @sillage/language)
+export function getLanguagePreference(): Promise<LanguagePreference>;  // 'system' | AppLanguage
+export function setLanguagePreference(pref: LanguagePreference): Promise<void>;
+```
+
 ### `src/services/supabase.ts`
 ```ts
 // Client Supabase + adaptateur realtime (remplace firebase.ts + onSnapshot)
@@ -53,6 +76,10 @@ export function getParfumsByPerfumer(name: string): Promise<Parfum[]>;
 
 export function getParfumsByMarque(marque: string): Promise<Parfum[]>;
 // PostgREST .eq('marque', marque) + order('popularity_score') DESC, limit 1000 (catalogue complet de la maison ; index b-tree `marque`, migration 0026)
+
+export function getParfumsByColor(key: ChromaticKey, limit?: number): Promise<Parfum[]>;
+// Roue chromatique : RPC chroma_parfums (0061/0062) — mapping couleur→vocabulaire (accords GIN + notes FTS,
+// curaté dans src/utils/chromatic-wheel.ts). Cache mémoire + dédup in-flight PARTAGÉS entre /wheel et /search?color=.
 ```
 
 ### `src/utils/normalize.ts`
@@ -185,6 +212,11 @@ export function setThemeMode(mode: ThemeMode): Promise<void>;
 // repêchage de l'hypothèse par inclusion (noms BDD préfixés par la marque).
 export function analyzeImage(base64: string): Promise<ScanResult>;
 export function analyzeMultipleImages(imagesBase64: string[]): Promise<ScanResult>;
+// v6 — mode collection : une photo d'étagère → inventaire `bottles[]` (marque/nom/
+// typeParfum/textRead par flacon) + `estimatedCount` (total vus, y c. non identifiés).
+// Confiance forcée par flacon (texte lu + marque + nom → 'high'), escalade si 0 détection,
+// re-ranking visuel PLAFONNÉ à 3 flacons (forme + marque, en parallèle). Quota 'scan' partagé.
+export function analyzeCollectionImage(base64: string): Promise<CollectionScanResult>;
 ```
 
 ### `src/services/storage.ts`
@@ -851,7 +883,7 @@ export function suggestTargetPrice(bestPrice?: number | null, referencePrice?: n
 // Proche de l'officiel (≥90%) → référence × 0.75 ; déjà en promo → best_price × 0.9 ; arrondi au palier de 5 €
 export function alertVariation(initialPrice: number | null, currentPrice: number | null): number | null;
 // Variation vs prix à l'activation (négatif = baisse). null si données manquantes
-export function formatVariation(variation: number): string;  // « −18 % » / « +5 % » (minus U+2212 + espace fine)
+export function formatVariation(variation: number): string;  // « −18 % » / « +5 % » — locale-aware (Intl, §23)
 ```
 
 ### `src/utils/share.ts`
@@ -893,7 +925,8 @@ export function perfDimensionAt(key: PerfDimensionKey, level: number | null): Pe
 export function buildSeasonProfile(parfum): SeasonProfileData | null;
 export function rankAndDedupe(ranking): RankedItem[];
 export function dayNightLabel(day: number, night: number): 'day' | 'night' | null;
-export const SEASON_PHRASES / DAY_NIGHT_TEXT;
+// OCCASION_META : clés EN → { labelKey i18n ('occasions.*'), icon } ; dédup par labelKey.
+// Textes jour/nuit : inline FR dans SeasonProfile (clés à l'extraction du composant).
 ```
 
 ### `src/utils/scan-match.ts`
@@ -918,12 +951,26 @@ export function scanReadLine(read: ScanResult | null | undefined, top: Parfum | 
 // Ligne « Lu : … » / « Hypothèse : … » — null si elle ne ferait que doubler le héros.
 ```
 
+### `src/utils/collection-scan.ts`
+```ts
+// Helpers purs du scan de collection multi-flacons (testé).
+export const COLLECTION_MATCH_THRESHOLD: number;  // 50 — score minimum pour retenir un match
+export const COLLECTION_MAX_DETECTIONS: number;   // 24 — plafond de détections matchées
+export function pickDetectionMatch(results: Array<Parfum & { _scanScore?: number }>): Parfum | null;
+// Meilleur candidat (top 1) s'il atteint le seuil, sinon null.
+export function isMatchableDetection(d: CollectionDetection): boolean;  // marque OU nom présent
+export function dedupeCollectionMatches(matches: CollectionMatch[]): CollectionMatch[];  // par id catalogue
+export function defaultSelectedIds(matches: CollectionMatch[], ownedIds: Set<string>): Set<string>;
+// Sélection par défaut : uniquement les VÉRIFIÉS (confidence 'high') pas déjà possédés.
+export function ownedIdSet(items: Array<{ parfumId: string }>): Set<string>;
+```
+
 ### `src/utils/permission-primers.ts`
 ```ts
 // Primers de permission just-in-time (§22 rules) — copy + flags AsyncStorage.
 export type PermissionPrimerKey = 'camera' | 'mic' | 'location' | 'push';
 export const PERMISSION_PRIMERS: Record<PermissionPrimerKey, PermissionPrimerCopy>;  // icon/title/message/acceptLabel
-export const PRIMER_REASSURANCE: string;                                             // « Tu peux changer d'avis… »
+export function getPrimerReassurance(): string;                                      // « Tu peux changer d'avis… » (i18next.t)
 export function hasSeenPrimer(key: PermissionPrimerKey): Promise<boolean>;           // clé @sillage/primer-<key>
 export function markPrimerSeen(key: PermissionPrimerKey): Promise<void>;
 ```
@@ -933,6 +980,25 @@ export function markPrimerSeen(key: PermissionPrimerKey): Promise<void>;
 // Langues de l'appareil pour le pipeline voix multilingue (expo-localization).
 export function deviceSttLang(): string;        // locale BCP-47 pour le STT on-device
 export function deviceVoiceLanguages(): string[];  // indices ISO 639-1 (max 3) pour gpt-transcribe
+```
+
+### `src/utils/chromatic-wheel.ts`
+```ts
+// Roue chromatique — 12 couleurs-ancres curatées → vocabulaire olfactif du catalogue.
+export type ChromaticKey = /* 'red' | 'orange' | … | 'black' | 'white' | 'gray' (12 clés) */;
+export const CHROMA_ANCHORS: ChromaticAnchor[];   // 9 teintes (hue) + 3 neutres (noir/blanc/gris)
+export function getColorByKey(key?: ChromaticKey): ChromaticColor | undefined;
+export function hueToAnchor(hue: number): ChromaticKey;  // snap vers l'ancre la plus proche
+export function chromaSwatch(key: ChromaticKey, mode: 'light' | 'dark'): { swatch: string; ring: string };
+// Chaque couleur définit : accords (GIN main_accords &&), notes (FTS search_vector @@),
+// affinité saisonnière. Labels/taglines résolus via i18next (`chroma.*`) à l'affichage.
+```
+
+### `src/utils/relative-date.ts`
+```ts
+// Formatage relatif court des dates (« il y a 3 j ») — vue Alertes de Favoris (lastChecked).
+export function formatRelativeShort(date: Date | null | undefined): string | null;
+// « à l'instant » / « il y a N min » / « il y a N h » / « il y a N j » ; absolu Intl au-delà de 7 j.
 ```
 
 ---

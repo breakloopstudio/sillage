@@ -1,5 +1,9 @@
 // src/utils/season.ts — Constantes, types et helpers saisonniers partagés
 // (catalogue fiche détail, filtres favoris, scripts backfill)
+// Labels résolus via i18next à l'affichage (§23) — les scripts n'utilisent que
+// les clés/ helpers, jamais les labels.
+
+import i18next from 'i18next';
 
 export type SeasonKey = 'spring' | 'summer' | 'fall' | 'winter';
 
@@ -12,10 +16,10 @@ export const SEASON_META: Record<SeasonKey, {
   token: 'seasonSpring' | 'seasonSummer' | 'seasonFall' | 'seasonWinter';
   tokenSoft: 'seasonSpringSoft' | 'seasonSummerSoft' | 'seasonFallSoft' | 'seasonWinterSoft';
 }> = {
-  spring: { label: 'Printemps', withArticle: 'le printemps', icon: 'flower-outline', token: 'seasonSpring', tokenSoft: 'seasonSpringSoft' },
-  summer: { label: 'Été',       withArticle: "l'été",        icon: 'sunny',          token: 'seasonSummer', tokenSoft: 'seasonSummerSoft' },
-  fall:   { label: 'Automne',   withArticle: "l'automne",    icon: 'leaf',           token: 'seasonFall',   tokenSoft: 'seasonFallSoft' },
-  winter: { label: 'Hiver',     withArticle: "l'hiver",      icon: 'snow',           token: 'seasonWinter', tokenSoft: 'seasonWinterSoft' },
+  spring: { get label() { return i18next.t('seasons.spring.label'); }, get withArticle() { return i18next.t('seasons.spring.withArticle'); }, icon: 'flower-outline', token: 'seasonSpring', tokenSoft: 'seasonSpringSoft' },
+  summer: { get label() { return i18next.t('seasons.summer.label'); }, get withArticle() { return i18next.t('seasons.summer.withArticle'); }, icon: 'sunny',          token: 'seasonSummer', tokenSoft: 'seasonSummerSoft' },
+  fall:   { get label() { return i18next.t('seasons.fall.label'); },   get withArticle() { return i18next.t('seasons.fall.withArticle'); },   icon: 'leaf',           token: 'seasonFall',   tokenSoft: 'seasonFallSoft' },
+  winter: { get label() { return i18next.t('seasons.winter.label'); }, get withArticle() { return i18next.t('seasons.winter.withArticle'); }, icon: 'snow',           token: 'seasonWinter', tokenSoft: 'seasonWinterSoft' },
 };
 
 export function currentSeason(date: Date = new Date()): SeasonKey {

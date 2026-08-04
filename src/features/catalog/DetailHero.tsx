@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import FavButton from '../../components/FavButton';
 import type { Parfum } from '../../models';
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function DetailHero({ imageUrl, brand, imgFailed, parfum, onImageError, onImagePress }: Props) {
+  const { t } = useTranslation('common');
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
 
@@ -26,7 +28,7 @@ export default function DetailHero({ imageUrl, brand, imgFailed, parfum, onImage
   return (
     <View style={s.container}>
       {hasImage ? (
-        <Pressable onPress={onImagePress} accessibilityRole="imagebutton" accessibilityLabel="Agrandir l'image">
+        <Pressable onPress={onImagePress} accessibilityRole="imagebutton" accessibilityLabel={t('detail.enlargeImageA11y')}>
           <Image
             source={{ uri: imageUrl }}
             style={s.image}

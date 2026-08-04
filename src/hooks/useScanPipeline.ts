@@ -2,16 +2,22 @@
 // Testable : mock des services, dispatch capturé
 
 import { useRef, useCallback } from 'react';
+import i18next from 'i18next';
 import type { ScanAction } from './useScanReducer';
-import type { ScanResult, Parfum } from '../models';
-import { analyzeImage, analyzeMultipleImages } from '../services/openai-vision';
+import type { ScanResult, Parfum, CollectionMatch } from '../models';
+import { analyzeImage, analyzeMultipleImages, analyzeCollectionImage } from '../services/openai-vision';
 import { searchParfumFromScan } from '../services/catalog';
 import { saveScan } from '../services/user-data';
 import { hapticsSuccess, hapticsError } from '../services/haptics';
+import {
+  pickDetectionMatch, isMatchableDetection, dedupeCollectionMatches, COLLECTION_MAX_DETECTIONS,
+} from '../utils/collection-scan';
 
 const MIN_ANIMATION_MS = 400;
 // Lecture incertaine + aucun candidat au-dessus de ce score → saisie assistée.
 const CLARIFY_SCORE_THRESHOLD = 50;
+// Mode collection : taille des lots de matching catalogue (parallélisme borné).
+const SEARCH_BATCH_SIZE = 6;
 
 /** Historique : lecture IA complète (volume + confiance + source inclus), schéma unique. */
 function rawTextOf(r: ScanResult): string {
@@ -90,7 +96,7 @@ export function useScanPipeline(
         }).catch(() => {});
       }
       if (mountedRef.current && scanIdRef.current === scanId) {
-        dispatch({ type: 'SCAN_ERROR', message: 'Connexion impossible. Vérifiez votre réseau.' });
+        dispatch({ type: 'SCAN_ERROR', message: i18next.t('scan.errorNetwork') });
         hapticsError();
       }
     }
@@ -121,6 +127,63 @@ export function useScanPipeline(
     }
   }
 
+  // ── Mode collection : inventaire multi-flacons ────────
+
+  async function runCollectionAnalysis(image: string, scanId: number) {
+    const result = await analyzeCollectionImage(image);
+    if (!mountedRef.current || scanIdRef.current !== scanId) return;
+
+    const detections = result.bottles.filter(isMatchableDetection).slice(0, COLLECTION_MAX_DETECTIONS);
+    if (!result.isCollection || detections.length === 0) {
+      dispatch({ type: 'SCAN_ERROR', message: i18next.t('scan.collectionNoneIdentified') });
+      hapticsError();
+      return;
+    }
+
+    // Matching catalogue par détection (rescoring fuzzy partagé avec le scan unitaire).
+    // Parallélisme BORNÉ par lots de 6 : 24 détections × (requête principale +
+    // alternatives) satureraient la RPC search_parfums depuis un seul appareil.
+    const settled: Array<PromiseSettledResult<Parfum[]>> = [];
+    for (let i = 0; i < detections.length; i += SEARCH_BATCH_SIZE) {
+      const batch = detections.slice(i, i + SEARCH_BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map((d) => searchParfumFromScan({
+          marque: d.marque, nom: d.nom, alternatives: d.alternatives, typeParfum: d.typeParfum,
+        })),
+      );
+      settled.push(...results);
+      if (!mountedRef.current || scanIdRef.current !== scanId) return;
+    }
+
+    const rawMatches: CollectionMatch[] = [];
+    settled.forEach((r, i) => {
+      if (r.status !== 'fulfilled') return;
+      const d = detections[i];
+      const top = pickDetectionMatch(r.value);
+      if (!top) return;
+      rawMatches.push({
+        parfum: top,
+        confidence: d.confidence,
+        textRead: d.textRead,
+        visualMatch: d.visualMatch === true,
+      });
+    });
+
+    const matches = dedupeCollectionMatches(rawMatches);
+    if (matches.length === 0) {
+      dispatch({ type: 'SCAN_ERROR', message: i18next.t('scan.collectionNoneIdentified') });
+      hapticsError();
+      return;
+    }
+
+    hapticsSuccess();
+    dispatch({
+      type: 'COLLECTION_SCAN_SUCCESS',
+      matches,
+      estimatedCount: Math.max(result.estimatedCount, matches.length),
+    });
+  }
+
   // ── Point d'entrée ────────────────────────────────────
 
   const startAnalysis = useCallback(async (payload: { images?: string[]; scanResult?: ScanResult }) => {
@@ -141,7 +204,7 @@ export function useScanPipeline(
         await searchAndShow(payload.scanResult, scanId, false);
       } else {
         if (mountedRef.current && scanIdRef.current === scanId) {
-          dispatch({ type: 'SCAN_ERROR', message: 'Une erreur inattendue est survenue. Veuillez réessayer.' });
+          dispatch({ type: 'SCAN_ERROR', message: i18next.t('scan.errorUnexpected') });
           hapticsError();
         }
         if (scanIdRef.current === scanId) inProgressRef.current = false;
@@ -152,7 +215,7 @@ export function useScanPipeline(
       if (mountedRef.current && scanIdRef.current === scanId) {
         dispatch({
           type: 'SCAN_ERROR',
-          message: e instanceof Error ? e.message : 'Échec de l\'analyse. Veuillez réessayer.',
+          message: e instanceof Error ? e.message : i18next.t('scan.analysisFailed'),
         });
         hapticsError();
       }
@@ -170,11 +233,46 @@ export function useScanPipeline(
     if (scanIdRef.current === scanId) inProgressRef.current = false;
   }, [dispatch, uid, mountedRef]);
 
+  const startCollectionAnalysis = useCallback(async (payload: { image: string }) => {
+    if (inProgressRef.current) return;
+    inProgressRef.current = true;
+
+    const scanId = ++scanIdRef.current;
+
+    dispatch({ type: 'START_SCAN', images: [payload.image] });
+
+    const started = Date.now();
+
+    try {
+      await runCollectionAnalysis(payload.image, scanId);
+    } catch (e: unknown) {
+      console.warn('[scan] collection analysis failed:', e);
+      if (mountedRef.current && scanIdRef.current === scanId) {
+        dispatch({
+          type: 'SCAN_ERROR',
+          message: e instanceof Error ? e.message : i18next.t('scan.analysisFailed'),
+        });
+        hapticsError();
+      }
+      if (scanIdRef.current === scanId) inProgressRef.current = false;
+      return;
+    }
+
+    if (scanIdRef.current !== scanId) return;
+
+    const elapsed = Date.now() - started;
+    if (elapsed < MIN_ANIMATION_MS) {
+      await new Promise(r => setTimeout(r, MIN_ANIMATION_MS - elapsed));
+    }
+
+    if (scanIdRef.current === scanId) inProgressRef.current = false;
+  }, [dispatch, mountedRef]);
+
   const cancelAnalysis = useCallback(() => {
     scanIdRef.current++;
     inProgressRef.current = false;
     dispatch({ type: 'RESET' });
   }, [dispatch]);
 
-  return { startAnalysis, cancelAnalysis };
+  return { startAnalysis, startCollectionAnalysis, cancelAnalysis };
 }

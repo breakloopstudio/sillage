@@ -13,6 +13,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight } from '../services/haptics';
 import { brandColor } from '../utils/brand-color';
@@ -32,6 +33,7 @@ interface Props {
 export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, items, onClose, onConfirm }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const router = useRouter();
@@ -85,13 +87,13 @@ export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, ite
         setPhase('done');
       } else {
         setPhase('error');
-        setError('Aucun parfum n’a pu être ajouté. Réessaie.');
+        setError(t('inspire.errorNone'));
       }
     } catch {
       setPhase('error');
-      setError('L’ajout a échoué. Réessaie.');
+      setError(t('inspire.errorFailed'));
     }
-  }, [phase, onConfirm]);
+  }, [phase, onConfirm, t]);
 
   const handleViewParfumerie = useCallback(() => {
     onClose();
@@ -101,10 +103,10 @@ export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, ite
   if (!mounted) return null;
 
   const count = items.length;
-  const title = phase === 'done' ? 'Ajouté à « À sentir »' : `S’inspirer de « ${shelfName} »`;
+  const title = phase === 'done' ? t('inspire.titleDone') : t('inspire.title', { shelfName });
   const subtitle = phase === 'done'
-    ? `${addedCount} parfum${addedCount > 1 ? 's' : ''} dans ta parfumerie`
-    : `@${ownerPseudo} · ${count} parfum${count > 1 ? 's' : ''} à ajouter`;
+    ? t('inspire.subtitleDone', { count: addedCount })
+    : t('inspire.subtitle', { pseudo: ownerPseudo, count });
 
   return (
     <View style={s.wrapper}>
@@ -126,7 +128,7 @@ export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, ite
             <Text style={s.title} numberOfLines={1}>{title}</Text>
             <Text style={s.subtitle} numberOfLines={2}>{subtitle}</Text>
           </View>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
+          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
             <Ionicons name="close" size={22} color={theme.colors.text} />
           </Pressable>
         </View>
@@ -136,7 +138,7 @@ export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, ite
             <View style={s.doneIcon}>
               <Ionicons name="flask-outline" size={28} color={theme.colors.deal} />
             </View>
-            <Text style={s.doneText}>Tu les retrouveras dans « À sentir », prêts à être essayés en boutique.</Text>
+            <Text style={s.doneText}>{t('inspire.doneText')}</Text>
           </View>
         ) : (
           <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
@@ -163,9 +165,9 @@ export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, ite
         )}
 
         {phase === 'done' ? (
-          <Pressable style={s.cta} onPress={handleViewParfumerie} accessibilityRole="button" accessibilityLabel="Voir ma parfumerie">
+          <Pressable style={s.cta} onPress={handleViewParfumerie} accessibilityRole="button" accessibilityLabel={t('inspire.viewParfumerie')}>
             <Ionicons name="flask-outline" size={18} color="#FFFFFF" />
-            <Text style={s.ctaText} allowFontScaling={false}>Voir ma parfumerie</Text>
+            <Text style={s.ctaText} allowFontScaling={false}>{t('inspire.viewParfumerie')}</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -173,14 +175,14 @@ export default function InspireShelfSheet({ visible, shelfName, ownerPseudo, ite
             onPress={handleConfirm}
             disabled={phase === 'loading' || count === 0}
             accessibilityRole="button"
-            accessibilityLabel={`Ajouter ${count} parfum${count > 1 ? 's' : ''} à À sentir`}
+            accessibilityLabel={t('inspire.addA11y', { count })}
           >
             {phase === 'loading' ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
                 <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-                <Text style={s.ctaText} allowFontScaling={false}>Ajouter {count} à « À sentir »</Text>
+                <Text style={s.ctaText} allowFontScaling={false}>{t('inspire.addCta', { count })}</Text>
               </>
             )}
           </Pressable>

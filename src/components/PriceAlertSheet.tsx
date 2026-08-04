@@ -14,6 +14,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight } from '../services/haptics';
 import { getLowestObservedPrice } from '../services/user-data';
@@ -43,6 +44,7 @@ export default function PriceAlertSheet({
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [imgFailed, setImgFailed] = useState(false);
@@ -137,7 +139,7 @@ export default function PriceAlertSheet({
 
         {bestPrice != null ? (
           <View style={s.priceRow}>
-            <Text style={s.priceLabel}>Prix actuel</Text>
+            <Text style={s.priceLabel}>{t('priceAlertSheet.currentPrice')}</Text>
             <Text style={s.priceCurrent} allowFontScaling={false}>{formatPrice(bestPrice, { decimals: 0 })}</Text>
             {referencePrice != null && referencePrice !== bestPrice ? (
               <Text style={s.priceRef} allowFontScaling={false}>{formatPrice(referencePrice, { decimals: 0 })}</Text>
@@ -148,16 +150,16 @@ export default function PriceAlertSheet({
         {reached ? (
           <View style={s.reachedRow}>
             <Ionicons name="checkmark-circle-outline" size={14} color={theme.colors.dealInk} accessible={false} />
-            <Text style={s.reachedText} allowFontScaling={false}>Ta cible est déjà atteinte</Text>
+            <Text style={s.reachedText} allowFontScaling={false}>{t('priceAlertSheet.targetReached')}</Text>
           </View>
         ) : null}
 
-        <Pressable style={s.toggleRow} onPress={handleToggle} accessibilityRole="switch" accessibilityState={{ checked: active }} accessibilityLabel="Alerte prix">
+        <Pressable style={s.toggleRow} onPress={handleToggle} accessibilityRole="switch" accessibilityState={{ checked: active }} accessibilityLabel={t('priceAlert.label')}>
           <View style={s.toggleLeft}>
             <Ionicons name={active ? 'notifications' : 'notifications-outline'} size={20} color={active ? theme.colors.primary : theme.colors.textMuted} />
             <View>
-              <Text style={s.toggleLabel}>Alerte prix</Text>
-              <Text style={s.toggleDesc}>{active ? 'Tu seras prévenu' : 'Alerte désactivée'}</Text>
+              <Text style={s.toggleLabel}>{t('priceAlert.label')}</Text>
+              <Text style={s.toggleDesc}>{active ? t('priceAlertSheet.willNotify') : t('priceAlertSheet.off')}</Text>
             </View>
           </View>
           <View style={[s.track, active && s.trackActive]}>
@@ -168,36 +170,36 @@ export default function PriceAlertSheet({
         {active ? (
           <View style={s.modeBlock}>
             <View style={s.modeChips}>
-              <Pressable style={[s.modeChip, mode === 'drop' && s.modeChipActive]} onPress={() => handleMode('drop')} accessibilityRole="button" accessibilityLabel="Préviens-moi d'une baisse">
-                <Text style={[s.modeChipText, mode === 'drop' && s.modeChipTextActive]} allowFontScaling={false}>Une baisse</Text>
+              <Pressable style={[s.modeChip, mode === 'drop' && s.modeChipActive]} onPress={() => handleMode('drop')} accessibilityRole="button" accessibilityLabel={t('priceAlertSheet.dropModeA11y')}>
+                <Text style={[s.modeChipText, mode === 'drop' && s.modeChipTextActive]} allowFontScaling={false}>{t('priceAlertSheet.dropMode')}</Text>
               </Pressable>
-              <Pressable style={[s.modeChip, mode === 'target' && s.modeChipActive]} onPress={() => handleMode('target')} accessibilityRole="button" accessibilityLabel="Préviens-moi sous un prix">
-                <Text style={[s.modeChipText, mode === 'target' && s.modeChipTextActive]} allowFontScaling={false}>Sous un prix</Text>
+              <Pressable style={[s.modeChip, mode === 'target' && s.modeChipActive]} onPress={() => handleMode('target')} accessibilityRole="button" accessibilityLabel={t('priceAlertSheet.targetModeA11y')}>
+                <Text style={[s.modeChipText, mode === 'target' && s.modeChipTextActive]} allowFontScaling={false}>{t('priceAlertSheet.targetMode')}</Text>
               </Pressable>
             </View>
 
             {mode === 'target' ? (
               <View style={s.stepperRow}>
-                <Pressable style={s.stepperBtn} onPress={handleDec} hitSlop={6} accessibilityRole="button" accessibilityLabel="Diminuer">
+                <Pressable style={s.stepperBtn} onPress={handleDec} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('priceAlertSheet.decrease')}>
                   <Ionicons name="remove" size={18} color={theme.colors.primary} />
                 </Pressable>
                 <Text style={s.stepperValue}>{formatPrice(targetValue, { decimals: 0 })}</Text>
-                <Pressable style={s.stepperBtn} onPress={handleInc} hitSlop={6} accessibilityRole="button" accessibilityLabel="Augmenter">
+                <Pressable style={s.stepperBtn} onPress={handleInc} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('priceAlertSheet.increase')}>
                   <Ionicons name="add" size={18} color={theme.colors.primary} />
                 </Pressable>
               </View>
             ) : (
-              <Text style={s.modeHint}>Déclenchée dès −10 % ou −5 €.</Text>
+              <Text style={s.modeHint}>{t('priceAlertSheet.dropHint')}</Text>
             )}
 
             {lowest != null ? (
-              <Text style={s.lowestHint}>Plus bas constaté : {formatPrice(lowest, { decimals: 0 })}</Text>
+              <Text style={s.lowestHint}>{t('priceAlertSheet.lowest', { price: formatPrice(lowest, { decimals: 0 }) })}</Text>
             ) : null}
           </View>
         ) : null}
 
-        <Pressable style={[s.cta, !active && s.ctaOff]} onPress={handleSave} accessibilityRole="button" accessibilityLabel={active ? 'Enregistrer' : 'Désactiver l’alerte'}>
-          <Text style={[s.ctaText, !active && s.ctaTextOff]}>{active ? 'Enregistrer' : 'Désactiver l’alerte'}</Text>
+        <Pressable style={[s.cta, !active && s.ctaOff]} onPress={handleSave} accessibilityRole="button" accessibilityLabel={active ? t('priceAlertSheet.save') : t('priceAlertSheet.disableAlert')}>
+          <Text style={[s.ctaText, !active && s.ctaTextOff]}>{active ? t('priceAlertSheet.save') : t('priceAlertSheet.disableAlert')}</Text>
         </Pressable>
       </Animated.View>
     </View>

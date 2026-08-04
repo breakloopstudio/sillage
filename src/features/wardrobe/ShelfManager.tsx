@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, TouchableOpacity, TextInput, Alert, BackHandler, KeyboardAvoidingView } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
@@ -29,6 +30,7 @@ interface Props {
 export default function ShelfManager({ visible, shelves, orphanCount, editShelfId = null, onClose, onCreate, onUpdate, onReorder, onDelete }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
 
   const [local, setLocal] = useState<Shelf[]>(shelves);
@@ -96,14 +98,14 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
 
   const handleDelete = useCallback((shelfId: string, shelfName: string) => {
     Alert.alert(
-      'Supprimer l’étagère',
-      `« ${shelfName} » sera supprimée. Les parfums ne seront pas effacés, ils perdront juste cette étagère.`,
+      t('shelfManager.deleteTitle'),
+      t('shelfManager.deleteMessage', { name: shelfName }),
       [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: () => onDelete(shelfId) },
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('shelfManager.deleteConfirm'), style: 'destructive', onPress: () => onDelete(shelfId) },
       ]
     );
-  }, [onDelete]);
+  }, [onDelete, t]);
 
   const handleDragEnd = useCallback(({ data }: { data: Shelf[] }) => {
     setLocal(data);
@@ -127,7 +129,7 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
                 value={editName}
                 onChangeText={setEditName}
                 keyboardAppearance={keyboardAppearance}
-                placeholder="Nom de l’étagère"
+                placeholder={t('shelfManager.namePlaceholder')}
                 placeholderTextColor={theme.colors.textMuted}
                 maxLength={40}
                 autoFocus
@@ -137,13 +139,13 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
                 value={editDesc}
                 onChangeText={setEditDesc}
                 keyboardAppearance={keyboardAppearance}
-                placeholder="Note (optionnelle)"
+                placeholder={t('shelfManager.descPlaceholderOptional')}
                 placeholderTextColor={theme.colors.textMuted}
                 maxLength={DESC_MAX}
                 multiline
                 textAlignVertical="top"
               />
-              <Text style={s.miniLabel}>Icône</Text>
+              <Text style={s.miniLabel}>{t('shelfManager.icon')}</Text>
               <View style={s.iconGrid}>
                 {SHELF_ICONS.map((icon) => (
                   <Pressable
@@ -157,7 +159,7 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
                   </Pressable>
                 ))}
               </View>
-              <Text style={s.miniLabel}>Couleur</Text>
+              <Text style={s.miniLabel}>{t('shelfManager.color')}</Text>
               <View style={s.colorRow}>
                 {shelfColors.map((color) => (
                   <Pressable
@@ -165,22 +167,22 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
                     style={[s.colorBtn, { backgroundColor: color }, editColor === color && s.colorBtnActive]}
                     onPress={() => setEditColor(editColor === color ? null : color)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Couleur ${color}`}
+                    accessibilityLabel={t('shelfManager.colorA11y', { color })}
                   />
                 ))}
               </View>
               <View style={s.editActions}>
-                <Pressable style={s.cancelEditBtn} onPress={cancelEdit} accessibilityRole="button" accessibilityLabel="Annuler la modification">
-                  <Text style={s.cancelEditText}>Annuler</Text>
+                <Pressable style={s.cancelEditBtn} onPress={cancelEdit} accessibilityRole="button" accessibilityLabel={t('shelfManager.cancelEditA11y')}>
+                  <Text style={s.cancelEditText}>{t('cancel')}</Text>
                 </Pressable>
                 <Pressable
                   style={[s.saveEditBtn, !editName.trim() && s.saveEditBtnDisabled]}
                   onPress={commitEdit}
                   disabled={!editName.trim()}
                   accessibilityRole="button"
-                  accessibilityLabel="Enregistrer"
+                  accessibilityLabel={t('shelfManager.save')}
                 >
-                  <Text style={[s.saveEditText, !editName.trim() && s.saveEditTextDisabled]}>Enregistrer</Text>
+                  <Text style={[s.saveEditText, !editName.trim() && s.saveEditTextDisabled]}>{t('shelfManager.save')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -198,7 +200,7 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
             activeOpacity={0.6}
             style={s.grip}
             accessibilityRole="button"
-            accessibilityLabel={`Réorganiser ${item.name}`}
+            accessibilityLabel={t('shelfManager.reorderA11y', { name: item.name })}
           >
             <View style={s.gripBar} />
             <View style={s.gripBar} />
@@ -211,34 +213,34 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
               {item.description ? <Text style={s.shelfTagline} numberOfLines={1}>{item.description}</Text> : null}
             </View>
           </View>
-          <Pressable hitSlop={10} disabled={isActive} onPress={() => startEdit(item)} accessibilityRole="button" accessibilityLabel={`Modifier ${item.name}`}>
+          <Pressable hitSlop={10} disabled={isActive} onPress={() => startEdit(item)} accessibilityRole="button" accessibilityLabel={t('shelfManager.editA11y', { name: item.name })}>
             <Ionicons name="pencil-outline" size={16} color={theme.colors.textMuted} />
           </Pressable>
-          <Pressable hitSlop={10} disabled={isActive} onPress={() => handleDelete(item.id, item.name)} accessibilityRole="button" accessibilityLabel={`Supprimer ${item.name}`}>
+          <Pressable hitSlop={10} disabled={isActive} onPress={() => handleDelete(item.id, item.name)} accessibilityRole="button" accessibilityLabel={t('shelfManager.deleteA11y', { name: item.name })}>
             <Ionicons name="trash-outline" size={16} color={theme.colors.overpriced} />
           </Pressable>
         </View>
       </ScaleDecorator>
     );
-  }, [editingId, editName, editIcon, editColor, editDesc, shelfColors, theme, s, keyboardAppearance, startEdit, cancelEdit, commitEdit, handleDelete]);
+  }, [editingId, editName, editIcon, editColor, editDesc, shelfColors, theme, s, keyboardAppearance, startEdit, cancelEdit, commitEdit, handleDelete, t]);
 
   const footer = useMemo(() => (
     <View style={s.footer}>
       <View style={s.createSection}>
-        <Text style={s.sectionLabel}>Nouvelle étagère</Text>
+        <Text style={s.sectionLabel}>{t('shelfManager.newShelf')}</Text>
         <TextInput
           style={s.input}
-          placeholder="Nom de l’étagère"
+          placeholder={t('shelfManager.namePlaceholder')}
           placeholderTextColor={theme.colors.textMuted}
           value={newName}
           onChangeText={setNewName}
           keyboardAppearance={keyboardAppearance}
           maxLength={40}
         />
-        <Text style={s.miniLabel}>Note (optionnelle)</Text>
+        <Text style={s.miniLabel}>{t('shelfManager.descPlaceholderOptional')}</Text>
         <TextInput
           style={s.descInput}
-          placeholder="Une ligne pour la décrire…"
+          placeholder={t('shelfManager.descPlaceholder')}
           placeholderTextColor={theme.colors.textMuted}
           value={newDesc}
           onChangeText={setNewDesc}
@@ -247,7 +249,7 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
           multiline
           textAlignVertical="top"
         />
-        <Text style={s.miniLabel}>Icône (optionnelle)</Text>
+        <Text style={s.miniLabel}>{t('shelfManager.iconOptional')}</Text>
         <View style={s.iconGrid}>
           {SHELF_ICONS.map((icon) => (
             <Pressable
@@ -261,7 +263,7 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
             </Pressable>
           ))}
         </View>
-        <Text style={s.miniLabel}>Couleur (optionnelle)</Text>
+        <Text style={s.miniLabel}>{t('shelfManager.colorOptional')}</Text>
         <View style={s.colorRow}>
           {shelfColors.map((color) => (
             <Pressable
@@ -269,7 +271,7 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
               style={[s.colorBtn, { backgroundColor: color }, newColor === color && s.colorBtnActive]}
               onPress={() => setNewColor(newColor === color ? null : color)}
               accessibilityRole="button"
-              accessibilityLabel={`Couleur ${color}`}
+              accessibilityLabel={t('shelfManager.colorA11y', { color })}
             />
           ))}
         </View>
@@ -278,16 +280,16 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
           onPress={handleCreate}
           disabled={!newName.trim()}
         >
-          <Text style={[s.createBtnText, !newName.trim() && s.createBtnTextDisabled]}>Créer l’étagère</Text>
+          <Text style={[s.createBtnText, !newName.trim() && s.createBtnTextDisabled]}>{t('shelfManager.createShelf')}</Text>
         </Pressable>
       </View>
 
       <View style={s.orphanRow}>
         <Ionicons name="alert-circle-outline" size={14} color={theme.colors.textMuted} />
-        <Text style={s.orphanText}>{orphanCount} parfum{orphanCount !== 1 ? 's' : ''} sans étagère</Text>
+        <Text style={s.orphanText}>{t('shelfManager.orphanCount', { count: orphanCount })}</Text>
       </View>
     </View>
-  ), [theme, s, newName, newIcon, newColor, newDesc, shelfColors, orphanCount, keyboardAppearance, handleCreate]);
+  ), [theme, s, newName, newIcon, newColor, newDesc, shelfColors, orphanCount, keyboardAppearance, handleCreate, t]);
 
   if (!visible) return null;
 
@@ -296,12 +298,12 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
       <Pressable style={s.backdropTouch} onPress={onClose} />
       <View style={s.modal}>
         <View style={s.header}>
-          <Text style={s.title}>Gérer mes étagères</Text>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
+          <Text style={s.title}>{t('shelfManager.title')}</Text>
+          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
             <Ionicons name="close" size={24} color={theme.colors.text} />
           </Pressable>
         </View>
-        <Text style={s.hint}>Maintiens la poignée pour réorganiser</Text>
+        <Text style={s.hint}>{t('shelfManager.hint')}</Text>
         <DraggableFlatList
           data={local}
           renderItem={renderItem}

@@ -2,6 +2,8 @@ import { useMemo, useCallback, useState } from 'react';
 import { View, Text, Pressable, useWindowDimensions } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { tintLuminous, tintStructural } from '../../utils/alpha';
 import BottleThumb from './BottleThumb';
@@ -19,12 +21,13 @@ export type ShelfCardVariant = 'user' | 'system';
 
 export type ShelfSortKey = 'custom' | 'name' | 'brand' | 'family' | 'recent';
 
+// Labels de tri résolus à l'affichage via getters i18next (§23).
 const SORT_LABEL: Record<ShelfSortKey, string> = {
-  custom: 'Perso',
-  name: 'Nom',
-  brand: 'Maison',
-  family: 'Famille',
-  recent: 'Récents',
+  get custom() { return i18next.t('shelfCard.sortCustom'); },
+  get name() { return i18next.t('shelfCard.sortName'); },
+  get brand() { return i18next.t('shelfCard.sortBrand'); },
+  get family() { return i18next.t('shelfCard.sortFamily'); },
+  get recent() { return i18next.t('shelfCard.sortRecent'); },
 };
 
 const DEFAULT_SORT_USER: ShelfSortKey[] = ['custom', 'name', 'brand', 'family', 'recent'];
@@ -111,6 +114,7 @@ export default function ShelfCard({
 }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
 
@@ -138,7 +142,7 @@ export default function ShelfCard({
     setSortKey(options[(idx + 1) % options.length]);
   }, [options, sortKey]);
 
-  const toggleLabel = `${name}, ${items.length} parfum${items.length > 1 ? 's' : ''}${isPublic ? ', publique' : ''}, ${expanded ? 'réduire' : 'déplier'}`;
+  const toggleLabel = `${name}, ${t('shelfCard.countPart', { count: items.length })}${isPublic ? t('shelfCard.publicSuffix') : ''}, ${expanded ? t('shelfCard.collapse') : t('shelfCard.expand')}`;
   const showSortBtn = showSort && !isPublic && options.length > 1;
   const sortActive = sortKey !== options[0];
   const canCollapse = items.length > cols * ROWS_COLLAPSED;
@@ -188,7 +192,7 @@ export default function ShelfCard({
             hitSlop={8}
             style={s.sortBtn}
             accessibilityRole="button"
-            accessibilityLabel={`Trier par ${SORT_LABEL[sortKey]}`}
+            accessibilityLabel={t('shelfCard.sortByA11y', { label: SORT_LABEL[sortKey] })}
           >
             <Ionicons name="swap-vertical-outline" size={14} color={sortActive ? theme.colors.primary : theme.colors.textMuted} />
             <Text style={[s.sortLabel, sortActive && s.sortLabelActive]} allowFontScaling={false}>{SORT_LABEL[sortKey]}</Text>
@@ -200,7 +204,7 @@ export default function ShelfCard({
             hitSlop={10}
             style={s.headerBtn}
             accessibilityRole="button"
-            accessibilityLabel={`Ajouter un parfum à ${name}`}
+            accessibilityLabel={t('shelfCard.addA11y', { name })}
           >
             <Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} />
           </Pressable>
@@ -211,7 +215,7 @@ export default function ShelfCard({
             hitSlop={10}
             style={s.headerBtn}
             accessibilityRole="button"
-            accessibilityLabel={`Options de ${name}`}
+            accessibilityLabel={t('shelfCard.optionsA11y', { name })}
           >
             <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textMuted} />
           </Pressable>
@@ -232,7 +236,7 @@ export default function ShelfCard({
               hitSlop={{ top: 22, bottom: 0, left: 10, right: 10 }}
               style={s.moveBtn}
               accessibilityRole="button"
-              accessibilityLabel={`Monter ${name}`}
+              accessibilityLabel={t('shelfCard.moveUpA11y', { name })}
               accessibilityState={{ disabled: !canMoveUp }}
             >
               <Ionicons name="chevron-up" size={14} color={canMoveUp ? theme.colors.textMuted : theme.colors.border} accessible={false} />
@@ -242,7 +246,7 @@ export default function ShelfCard({
               hitSlop={{ top: 0, bottom: 22, left: 10, right: 10 }}
               style={s.moveBtn}
               accessibilityRole="button"
-              accessibilityLabel={`Descendre ${name}`}
+              accessibilityLabel={t('shelfCard.moveDownA11y', { name })}
               accessibilityState={{ disabled: !canMoveDown }}
             >
               <Ionicons name="chevron-down" size={14} color={canMoveDown ? theme.colors.textMuted : theme.colors.border} accessible={false} />
@@ -253,7 +257,7 @@ export default function ShelfCard({
 
       <View style={s.body}>
         {sorted.length === 0 ? (
-          <Text style={s.empty}>{variant === 'system' ? 'Rien ici pour l’instant' : 'Étagère vide'}</Text>
+          <Text style={s.empty}>{variant === 'system' ? t('shelfCard.emptySystem') : t('shelfCard.emptyUser')}</Text>
         ) : (
           rows.map((row, ri) => (
             <View key={row.map((it) => it.parfumId).join('|')} style={[s.rayRow, { borderBottomColor: dyn.ray }]}>

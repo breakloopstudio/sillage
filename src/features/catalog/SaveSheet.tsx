@@ -12,16 +12,19 @@ import Animated, {
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsSuccess } from '../../services/haptics';
 import { VERDICT_OPTIONS } from '../../utils/verdicts';
 import { STATUS_CHIPS, chipForStatus } from '../../utils/status-chips';
 import type { UserParfum, UserParfumStatus, ScentVerdict, PossessionType } from '../../models/user-parfum.interface';
 
+// Labels résolus à l'affichage via getters i18next (§23).
 const POSSESSION_OPTIONS: { type: PossessionType; label: string }[] = [
-  { type: 'bottle', label: 'Flacon' },
-  { type: 'decant', label: 'Décant' },
-  { type: 'sample', label: 'Échantillon' },
+  { type: 'bottle', get label() { return i18next.t('save.possession.bottle'); } },
+  { type: 'decant', get label() { return i18next.t('save.possession.decant'); } },
+  { type: 'sample', get label() { return i18next.t('save.possession.sample'); } },
 ];
 
 interface Props {
@@ -45,6 +48,7 @@ export default function SaveSheet({
 }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
 
@@ -115,12 +119,12 @@ export default function SaveSheet({
                   <Text style={s.brand} numberOfLines={1}>{parfumBrand}</Text>
                   <Text style={s.name} numberOfLines={2}>{parfumName}</Text>
                 </View>
-                <Pressable onPress={requestClose} hitSlop={12} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Fermer">
+                <Pressable onPress={requestClose} hitSlop={12} style={s.closeBtn} accessibilityRole="button" accessibilityLabel={t('close')}>
                   <Ionicons name="close" size={22} color={theme.colors.textMuted} />
                 </Pressable>
               </View>
 
-              <Text style={s.sectionLabel}>Où en es-tu ?</Text>
+              <Text style={s.sectionLabel}>{t('save.whereAreYou')}</Text>
               <View style={s.chips}>
                 {STATUS_CHIPS.map(chip => {
                   const active = chipForStatus(item?.status) === chip.id;
@@ -131,7 +135,7 @@ export default function SaveSheet({
                       onPress={() => handleStatus(chip.status)}
                       hitSlop={{ top: 4, bottom: 4 }}
                       accessibilityRole="button"
-                      accessibilityLabel={active ? `${chip.label} (sélectionné)` : chip.label}
+                      accessibilityLabel={active ? t('sheet.selectedA11y', { label: chip.label }) : chip.label}
                     >
                       <Ionicons name={chip.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
                       <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false}>
@@ -144,7 +148,7 @@ export default function SaveSheet({
 
               {showVerdict ? (
                 <>
-                  <Text style={s.subLabel}>Ton verdict</Text>
+                  <Text style={s.subLabel}>{t('save.yourVerdict')}</Text>
                   <View style={s.chips}>
                     {VERDICT_OPTIONS.map(opt => {
                       const active = item?.verdict === opt.key;
@@ -175,7 +179,7 @@ export default function SaveSheet({
 
               {showPossessions ? (
                 <>
-                  <Text style={s.subLabel}>Ajouter une possession</Text>
+                  <Text style={s.subLabel}>{t('save.addPossession')}</Text>
                   <View style={s.chips}>
                     {POSSESSION_OPTIONS.map(opt => (
                       <Pressable
@@ -184,7 +188,7 @@ export default function SaveSheet({
                         onPress={() => handlePossession(opt.type)}
                         hitSlop={{ top: 4, bottom: 4 }}
                         accessibilityRole="button"
-                        accessibilityLabel={`Ajouter ${opt.label.toLowerCase()}`}
+                        accessibilityLabel={t('save.addPossessionA11y', { label: opt.label.toLowerCase() })}
                       >
                         <Ionicons name="add" size={14} color={theme.colors.textMuted} />
                         <Text style={s.chipText} allowFontScaling={false}>{opt.label}</Text>
@@ -197,14 +201,14 @@ export default function SaveSheet({
               {item ? (
                 <View style={s.links}>
                   {showVerdict ? (
-                    <Pressable onPress={onOpenFullNotes} style={s.linkBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Notes détaillées">
+                    <Pressable onPress={onOpenFullNotes} style={s.linkBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('save.detailedNotes')}>
                       <Ionicons name="create-outline" size={16} color={theme.colors.textMuted} />
-                      <Text style={s.linkText}>Notes détaillées…</Text>
+                      <Text style={s.linkText}>{t('save.detailedNotesCta')}</Text>
                     </Pressable>
                   ) : null}
-                  <Pressable onPress={onRemove} style={s.linkBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Retirer">
+                  <Pressable onPress={onRemove} style={s.linkBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('save.remove')}>
                     <Ionicons name="trash-outline" size={16} color={theme.colors.overpriced} />
-                    <Text style={[s.linkText, s.linkDestructive]}>Retirer</Text>
+                    <Text style={[s.linkText, s.linkDestructive]}>{t('save.remove')}</Text>
                   </Pressable>
                 </View>
               ) : null}

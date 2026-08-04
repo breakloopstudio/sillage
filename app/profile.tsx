@@ -6,6 +6,8 @@ import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { useSotd } from '../src/hooks/useSotd';
@@ -15,20 +17,22 @@ import AuthGate from '../src/components/AuthGate';
 import PublicProfileCard from '../src/components/PublicProfileCard';
 import { normalizePseudo } from '../src/utils/share';
 
+// Labels résolus à l'affichage via getters i18next (§23).
 const NAV_ROWS = [
-  { key: 'parfumerie', icon: 'flask-outline', label: 'Ma Parfumerie', route: '/(tabs)/collection' },
-  { key: 'scans', icon: 'time-outline', label: 'Historique des scans', route: '/history' },
+  { key: 'parfumerie', icon: 'flask-outline', get label() { return i18next.t('profile.navParfumerie'); }, route: '/(tabs)/collection' },
+  { key: 'scans', icon: 'time-outline', get label() { return i18next.t('profile.navScans'); }, route: '/history' },
 ] as const;
 
 const STAT_DEFS = [
-  { key: 'favoris', label: 'FAVORIS', a11y: 'Favoris', route: '/(tabs)/favoris' },
-  { key: 'parfumerie', label: 'PARFUMERIE', a11y: 'Ma Parfumerie', route: '/(tabs)/collection' },
-  { key: 'scans', label: 'SCANS', a11y: 'Historique des scans', route: '/history' },
+  { key: 'favoris', get label() { return i18next.t('profile.statFavoris'); }, get a11y() { return i18next.t('profile.statFavorisA11y'); }, route: '/(tabs)/favoris' },
+  { key: 'parfumerie', get label() { return i18next.t('profile.statParfumerie'); }, get a11y() { return i18next.t('profile.statParfumerieA11y'); }, route: '/(tabs)/collection' },
+  { key: 'scans', get label() { return i18next.t('profile.statScans'); }, get a11y() { return i18next.t('profile.statScansA11y'); }, route: '/history' },
 ] as const;
 
 export default function ProfilePage() {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { user, authReady, isAuthenticated, logout } = useAuthContext();
   const router = useRouter();
   const uid = user?.uid ?? null;
@@ -86,21 +90,21 @@ export default function ProfilePage() {
     return (
       <SafeAreaView edges={['top', 'bottom']} style={s.container}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Retour">
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel={t('back')}>
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
           </Pressable>
-          <Text style={s.title}>Profil</Text>
+          <Text style={s.title}>{t('profile.title')}</Text>
           <View style={s.backBtn} />
         </View>
         <AuthGate
           icon="person-outline"
-          description="Crée un compte pour suivre tes favoris, ta parfumerie et tes scans."
+          description={t('profile.authGate')}
         />
       </SafeAreaView>
     );
   }
 
-  const displayName = user.displayName ?? user.email?.split('@')[0] ?? 'Parfumeur';
+  const displayName = user.displayName ?? user.email?.split('@')[0] ?? t('profile.fallbackName');
   const email = user.email ?? '';
 
   return (
@@ -108,12 +112,12 @@ export default function ProfilePage() {
       <KeyboardAvoidingView behavior="padding" style={s.kav}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Retour">
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel={t('back')}>
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
           </Pressable>
-          <Text style={s.title}>Profil</Text>
-          <Pressable onPress={() => router.push('/settings')} hitSlop={4} style={s.settingsBtn} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres">
-            <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
+          <Text style={s.title}>{t('profile.title')}</Text>
+          <Pressable onPress={() => router.push('/settings')} hitSlop={4} style={s.settingsBtn} accessibilityRole="button" accessibilityLabel={t('profile.openSettingsA11y')}>
+            <Ionicons name="settings-outline" size={20} color={theme.colors.textMuted} />
           </Pressable>
         </View>
 
@@ -182,7 +186,7 @@ export default function ProfilePage() {
               )}
             </View>
             <View style={s.sotdBody}>
-              <Text allowFontScaling={false} style={s.sotdLabel}>PARFUM DU JOUR</Text>
+              <Text allowFontScaling={false} style={s.sotdLabel}>{t('profile.sotdLabel')}</Text>
               <Text style={s.sotdName} numberOfLines={1} ellipsizeMode="tail">{sotd.nom}{'\u00A0'}·{'\u00A0'}{sotd.marque}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
@@ -193,17 +197,17 @@ export default function ProfilePage() {
               <Ionicons name="sunny-outline" size={22} color={theme.colors.secondary} />
             </View>
             <View style={s.sotdBody}>
-              <Text allowFontScaling={false} style={[s.sotdLabel, { color: theme.colors.secondary }]}>PARFUM DU JOUR</Text>
-              <Text style={s.sotdCta}>Choisis ton parfum du jour</Text>
+              <Text allowFontScaling={false} style={[s.sotdLabel, { color: theme.colors.secondary }]}>{t('profile.sotdLabel')}</Text>
+              <Text style={s.sotdCta}>{t('profile.chooseSotd')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
           </Pressable>
         ) : null}
 
-        <Text style={s.sectionTitle}>PROFIL PUBLIC</Text>
+        <Text style={s.sectionTitle}>{t('profile.publicProfileSection')}</Text>
         <PublicProfileCard uid={user.uid} photoUrl={user.photoURL ?? null} defaultPseudo={normalizePseudo(displayName)} />
 
-        <Text style={s.sectionTitle}>EXPLORER</Text>
+        <Text style={s.sectionTitle}>{t('profile.exploreSection')}</Text>
 
         <View style={s.navCard}>
           {NAV_ROWS.map((row, i) => {
@@ -226,7 +230,7 @@ export default function ProfilePage() {
 
         <Pressable style={s.logoutRow} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={theme.colors.overpriced} />
-          <Text style={s.logoutText}>Déconnexion</Text>
+          <Text style={s.logoutText}>{t('profile.logout')}</Text>
         </Pressable>
       </ScrollView>
       </KeyboardAvoidingView>

@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Ionicons from "@react-native-vector-icons/ionicons/static";
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 
@@ -17,30 +18,31 @@ interface Props {
 export function ScanNoResult({ marque, onSearchCatalog, onRescan, onManual, onReset }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   return (
     <View style={s.container}>
       <Ionicons name="search-outline" size={64} color={theme.colors.primary} style={{ opacity: 0.6 }} />
-      <Text style={s.title}>Parfum introuvable</Text>
+      <Text style={s.title}>{t('scan.noResultTitle')}</Text>
       <Text style={s.desc}>
-        Ce parfum n'est pas dans notre catalogue.{'\n'}Reprends la photo ou cherche la marque.
+        {t('scan.noResultDesc')}
       </Text>
       <View style={s.actions}>
-        <Pressable style={s.cta} onPress={onRescan} accessibilityRole="button" accessibilityLabel="Reprendre la photo">
+        <Pressable style={s.cta} onPress={onRescan} accessibilityRole="button" accessibilityLabel={t('scan.retakePhoto')}>
           <Ionicons name="camera-outline" size={20} color={textOn(theme.colors.primary)} style={{ marginRight: 8 }} />
-          <Text style={s.ctaText}>Reprendre la photo</Text>
+          <Text style={s.ctaText}>{t('scan.retakePhoto')}</Text>
         </Pressable>
         {marque && (
           <Pressable style={s.outline} onPress={() => onSearchCatalog(marque)}>
             <Ionicons name="book-outline" size={18} color={theme.colors.primary} style={{ marginRight: 8 }} />
-            <Text style={s.outlineText}>Chercher « {marque} »</Text>
+            <Text style={s.outlineText}>{t('scan.searchBrand', { marque })}</Text>
           </Pressable>
         )}
         <Pressable style={s.link} onPress={onManual} hitSlop={8}>
           <Ionicons name="create-outline" size={16} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
-          <Text style={s.linkText}>Saisir manuellement</Text>
+          <Text style={s.linkText}>{t('scan.manualEntry')}</Text>
         </Pressable>
         <Pressable style={s.link} onPress={onReset} hitSlop={8}>
-          <Text style={s.linkText}>Retour à l'accueil</Text>
+          <Text style={s.linkText}>{t('scan.backHome')}</Text>
         </Pressable>
       </View>
     </View>

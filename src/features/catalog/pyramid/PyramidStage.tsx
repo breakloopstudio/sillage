@@ -12,6 +12,7 @@ import Animated, {
   useReducedMotion,
 } from 'react-native-reanimated';
 import { alpha, layerDuration, PERSIST, type LayerKey } from './geometry';
+import { useTranslation } from 'react-i18next';
 import NoteCloud from './NoteCloud';
 
 interface LayerDef {
@@ -155,6 +156,7 @@ function StrateRow({
   textMuted,
   onRowLayout,
 }: RowProps) {
+  const { t } = useTranslation('common');
   const emph = useSharedValue(isActive ? 1 : anyActive ? -1 : 0);
 
   useEffect(() => {
@@ -206,7 +208,7 @@ function StrateRow({
       <Pressable
         onPress={handlePress}
         accessibilityRole="button"
-        accessibilityLabel={`${layer.label}, ${layer.notes.length} notes, ${layerDuration(layer.key)}`}
+        accessibilityLabel={t('pyramid.stageA11y', { label: layer.label, count: layer.notes.length, duration: layerDuration(layer.key) })}
         accessibilityState={{ selected: isActive }}
         style={sRow}
       >

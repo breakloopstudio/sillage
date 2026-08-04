@@ -10,5 +10,3 @@ export const LEGAL_DIRECTOR_NAME = 'Pierre-Louis À_COMPLÉTER';
 export const LEGAL_HOST_NAME = 'Google Ireland Limited';
 export const LEGAL_HOST_ADDRESS = 'Gordon House, Barrow Street, Dublin 4, Irlande';
 export const LEGAL_HOST_PHONE = '+353 1 543 1000';
-
-export const APP_SHARE_MESSAGE = 'Je scanne mes parfums et compare les prix avec Sillage — découvre l\u2019app : https://sillage.app';

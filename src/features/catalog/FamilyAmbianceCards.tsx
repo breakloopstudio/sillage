@@ -7,20 +7,25 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import SectionHeader from '../../components/SectionHeader';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { OLFACTORY_FAMILIES, type OlfactoryFamily } from '../../utils/olfactory-families';
+import { chromaSwatch, CHROMATIC_WHEEL } from '../../utils/chromatic-wheel';
+import { formatNumber } from '../../utils/format-price';
 import { getFamilyOverviews } from '../../services/catalog';
 import { textOn } from '../../utils/contrast';
 
 interface Props {
   onFamilyTap: (familyKey: string) => void;
+  onColorTap: () => void;
 }
 
-export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
+export default function FamilyAmbianceCards({ onFamilyTap, onColorTap }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const [overviews, setOverviews] = useState<Record<string, { bottles: string[]; count: number }>>({});
   const [loaded, setLoaded] = useState(false);
   const day = useMemo(() => Math.floor(Date.now() / 86400000), []);
@@ -49,13 +54,11 @@ export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
     })
     .filter(c => c.bottleUrl !== null && c.count > 0);
 
-  if (cards.length === 0) return null;
-
   return (
     <View style={s.container}>
       <SectionHeader
-        title="Explorer par famille"
-        subtitle="Trouve ton sillage"
+        title={t('catalog.familiesTitle')}
+        subtitle={t('catalog.familiesSubtitle')}
         style={{ paddingHorizontal: 16 }}
       />
       <ScrollView
@@ -72,8 +75,61 @@ export default function FamilyAmbianceCards({ onFamilyTap }: Props) {
             onPress={() => handlePress(family.key)}
           />
         ))}
+        <ChromaCard onPress={onColorTap} />
       </ScrollView>
     </View>
+  );
+}
+
+// 7ᵉ carte « Par couleur » — 100 % statique : zéro fetch, zéro SVG dans le
+// graphe de boot (pastilles en Views pures), rendue même si family_overviews
+// échoue. Tap → route racine /wheel.
+const CHROMA_CARD_DOTS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'black'] as const;
+
+function ChromaCard({ onPress }: { onPress: () => void }) {
+  const { theme, resolvedMode } = useTheme();
+  const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
+  const colorCount = CHROMATIC_WHEEL.length;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.card,
+        { backgroundColor: theme.colors.surface2 },
+        pressed && s.cardPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${t('chroma.cardLabel')}, ${t('chroma.cardTagline')}`}
+    >
+      <View style={s.chromaDotsZone}>
+        <View style={s.chromaDotsRow}>
+          {CHROMA_CARD_DOTS.slice(0, 4).map(key => (
+            <View
+              key={key}
+              style={[s.chromaDot, { backgroundColor: chromaSwatch(key, resolvedMode).swatch, borderColor: theme.colors.border }]}
+            />
+          ))}
+        </View>
+        <View style={s.chromaDotsRow}>
+          {CHROMA_CARD_DOTS.slice(4).map(key => (
+            <View
+              key={key}
+              style={[s.chromaDot, { backgroundColor: chromaSwatch(key, resolvedMode).swatch, borderColor: theme.colors.border }]}
+            />
+          ))}
+        </View>
+      </View>
+      <View style={s.textBlock}>
+        <Text style={s.label}>{t('chroma.cardLabel')}</Text>
+        <Text style={s.tagline} numberOfLines={1}>{t('chroma.cardTagline')}</Text>
+        <View style={s.countRow}>
+          <Ionicons name="color-palette-outline" size={14} color={theme.colors.textMuted} />
+          <Text style={s.countText}>{t('chroma.colorCount', { count: colorCount, formatted: formatNumber(colorCount) })}</Text>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -85,8 +141,10 @@ function FamilyCard({ family, bottleUrl, count, onPress }: {
 }) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const accent = theme.colors[family.accent];
   const accentSoft = theme.colors[family.accentSoft];
+  const countLabel = t('catalog.parfumCount', { count, formatted: formatNumber(count) });
 
   return (
     <Pressable
@@ -97,7 +155,7 @@ function FamilyCard({ family, bottleUrl, count, onPress }: {
         pressed && s.cardPressed,
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${family.label}, ${family.tagline}, ${count} parfums`}
+      accessibilityLabel={`${family.label}, ${family.tagline}, ${countLabel}`}
     >
       <View style={[s.iconBadge, { backgroundColor: accent }]}>
         <Ionicons name={family.icon as never} size={14} color={textOn(accent)} />
@@ -119,7 +177,7 @@ function FamilyCard({ family, bottleUrl, count, onPress }: {
         <Text style={s.tagline} numberOfLines={1}>{family.tagline}</Text>
         <View style={s.countRow}>
           <View style={[s.countDot, { backgroundColor: accent }]} />
-          <Text style={s.countText}>{count.toLocaleString('fr-FR')} parfums</Text>
+          <Text style={s.countText}>{countLabel}</Text>
         </View>
       </View>
     </Pressable>
@@ -158,6 +216,22 @@ function getStyles(t: Theme) {
       paddingHorizontal: 12,
       justifyContent: 'flex-end',
       alignItems: 'center',
+    },
+    chromaDotsZone: {
+      height: 130,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 10,
+    },
+    chromaDotsRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    chromaDot: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: StyleSheet.hairlineWidth,
     },
     contactShadow: {
       position: 'absolute',

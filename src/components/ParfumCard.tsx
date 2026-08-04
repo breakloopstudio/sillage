@@ -13,9 +13,10 @@ import { translateNote } from '../utils/translate-note';
 import { getFamilyByValue } from '../utils/olfactory-families';
 import { genderLabel, genderIcons, communityRatingLabel, type GenderIcon } from '../utils/parfum-labels';
 import { textOn } from '../utils/contrast';
-import { formatPrice } from '../utils/format-price';
+import { formatPrice, formatDiscount } from '../utils/format-price';
 import FavButton from './FavButton';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { statusChipMeta, type StatusChipId } from '../utils/status-chips';
 import { formatVariation, priceAlertState, type PriceAlertState } from '../utils/price-alerts';
 import type { UserParfumStatus } from '../models/user-parfum.interface';
@@ -60,6 +61,7 @@ function resolveImageUrl(p: Parfum): string | null {
 
 function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress, status, rating, hidePrice = false, socialLoves, priceAlert = null }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const [imgFailed, setImgFailed] = useState(false);
@@ -176,15 +178,15 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: carousel (rangées horizontales) ──
   if (mode === 'carousel') {
-    const a11yLabelCarousel = [parfum.nom, parfum.marque, familyLabel, genderVal, showSocial ? `aimé par ${socialLoves} nez` : null, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabelCarousel = [parfum.nom, parfum.marque, familyLabel, genderVal, showSocial ? t('card.lovedBy', { n: socialLoves }) : null, showCommu ? t('card.ratingOutOf', { rating: commuRating }) : null, bestPrice !== null ? formatPrice(bestPrice, { decimals: 0 }) : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? t('card.insteadOf', { price: formatPrice(parfum.referencePrice, { decimals: 0 }) }) : ''].filter(Boolean).join(', ');
     return (
       <View style={s.cardCarouselWrap}>
-      <Pressable style={s.cardCarousel} onPress={goToDetail} onLongPress={onLongPress} delayLongPress={400} accessible={true} accessibilityLabel={a11yLabelCarousel} accessibilityHint="Appuyez pour voir le détail du parfum" accessibilityRole="button">
+      <Pressable style={s.cardCarousel} onPress={goToDetail} onLongPress={onLongPress} delayLongPress={400} accessible={true} accessibilityLabel={a11yLabelCarousel} accessibilityHint={t('card.hintDetail')} accessibilityRole="button">
         {showImage ? (
           <View style={s.imgWrapCarousel}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
             <Image source={imageSource!} style={s.imgCarousel} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
-            {discount !== null && <View style={s.dealBadgeCarousel}><Text style={s.dealBadgeTextCarousel}>{`−${discount} %`}</Text></View>}
+            {discount !== null && <View style={s.dealBadgeCarousel}><Text style={s.dealBadgeTextCarousel}>{formatDiscount(discount)}</Text></View>}
             <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
@@ -220,7 +222,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: comfortable (grille 2 col, défaut) ──
   if (mode === 'comfortable') {
-    const a11yLabel = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? `au lieu de ${formatPrice(parfum.referencePrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabel = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? t('card.ratingOutOf', { rating: commuRating }) : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : '', parfum.referencePrice && bestPrice && bestPrice < parfum.referencePrice ? t('card.insteadOf', { price: formatPrice(parfum.referencePrice, { decimals: 0 }) }) : ''].filter(Boolean).join(', ');
     const chips = baseChips;
     return (
       <View style={s.cardComfortableWrap}>
@@ -231,14 +233,14 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
         delayLongPress={400}
         accessible={true}
         accessibilityLabel={a11yLabel}
-        accessibilityHint="Appuyez pour voir le détail du parfum"
+        accessibilityHint={t('card.hintDetail')}
         accessibilityRole="button"
       >
         {showImage ? (
           <View style={s.imgWrapComfortable}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
             <Image source={imageSource!} style={s.imgComfortable} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
-            {discount !== null && <View style={s.dealBadge}><Text style={s.dealBadgeText}>{`−${discount} %`}</Text></View>}
+            {discount !== null && <View style={s.dealBadge}><Text style={s.dealBadgeText}>{formatDiscount(discount)}</Text></View>}
             <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
@@ -278,7 +280,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: compactPlus (grille 2 col dense) ──
   if (mode === 'compactPlus') {
-    const a11yLabelCompactPlus = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabelCompactPlus = [parfum.nom, parfum.marque, familyLabel, genderVal, showCommu ? t('card.ratingOutOf', { rating: commuRating }) : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     const chips = baseChips;
     return (
       <Pressable
@@ -288,14 +290,14 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
         delayLongPress={400}
         accessible={true}
         accessibilityLabel={a11yLabelCompactPlus}
-        accessibilityHint="Appuyez pour voir le détail du parfum"
+        accessibilityHint={t('card.hintDetail')}
         accessibilityRole="button"
       >
         {showImage ? (
           <View style={s.imgWrapCompactPlus}>
             <LinearGradient colors={gradientColors} style={s.imgBgFull} />
             <Image source={imageSource!} style={s.imgCompactPlus} contentFit="contain" transition={300} cachePolicy="memory-disk" recyclingKey={parfum.id} onError={handleImgError} />
-            {discount !== null && <View style={s.dealBadgeCompactPlus}><Text style={s.dealBadgeTextCompactPlus}>{`−${discount} %`}</Text></View>}
+            {discount !== null && <View style={s.dealBadgeCompactPlus}><Text style={s.dealBadgeTextCompactPlus}>{formatDiscount(discount)}</Text></View>}
             <FavButton parfum={parfum} size="sm" />
           </View>
         ) : (
@@ -329,7 +331,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
 
   // ── Mode: list ──
   if (mode === 'list') {
-    const a11yLabelList = [parfum.nom, parfum.marque, familyLabel, parfum.annee ? String(parfum.annee) : null, genderVal, showSocial ? `aimé par ${socialLoves} nez` : null, showCommu ? `note ${commuRating} sur 5` : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
+    const a11yLabelList = [parfum.nom, parfum.marque, familyLabel, parfum.annee ? String(parfum.annee) : null, genderVal, showSocial ? t('card.lovedBy', { n: socialLoves }) : null, showCommu ? t('card.ratingOutOf', { rating: commuRating }) : null, bestPrice !== null ? `${formatPrice(bestPrice, { decimals: 0 })}` : ''].filter(Boolean).join(', ');
     const chips: CardChip[] = [
       showSocial ? { kind: 'social', count: socialLoves as number } : null,
       familyLabel ? { kind: 'family', label: familyLabel } : null,
@@ -345,7 +347,7 @@ function ParfumCard({ parfum, mode = 'comfortable', onPressOverride, onLongPress
         delayLongPress={400}
         accessible={true}
         accessibilityLabel={a11yLabelList}
-        accessibilityHint="Appuyez pour voir le détail du parfum"
+        accessibilityHint={t('card.hintDetail')}
         accessibilityRole="button"
       >
         {showImage ? (

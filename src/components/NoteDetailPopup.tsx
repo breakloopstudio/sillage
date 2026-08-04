@@ -2,6 +2,7 @@ import { useMemo, useEffect } from 'react';
 import { View, Text, Pressable, useWindowDimensions } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, cancelAnimation } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { translateNote } from '../utils/translate-note';
 import { getNoteEmoji, getNoteDescription } from '../utils/note-descriptions';
@@ -16,6 +17,7 @@ interface Props {
 
 export default function NoteDetailPopup({ visible, noteName, layer, onClose }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme, layer, c), [theme, layer]);
   const { width: screenWidth } = useWindowDimensions();
@@ -55,7 +57,7 @@ export default function NoteDetailPopup({ visible, noteName, layer, onClose }: P
         style={s.backdropTouch}
         onPress={onClose}
         accessibilityRole="button"
-        accessibilityLabel="Fermer le détail de la note"
+        accessibilityLabel={t('notePopup.closeA11y')}
       />
       <Animated.View style={[s.card, { width: cardWidth }, layerColors ? { borderWidth: 1, borderColor: alpha(layerColors.color, 0.24) } : null, animStyle]}>
         <Pressable onPress={onClose} style={s.closeBtn} hitSlop={12}>
@@ -81,7 +83,7 @@ export default function NoteDetailPopup({ visible, noteName, layer, onClose }: P
           <View style={s.durationRow}>
             <Ionicons name="time-outline" size={12} color={c.textMuted} />
             <Text allowFontScaling={false} style={[s.durationText, { color: c.textMuted }]}>
-              Perceptible : {layerDuration(layer)}
+              {t('pyramid.perceptible', { duration: layerDuration(layer) })}
             </Text>
           </View>
         ) : null}

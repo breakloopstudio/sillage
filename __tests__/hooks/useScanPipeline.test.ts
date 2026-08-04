@@ -9,9 +9,11 @@ import type { ScanResult, Parfum } from '../../src/models';
 
 const mockAnalyze = jest.fn();
 const mockAnalyzeMultiple = jest.fn();
+const mockAnalyzeCollection = jest.fn();
 jest.mock('../../src/services/openai-vision', () => ({
   analyzeImage: (...args: unknown[]) => mockAnalyze(...args),
   analyzeMultipleImages: (...args: unknown[]) => mockAnalyzeMultiple(...args),
+  analyzeCollectionImage: (...args: unknown[]) => mockAnalyzeCollection(...args),
 }));
 
 const mockSearch = jest.fn();
@@ -67,6 +69,31 @@ function setup(uid: string | null = 'test-uid', mounted = true) {
   const mountedRef = { current: mounted };
   const { result } = renderHook(() => useScanPipeline(dispatch, uid, mountedRef));
   return { dispatch, mountedRef, result };
+}
+
+interface FakeDetection {
+  textRead?: boolean;
+  marque?: string | null;
+  nom?: string | null;
+  typeParfum?: string | null;
+  confidence?: 'high' | 'low';
+  alternatives?: string[];
+  visualMatch?: boolean;
+}
+
+function makeCollectionResult(overrides: {
+  isCollection?: boolean;
+  estimatedCount?: number;
+  bottles?: FakeDetection[];
+} = {}) {
+  return {
+    isCollection: overrides.isCollection ?? true,
+    estimatedCount: overrides.estimatedCount ?? 2,
+    bottles: overrides.bottles ?? [
+      { textRead: true, marque: 'Dior', nom: 'Sauvage', typeParfum: 'Eau de Parfum', confidence: 'high', alternatives: [] },
+      { textRead: false, marque: 'Jean Paul Gaultier', nom: 'Le Male', typeParfum: null, confidence: 'low', alternatives: [] },
+    ],
+  };
 }
 
 describe('useScanPipeline', () => {
@@ -384,6 +411,151 @@ describe('useScanPipeline', () => {
     // Seul START_SCAN est passé avant l'unmount ; rien après.
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'START_SCAN' }));
+  });
+
+  // ── Mode collection (multi-flacons) ──────────────────
+
+  describe('startCollectionAnalysis', () => {
+    beforeEach(() => {
+      mockAnalyzeCollection.mockResolvedValue(makeCollectionResult());
+      // Score ≥ seuil (50) requis par pickDetectionMatch.
+      mockSearch.mockImplementation(async (opts: { nom?: string | null }) => {
+        if (opts?.nom === 'Le Male') return [{ ...makeParfum({ id: 'jpg_lemale', marque: 'Jean Paul Gaultier', nom: 'Le Male' }), _scanScore: 62 }];
+        return [{ ...makeParfum(), _scanScore: 88 }];
+      });
+    });
+
+    it('photo → analyse collection → matching par détection → COLLECTION_SCAN_SUCCESS', async () => {
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+
+      expect(dispatch).toHaveBeenCalledWith({ type: 'START_SCAN', images: ['img-shelf'], scanResult: undefined });
+      expect(mockAnalyzeCollection).toHaveBeenCalledWith('img-shelf');
+      expect(mockSearch).toHaveBeenCalledTimes(2);
+      expect(mockHapticsSuccess).toHaveBeenCalled();
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'COLLECTION_SCAN_SUCCESS',
+        estimatedCount: 2,
+      }));
+      const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
+      expect(action.matches).toHaveLength(2);
+      expect(action.matches[0]).toEqual(expect.objectContaining({
+        confidence: 'high', textRead: true, visualMatch: false,
+        parfum: expect.objectContaining({ id: 'test_parfum_1' }),
+      }));
+      expect(action.matches[1]).toEqual(expect.objectContaining({
+        confidence: 'low', textRead: false,
+        parfum: expect.objectContaining({ id: 'jpg_lemale' }),
+      }));
+    });
+
+    it('pas de saveScan en mode collection (1 photo ≠ N scans)', async () => {
+      const { result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      expect(mockSaveScan).not.toHaveBeenCalled();
+    });
+
+    it('detections sans marque ni nom ne sont pas matchées', async () => {
+      mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({
+        bottles: [
+          { textRead: true, marque: 'Dior', nom: 'Sauvage', typeParfum: null, confidence: 'high', alternatives: [] },
+          { textRead: false, marque: null, nom: null, typeParfum: null, confidence: 'low', alternatives: [] },
+        ],
+      }));
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      expect(mockSearch).toHaveBeenCalledTimes(1);
+      const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
+      expect(action.matches).toHaveLength(1);
+    });
+
+    it('deux détections vers le même flacon → dédupliquées', async () => {
+      mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({
+        bottles: [
+          { textRead: true, marque: 'Dior', nom: 'Sauvage', typeParfum: 'Eau de Parfum', confidence: 'high', alternatives: [] },
+          { textRead: true, marque: 'Dior', nom: 'Sauvage', typeParfum: 'Eau de Toilette', confidence: 'high', alternatives: [] },
+        ],
+      }));
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
+      expect(action.matches).toHaveLength(1);
+    });
+
+    it('candidat sous le seuil (score < 50) → écarté', async () => {
+      mockSearch.mockResolvedValue([{ ...makeParfum(), _scanScore: 30 }]);
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_ERROR' }));
+      expect(mockHapticsError).toHaveBeenCalled();
+      expect(mockHapticsSuccess).not.toHaveBeenCalled();
+    });
+
+    it('photo sans flacon (isCollection false) → SCAN_ERROR', async () => {
+      mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({ isCollection: false, estimatedCount: 0, bottles: [] }));
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      expect(mockSearch).not.toHaveBeenCalled();
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_ERROR' }));
+      expect(mockHapticsError).toHaveBeenCalled();
+    });
+
+    it('flacons visibles mais aucun identifié → SCAN_ERROR', async () => {
+      mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({ estimatedCount: 5, bottles: [] }));
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_ERROR' }));
+    });
+
+    it('échec de recherche sur une détection → les autres aboutissent (allSettled)', async () => {
+      mockSearch.mockImplementation(async (opts: { nom?: string | null }) => {
+        if (opts?.nom === 'Le Male') throw new Error('Network error');
+        return [{ ...makeParfum(), _scanScore: 88 }];
+      });
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
+      expect(action.matches).toHaveLength(1);
+    });
+
+    it('analyzeCollectionImage rejette → SCAN_ERROR avec le message', async () => {
+      mockAnalyzeCollection.mockRejectedValue(new Error('Limite quotidienne de scans atteinte. Réessayez demain.'));
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'SCAN_ERROR',
+        message: expect.stringContaining('Limite quotidienne'),
+      }));
+      expect(mockHapticsError).toHaveBeenCalled();
+    });
+
+    it('estimatedCount plancher = nombre de matches', async () => {
+      mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({ estimatedCount: 1 }));
+      const { dispatch, result } = setup();
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+      });
+      const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
+      expect(action.estimatedCount).toBe(2);
+    });
   });
 
   // ── Payload invalide ──────────────────────────────────

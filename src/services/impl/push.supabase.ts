@@ -6,6 +6,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import i18next from 'i18next';
 import { supabase } from '../supabase';
 
 // projectId Expo (injecté par `eas init` dans app.json → extra.eas.projectId).
@@ -69,11 +70,11 @@ export async function createNotificationChannels(): Promise<void> {
   if (Platform.OS !== 'android') return;
   try {
     await Notifications.setNotificationChannelAsync('weather_suggestions', {
-      name: 'Suggestions météo',
+      name: i18next.t('push.channelWeather'),
       importance: Notifications.AndroidImportance.HIGH,
     });
     await Notifications.setNotificationChannelAsync('price_alerts', {
-      name: 'Alertes prix',
+      name: i18next.t('push.channelPrice'),
       importance: Notifications.AndroidImportance.HIGH,
     });
   } catch (e: unknown) {

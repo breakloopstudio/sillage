@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
   useSharedValue,
@@ -33,6 +34,7 @@ export default function SeasonProfile({ profile, perfVotes }: Props) {
   const { theme, resolvedMode } = useTheme();
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const reduced = useReducedMotion();
   const router = useRouter();
   const { user } = useAuthContext();
@@ -136,7 +138,7 @@ export default function SeasonProfile({ profile, perfVotes }: Props) {
           <View style={s.headerBadge}>
             <Ionicons name="calendar-outline" size={14} color={c.primaryInk} />
           </View>
-          <Text style={s.title}>Quand le porter</Text>
+          <Text style={s.title}>{t('seasonProfile.title')}</Text>
           {seasonUserVotes > 0 ? (
             <View style={[sCountChip, { backgroundColor: c.primarySoft }]}>
               <Text allowFontScaling={false} style={[sCountText, { color: c.primaryInk }]}>
@@ -150,7 +152,7 @@ export default function SeasonProfile({ profile, perfVotes }: Props) {
               style={[sSeasonVoteBtn, { backgroundColor: c.primarySoft }]}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Donner mon avis sur la saison"
+              accessibilityLabel={t('seasonProfile.voteA11y')}
             >
               <Ionicons name="thumbs-up-outline" size={14} color={c.primaryInk} />
             </Pressable>
@@ -217,7 +219,7 @@ export default function SeasonProfile({ profile, perfVotes }: Props) {
 
       <VotePickerSheet
         visible={seasonPickerOpen}
-        title="Ton avis · Saison"
+        title={t('seasonProfile.voteSeasonTitle')}
         options={seasonOptions}
         currentKey={available && perf ? perf.mySeason : null}
         accent={c.primary}
@@ -238,9 +240,10 @@ interface MomentProps {
 }
 
 function MomentVotes({ dominant, myMoment, canVote, onVote, colors: c }: MomentProps) {
+  const { t } = useTranslation('common');
   const items: { key: 'day' | 'night'; label: string; icon: string }[] = [
-    { key: 'day', label: 'Jour', icon: 'sunny-outline' },
-    { key: 'night', label: 'Soir', icon: 'moon-outline' },
+    { key: 'day', label: t('seasonProfile.momentDay'), icon: 'sunny-outline' },
+    { key: 'night', label: t('seasonProfile.momentNight'), icon: 'moon-outline' },
   ];
   return (
     <View style={sMomentRow}>
@@ -254,7 +257,7 @@ function MomentVotes({ dominant, myMoment, canVote, onVote, colors: c }: MomentP
             onPress={canVote ? () => onVote(it.key) : undefined}
             hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
             accessibilityRole="button"
-            accessibilityLabel={`${canVote ? `Voter ${it.label}` : it.label}${isMy ? ', ton vote' : ''}`}
+            accessibilityLabel={canVote ? t('seasonProfile.voteMomentA11y', { label: it.label }) : `${it.label}${isMy ? `, ${t('seasonProfile.myVote')}` : ''}`}
             style={[
               sMomentChip,
               { backgroundColor: c.surface2 },
@@ -292,6 +295,7 @@ interface ColumnProps {
 }
 
 function SeasonColumn({ column, rank, isActive, anyActive, isMyVote, onSelect, reduced, mode, colors: c }: ColumnProps) {
+  const { t } = useTranslation('common');
   // emph : 1 = colonne explorée, -1 = estompée (une autre est explorée), 0 = repos.
   const emph = useSharedValue(isActive ? 1 : anyActive ? -1 : 0);
 
@@ -344,9 +348,14 @@ function SeasonColumn({ column, rank, isActive, anyActive, isMyVote, onSelect, r
   const fillPct = hasScore ? Math.max(12, Math.round(column.ratio * 100)) : 6;
   const fillColor = hasScore ? seasonColor : c.border;
   const ratioOutOfFive = hasScore ? Math.max(1, Math.round(column.ratio * 5)) : 0;
-  const a11y = hasScore
-    ? `${column.label}, ${ratioOutOfFive} sur 5${isActive ? ', sélectionnée' : ''}${isMyVote ? ', ton vote' : ''}`
-    : `${column.label}, peu votée${isActive ? ', sélectionnée' : ''}${isMyVote ? ', ton vote' : ''}`;
+  const a11yParts = [
+    hasScore
+      ? t('seasonProfile.colScored', { label: column.label, score: ratioOutOfFive })
+      : t('seasonProfile.colLow', { label: column.label }),
+  ];
+  if (isActive) a11yParts.push(t('seasonProfile.colSelected'));
+  if (isMyVote) a11yParts.push(t('seasonProfile.myVote'));
+  const a11y = a11yParts.join(', ');
 
   return (
     <Animated.View entering={FadeIn.delay(reduced ? 0 : rank * 80).duration(reduced ? 0 : 360)} style={sColWrap}>

@@ -12,6 +12,8 @@ import Animated, {
   useReducedMotion,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { getParfumVerdicts, type ParfumVerdict } from '../../services/community';
 import { hapticsLight } from '../../services/haptics';
@@ -28,6 +30,7 @@ interface Props {
 export default function CommunityVerdicts({ parfumId, onOpenProfiles }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [verdicts, setVerdicts] = useState<ParfumVerdict[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,8 +58,8 @@ export default function CommunityVerdicts({ parfumId, onOpenProfiles }: Props) {
   const positive = verdicts.filter(v => v.verdict === 'love' || v.verdict === 'like');
   const negative = verdicts.filter(v => v.verdict === 'dislike');
 
-  const positiveLabel = buildLabel(positive, 'adore');
-  const negativeLabel = negative.length > 0 ? buildLabel(negative, 'pas convaincu') : null;
+  const positiveLabel = buildLabel(positive, 'adored');
+  const negativeLabel = negative.length > 0 ? buildLabel(negative, 'notConvinced') : null;
 
   return (
     <View style={s.container}>
@@ -64,7 +67,7 @@ export default function CommunityVerdicts({ parfumId, onOpenProfiles }: Props) {
         <View style={[s.sectionIconWrap, { backgroundColor: theme.colors.primarySoft }]}>
           <Ionicons name="people-outline" size={14} color={theme.colors.primaryInk} />
         </View>
-        <Text style={s.sectionTitleText}>La communauté</Text>
+        <Text style={s.sectionTitleText}>{t('verdictsCommunity.title')}</Text>
       </View>
 
       <Pressable style={s.verdictRow} onPress={handlePress} accessibilityRole="button" accessibilityLabel={positiveLabel}>
@@ -84,16 +87,19 @@ export default function CommunityVerdicts({ parfumId, onOpenProfiles }: Props) {
   );
 }
 
-function buildLabel(items: ParfumVerdict[], verb: string): string {
+// Clés dynamiques (préfixe adored/notConvinced) : arbre protégé par
+// preservePatterns 'verdictsCommunity.*' dans i18next.config.mjs (§23.9).
+function buildLabel(items: ParfumVerdict[], prefix: 'adored' | 'notConvinced'): string {
   if (items.length === 0) return '';
-  if (items.length === 1) return `${verb === 'adore' ? 'Adoré' : 'Pas convaincu'} par @${items[0].pseudo}`;
-  if (items.length === 2) return `${verb === 'adore' ? 'Adoré' : 'Pas convaincus'} par @${items[0].pseudo} et @${items[1].pseudo}`;
-  return `${verb === 'adore' ? 'Adoré' : 'Pas convaincus'} par @${items[0].pseudo}, @${items[1].pseudo} et ${items.length - 2} autre${items.length - 2 > 1 ? 's' : ''}`;
+  if (items.length === 1) return i18next.t(`verdictsCommunity.${prefix}One`, { a: items[0].pseudo });
+  if (items.length === 2) return i18next.t(`verdictsCommunity.${prefix}Two`, { a: items[0].pseudo, b: items[1].pseudo });
+  return i18next.t(`verdictsCommunity.${prefix}Many`, { a: items[0].pseudo, b: items[1].pseudo, count: items.length - 2 });
 }
 
 export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: boolean; verdicts: ParfumVerdict[]; onClose: () => void }) {
   const { theme } = useTheme();
   const s = useMemo(() => getSheetStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -137,7 +143,7 @@ export function VerdictProfilesSheet({ visible, verdicts, onClose }: { visible: 
       <Pressable style={s.backdropPress} onPress={onClose} />
       <Animated.View style={[s.sheet, sheetAnim, { paddingBottom: insets.bottom + 12 }]}>
         <View style={s.handle} />
-        <Text style={s.sheetTitle}>Verdicts de la communauté</Text>
+        <Text style={s.sheetTitle}>{t('verdictsCommunity.sheetTitle')}</Text>
         <ScrollView style={s.sheetScroll} showsVerticalScrollIndicator={false}>
           {verdicts.map((v) => {
             const token = VERDICT_TOKEN[v.verdict] ?? 'textMuted';

@@ -6,6 +6,8 @@
 // `RUNNER_COLORS` ci-dessous est la palette de référence : les composants récents
 // (RunnerHud) l'utilisent ; les hex historiques de RunnerGame restent à migrer.
 
+import i18next from 'i18next';
+
 export interface GameDimensions {
   width: number;
   height: number;
@@ -123,10 +125,10 @@ export const INVULN_DURATION = 1.2;
 export const SPAWN_ENTRY_DISTANCE = 140;
 
 export const PICKUP_DEFS: PickupDef[] = [
-  { key: 'bergamote', label: 'Bergamote', emoji: '🍊', color: '#B5C334', power: 'magnet', altitude: 'low', scoreBonus: 25 },
-  { key: 'santal', label: 'Santal', emoji: '🪵', color: '#A9744F', power: 'shield', altitude: 'medium', scoreBonus: 50 },
-  { key: 'ambre', label: 'Ambre', emoji: '✨', color: '#E8933A', power: 'double', altitude: 'high', scoreBonus: 100 },
-  { key: 'musc', label: 'Musc', emoji: '🌙', color: '#9A8FC0', power: 'slow', altitude: 'very_high', scoreBonus: 200 },
+  { key: 'bergamote', get label() { return i18next.t('runner.pickupBergamote'); }, emoji: '🍊', color: '#B5C334', power: 'magnet', altitude: 'low', scoreBonus: 25 },
+  { key: 'santal', get label() { return i18next.t('runner.pickupSantal'); }, emoji: '🪵', color: '#A9744F', power: 'shield', altitude: 'medium', scoreBonus: 50 },
+  { key: 'ambre', get label() { return i18next.t('runner.pickupAmbre'); }, emoji: '✨', color: '#E8933A', power: 'double', altitude: 'high', scoreBonus: 100 },
+  { key: 'musc', get label() { return i18next.t('runner.pickupMusc'); }, emoji: '🌙', color: '#9A8FC0', power: 'slow', altitude: 'very_high', scoreBonus: 200 },
 ];
 
 export const POWER_DURATION: Record<PowerType, number> = { magnet: 5, shield: 0, double: 8, slow: 3 };

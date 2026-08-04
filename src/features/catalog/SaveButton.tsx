@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Text, Pressable } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 
 export default function SaveButton({ label, onPress, variant = 'bar' }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const s = useMemo(() => getStyles(theme), [theme]);
   const saved = label !== null;
   const tint = saved ? theme.colors.primaryInk : theme.colors.text;
@@ -28,11 +30,11 @@ export default function SaveButton({ label, onPress, variant = 'bar' }: Props) {
       ]}
       hitSlop={variant === 'bar' ? 4 : 0}
       accessibilityRole="button"
-      accessibilityLabel={saved ? `Enregistré : ${label}. Modifier` : 'Enregistrer ce parfum'}
+      accessibilityLabel={saved ? t('saveButton.savedA11y', { label }) : t('saveButton.saveA11y')}
     >
       <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={16} color={tint} />
       <Text style={[s.label, saved ? s.labelSaved : s.labelEmpty]} numberOfLines={1}>
-        {saved ? label : 'Enregistrer'}
+        {saved ? label : t('saveButton.save')}
       </Text>
       {variant === 'flow' ? (
         <Ionicons name="chevron-up" size={14} color={saved ? theme.colors.primaryInk : theme.colors.textMuted} />

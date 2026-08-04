@@ -15,6 +15,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight, hapticsError } from '../services/haptics';
 import { STATUS_CHIPS, chipForStatus } from '../utils/status-chips';
@@ -40,6 +41,7 @@ export default function FavoriSheet({
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [imgFailed, setImgFailed] = useState(false);
@@ -82,7 +84,7 @@ export default function FavoriSheet({
   if (!mounted) return null;
 
   const activeChip = chipForStatus(status);
-  const sectionLabel = status === null ? 'Envoyer dans ma parfumerie' : 'Ton statut';
+  const sectionLabel = status === null ? t('sheet.sendToWardrobe') : t('sheet.yourStatus');
 
   return (
     <View style={s.wrapper}>
@@ -106,14 +108,14 @@ export default function FavoriSheet({
           </View>
         </View>
 
-        <Pressable style={s.actionRow} onPress={handleView} accessibilityRole="button" accessibilityLabel="Voir la fiche">
+        <Pressable style={s.actionRow} onPress={handleView} accessibilityRole="button" accessibilityLabel={t('sheet.viewDetail')}>
           <Ionicons name="eye-outline" size={20} color={theme.colors.text} />
-          <Text style={s.actionLabel}>Voir la fiche</Text>
+          <Text style={s.actionLabel}>{t('sheet.viewDetail')}</Text>
         </Pressable>
 
-        <Pressable style={s.actionRow} onPress={handleAlerte} accessibilityRole="button" accessibilityLabel="Alerte prix">
+        <Pressable style={s.actionRow} onPress={handleAlerte} accessibilityRole="button" accessibilityLabel={t('priceAlert.label')}>
           <Ionicons name={hasAlert ? 'notifications' : 'notifications-outline'} size={20} color={hasAlert ? theme.colors.primary : theme.colors.text} />
-          <Text style={s.actionLabel}>Alerte prix</Text>
+          <Text style={s.actionLabel}>{t('priceAlert.label')}</Text>
           {hasAlert ? <View style={s.alertDot} /> : null}
         </Pressable>
 
@@ -127,7 +129,7 @@ export default function FavoriSheet({
                 style={[s.chip, active && s.chipActive]}
                 onPress={() => handleStatus(chip.status)}
                 accessibilityRole="button"
-                accessibilityLabel={active ? `${chip.label} (sélectionné)` : chip.label}
+                accessibilityLabel={active ? t('sheet.selectedA11y', { label: chip.label }) : chip.label}
               >
                 <Ionicons name={chip.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
                 <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false}>{chip.label}</Text>
@@ -136,13 +138,13 @@ export default function FavoriSheet({
           })}
         </View>
 
-        <Pressable style={s.actionRow} onPress={handleRemove} accessibilityRole="button" accessibilityLabel="Retirer des favoris">
+        <Pressable style={s.actionRow} onPress={handleRemove} accessibilityRole="button" accessibilityLabel={t('sheet.removeFromFavorites')}>
           <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
-          <Text style={s.actionLabelDanger}>Retirer des favoris</Text>
+          <Text style={s.actionLabelDanger}>{t('sheet.removeFromFavorites')}</Text>
         </Pressable>
 
-        <Pressable style={s.cancelBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Annuler">
-          <Text style={s.cancelText}>Annuler</Text>
+        <Pressable style={s.cancelBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('cancel')}>
+          <Text style={s.cancelText}>{t('cancel')}</Text>
         </Pressable>
       </Animated.View>
     </View>

@@ -88,7 +88,9 @@
     "upload-notes": "tsx scripts/images/upload-note-images.ts",
     "test:supabase": "tsx scripts/test-supabase-e2e.ts",
     "test": "jest --watchAll",
-    "test:ci": "jest --ci --coverage"
+    "test:ci": "jest --ci --coverage",
+    "i18n:extract": "i18next-cli extract",
+    "i18n:sync": "i18next-cli sync"
   },
   "jest": {
     "preset": "jest-expo",

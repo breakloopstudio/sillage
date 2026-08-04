@@ -1,3 +1,5 @@
+import i18next from 'i18next';
+
 export type LayerKey = 'top' | 'heart' | 'base';
 
 export const PERSIST: Record<LayerKey, number> = {
@@ -13,19 +15,20 @@ export function alpha(hex: string, a: number): string {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+// Labels résolus à l'appel via i18next (§23.3) — jamais au scope module.
 export function layerDuration(key: LayerKey): string {
   switch (key) {
-    case 'top': return '0 – 15 min';
-    case 'heart': return '15 min – 2 h';
-    case 'base': return '2 h et +';
+    case 'top': return i18next.t('pyramid.duration.top');
+    case 'heart': return i18next.t('pyramid.duration.heart');
+    case 'base': return i18next.t('pyramid.duration.base');
   }
 }
 
 export function layerContextLabel(key: LayerKey): string {
   switch (key) {
-    case 'top': return 'Note de tête';
-    case 'heart': return 'Note de cœur';
-    case 'base': return 'Note de fond';
+    case 'top': return i18next.t('pyramid.context.top');
+    case 'heart': return i18next.t('pyramid.context.heart');
+    case 'base': return i18next.t('pyramid.context.base');
   }
 }
 

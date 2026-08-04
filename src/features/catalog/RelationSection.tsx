@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -31,6 +32,7 @@ export default function RelationSection({ parfum, save }: Props) {
 
 function RelationInner({ parfum, save }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user } = useAuthContext();
   const uid = user?.uid ?? null;
@@ -57,12 +59,12 @@ function RelationInner({ parfum, save }: Props) {
   const handleToggleSignature = useCallback(() => {
     if (!item) return;
     if (!item.isSignature && signatureCount >= MAX_SIGNATURES) {
-      Alert.alert('Limite atteinte', `Tu as déjà ${MAX_SIGNATURES} signatures. Retires-en une avant d'en ajouter.`);
+      Alert.alert(t('relation.signatureLimitTitle'), t('relation.signatureLimitMessage', { count: MAX_SIGNATURES }));
       return;
     }
     hapticsLight();
     toggleSignature();
-  }, [item, signatureCount, toggleSignature]);
+  }, [item, signatureCount, toggleSignature, t]);
 
   const isSotd = sotd?.parfumId === parfum.id;
 
@@ -84,7 +86,7 @@ function RelationInner({ parfum, save }: Props) {
         <View style={s.headerIconWrap}>
           <Ionicons name="bookmark" size={14} color={theme.colors.primaryInk} />
         </View>
-        <Text style={s.headerTitle}>Ma relation</Text>
+        <Text style={s.headerTitle}>{t('relation.title')}</Text>
 
         {statusChip ? (
           <View style={s.readChip}>
@@ -112,16 +114,16 @@ function RelationInner({ parfum, save }: Props) {
           onPress={openSaveSheet}
           hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel="Gérer ma relation"
+          accessibilityLabel={t('relation.manageA11y')}
         >
-          <Text style={s.manageText}>Gérer</Text>
+          <Text style={s.manageText}>{t('relation.manage')}</Text>
           <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
         </Pressable>
       </View>
 
       {showVerdict ? (
         <View style={s.block}>
-          <Text style={s.subLabel}>Ta note</Text>
+          <Text style={s.subLabel}>{t('relation.yourRating')}</Text>
           <StarRating rating={item!.rating ?? 0} size={26} onChange={handleRating} />
         </View>
       ) : null}
@@ -132,10 +134,10 @@ function RelationInner({ parfum, save }: Props) {
           onPress={handleToggleSignature}
           hitSlop={{ top: 6, bottom: 6 }}
           accessibilityRole="button"
-          accessibilityLabel={item!.isSignature ? 'Parfum signature (activé)' : 'Définir comme signature'}
+          accessibilityLabel={item!.isSignature ? t('relation.signatureActiveA11y') : t('relation.signatureSetA11y')}
         >
           <Ionicons name={item!.isSignature ? 'star' : 'star-outline'} size={14} color={item!.isSignature ? theme.colors.secondary : theme.colors.textMuted} />
-          <Text style={[s.toggleText, item!.isSignature && s.toggleTextActive]} allowFontScaling={false}>Signature</Text>
+          <Text style={[s.toggleText, item!.isSignature && s.toggleTextActive]} allowFontScaling={false}>{t('relation.signature')}</Text>
         </Pressable>
 
         <Pressable
@@ -143,16 +145,16 @@ function RelationInner({ parfum, save }: Props) {
           onPress={handleSotd}
           hitSlop={{ top: 6, bottom: 6 }}
           accessibilityRole="button"
-          accessibilityLabel={isSotd ? 'Porté aujourd’hui (activé)' : 'Marquer comme porté aujourd’hui'}
+          accessibilityLabel={isSotd ? t('relation.sotdActiveA11y') : t('relation.sotdSetA11y')}
         >
           <Ionicons name={isSotd ? 'checkmark-circle' : 'sunny-outline'} size={14} color={isSotd ? theme.colors.primary : theme.colors.textMuted} />
-          <Text style={[s.toggleText, isSotd && s.toggleTextActive]} allowFontScaling={false}>Aujourd’hui</Text>
+          <Text style={[s.toggleText, isSotd && s.toggleTextActive]} allowFontScaling={false}>{t('relation.today')}</Text>
         </Pressable>
       </View>
 
       {shelves.length > 0 ? (
         <View style={s.block}>
-          <Text style={s.subLabel}>Étagères</Text>
+          <Text style={s.subLabel}>{t('relation.shelves')}</Text>
           <View style={s.chips}>
             {shelves.map(sh => {
               const assigned = item!.shelfIds.includes(sh.id);

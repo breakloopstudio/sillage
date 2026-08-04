@@ -22,6 +22,7 @@ import { deleteAllFcmTokens } from '../src/services/account';
 import { getOrFetch } from '../src/services/impl/home-cache';
 import { getPopularParfums, getTopRatedParfums, getSeasonalParfums } from '../src/services/catalog';
 import { currentSeason } from '../src/utils/season';
+import { initI18n } from '../src/i18n';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { PlayfairDisplay_500Medium, PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, PlayfairDisplay_700Bold_Italic } from '@expo-google-fonts/playfair-display';
@@ -157,6 +158,7 @@ function RootLayoutInner() {
             <Stack.Screen name="u/[pseudo]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="u/[pseudo]/shelf/[shelfId]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="scan" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="wheel" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="runner" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
@@ -188,6 +190,14 @@ export default function RootLayout() {
     PlayfairDisplay_500Medium, PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, PlayfairDisplay_700Bold_Italic,
   });
 
+  // i18n : préférence langue (AsyncStorage) + locale appareil, avant le 1er rendu.
+  const [i18nReady, setI18nReady] = useState(false);
+  useEffect(() => {
+    initI18n()
+      .catch((e: unknown) => console.warn('[i18n] init failed:', (e as Error)?.message ?? String(e)))
+      .finally(() => setI18nReady(true));
+  }, []);
+
   useEffect(() => {
     const s = currentSeason();
     void getOrFetch('popular', () => getPopularParfums(120));
@@ -195,7 +205,7 @@ export default function RootLayout() {
     void getOrFetch('seasonal:' + s, () => getSeasonalParfums(s, 12));
   }, []);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || !i18nReady) return null;
   return (
     <ThemeProvider>
       <RootLayoutInner />

@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { usePriceAlertsContext } from '../contexts/PriceAlertsContext';
@@ -26,6 +27,7 @@ interface Props {
 export default function AlertPriceToggle({ parfumId, uid, currentPrice, referencePrice, nom, marque, imageUrl }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { byParfumId, setAlert } = usePriceAlertsContext();
   const pushPrimer = usePushPrimer(uid);
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -47,21 +49,21 @@ export default function AlertPriceToggle({ parfumId, uid, currentPrice, referenc
   }, [parfumId, currentPrice, setAlert, pushPrimer]);
 
   const desc = reached
-    ? 'Objectif atteint'
+    ? t('priceAlert.reached')
     : active
-      ? (alert?.targetPrice != null ? `Cible ${formatPrice(alert.targetPrice, { decimals: 0 })} — tu seras notifié` : 'Activée — tu seras notifié')
-      : 'Sois prévenu quand le prix baisse';
+      ? (alert?.targetPrice != null ? t('priceAlert.targetSet', { price: formatPrice(alert.targetPrice, { decimals: 0 }) }) : t('priceAlert.active'))
+      : t('priceAlert.inactive');
 
   const iconName = reached ? 'checkmark-circle' : active ? 'notifications' : 'notifications-outline';
   const iconColor = reached ? theme.colors.deal : active ? theme.colors.primary : theme.colors.textMuted;
 
   return (
     <>
-      <Pressable onPress={openSheet} style={s.row} accessibilityRole="button" accessibilityLabel="Alerte prix">
+      <Pressable onPress={openSheet} style={s.row} accessibilityRole="button" accessibilityLabel={t('priceAlert.label')}>
         <View style={s.left}>
           <Ionicons name={iconName as never} size={20} color={iconColor} />
           <View style={s.textWrap}>
-            <Text style={s.label}>Alerte prix</Text>
+            <Text style={s.label}>{t('priceAlert.label')}</Text>
             <Text style={[s.desc, reached && s.descReached]}>{desc}</Text>
           </View>
         </View>

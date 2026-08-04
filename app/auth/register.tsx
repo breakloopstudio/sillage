@@ -8,6 +8,7 @@ import {
 import { Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { textOn } from '../../src/utils/contrast';
@@ -18,6 +19,7 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/;
 export default function RegisterPage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const insets = useSafeAreaInsets();
   const { register, loginWithGoogle } = useAuthContext();
@@ -33,17 +35,17 @@ export default function RegisterPage() {
 
   const handleEmailRegister = useCallback(async () => {
     if (!canSubmit) return;
-    if (!EMAIL_RE.test(email.trim())) { setErrorMessage('Adresse email invalide.'); return; }
+    if (!EMAIL_RE.test(email.trim())) { setErrorMessage(t('auth.invalidEmail')); return; }
     Keyboard.dismiss();
     setLoading('email'); setErrorMessage(null);
     try { await register(email.trim(), password); }
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(translateSupabaseError(e) || "Erreur lors de l'inscription.");
+      setErrorMessage(translateSupabaseError(e) || t('auth.registerError'));
     }
     finally { setLoading(null); }
-  }, [canSubmit, email, password, register]);
+  }, [canSubmit, email, password, register, t]);
 
   const handleGoogle = useCallback(async () => {
     Keyboard.dismiss();
@@ -52,10 +54,10 @@ export default function RegisterPage() {
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(translateSupabaseError(e) || 'Erreur connexion Google.');
+      setErrorMessage(translateSupabaseError(e) || t('auth.googleError'));
     }
     finally { setLoading(null); }
-  }, [loginWithGoogle]);
+  }, [loginWithGoogle, t]);
 
   const onEmailChange = useCallback((v: string) => { setEmail(v); if (errorMessage) setErrorMessage(null); }, [errorMessage]);
   const onPasswordChange = useCallback((v: string) => { setPassword(v); if (errorMessage) setErrorMessage(null); }, [errorMessage]);
@@ -74,8 +76,8 @@ export default function RegisterPage() {
             <Ionicons name="person-add-outline" size={36} color={theme.colors.primary} />
           </View>
           <View style={s.header}>
-            <Text style={s.title}>Créer un compte</Text>
-            <Text style={s.subtitle}>Rejoins la communauté Sillage</Text>
+            <Text style={s.title}>{t('auth.createAccount')}</Text>
+            <Text style={s.subtitle}>{t('auth.registerSubtitle')}</Text>
           </View>
 
           <Pressable
@@ -89,19 +91,19 @@ export default function RegisterPage() {
             ) : (
               <Ionicons name="logo-google" size={20} color={theme.colors.text} style={{ marginRight: 8 }} />
             )}
-            <Text style={s.googleText}>S'inscrire avec Google</Text>
+            <Text style={s.googleText}>{t('auth.registerWithGoogle')}</Text>
           </Pressable>
 
           <View style={s.divider}>
             <View style={s.dividerLine} />
-            <Text style={s.dividerText}>ou par email</Text>
+            <Text style={s.dividerText}>{t('auth.orByEmail')}</Text>
             <View style={s.dividerLine} />
           </View>
 
           <View style={s.inputGroup}>
             <TextInput
               style={s.input}
-              placeholder="votre@email.com"
+              placeholder={t('auth.emailPlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               value={email}
               onChangeText={onEmailChange}
@@ -115,14 +117,14 @@ export default function RegisterPage() {
               onSubmitEditing={() => passwordRef.current?.focus()}
               blurOnSubmit={false}
               keyboardAppearance={keyboardAppearance}
-              accessibilityLabel="Adresse email"
+              accessibilityLabel={t('auth.emailLabel')}
             />
           </View>
           <View style={s.inputGroup}>
             <TextInput
               ref={passwordRef}
               style={[s.input, { paddingRight: 40 }]}
-              placeholder="6 caractères minimum"
+              placeholder={t('auth.passwordMinPlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               value={password}
               onChangeText={onPasswordChange}
@@ -132,14 +134,14 @@ export default function RegisterPage() {
               returnKeyType="done"
               onSubmitEditing={handleEmailRegister}
               keyboardAppearance={keyboardAppearance}
-              accessibilityLabel="Mot de passe"
+              accessibilityLabel={t('auth.passwordLabel')}
             />
             <Pressable
               onPress={togglePassword}
               style={s.eyeBtn}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              accessibilityLabel={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
             >
               <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.colors.textMuted} />
             </Pressable>
@@ -153,10 +155,10 @@ export default function RegisterPage() {
 
           <Pressable style={s.checkRow} onPress={() => setAgeConfirmed(v => !v)} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} accessibilityRole="checkbox">
             <Ionicons name={ageConfirmed ? 'checkbox' : 'square-outline'} size={22} color={ageConfirmed ? theme.colors.primary : theme.colors.textMuted} />
-            <Text style={s.checkLabel}>Je certifie avoir 15 ans ou plus</Text>
+            <Text style={s.checkLabel}>{t('auth.ageCertify')}</Text>
           </Pressable>
 
-          <Text style={s.ageNote}>Sillage n'est pas destiné aux moins de 15 ans.</Text>
+          <Text style={s.ageNote}>{t('auth.ageNote')}</Text>
 
           <Pressable
             style={[s.submitBtn, (!canSubmit || isLoading) && s.submitBtnDisabled]}
@@ -167,13 +169,13 @@ export default function RegisterPage() {
             {loading === 'email' ? (
               <ActivityIndicator size="small" color={textOn(theme.colors.primary)} />
             ) : (
-              <Text style={s.submitText}>Créer mon compte</Text>
+              <Text style={s.submitText}>{t('auth.createAccountSubmit')}</Text>
             )}
           </Pressable>
 
           <Link href="/auth/login" style={s.link}>
             <Text style={s.linkText}>
-              Déjà un compte ? <Text style={s.linkBold}>Se connecter</Text>
+              {t('auth.hasAccount')} <Text style={s.linkBold}>{t('auth.login')}</Text>
             </Text>
           </Link>
         </View>

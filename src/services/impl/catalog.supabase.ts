@@ -3,6 +3,7 @@
 // Cf. MIGRATION_SUPABASE.md §5.
 
 import type { Parfum } from '../../models';
+import i18next from 'i18next';
 import { normalize } from '../../utils/normalize';
 import type { SeasonKey } from '../../utils/season';
 import type { SuggestionRow } from '../../utils/suggest';
@@ -17,6 +18,7 @@ import type { Database } from '../../types/database.types';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
 import { clearHomeCache } from './home-cache';
 import { toNum, toDate } from './sql-utils';
+import { getColorByKey } from '../../utils/chromatic-wheel';
 
 export { SearchError };
 
@@ -155,9 +157,18 @@ export async function updateParfum(id: string, fragranceData: Partial<Omit<Parfu
 
 const _searchCache = new LRUCache(200);
 
+// Roue chromatique : 12 clés max — cache mémoire + dédup in-flight (partagé
+// entre /wheel et /search?color= : la sélection posée préchauffe la liste,
+// l'écran de résultats lit la même entrée sans second fetch). Pas de disque :
+// contenu rarement consommé au boot.
+const CHROMA_TTL_MS = 30 * 60 * 1000;
+const _chromaCache = new Map<string, { results: Parfum[]; cachedAt: number }>();
+const _chromaInflight = new Map<string, Promise<Parfum[]>>();
+
 /** Vide le cache de recherche (après une mutation admin). */
 export function clearSearchCache(): void {
   _searchCache.clear();
+  _chromaCache.clear();
   void clearHomeCache();
 }
 
@@ -181,7 +192,7 @@ export async function searchParfumsCached(queryStr: string): Promise<Parfum[]> {
     return deduped;
   } catch (err: unknown) {
     throw new SearchError(
-      (err as Error)?.message ?? 'La recherche a échoué. Vérifiez votre connexion.',
+      (err as Error)?.message ?? i18next.t('search.searchFailedConn'),
       err,
     );
   }
@@ -419,6 +430,48 @@ export async function getParfumsByFamily(values: string[], limitCount: number = 
   } catch {
     return [];
   }
+}
+
+/** Parfums d'une couleur de la roue chromatique (RPC chroma_parfums 0061).
+ *  Scoring serveur : intensité des accords (main_accords_percentage) + match
+ *  des notes (search_vector) + popularité, boost saisonnier si affinité.
+ *  Cache mémoire partagé wheel→search (12 clés, TTL 30 min, dédup in-flight). */
+export async function getParfumsByColor(colorKey: string, limitCount: number = 50): Promise<Parfum[]> {
+  const def = getColorByKey(colorKey);
+  if (!def) return [];
+
+  // Clé = couleur + limit (le résultat dépend des deux).
+  const cacheKey = `${def.key}:${limitCount}`;
+
+  const hit = _chromaCache.get(cacheKey);
+  // Copie défensive : le même tableau est partagé wheel→search (posture LRUCache).
+  if (hit && Date.now() - hit.cachedAt < CHROMA_TTL_MS) return [...hit.results];
+
+  const pending = _chromaInflight.get(cacheKey);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    try {
+      const { data, error } = await supabase.rpc('chroma_parfums', {
+        p_accords: def.accords,
+        p_notes: def.notes,
+        p_season: def.season ?? undefined,
+        p_limit: limitCount,
+      });
+      if (error) throw error;
+      const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
+      const deduped = dedupByMarqueNom(rows);
+      _chromaCache.set(cacheKey, { results: deduped, cachedAt: Date.now() });
+      return deduped;
+    } catch (e: unknown) {
+      console.warn('[catalog] getParfumsByColor failed:', (e as Error)?.message ?? String(e));
+      return [] as Parfum[];
+    } finally {
+      _chromaInflight.delete(cacheKey);
+    }
+  })();
+  _chromaInflight.set(cacheKey, promise);
+  return promise;
 }
 
 /** Aperçu des familles olfactives en 1 round-trip (RPC family_overviews).

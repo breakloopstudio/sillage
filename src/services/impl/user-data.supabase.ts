@@ -3,7 +3,7 @@
 // Appelée par le dispatcher user-data.ts quand USE_SUPABASE=true.
 
 import type { Parfum, UserFavori, UserScan, UserPriceAlert } from '../../models';
-import { supabase, subscribeUserTable } from '../supabase';
+import { supabase, subscribeUserTable, isSupabaseReady } from '../supabase';
 import type { Database } from '../../types/database.types';
 import { buildFavoriFilterFields } from '../../utils/favori-filters';
 import { toDate, toNum } from './sql-utils';
@@ -327,4 +327,32 @@ export async function getLowestObservedPrice(parfumId: string): Promise<number |
   } catch {
     return null;
   }
+}
+
+/** Plus bas prix constatés (price_history) par parfum — version lotie de getLowestObservedPrice. */
+export async function getLowestObservedPrices(parfumIds: string[]): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (!isSupabaseReady() || parfumIds.length === 0) return result;
+  try {
+    const chunks: string[][] = [];
+    for (let i = 0; i < parfumIds.length; i += 100) chunks.push(parfumIds.slice(i, i + 100));
+    const responses = await Promise.all(chunks.map(ids =>
+      supabase
+        .from('price_history')
+        .select('parfum_id, best_price')
+        .in('parfum_id', ids)
+    ));
+    for (const { data, error } of responses) {
+      if (error) throw error;
+      for (const row of data ?? []) {
+        const price = toNum(row.best_price);
+        if (price == null) continue;
+        const prev = result.get(row.parfum_id);
+        if (prev == null || price < prev) result.set(row.parfum_id, price);
+      }
+    }
+  } catch (e: unknown) {
+    console.warn('[user-data] getLowestObservedPrices failed:', (e as Error)?.message ?? String(e));
+  }
+  return result;
 }

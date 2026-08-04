@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { deleteAccount, reauthenticate } from '../src/services/account';
@@ -16,6 +17,7 @@ type ScreenState = 'overview' | 'confirm' | 'reauth' | 'deleting' | 'error';
 export default function DeleteAccountPage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const router = useRouter();
   const { user, isAuthenticated } = useAuthContext();
@@ -43,10 +45,10 @@ export default function DeleteAccountPage() {
       await AsyncStorage.removeItem('@sillage/recent-searches').catch(() => {});
       router.replace('/auth/login');
     } catch (e: unknown) {
-      setErrorMessage((e as Error).message || 'Échec de la suppression.');
+      setErrorMessage((e as Error).message || t('deleteAccount.deleteFailed'));
       setScreen('error');
     }
-  }, [router]);
+  }, [router, t]);
 
   const handleReauth = useCallback(async () => {
     setErrorMessage(null);
@@ -59,9 +61,9 @@ export default function DeleteAccountPage() {
         setScreen('confirm');
         return;
       }
-      setErrorMessage(msg || 'Réauthentification échouée.');
+      setErrorMessage(msg || t('deleteAccount.reauthFailed'));
     }
-  }, [password, hasPasswordProvider, handleInitiateDelete]);
+  }, [password, hasPasswordProvider, handleInitiateDelete, t]);
 
   const handleReset = useCallback(() => { setScreen('overview'); setConfirmed(false); setErrorMessage(null); setPassword(''); }, []);
 
@@ -70,7 +72,7 @@ export default function DeleteAccountPage() {
   if (!isAuthenticated) {
     return (
       <SafeAreaView edges={['top', 'bottom']} style={s.container}>
-        <AuthGate icon="trash-outline" description="Connecte-toi pour gérer la suppression de ton compte." />
+        <AuthGate icon="trash-outline" description={t('deleteAccount.authGate')} />
       </SafeAreaView>
     );
   }
@@ -79,10 +81,10 @@ export default function DeleteAccountPage() {
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.header}>
-          <Pressable onPress={() => isDeleting ? null : router.back()} hitSlop={12} style={s.backBtn} disabled={isDeleting} accessibilityLabel="Retour">
+          <Pressable onPress={() => isDeleting ? null : router.back()} hitSlop={12} style={s.backBtn} disabled={isDeleting} accessibilityLabel={t('back')}>
             <Ionicons name="arrow-back" size={22} color={isDeleting ? theme.colors.textMuted : theme.colors.text} />
           </Pressable>
-          <Text style={s.title}>Supprimer le compte</Text>
+          <Text style={s.title}>{t('deleteAccount.title')}</Text>
           <View style={{ width: 32 }} />
         </View>
 
@@ -91,21 +93,20 @@ export default function DeleteAccountPage() {
             <View style={s.iconCircle}>
               <Ionicons name="warning-outline" size={40} color={theme.colors.overpriced} />
             </View>
-            <Text style={s.heading}>Action irréversible</Text>
+            <Text style={s.heading}>{t('deleteAccount.irreversibleHeading')}</Text>
             <View style={s.list}>
-              <Text style={s.listItem}>Votre compte et votre moyen de connexion</Text>
-              <Text style={s.listItem}>Vos favoris ({'{'}parfums likés{'}'})</Text>
-              <Text style={s.listItem}>Votre parfumerie, vos étagères et votre parfum du jour</Text>
-              <Text style={s.listItem}>L'historique de vos scans</Text>
-              <Text style={s.listItem}>Vos alertes prix</Text>
-              <Text style={s.listItem}>Vos préférences et tokens de notification</Text>
+              <Text style={s.listItem}>{t('deleteAccount.itemAccount')}</Text>
+              <Text style={s.listItem}>{t('deleteAccount.itemFavorites')}</Text>
+              <Text style={s.listItem}>{t('deleteAccount.itemParfumerie')}</Text>
+              <Text style={s.listItem}>{t('deleteAccount.itemScans')}</Text>
+              <Text style={s.listItem}>{t('deleteAccount.itemAlerts')}</Text>
+              <Text style={s.listItem}>{t('deleteAccount.itemPreferences')}</Text>
             </View>
             <Text style={s.body}>
-              Conformément au RGPD, l'effacement est immédiat, complet et sans délai de rétractation.{'\n\n'}
-              Vous devrez recréer un compte si vous souhaitez réutiliser l'application avec ses fonctionnalités connectées.
+              {t('deleteAccount.gdprBody')}
             </Text>
             <Pressable style={s.continueBtn} onPress={() => setScreen('confirm')}>
-              <Text style={s.continueBtnText}>Continuer</Text>
+              <Text style={s.continueBtnText}>{t('deleteAccount.continue')}</Text>
             </Pressable>
           </View>
         )}
@@ -123,33 +124,33 @@ export default function DeleteAccountPage() {
                 size={22}
                 color={confirmed ? theme.colors.overpriced : theme.colors.textMuted}
               />
-              <Text style={s.checkLabel}>Je comprends que cette action est définitive et irréversible</Text>
+              <Text style={s.checkLabel}>{t('deleteAccount.confirmCheckbox')}</Text>
             </Pressable>
             <Pressable
               style={[s.deleteBtn, !confirmed && s.deleteBtnDisabled]}
               onPress={handleInitiateDelete}
               disabled={!confirmed}
             >
-              <Text style={s.deleteBtnText}>Supprimer définitivement</Text>
+              <Text style={s.deleteBtnText}>{t('deleteAccount.deletePermanently')}</Text>
             </Pressable>
             <Pressable style={s.cancelBtn} onPress={() => setScreen('overview')}>
-              <Text style={s.cancelBtnText}>Annuler</Text>
+              <Text style={s.cancelBtnText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         )}
 
         {screen === 'reauth' && (
           <View style={s.section}>
-            <Text style={s.reauthTitle}>Confirmez votre identité</Text>
+            <Text style={s.reauthTitle}>{t('deleteAccount.reauthTitle')}</Text>
             <Text style={s.reauthDesc}>
-              Par sécurité, {hasPasswordProvider ? 'saisissez votre mot de passe' : 'reconnectez-vous avec Google'} avant de supprimer votre compte.
+              {hasPasswordProvider ? t('deleteAccount.reauthDescPassword') : t('deleteAccount.reauthDescGoogle')}
             </Text>
             {hasPasswordProvider ? (
               <>
                 <View style={s.inputGroup}>
                   <TextInput
                     style={s.input}
-                    placeholder="Mot de passe"
+                    placeholder={t('deleteAccount.passwordPlaceholder')}
                     placeholderTextColor={theme.colors.textMuted}
                     value={password}
                     onChangeText={setPassword}
@@ -157,24 +158,24 @@ export default function DeleteAccountPage() {
                     autoComplete="current-password"
                     textContentType="password"
                     keyboardAppearance={keyboardAppearance}
-                    accessibilityLabel="Mot de passe"
+                    accessibilityLabel={t('deleteAccount.passwordLabel')}
                   />
                   <Pressable onPress={() => setShowPassword(v => !v)} style={s.eyeBtn} hitSlop={8}>
                     <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.colors.textMuted} />
                   </Pressable>
                 </View>
                 <Pressable style={s.primaryBtn} onPress={handleReauth}>
-                  <Text style={s.primaryBtnText}>Confirmer mon identité</Text>
+                  <Text style={s.primaryBtnText}>{t('deleteAccount.confirmIdentity')}</Text>
                 </Pressable>
               </>
             ) : (
               <Pressable style={s.primaryBtn} onPress={handleReauth}>
                 <Ionicons name="logo-google" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={s.primaryBtnText}>Reconfirmer avec Google</Text>
+                <Text style={s.primaryBtnText}>{t('deleteAccount.reconfirmGoogle')}</Text>
               </Pressable>
             )}
             <Pressable style={s.cancelBtn} onPress={() => { setScreen('confirm'); setErrorMessage(null); }}>
-              <Text style={s.cancelBtnText}>Annuler</Text>
+              <Text style={s.cancelBtnText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         )}
@@ -182,8 +183,8 @@ export default function DeleteAccountPage() {
         {screen === 'deleting' && (
           <View style={s.centered}>
             <ActivityIndicator size="large" color={theme.colors.overpriced} />
-            <Text style={s.deletingText}>Suppression en cours…</Text>
-            <Text style={s.deletingSub}>Veuillez ne pas quitter l'application</Text>
+            <Text style={s.deletingText}>{t('deleteAccount.deleting')}</Text>
+            <Text style={s.deletingSub}>{t('deleteAccount.deletingSub')}</Text>
           </View>
         )}
 
@@ -193,10 +194,10 @@ export default function DeleteAccountPage() {
               <Text style={s.errorText}>{errorMessage}</Text>
             </View>
             <Pressable style={s.primaryBtn} onPress={handleInitiateDelete}>
-              <Text style={s.primaryBtnText}>Réessayer</Text>
+              <Text style={s.primaryBtnText}>{t('deleteAccount.retry')}</Text>
             </Pressable>
             <Pressable style={s.cancelBtn} onPress={handleReset}>
-              <Text style={s.cancelBtnText}>Annuler</Text>
+              <Text style={s.cancelBtnText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         )}

@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18next from 'i18next';
 import type { CardMode } from '../components/ParfumCard';
 
+// Labels résolus à l'affichage via i18next (§23) — jamais lus au scope module.
 export const GRID_MODES: { key: CardMode; label: string }[] = [
-  { key: 'comfortable', label: 'Confort' },
-  { key: 'compactPlus', label: 'Compact' },
-  { key: 'list', label: 'Liste' },
+  { key: 'comfortable', get label() { return i18next.t('density.comfortable'); } },
+  { key: 'compactPlus', get label() { return i18next.t('density.compactPlus'); } },
+  { key: 'list', get label() { return i18next.t('density.list'); } },
 ];
 
 const KEY = '@sillage/catalog-density';

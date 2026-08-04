@@ -8,6 +8,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { usePublicProfile } from '../../src/hooks/usePublicProfile';
@@ -34,6 +35,7 @@ export default function PublicProfilePage() {
   const pseudo = Array.isArray(searchParams.pseudo) ? searchParams.pseudo[0] : searchParams.pseudo;
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const router = useRouter();
   const { isAuthenticated, user } = useAuthContext();
   const { profile, collection, loading, error } = usePublicProfile(pseudo ?? null);
@@ -64,22 +66,22 @@ export default function PublicProfilePage() {
     hapticsLight();
     try {
       const list = await getPublicFollowers(pseudo);
-      if (mountedRef.current) { setFollowList(list); setFollowListTitle('Abonnés'); }
+      if (mountedRef.current) { setFollowList(list); setFollowListTitle(t('publicProfile.followers')); }
     } catch (e: unknown) {
       console.warn('[u] getPublicFollowers failed:', (e as Error)?.message ?? String(e));
     }
-  }, [pseudo]);
+  }, [pseudo, t]);
 
   const handleShowFollowing = useCallback(async () => {
     if (!pseudo) return;
     hapticsLight();
     try {
       const list = await getPublicFollowing(pseudo);
-      if (mountedRef.current) { setFollowList(list); setFollowListTitle('Suivis'); }
+      if (mountedRef.current) { setFollowList(list); setFollowListTitle(t('publicProfile.following')); }
     } catch (e: unknown) {
       console.warn('[u] getPublicFollowing failed:', (e as Error)?.message ?? String(e));
     }
-  }, [pseudo]);
+  }, [pseudo, t]);
 
   const handleFollow = useCallback(async () => {
     if (!pseudo) return;
@@ -118,10 +120,10 @@ export default function PublicProfilePage() {
     </View>
   ), [handleCardPress, s]);
 
-  const headerTitle = profile?.pseudo ? `@${profile.pseudo}` : 'Profil';
+  const headerTitle = profile?.pseudo ? `@${profile.pseudo}` : t('publicProfile.titleFallback');
   const header = (
     <View style={s.header}>
-      <Pressable onPress={handleBack} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Retour">
+      <Pressable onPress={handleBack} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel={t('back')}>
         <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
       </Pressable>
       <Text style={s.title} numberOfLines={1}>{headerTitle}</Text>
@@ -146,11 +148,11 @@ export default function PublicProfilePage() {
           <View style={s.stateIcon}>
             <Ionicons name={error ? 'cloud-offline-outline' : 'lock-closed-outline'} size={28} color={theme.colors.textMuted} />
           </View>
-          <Text style={s.stateTitle}>{error ? 'Erreur de connexion' : 'Profil privé ou introuvable'}</Text>
+          <Text style={s.stateTitle}>{error ? t('publicProfile.errorTitle') : t('publicProfile.privateTitle')}</Text>
           <Text style={s.stateDesc}>
             {error
-              ? 'Vérifie ta connexion et réessaie.'
-              : 'Ce membre n\u2019existe pas ou a choisi de garder sa collection privée.'}
+              ? t('publicProfile.errorDesc')
+              : t('publicProfile.privateDesc')}
           </Text>
         </View>
       </SafeAreaView>
@@ -173,15 +175,15 @@ export default function PublicProfilePage() {
         {profile.bio ? <Text style={s.bio}>{profile.bio}</Text> : null}
         <View style={s.statsRow}>
           <Text style={s.statItem} allowFontScaling={false}>
-            {profile.collectionCount} parfum{profile.collectionCount > 1 ? 's' : ''}
+            {t('publicProfile.perfumeCount', { count: profile.collectionCount })}
           </Text>
           <Text style={s.statDot}>·</Text>
-          <Pressable onPress={handleShowFollowers} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={`${profile.followerCount} abonnés`}>
-            <Text style={s.statItemLink} allowFontScaling={false}>{profile.followerCount} abonné{profile.followerCount > 1 ? 's' : ''}</Text>
+          <Pressable onPress={handleShowFollowers} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={t('publicProfile.followersA11y', { count: profile.followerCount })}>
+            <Text style={s.statItemLink} allowFontScaling={false}>{t('publicProfile.followerCount', { count: profile.followerCount })}</Text>
           </Pressable>
           <Text style={s.statDot}>·</Text>
-          <Pressable onPress={handleShowFollowing} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={`${profile.followingCount} suivis`}>
-            <Text style={s.statItemLink} allowFontScaling={false}>{profile.followingCount} suivi{profile.followingCount > 1 ? 's' : ''}</Text>
+          <Pressable onPress={handleShowFollowing} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={t('publicProfile.followingA11y', { count: profile.followingCount })}>
+            <Text style={s.statItemLink} allowFontScaling={false}>{t('publicProfile.followingCount', { count: profile.followingCount })}</Text>
           </Pressable>
         </View>
         {isAuthenticated && !isOwnProfile ? (
@@ -190,13 +192,13 @@ export default function PublicProfilePage() {
             onPress={handleFollow}
             disabled={followLoading}
             accessibilityRole="button"
-            accessibilityLabel={following ? 'Ne plus suivre' : 'Suivre'}
+            accessibilityLabel={following ? t('publicProfile.unfollow') : t('publicProfile.follow')}
           >
             {followLoading ? (
               <ActivityIndicator size="small" color={following ? theme.colors.primary : '#FFFFFF'} />
             ) : (
               <Text style={[s.followBtnText, following && s.followBtnTextActive]} allowFontScaling={false}>
-                {following ? 'Suivi' : 'Suivre'}
+                {following ? t('publicProfile.followingBtn') : t('publicProfile.follow')}
               </Text>
             )}
           </Pressable>
@@ -204,7 +206,7 @@ export default function PublicProfilePage() {
       </View>
       {collection.length === 0 ? (
         <View style={s.emptyWrap}>
-          <Text style={s.emptyText}>Aucun parfum public pour l&#8217;instant.</Text>
+          <Text style={s.emptyText}>{t('publicProfile.emptyCollection')}</Text>
         </View>
       ) : null}
     </View>
@@ -233,7 +235,7 @@ export default function PublicProfilePage() {
           <Text style={s.followListTitle}>{followListTitle}</Text>
           <ScrollView style={s.followListScroll} showsVerticalScrollIndicator={false}>
             {(followList ?? []).length === 0 ? (
-              <Text style={s.followListEmpty}>Personne pour l&#8217;instant.</Text>
+              <Text style={s.followListEmpty}>{t('publicProfile.emptyFollowList')}</Text>
             ) : (
               (followList ?? []).map((entry, i) => (
                 <Pressable key={`${entry.pseudo}-${i}`} style={s.followListRow} onPress={() => { setFollowList(null); router.push(`/u/${entry.pseudo}`); }} accessibilityRole="button">

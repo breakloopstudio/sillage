@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useReducedMotion, LinearTransition } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useFavorisContext } from '../../src/contexts/FavorisContext';
@@ -66,16 +68,12 @@ import type { Shelf } from '../../src/models/user-parfum.interface';
 
 type ParfPillId = 'all' | StatusChipId;
 
-const PARF_PILLS: { id: ParfPillId; label: string; icon: string }[] = [
-  { id: 'all', label: 'Tous', icon: 'apps-outline' },
-  ...STATUS_CHIPS.map(c => ({ id: c.id as ParfPillId, label: c.label, icon: c.icon })),
-];
-
-const SORT_OPTIONS: { key: string; label: string }[] = [
-  { key: 'recent', label: 'Récents' },
-  { key: 'rating', label: 'Mieux notés' },
-  { key: 'az', label: 'A–Z' },
-  { key: 'za', label: 'Z–A' },
+// Labels résolus à l'affichage via getters i18next (§23) — jamais lus au scope module.
+const SORT_OPTIONS = [
+  { key: 'recent', get label() { return i18next.t('collection.sortOptions.recent'); } },
+  { key: 'rating', get label() { return i18next.t('collection.sortOptions.rating'); } },
+  { key: 'az', get label() { return i18next.t('collection.sortOptions.az'); } },
+  { key: 'za', get label() { return i18next.t('collection.sortOptions.za'); } },
 ];
 
 const DENSITY_ICON: Record<string, string> = {
@@ -85,8 +83,8 @@ const DENSITY_ICON: Record<string, string> = {
 };
 
 const VIEW_TABS: { key: ParfumerieView; label: string; icon: string }[] = [
-  { key: 'shelves', label: 'Étagères', icon: 'albums-outline' },
-  { key: 'collection', label: 'Collection', icon: 'grid-outline' },
+  { key: 'shelves', get label() { return i18next.t('collection.viewTabs.shelves'); }, icon: 'albums-outline' },
+  { key: 'collection', get label() { return i18next.t('collection.viewTabs.collection'); }, icon: 'grid-outline' },
 ];
 
 const KEY_EXPAND = '@sillage/parfumerie-shelves-expand';
@@ -110,6 +108,7 @@ function userParfumToCard(up: UserParfum): Parfum {
 export default function MaParfumeriePage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
   const uid = user?.uid ?? null;
@@ -354,9 +353,9 @@ export default function MaParfumeriePage() {
     // Refus définitif (l'OS ne re-prompt plus) → porte de sortie réglages.
     // Un refus simple (canAskAgain) repasse par requestPermission qui re-prompt.
     if (permissionStatus === 'denied' && !permissionCanAskAgain) {
-      Alert.alert('Localisation désactivée', 'Active la localisation dans les réglages de l\'appareil pour afficher la météo.', [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Réglages', onPress: () => Linking.openSettings() },
+      Alert.alert(t('collection.locationDenied.title'), t('collection.locationDenied.message'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('openSettings'), onPress: () => Linking.openSettings() },
       ]);
       return;
     }
@@ -365,7 +364,7 @@ export default function MaParfumeriePage() {
       return;
     }
     enableWeatherAndRequest();
-  }, [weather, permissionStatus, permissionCanAskAgain, locationPrimer, enableWeatherAndRequest]);
+  }, [weather, permissionStatus, permissionCanAskAgain, locationPrimer, enableWeatherAndRequest, t]);
 
   const handleLocationPrimerAccept = useCallback(() => {
     locationPrimer.accept();
@@ -400,23 +399,23 @@ export default function MaParfumeriePage() {
     const nm = shelfMenu.name;
     setShelfMenu(null);
     Alert.alert(
-      'Supprimer l’étagère',
-      `« ${nm} » sera supprimée. Les parfums ne seront pas effacés, ils perdront juste cette étagère.`,
+      t('collection.deleteShelf.title'),
+      t('collection.deleteShelf.message', { name: nm }),
       [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: () => removeShelf(id).catch(() => hapticsError()) },
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('collection.deleteShelf.confirm'), style: 'destructive', onPress: () => removeShelf(id).catch(() => hapticsError()) },
       ]
     );
-  }, [shelfMenu, removeShelf]);
+  }, [shelfMenu, removeShelf, t]);
 
   const handleShareShelf = useCallback(() => {
     if (!shelfMenu || !profile?.pseudo) return;
     const url = shelfShareUrl(profile.pseudo, shelfMenu.id);
-    const text = `Mon étagère « ${shelfMenu.name} » sur Sillage`;
+    const text = t('collection.shareShelfText', { name: shelfMenu.name });
     setShelfMenu(null);
     if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
     else Share.share({ message: `${text} ${url}` }).catch(() => {});
-  }, [shelfMenu, profile]);
+  }, [shelfMenu, profile, t]);
 
   const handleTogglePublicFromMenu = useCallback(() => {
     if (!shelfMenu) return;
@@ -444,17 +443,17 @@ export default function MaParfumeriePage() {
   const shelfMenuActions = useMemo<ActionItem[]>(() => {
     if (!shelfMenu) return [];
     const acts: ActionItem[] = [
-      { icon: 'create-outline', label: 'Modifier l’étagère', onPress: handleEditShelf },
+      { icon: 'create-outline', label: t('collection.menu.edit'), onPress: handleEditShelf },
     ];
     if (shelfMenu.isPublic) {
-      acts.push({ icon: 'share-social-outline', label: 'Partager l’étagère', onPress: handleShareShelf });
-      acts.push({ icon: 'lock-closed-outline', label: 'Rendre privée', onPress: handleTogglePublicFromMenu });
+      acts.push({ icon: 'share-social-outline', label: t('collection.menu.share'), onPress: handleShareShelf });
+      acts.push({ icon: 'lock-closed-outline', label: t('collection.menu.makePrivate'), onPress: handleTogglePublicFromMenu });
     } else {
-      acts.push({ icon: 'globe-outline', label: 'Rendre publique', onPress: handleTogglePublicFromMenu });
+      acts.push({ icon: 'globe-outline', label: t('collection.menu.makePublic'), onPress: handleTogglePublicFromMenu });
     }
-    acts.push({ icon: 'trash-outline', label: 'Supprimer l’étagère', destructive: true, onPress: handleDeleteShelf });
+    acts.push({ icon: 'trash-outline', label: t('collection.menu.delete'), destructive: true, onPress: handleDeleteShelf });
     return acts;
-  }, [shelfMenu, handleEditShelf, handleShareShelf, handleTogglePublicFromMenu, handleDeleteShelf]);
+  }, [shelfMenu, handleEditShelf, handleShareShelf, handleTogglePublicFromMenu, handleDeleteShelf, t]);
 
   const handleOpenAddToShelf = useCallback((id: string) => setAddToShelfId(id), []);
   const handleCloseAddToShelf = useCallback(() => setAddToShelfId(null), []);
@@ -504,28 +503,34 @@ export default function MaParfumeriePage() {
     if (!profile?.pseudo) return;
     hapticsLight();
     const url = profileShareUrl(profile.pseudo);
-    const text = 'Ma parfumerie sur Sillage';
+    const text = t('collection.shareText');
     if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
     else Share.share({ message: `${text} ${url}` }).catch(() => {});
-  }, [profile]);
+  }, [profile, t]);
   const handleShareSotd = useCallback(() => {
     if (!sotd) return;
     hapticsLight();
     const url = parfumShareUrl(sotd.parfumId);
-    const text = `Aujourd'hui je porte ${sotd.marque} – ${sotd.nom}`;
+    const text = t('shareSotd', { marque: sotd.marque, nom: sotd.nom });
     if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
     else Share.share({ message: `${text}\n${url}` }).catch(() => {});
-  }, [sotd]);
+  }, [sotd, t]);
   const handleOpenAttrSheet = useCallback(() => setShowAttrSheet(true), []);
   const handleCloseAttrSheet = useCallback(() => setShowAttrSheet(false), []);
   const handleAttrFiltersChange = useCallback((next: FavoritesFilters) => setAttrFilters(next), []);
   const handleAttrReset = useCallback(() => setAttrFilters(EMPTY_FAVORI_FILTERS), []);
 
+  const parfPills = useMemo(() => [
+    { id: 'all' as ParfPillId, label: t('collection.pills.all'), icon: 'apps-outline' },
+    ...STATUS_CHIPS.map(c => ({ id: c.id as ParfPillId, label: c.label, icon: c.icon })),
+  ], [t]);
+
   const cycleSort = useCallback(() => {
     const idx = SORT_OPTIONS.findIndex(o => o.key === activeSort);
     setActiveSort(SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].key);
   }, [activeSort]);
-  const currentSortLabel = SORT_OPTIONS.find(o => o.key === activeSort)?.label ?? 'Tri';
+  const sortFound = SORT_OPTIONS.find(o => o.key === activeSort);
+  const currentSortLabel = sortFound ? sortFound.label : t('sort');
 
   const handlePillTap = useCallback((pill: ParfPillId) => { hapticsLight(); setActivePill(pill); }, []);
   const handleGlobalReset = useCallback(() => {
@@ -562,9 +567,9 @@ export default function MaParfumeriePage() {
   const topChrome = (
     <View>
       <View style={s.header}>
-        <Text style={s.title}>Ma Parfumerie{'\u00A0'}·{'\u00A0'}{items.length}</Text>
+        <Text style={s.title}>{t('collection.titleWithCount', { count: items.length })}</Text>
         {canShareCollection ? (
-          <Pressable style={s.shareHeaderBtn} onPress={handleShareCollection} hitSlop={6} accessibilityRole="button" accessibilityLabel="Partager ma collection">
+          <Pressable style={s.shareHeaderBtn} onPress={handleShareCollection} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('collection.shareCollectionA11y')}>
             <Ionicons name="share-social-outline" size={18} color={theme.colors.primary} />
           </Pressable>
         ) : null}
@@ -629,17 +634,17 @@ export default function MaParfumeriePage() {
 
   const shelvesHeader = (
     <View>
-      <Pressable style={s.newShelfBtn} onPress={handleOpenShelfManager} accessibilityRole="button" accessibilityLabel="Nouvelle étagère">
+      <Pressable style={s.newShelfBtn} onPress={handleOpenShelfManager} accessibilityRole="button" accessibilityLabel={t('collection.newShelf')}>
         <Ionicons name="add-circle-outline" size={18} color={theme.colors.primary} />
-        <Text style={s.newShelfBtnText}>Nouvelle étagère</Text>
+        <Text style={s.newShelfBtnText}>{t('collection.newShelf')}</Text>
       </Pressable>
 
       {sigItems.length > 0 ? (
         <ShelfCard
-          name="Signature"
+          name={t('collection.shelves.signature.name')}
           icon="star-outline"
           accent={theme.colors.secondary}
-          tagline="Ton flacon emblème"
+          tagline={t('collection.shelves.signature.tagline')}
           items={sigItems}
           variant="system"
           expanded={expanded?.has(SIG_ID) ?? false}
@@ -651,10 +656,10 @@ export default function MaParfumeriePage() {
 
       {favItems.length > 0 ? (
         <ShelfCard
-          name="Coups de cœur"
+          name={t('collection.shelves.favorites.name')}
           icon="heart"
           accent={theme.colors.favorite}
-          tagline="Ceux que tu aimes"
+          tagline={t('collection.shelves.favorites.tagline')}
           items={favItems}
           variant="system"
           expanded={expanded?.has(FAV_ID) ?? false}
@@ -670,10 +675,10 @@ export default function MaParfumeriePage() {
     <View>
       {orphans.length > 0 ? (
         <ShelfCard
-          name="Non classés"
+          name={t('collection.shelves.orphans.name')}
           icon="help-circle-outline"
           accent={null}
-          tagline="À ranger dans une étagère"
+          tagline={t('collection.shelves.orphans.tagline')}
           items={orphans}
           variant="system"
           expanded={expanded?.has(ORPHAN_ID) ?? false}
@@ -681,7 +686,7 @@ export default function MaParfumeriePage() {
           onPressBottle={handleShelfBottle}
           onLongPressBottle={handleShelfBottleLong}
           onPressEmblem={handleOrphanHelp}
-          emblemAccessibilityLabel="À propos de Non classés"
+          emblemAccessibilityLabel={t('collection.shelves.orphans.aboutA11y')}
         />
       ) : null}
     </View>
@@ -694,7 +699,7 @@ export default function MaParfumeriePage() {
   if (!isAuthenticated) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <AuthGate icon="flask-outline" description="Accède à ta parfumerie." />
+        <AuthGate icon="flask-outline" description={t('collection.authGate')} />
       </SafeAreaView>
     );
   }
@@ -702,7 +707,7 @@ export default function MaParfumeriePage() {
   if (loading) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <View style={s.header}><Text style={s.title}>Ma Parfumerie</Text></View>
+        <View style={s.header}><Text style={s.title}>{t('collection.title')}</Text></View>
         <ActivityIndicator style={s.loadingSpinner} color={theme.colors.primary} />
       </SafeAreaView>
     );
@@ -711,7 +716,7 @@ export default function MaParfumeriePage() {
   if (items.length === 0) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <View style={s.header}><Text style={s.title}>Ma Parfumerie</Text></View>
+        <View style={s.header}><Text style={s.title}>{t('collection.title')}</Text></View>
         <EmptyState variant="wardrobe" onAction={handleEmptyExplore} />
       </SafeAreaView>
     );
@@ -743,30 +748,30 @@ export default function MaParfumeriePage() {
                   <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
                   <TextInput
                     style={s.searchInput}
-                    placeholder="Nom, marque ou note..."
+                    placeholder={t('collection.searchPlaceholder')}
                     placeholderTextColor={theme.colors.textMuted}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     keyboardAppearance={keyboardAppearance}
                   />
                 </View>
-                <Pressable style={s.toolBtn} onPress={cycleSort} hitSlop={8} accessibilityRole="button" accessibilityLabel="Trier">
+                <Pressable style={s.toolBtn} onPress={cycleSort} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('collection.sortA11y')}>
                   <Ionicons name="swap-vertical-outline" size={16} color={theme.colors.primary} />
                   <Text style={s.toolBtnLabel}>{currentSortLabel}</Text>
                 </Pressable>
-                <Pressable style={s.toolBtn} onPress={handleOpenAttrSheet} hitSlop={8} accessibilityRole="button" accessibilityLabel="Filtres">
+                <Pressable style={s.toolBtn} onPress={handleOpenAttrSheet} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('collection.filtersA11y')}>
                   <Ionicons name="options-outline" size={16} color={activeAttrCount > 0 ? theme.colors.primary : theme.colors.textMuted} />
                   {activeAttrCount > 0 ? (
                     <View style={s.badge}><Text style={s.badgeText} allowFontScaling={false}>{activeAttrCount}</Text></View>
                   ) : null}
                 </Pressable>
-                <Pressable style={[s.toolBtn, favOnly && s.favBtnActive]} onPress={handleToggleFavOnly} hitSlop={8} accessibilityRole="button" accessibilityLabel="Mes coups de cœur" accessibilityState={{ checked: favOnly }}>
+                <Pressable style={[s.toolBtn, favOnly && s.favBtnActive]} onPress={handleToggleFavOnly} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('collection.favOnlyA11y')} accessibilityState={{ checked: favOnly }}>
                   <Ionicons name={favOnly ? 'heart' : 'heart-outline'} size={16} color={favOnly ? theme.colors.favorite : theme.colors.textMuted} />
                 </Pressable>
               </View>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
-                {PARF_PILLS.map(pill => {
+                {parfPills.map(pill => {
                   const active = activePill === pill.id;
                   return (
                     <Pressable
@@ -813,7 +818,7 @@ export default function MaParfumeriePage() {
                         style={[s.dismissChip, { backgroundColor: bg }]}
                         onPress={() => setAttrFilters(prev => removeActiveChip(prev, chip))}
                         accessibilityRole="button"
-                        accessibilityLabel={`Retirer ${chip.label}`}
+                        accessibilityLabel={t('collection.removeChipA11y', { label: chip.label })}
                       >
                         {chip.icon ? <Ionicons name={chip.icon as never} size={14} color={ink} /> : null}
                         <Text style={[s.dismissChipText, { color: ink }]} allowFontScaling={false}>{chip.label}</Text>
@@ -828,10 +833,10 @@ export default function MaParfumeriePage() {
                 <View style={s.emptyFilter}>
                   <Ionicons name="funnel-outline" size={28} color={theme.colors.textMuted} />
                   <Text style={s.emptyFilterText}>
-                    {activeAttrCount > 0 || searchQuery.trim() || favOnly ? 'Aucun parfum ne correspond à ces filtres' : 'Aucun parfum dans cette vue'}
+                    {activeAttrCount > 0 || searchQuery.trim() || favOnly ? t('collection.empty.filtered') : t('collection.empty.view')}
                   </Text>
-                  <Pressable style={s.emptyResetBtn} onPress={handleGlobalReset} accessibilityRole="button" accessibilityLabel="Réinitialiser">
-                    <Text style={s.emptyResetBtnText}>Réinitialiser</Text>
+                  <Pressable style={s.emptyResetBtn} onPress={handleGlobalReset} accessibilityRole="button" accessibilityLabel={t('collection.empty.reset')}>
+                    <Text style={s.emptyResetBtnText}>{t('collection.empty.reset')}</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -860,7 +865,7 @@ export default function MaParfumeriePage() {
         marque={statuerItem?.marque ?? ''}
         imageUrl={statuerItem?.imageUrl ?? null}
         status={statuerItem?.status ?? null}
-        removeLabel="Retirer de ma parfumerie"
+        removeLabel={t('collection.statuerRemove')}
         shelves={shelves}
         shelfIds={statuerItem?.shelfIds ?? []}
         pinnedShelfIds={pinnedShelfIdsForItem}
@@ -931,8 +936,8 @@ export default function MaParfumeriePage() {
 
       <InfoPopup
         visible={orphanHelpOpen}
-        title="Non classés"
-        message="Ces flacons attendent leur place. Un appui maintenu sur l’un d’eux te permet de le ranger dans l’étagère de ton choix."
+        title={t('collection.shelves.orphans.helpTitle')}
+        message={t('collection.shelves.orphans.helpMessage')}
         icon="help-circle-outline"
         onClose={() => setOrphanHelpOpen(false)}
       />

@@ -12,6 +12,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight } from '../services/haptics';
 import { brandColor } from '../utils/brand-color';
@@ -28,6 +29,7 @@ interface Props {
 export default function AddToShelfSheet({ visible, shelfName, candidates, onClose, onAdd }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
@@ -93,10 +95,10 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
         <View style={s.handle} />
         <View style={s.header}>
           <View style={s.headerTexts}>
-            <Text style={s.title} numberOfLines={1}>Ajouter à {shelfName}</Text>
-            <Text style={s.subtitle}>Choisis un parfum de ta parfumerie</Text>
+            <Text style={s.title} numberOfLines={1}>{t('addToShelf.title', { shelfName })}</Text>
+            <Text style={s.subtitle}>{t('addToShelf.subtitle')}</Text>
           </View>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
+          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
             <Ionicons name="close" size={22} color={theme.colors.text} />
           </Pressable>
         </View>
@@ -105,7 +107,7 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
           <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
           <TextInput
             style={s.searchInput}
-            placeholder="Rechercher un parfum…"
+            placeholder={t('addToShelf.searchPlaceholder')}
             placeholderTextColor={theme.colors.textMuted}
             value={query}
             onChangeText={setQuery}
@@ -125,7 +127,7 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
             <View style={s.empty}>
               <Ionicons name="checkmark-circle-outline" size={28} color={theme.colors.textMuted} />
               <Text style={s.emptyText}>
-                {candidates.length === 0 ? 'Tous tes parfums y sont déjà' : 'Aucun parfum ne correspond'}
+                {candidates.length === 0 ? t('addToShelf.allAlready') : t('addToShelf.noMatch')}
               </Text>
             </View>
           }
@@ -136,7 +138,7 @@ export default function AddToShelfSheet({ visible, shelfName, candidates, onClos
                 style={s.row}
                 onPress={() => handleAdd(c.parfumId)}
                 accessibilityRole="button"
-                accessibilityLabel={`Ajouter ${c.marque ?? ''} ${c.nom ?? ''}`}
+                accessibilityLabel={t('addToShelf.addA11y', { name: `${c.marque ?? ''} ${c.nom ?? ''}`.trim() })}
               >
                 {c.imageUrl ? (
                   <Image source={{ uri: c.imageUrl }} style={s.rowImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={c.parfumId} transition={200} />

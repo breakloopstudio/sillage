@@ -2,16 +2,20 @@
 // Tests CRUD favoris/scans/collection/settings (impl Supabase)
 
 import { supabase } from '../../src/services/supabase';
+import * as supabaseCore from '../../src/services/supabase';
 import {
   addFavori, removeFavori, saveScan, removeScan,
   getUserSettings, updateUserSetting,
-  setPriceAlert, getLowestObservedPrice,
+  setPriceAlert, getLowestObservedPrice, getLowestObservedPrices,
 } from '../../src/services/user-data';
 import type { Parfum } from '../../src/models';
 import { chainMock } from '../helpers/supabase-chain';
 
 const mockFrom = supabase.from as jest.Mock;
 const mockRpc = supabase.rpc as jest.Mock;
+
+// Les variables EXPO_PUBLIC_* ne sont pas injectées en environnement jest.
+jest.spyOn(supabaseCore, 'isSupabaseReady').mockReturnValue(true);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -179,5 +183,38 @@ describe('getLowestObservedPrice', () => {
     const chain = chainMock({ data: null, error: null });
     mockFrom.mockReturnValue(chain);
     expect(await getLowestObservedPrice('p1')).toBeNull();
+  });
+});
+
+describe('getLowestObservedPrices', () => {
+  it('returns the min best_price per parfum across rows', async () => {
+    const chain = chainMock({
+      data: [
+        { parfum_id: 'p1', best_price: '80.00' },
+        { parfum_id: 'p1', best_price: '64.5' },
+        { parfum_id: 'p2', best_price: '120' },
+      ],
+      error: null,
+    });
+    mockFrom.mockReturnValue(chain);
+    const result = await getLowestObservedPrices(['p1', 'p2']);
+    expect(mockFrom).toHaveBeenCalledWith('price_history');
+    expect(chain.in).toHaveBeenCalledWith('parfum_id', ['p1', 'p2']);
+    expect(result.get('p1')).toBe(64.5);
+    expect(result.get('p2')).toBe(120);
+    expect(result.size).toBe(2);
+  });
+
+  it('returns an empty map without querying on empty input', async () => {
+    const result = await getLowestObservedPrices([]);
+    expect(result.size).toBe(0);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty map on error', async () => {
+    const chain = chainMock({ data: null, error: new Error('boom') });
+    mockFrom.mockReturnValue(chain);
+    const result = await getLowestObservedPrices(['p1']);
+    expect(result.size).toBe(0);
   });
 });

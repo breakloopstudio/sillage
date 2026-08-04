@@ -1,7 +1,7 @@
 // __tests__/services/openai-vision.test.ts — Normalisation client du ScanResult (v4)
 
 import { supabase } from '../../src/services/supabase';
-import { analyzeImage } from '../../src/services/openai-vision';
+import { analyzeImage, analyzeCollectionImage } from '../../src/services/openai-vision';
 
 const mockInvoke = supabase.functions.invoke as jest.Mock;
 
@@ -59,5 +59,74 @@ describe('normalisation openai-vision (v4)', () => {
     expect(r.isPerfume).toBe(false);
     expect(r.marque).toBe(null);
     expect(r.confidence).toBe('low');
+  });
+});
+
+describe('analyzeCollectionImage (v6)', () => {
+  it('envoie le mode collection dans le body', async () => {
+    mockInvoke.mockResolvedValue({ data: { mode: 'collection', isCollection: true, estimatedCount: 1, bottles: [] }, error: null });
+    await analyzeCollectionImage('img-shelf');
+    expect(mockInvoke).toHaveBeenCalledWith('analyze-perfume-image', {
+      body: { imageBase64: 'img-shelf', mode: 'collection' },
+    });
+  });
+
+  it('normalise les flacons (champs manquants → valeurs sûres)', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        mode: 'collection', isCollection: true, estimatedCount: 2,
+        bottles: [
+          { textRead: true, marque: 'Dior', nom: 'Sauvage', typeParfum: 'Eau de Parfum', confidence: 'high', alternatives: ['a', 'b', 'c'] },
+          { marque: 'Chanel' }, // entrée partielle
+        ],
+      },
+      error: null,
+    });
+    const r = await analyzeCollectionImage('img');
+    expect(r.isCollection).toBe(true);
+    expect(r.bottles).toHaveLength(2);
+    expect(r.bottles[0]).toEqual({
+      textRead: true, marque: 'Dior', nom: 'Sauvage', typeParfum: 'Eau de Parfum',
+      confidence: 'high', alternatives: ['a', 'b'], visualMatch: false,
+    });
+    expect(r.bottles[1]).toEqual(expect.objectContaining({
+      textRead: false, marque: 'Chanel', nom: null, confidence: 'low', alternatives: [],
+    }));
+  });
+
+  it('écarte les entrées sans marque ni nom', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        mode: 'collection', isCollection: true, estimatedCount: 2,
+        bottles: [
+          { textRead: true, marque: 'Dior', nom: 'Sauvage', confidence: 'high' },
+          { textRead: false, marque: null, nom: null },
+        ],
+      },
+      error: null,
+    });
+    const r = await analyzeCollectionImage('img');
+    expect(r.bottles).toHaveLength(1);
+    expect(r.bottles[0].marque).toBe('Dior');
+  });
+
+  it('data null → collection vide (routée erreur)', async () => {
+    mockInvoke.mockResolvedValue({ data: null, error: null });
+    const r = await analyzeCollectionImage('img');
+    expect(r.isCollection).toBe(false);
+    expect(r.estimatedCount).toBe(0);
+    expect(r.bottles).toEqual([]);
+  });
+
+  it('estimatedCount plancher = nombre de flacons retenus', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        mode: 'collection', isCollection: true, estimatedCount: 0,
+        bottles: [{ textRead: true, marque: 'Dior', nom: 'Sauvage', confidence: 'high' }],
+      },
+      error: null,
+    });
+    const r = await analyzeCollectionImage('img');
+    expect(r.estimatedCount).toBe(1);
   });
 });

@@ -8,7 +8,7 @@
 [![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase)](https://supabase.com)
-[![Tests 816](https://img.shields.io/badge/Tests-816%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
+[![Tests 902](https://img.shields.io/badge/Tests-902%20passed-brightgreen)](https://github.com/breakloopstudio/sillage)
 [![License MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 </div>
@@ -23,6 +23,8 @@
 | 🧭 **Navigation** | 4 onglets swipeables (Catalogue · Favoris · Ma Parfumerie · Communauté) + FAB Scan central (DockBar verre dépoli), accès profil via avatar rond en haut à droite (SearchChrome) |
 | 📸 **Scan intelligent** | 1 photo (1280 px) → GPT Vision v5 (transcription littérale + reconnaissance de forme, escalade mini→4o, re-ranking visuel vs top 12 flacons de la maison, confiance forcée côté serveur) → `searchParfumFromScan` (fuzzy Levenshtein, alias marques, concentration ±12) ; transparence : chip « Vérifié visuellement / Reconnu à la forme / Correspondance probable » + ligne « Lu : / Hypothèse : », saisie assistée guidée par la raison d'échec (flou, reflet, étiquette illisible…) |
 | 🖼️ **Import galerie** | Photo existante → même pipeline IA, sans permissions supplémentaires |
+| 🗂️ **Scan de collection** | Mode « Ma collection » : une photo d'étagère → inventaire multi-flacons (Edge Function mode `collection`, confiance par flacon, re-ranking visuel), matching par détection, liste multi-select (VÉRIFIÉS cochés par défaut, déjà possédés exclus), ajout en lot statut « Je l'ai » |
+| 🎡 **Roue chromatique** | Exploration par couleur : anneau SVG de 12 teintes curatées, chaque couleur mappe vers le vocabulaire olfactif du catalogue (accords + notes + saison), résultats triés par intensité chromatique puis popularité, cache partagé avec la recherche |
 | 📚 **Catalogue** | Catalogue ~25K parfums (seed Postgres), taxonomie 6 familles olfactives (cartes d'ambiance data-driven), rangées éditoriales (« Parfaits pour {saison} », « Les mieux notés »), capsules marques, grille 3 densités + persistance, recherche RPC Postgres (tsvector + pg_trgm) avec cache + prefix cache |
 | 🏛️ **Page marque** | Catalogue complet d'une maison (depuis la fiche détail, les capsules et le sheet marques) : tri cyclique (populaires · prix · nouveautés), filtre par famille olfactive (6 familles, compteurs), densité partagée |
 | 🧪 **Ma Parfumerie** | Meuble d'étagères (segmented Collection/Étagères, ShelfCard à rayons + flacons nus + tri ↕ + pin ★ + badge globe), CRUD enrichi (réordonnancement des étagères par chevrons ↕, édition inline), assignment long-press + ajout direct, visibilité publique + partage + « M'inspirer » (copie en lot). Pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ + badge 🔔, possessions, signature, SOTD+météo, partage collection, mode Collection (grille, statuts, filtres, ♥, densités) |
@@ -35,6 +37,7 @@
 | 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (image HD 1x, 2x réservée à la lightbox), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
 | 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |
 | 📴 **Mode hors-ligne** | Bannière réseau globale (OfflineBanner dans `_layout.tsx`), état `reconnected` 2.5s, contenu dégradé via cache disque local (SWR) |
+| 🌍 **Internationalisation** | Infrastructure i18next complète (préparation Play Store/App Store) : toutes les chaînes user-facing extraites (FR = langue source, clés typées), formatage locale-aware (prix, pourcentages, dates relatives), détection préférence → locale appareil, outillage extract/sync idempotent. Multilingue prêt (EN puis ES/DE/IT/PT-BR à venir) |
 | 🌓 **Dark Mode** | 3 modes (système/clair/sombre), persistance AsyncStorage, SystemUI + NavigationBar theming, keyboardAppearance adaptatif |
 | 🎙️ **Recherche vocale** | Pipeline « identification » aligné sur le scan : STT on-device (expo-speech-recognition, langue de l'appareil) + transcription `gpt-transcribe` + interprétation structurée `interpret-voice-query` (gpt-4o-mini) → auto-ouverture de la fiche sur match confiant + bannière « Ce n'est pas lui ? », seconde chance gatée sur la qualité du match (audio persisté re-transcrit), récupération des noms propres écorchés (vocabulaire 237 marques + 400 noms, hypothèses alternatives), rescoring concentration (« L'Homme Idéal Parfum » ouvre le flanker Parfum), **multilingue** (87 langues du Play Store, noms jamais traduits), VoiceOverlay 5 phases |
 | 🔐 **Permissions just-in-time** | Primers explicatifs (`PermissionPrimer`) avant chaque prompt système — caméra, micro, position, notifications — affichés une seule fois au moment de l'intention, jamais au lancement ; push proposé à un moment de valeur (1ʳᵉ alerte prix, toggle Settings) |
@@ -55,7 +58,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT Vision (analyse photo, escalade gpt-4o-mini → gpt-4o), gpt-transcribe (transcription vocale multilingue), gpt-4o-mini (interprétation vocale structurée), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 816 tests, 74 suites + E2E Supabase (29 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 902 tests, 80 suites + E2E Supabase (29 checks) |
 
 ---
 
@@ -152,10 +155,11 @@ app/
 ├── u/[pseudo]/shelf/[shelfId].tsx  # Étagère publique (lecture seule, sans auth, cible du deep link de partage d'étagère) + bouton « M'inspirer »
 ├── settings.tsx              # Paramètres
 ├── scan.tsx                  # Scan (slide_from_bottom)
-├── search.tsx                # Recherche (texte + mode famille ?family=<key>)
+├── search.tsx                # Recherche (texte + mode famille ?family=<key> + mode couleur ?color=<key>)
 ├── history.tsx               # Historique des scans
 ├── scentlist.tsx             # Redirection → /(tabs)/collection
 ├── runner.tsx                # Flacon Runner (easter egg, slide_from_bottom)
+├── wheel.tsx                 # Roue chromatique (exploration par couleur, slide_from_bottom)
 ├── legal.tsx / privacy.tsx / privacy-center.tsx / delete-account.tsx
 └── admin.tsx                 # Administration
 
@@ -166,13 +170,15 @@ src/
 ├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
 ├── components/   (26)        # ParfumCard (badges statut/rating/🔔, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AlertPriceToggle, AppLoader, ErrorBoundary, NoteDetailPopup, ImageViewerPopup, ActionSheet, FilterSheet, AuthGate, FavButton, StatuerSheet, FavoriSheet, PriceAlertSheet, PublicProfileCard, AddToShelfSheet, PublishShelfGateSheet, InspireShelfSheet, InfoPopup, VotePickerSheet, PermissionPrimer (popup de pré-permission just-in-time), VoiceUndoBanner (« Ce n'est pas lui ? » après auto-ouverture vocale)
 ├── theme/        (2)         # theme.ts (double palette light/dark), ThemeContext.tsx
-├── features/                 # scan, catalog (+ RelationSection, PerformanceProfile, SeasonProfile), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager/ShelfCard/BottleThumb), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner
+├── features/                 # scan (+ ScanCollectionResults mode collection), catalog (+ RelationSection, PerformanceProfile, SeasonProfile), wardrobe (SOTDCard/SOTDPicker/StarRating/ShelfManager/ShelfCard/BottleThumb), search, navigation (DockBar 4 onglets + FAB), scentlist (TrySheet), runner, wheel (ChromaticWheel)
 ├── models/       (8)         # Parfum (+imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
 ├── config/       (3)         # env, index, legal
-└── utils/        (29)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share, alpha, brand-color, shelf-grouping, price-tier, accord-profile, perf-fusion, performance-profile, season-profile, parfum-labels, scan-match (rescoring fuzzy scan/voix), scan-display (chip + ligne Lu/Hypothèse), permission-primers (copy des primers), device-locale (langues appareil STT/transcription)
+└── utils/        (32)        # error-translator, translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips, verdicts, price-alerts, share, alpha, brand-color, shelf-grouping, price-tier, accord-profile, perf-fusion, performance-profile, season-profile, parfum-labels, scan-match (rescoring fuzzy scan/voix), scan-display (chip + ligne Lu/Hypothèse), permission-primers (copy des primers), device-locale (langues appareil STT/transcription), chromatic-wheel (couleurs→vocabulaire olfactif), collection-scan (helpers scan collection), relative-date (dates relatives)
+
+src/i18n/ + src/locales/      # Internationalisation (i18next) : config/options/resources/index, locales/{lang}/{ns}.json (fr = source), src/types/i18next.d.ts (clés typées), src/services/language-storage.ts
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0060) # extensions, types, tables, index, RLS, RPC (search_parfums, reorder_shelves, public_shelf*, shelf_items, cast_vote/parfum_perf…), cron pg_cron, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057), longévité 5 crans + reset votes perf (0058), grant parfum_card (0059), durcissement post-audit : REVOKE recompute_perf_strings + runner_scores.skin + export_user_data RGPD (0060)
+├── migrations/   (0001→0062) # extensions, types, tables, index, RLS, RPC (search_parfums, reorder_shelves, public_shelf*, shelf_items, cast_vote/parfum_perf…), cron pg_cron, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057), longévité 5 crans + reset votes perf (0058), grant parfum_card (0059), durcissement post-audit : REVOKE recompute_perf_strings + runner_scores.skin + export_user_data RGPD (0060), roue chromatique : RPC chroma_parfums BitmapOr GIN+FTS (0061) + branches bornées par popularité avant scoring (0062)
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, interpret-voice-query, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 └── config.toml               # config projet (secrets via env(...))
 ```
@@ -298,6 +304,40 @@ Les résultats sont triés par pertinence + popularité, pas alphabétiquement.
 
 Les lignes `favoris` et `scans` stockent `imageUrl` et `familleOlactive`
 dénormalisés → affichage direct sans appel Postgres supplémentaire.
+
+---
+
+## v9.12 — Internationalisation (i18n) complète (04/08/2026)
+
+- **Objectif** : préparer le Play Store / App Store multilingue. Infrastructure `i18next` 26 + `react-i18next` 17 + `expo-localization` — FR = langue source, `src/locales/fr/common.json` unique, clés typées (`src/types/i18next.d.ts`), tooling `i18next-cli` extract/sync idempotent, détection préférence AsyncStorage → locale appareil.
+- **Extraction de TOUTES les chaînes user-facing** (1 204 chaînes) : 4 onglets, fiche détail, sheets, scan/voix, wardrobe, profil, historique, auth, profils publics, étagères, perfumer, admin, pages légales, Flacon Runner (missions/défi quotidien/skins/pickups), hooks (météo/voix/auth/catalogue/scan), composants (OfflineBanner, ErrorBoundary, ParfumCard a11y, PublicProfileCard, BrandSheet, SaveButton), couche services (erreurs scan/voix/compte/recherche + canaux Android de notification), message de partage.
+- **Patterns** : getters `i18next.t` pour les tables de labels au scope module (§23) ; timeouts Edge Functions refactorés par code marker (`SCAN_TIMEOUT`/`VOICE_TIMEOUT`) pour préserver les détections d'erreur `.includes()` ; formatage locale-aware (`formatPrice`/`formatNumber`).
+- **Exceptions conservées** : noms de marques/parfums, données catalogue (notes/accords/familles), mots-clés de matching.
+- **État** : le code est 100 % prêt pour le multilingue ; seul FR est fourni pour l'instant (EN puis ES/DE/IT/PT-BR à venir). **902 tests, 80 suites**. `tsc --noEmit` : 0 erreur.
+
+---
+
+## v9.11 — Roue chromatique + dates relatives (04/08/2026)
+
+- **Roue chromatique** (`/wheel`, route racine) : exploration par couleur — anneau SVG (`react-native-svg`) de 12 couleurs-ancres curatées (9 teintes sur l'anneau + 3 neutres au centre), snap vers l'ancre la plus proche. Chaque couleur mappe vers le vocabulaire olfactif du catalogue (accords GIN `main_accords` + notes FTS `search_vector` + affinité saisonnière, mapping curaté client `chromatic-wheel.ts`).
+- **RPC `chroma_parfums`** : `0061` (BitmapOr sur 2 index GIN existants, scoring sur candidats uniquement, tri intensité chromatique → popularité) + `0062` (branches bornées par popularité AVANT scoring — fix timeout E2E sur notes fréquentes musc/jasmin/rose).
+- **Perf** : `getParfumsByColor` + cache mémoire + dédup in-flight PARTAGÉS entre `/wheel` et `/search?color=` (la sélection posée préchauffe la liste) ; SVG monté après la transition d'ouverture (320 ms) + prefetch des 12 premières images.
+- **Util `relative-date.ts`** : `formatRelativeShort` (« à l'instant / il y a N min / N h / N j », absolu Intl au-delà de 7 j) — utilisé par la vue Alertes de Favoris (`lastChecked`).
+
+---
+
+## v9.10 — Scan mode collection (04/08/2026)
+
+- **Toggle « Un flacon / Ma collection »** sur l'idle. Une photo d'étagère → Edge Function mode `collection` (schema `bottles[]` + `estimatedCount`, confiance forcée par flacon = texte lu + marque + nom, escalade si 0 détection, re-ranking visuel PLAFONNÉ à 3 flacons en parallèle).
+- **Matching catalogue par détection** (`searchParfumFromScan`, seuil `_scanScore ≥ 50`) → état `collection-results` (`ScanCollectionResults`) : liste multi-select, VÉRIFIÉS cochés par défaut (les « Correspondance probable » à valider), flacons déjà en collection marqués et exclus, ajout en lot statut `have` (`Promise.allSettled` → écran confirmation).
+- Pas d'entrée `user_scans` par flacon (1 photo ≠ N scans). Helpers purs `collection-scan.ts` + `scanMode.ts`.
+
+---
+
+## v9.9 — Scan « fiche express » (04/08/2026)
+
+- **Héros des résultats actionnable sans quitter l'écran** : cœur `FavButton lg` sur l'image, CTA primary « Voir la fiche », cloche alerte prix (`PriceAlertSheet` canonique rendue à la racine de `ScanResults` + push primer §22, redirect login si déconnecté, masquée sans prix).
+- jest-setup durci (animations d'entrée chainables, `withSequence`, mock `NativeEventEmitter` avec `__esModule` — bug latent FlatList en test) + 8 tests `ScanResults`.
 
 ---
 

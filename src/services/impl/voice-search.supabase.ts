@@ -3,6 +3,7 @@
 // (Edge Function interpret-voice-query) et identification catalogue alignée sur
 // le moteur du scan (searchParfumFromScan : nom exact / fuzzy / alias / concentration).
 import * as FileSystem from 'expo-file-system';
+import i18next from 'i18next';
 import { supabase } from '../supabase';
 import { searchParfumsCached, searchParfumFromScan } from './catalog.supabase';
 import { normalize } from '../../utils/normalize';
@@ -40,7 +41,7 @@ async function invokeWithTimeout(
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(timeoutMsg)), timeoutMs);
+      timer = setTimeout(() => reject(Object.assign(new Error(timeoutMsg), { code: 'VOICE_TIMEOUT' })), timeoutMs);
     });
     return await Promise.race([
       supabase.functions.invoke(fnName, { body }),
@@ -57,7 +58,7 @@ async function mapVoiceFunctionError(
   labels: { quota: string; auth: string; unavailable: string; fallback: string },
 ): Promise<Error> {
   const e = err as Error;
-  if (e.message?.includes('Délai')) return e;
+  if ((e as { code?: string }).code === 'VOICE_TIMEOUT') return e;
   const status = (e as { context?: { status?: number } }).context?.status;
   const bodyMsg = await readErrorMsg(e, '');
   if (status === 429 || bodyMsg.includes('quotidienne') || e.message?.includes('429') || e.message?.includes('quotidienne') || e.message?.includes('resource')) return new Error(labels.quota);
@@ -86,10 +87,10 @@ export async function interpretVoiceQuery(
       'interpret-voice-query',
       { text: trimmed.slice(0, MAX_INTERPRET_TEXT), alternatives: alts },
       INTERPRET_TIMEOUT_MS,
-      "Délai d'interprétation dépassé.",
+      i18next.t('voice.interpretTimeout'),
     );
     if (error) {
-      const msg = await readErrorMsg(error, 'Échec de l\'interprétation vocale.');
+      const msg = await readErrorMsg(error, i18next.t('voice.interpretFailed'));
       throw new Error(msg);
     }
     const r = (data ?? {}) as Partial<VoiceInterpretation>;
@@ -107,10 +108,10 @@ export async function interpretVoiceQuery(
     };
   } catch (err: unknown) {
     throw await mapVoiceFunctionError(err, {
-      quota: 'Limite quotidienne vocale atteinte. Réessaie demain.',
-      auth: 'Connexion requise pour l\'interprétation vocale.',
-      unavailable: 'Service d\'interprétation vocale indisponible.',
-      fallback: 'Échec de l\'interprétation vocale.',
+      quota: i18next.t('voice.quotaReached'),
+      auth: i18next.t('voice.interpretNeedsAuth'),
+      unavailable: i18next.t('voice.interpretUnavailable'),
+      fallback: i18next.t('voice.interpretFailed'),
     });
   }
 }
@@ -127,22 +128,22 @@ export async function transcribeVoice(
       'transcribe-voice',
       { audioBase64, mimeType, languages },
       TRANSCRIBE_TIMEOUT_MS,
-      'Délai de transcription dépassé.',
+      i18next.t('voice.transcribeTimeout'),
     );
     if (error) {
-      const msg = await readErrorMsg(error, 'Échec de la transcription vocale.');
+      const msg = await readErrorMsg(error, i18next.t('voice.transcribeFailed'));
       throw new Error(msg);
     }
     if (!data || typeof (data as Record<string, unknown>).text !== 'string') {
-      throw new Error('Réponse vide du service de transcription.');
+      throw new Error(i18next.t('voice.transcribeEmpty'));
     }
     return (data as { text: string }).text;
   } catch (err: unknown) {
     throw await mapVoiceFunctionError(err, {
-      quota: 'Limite quotidienne vocale atteinte. Réessaie demain.',
-      auth: 'Connexion requise pour la transcription vocale.',
-      unavailable: 'Service de transcription indisponible.',
-      fallback: 'Échec de la transcription vocale.',
+      quota: i18next.t('voice.quotaReached'),
+      auth: i18next.t('voice.transcribeNeedsAuth'),
+      unavailable: i18next.t('voice.transcribeUnavailable'),
+      fallback: i18next.t('voice.transcribeFailed'),
     });
   }
 }

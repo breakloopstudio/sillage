@@ -5,6 +5,7 @@
 
 import { useMemo, useEffect, useState } from 'react';
 import { View, Text, Pressable, useWindowDimensions, BackHandler } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
   useSharedValue,
@@ -16,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight } from '../services/haptics';
-import { PRIMER_REASSURANCE, type PermissionPrimerCopy } from '../utils/permission-primers';
+import { getPrimerReassurance, type PermissionPrimerCopy } from '../utils/permission-primers';
 import Button from './Button';
 
 interface Props {
@@ -29,6 +30,7 @@ interface Props {
 export default function PermissionPrimer({ visible, copy, onAccept, onDecline }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { width: screenWidth } = useWindowDimensions();
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
@@ -79,7 +81,7 @@ export default function PermissionPrimer({ visible, copy, onAccept, onDecline }:
         style={s.backdropTouch}
         onPress={handleDecline}
         accessibilityRole="button"
-        accessibilityLabel="Fermer"
+        accessibilityLabel={t('close')}
       />
       <Animated.View style={[s.card, { width: cardWidth }, animStyle]}>
         <View style={s.iconCircle}>
@@ -97,13 +99,13 @@ export default function PermissionPrimer({ visible, copy, onAccept, onDecline }:
             style={s.declineBtn}
             hitSlop={{ top: 6, bottom: 6 }}
             accessibilityRole="button"
-            accessibilityLabel="Pas maintenant"
+            accessibilityLabel={t('primers.decline')}
           >
-            <Text style={s.declineText}>Pas maintenant</Text>
+            <Text style={s.declineText}>{t('primers.decline')}</Text>
           </Pressable>
         </View>
 
-        <Text style={s.reassurance} maxFontSizeMultiplier={1.3}>{PRIMER_REASSURANCE}</Text>
+        <Text style={s.reassurance} maxFontSizeMultiplier={1.3}>{getPrimerReassurance()}</Text>
       </Animated.View>
     </View>
   );

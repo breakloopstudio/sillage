@@ -1,3 +1,8 @@
+// src/utils/performance-profile.ts — Crans UI longévité/sillage
+// Labels résolus via i18next à la construction (fonctions, jamais au scope module — §23).
+
+import i18next from 'i18next';
+
 export type PerfDimensionKey = 'longevity' | 'sillage';
 
 export interface PerfDimension {
@@ -16,46 +21,59 @@ export interface PerformanceProfile {
   sillage: PerfDimension | null;
 }
 
-const LONG_TICKS = ['Matin', 'Midi', 'Soir', 'Nuit', 'Nuit +'];
-const SILL_TICKS = ['Peau', 'Proche', 'Bras', 'Pièce'];
+type LongValueKey = `perf.longevity.values.v${1 | 2 | 3 | 4 | 5}`;
+type LongTickKey = `perf.longevity.ticks.t${1 | 2 | 3 | 4 | 5}`;
+type LongHourKey = `perf.longevity.hours.h${1 | 2 | 3 | 4 | 5}`;
+type LongEmanationKey = `perf.longevity.emanations.e${1 | 2 | 3 | 4 | 5}`;
+type SillValueKey = `perf.sillage.values.v${1 | 2 | 3 | 4}`;
+type SillTickKey = `perf.sillage.ticks.t${1 | 2 | 3 | 4}`;
+type SillEmanationKey = `perf.sillage.emanations.e${1 | 2 | 3 | 4}`;
 
-const LONG_VALUE: Record<number, string> = {
-  1: 'Très courte',
-  2: 'Courte',
-  3: 'Modérée',
-  4: 'Longue',
-  5: 'Très longue',
+const LONG_TICK_KEYS: LongTickKey[] = [
+  'perf.longevity.ticks.t1', 'perf.longevity.ticks.t2', 'perf.longevity.ticks.t3',
+  'perf.longevity.ticks.t4', 'perf.longevity.ticks.t5',
+];
+const SILL_TICK_KEYS: SillTickKey[] = [
+  'perf.sillage.ticks.t1', 'perf.sillage.ticks.t2', 'perf.sillage.ticks.t3', 'perf.sillage.ticks.t4',
+];
+
+const LONG_VALUE_KEYS: Record<number, LongValueKey> = {
+  1: 'perf.longevity.values.v1',
+  2: 'perf.longevity.values.v2',
+  3: 'perf.longevity.values.v3',
+  4: 'perf.longevity.values.v4',
+  5: 'perf.longevity.values.v5',
 };
 
-const SILL_VALUE: Record<number, string> = {
-  1: 'Intime',
-  2: 'Modéré',
-  3: 'Présent',
-  4: 'Puissant',
+const SILL_VALUE_KEYS: Record<number, SillValueKey> = {
+  1: 'perf.sillage.values.v1',
+  2: 'perf.sillage.values.v2',
+  3: 'perf.sillage.values.v3',
+  4: 'perf.sillage.values.v4',
 };
 
-const LONG_EMANATION: Record<number, string> = {
-  1: 'Un éclat d’ouverture, déjà un souvenir.',
-  2: "Elle s'estompe avant la fin de la matinée — à réserver aux occasions courtes.",
-  3: "Elle vous accompagne jusqu'au milieu de journée, puis s'efface doucement.",
-  4: 'Du café du matin au dernier verre : elle tient la distance, sans retouche.',
-  5: 'Elle traverse la journée et s’attarde encore — une seconde peau qui ne vous quitte pas.',
+const LONG_EMANATION_KEYS: Record<number, LongEmanationKey> = {
+  1: 'perf.longevity.emanations.e1',
+  2: 'perf.longevity.emanations.e2',
+  3: 'perf.longevity.emanations.e3',
+  4: 'perf.longevity.emanations.e4',
+  5: 'perf.longevity.emanations.e5',
 };
 
-const SILL_EMANATION: Record<number, string> = {
-  1: 'Il reste au ras de la peau : on ne le devine qu’en s’approchant vraiment.',
-  2: 'Il se révèle dans l’intimité d’une conversation, sans jamais précéder votre entrée.',
-  3: 'Il vous entoure d’un halo perceptible à un bras tendu.',
-  4: 'Il emplit l’espace autour de vous — on sent votre passage avant de vous voir.',
+const SILL_EMANATION_KEYS: Record<number, SillEmanationKey> = {
+  1: 'perf.sillage.emanations.e1',
+  2: 'perf.sillage.emanations.e2',
+  3: 'perf.sillage.emanations.e3',
+  4: 'perf.sillage.emanations.e4',
 };
 
 // Estimation en heures dérivée du cran de longévité (traduction, pas une mesure).
-const LONG_HOURS: Record<number, string> = {
-  1: '< 2 h',
-  2: '2 – 4 h',
-  3: '4 – 8 h',
-  4: '8 – 12 h',
-  5: '12 h +',
+const LONG_HOUR_KEYS: Record<number, LongHourKey> = {
+  1: 'perf.longevity.hours.h1',
+  2: 'perf.longevity.hours.h2',
+  3: 'perf.longevity.hours.h3',
+  4: 'perf.longevity.hours.h4',
+  5: 'perf.longevity.hours.h5',
 };
 
 // Source strings (Fragrantica / legacy) : very weak | weak | moderate | long lasting | eternal
@@ -93,25 +111,25 @@ export function buildPerformance(
   const longDim: PerfDimension | null = ll > 0
     ? {
         key: 'longevity',
-        label: 'Longévité',
+        label: i18next.t('perf.longevity.label'),
         icon: 'time-outline',
         level: ll,
-        valueLabel: LONG_VALUE[ll] ?? 'Modérée',
-        hours: LONG_HOURS[ll] ?? LONG_HOURS[2],
-        ticks: LONG_TICKS,
-        emanation: LONG_EMANATION[ll] ?? LONG_EMANATION[2],
+        valueLabel: i18next.t(LONG_VALUE_KEYS[ll] ?? 'perf.longevity.values.v3'),
+        hours: i18next.t(LONG_HOUR_KEYS[ll] ?? 'perf.longevity.hours.h2'),
+        ticks: LONG_TICK_KEYS.map(k => i18next.t(k)),
+        emanation: i18next.t(LONG_EMANATION_KEYS[ll] ?? 'perf.longevity.emanations.e2'),
       }
     : null;
 
   const sillDim: PerfDimension | null = sl > 0
     ? {
         key: 'sillage',
-        label: 'Sillage',
+        label: i18next.t('perf.sillage.label'),
         icon: 'radio-outline',
         level: sl,
-        valueLabel: SILL_VALUE[sl] ?? 'Modéré',
-        ticks: SILL_TICKS,
-        emanation: SILL_EMANATION[sl] ?? SILL_EMANATION[2],
+        valueLabel: i18next.t(SILL_VALUE_KEYS[sl] ?? 'perf.sillage.values.v2'),
+        ticks: SILL_TICK_KEYS.map(k => i18next.t(k)),
+        emanation: i18next.t(SILL_EMANATION_KEYS[sl] ?? 'perf.sillage.emanations.e2'),
       }
     : null;
 
@@ -126,22 +144,22 @@ export function perfDimensionAt(key: PerfDimensionKey, level: number | null): Pe
   if (key === 'longevity') {
     return {
       key,
-      label: 'Longévité',
+      label: i18next.t('perf.longevity.label'),
       icon: 'time-outline',
       level,
-      valueLabel: LONG_VALUE[level] ?? 'Modérée',
-      hours: LONG_HOURS[level] ?? LONG_HOURS[2],
-      ticks: LONG_TICKS,
-      emanation: LONG_EMANATION[level] ?? LONG_EMANATION[2],
+      valueLabel: i18next.t(LONG_VALUE_KEYS[level] ?? 'perf.longevity.values.v3'),
+      hours: i18next.t(LONG_HOUR_KEYS[level] ?? 'perf.longevity.hours.h2'),
+      ticks: LONG_TICK_KEYS.map(k => i18next.t(k)),
+      emanation: i18next.t(LONG_EMANATION_KEYS[level] ?? 'perf.longevity.emanations.e2'),
     };
   }
   return {
     key,
-    label: 'Sillage',
+    label: i18next.t('perf.sillage.label'),
     icon: 'radio-outline',
     level,
-    valueLabel: SILL_VALUE[level] ?? 'Modéré',
-    ticks: SILL_TICKS,
-    emanation: SILL_EMANATION[level] ?? SILL_EMANATION[2],
+    valueLabel: i18next.t(SILL_VALUE_KEYS[level] ?? 'perf.sillage.values.v2'),
+    ticks: SILL_TICK_KEYS.map(k => i18next.t(k)),
+    emanation: i18next.t(SILL_EMANATION_KEYS[level] ?? 'perf.sillage.emanations.e2'),
   };
 }

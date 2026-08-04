@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import i18next from 'i18next';
 import {
   getCommunityHighlights,
   getSotdCommunityToday,
@@ -31,7 +32,7 @@ export function useCommunityHighlights() {
           setData(highlights.value);
         } else {
           console.warn('[useCommunityHighlights]', (highlights.reason as Error)?.message ?? String(highlights.reason));
-          setError('Impossible de charger la communauté.');
+          setError(i18next.t('community.loadError'));
         }
         if (sotd.status === 'fulfilled') setSotdToday(sotd.value);
         setLoading(false);

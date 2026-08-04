@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,6 +27,7 @@ export default function AccordProfile({ accords, percentages }: Props) {
   const { theme } = useTheme();
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const reduced = useReducedMotion();
 
   const rows = useMemo(() => buildAccords(accords, percentages), [accords, percentages]);
@@ -56,7 +58,7 @@ export default function AccordProfile({ accords, percentages }: Props) {
           <View style={s.headerBadge}>
             <Ionicons name="color-filter-outline" size={14} color={c.primaryInk} />
           </View>
-          <Text style={s.title}>Accords principaux</Text>
+          <Text style={s.title}>{t('accordProfile.title')}</Text>
         </View>
       </View>
 
@@ -143,6 +145,7 @@ interface RowProps {
 function AccordRow({ row, rank, isChar, first, color, active, onSelect, reduced }: RowProps) {
   const { theme, resolvedMode } = useTheme();
   const c = theme.colors;
+  const { t } = useTranslation('common');
 
   const isActive = active === row.raw;
   const anyActive = active !== null;
@@ -176,9 +179,11 @@ function AccordRow({ row, rank, isChar, first, color, active, onSelect, reduced 
       <Pressable
         onPress={handlePress}
         accessibilityRole="button"
-        accessibilityLabel={`${row.display}, ${row.pct} %${row.label ? ', ' + row.label : ''}`}
+        accessibilityLabel={row.label
+          ? t('accordProfile.rowA11yLabeled', { display: row.display, pct: row.pct, label: row.label })
+          : t('accordProfile.rowA11y', { display: row.display, pct: row.pct })}
         accessibilityState={{ selected: isActive, expanded: isActive && hasDesc }}
-        accessibilityHint={hasDesc ? 'Affiche ou masque la description de l’accord' : undefined}
+        accessibilityHint={hasDesc ? t('accordProfile.descHint') : undefined}
         style={[sRow, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }]}
       >
         <Animated.View style={[sRowLine, rowStyle]}>

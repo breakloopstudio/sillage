@@ -1,8 +1,10 @@
 // src/utils/olfactory-families.ts — Taxonomie des familles olfactives
 // Regroupe les ~46 valeurs anglaises fragmentées de `famille_olfactive`
-// (woody, white floral, warm spicy…) en 6 familles françaises exploitables.
+// (woody, white floral, warm spicy…) en 6 familles exploitables.
 // Chaque valeur n'appartient qu'à une seule famille (pas de doublon).
+// Labels/taglines résolus via i18next à l'affichage (§23).
 
+import i18next from 'i18next';
 import type { Theme } from '../theme/theme';
 
 export interface OlfactoryFamily {
@@ -18,8 +20,8 @@ export interface OlfactoryFamily {
 export const OLFACTORY_FAMILIES: OlfactoryFamily[] = [
   {
     key: 'boisee',
-    label: 'Boisée',
-    tagline: 'La forêt sur la peau',
+    get label() { return i18next.t('families.boisee.label'); },
+    get tagline() { return i18next.t('families.boisee.tagline'); },
     icon: 'leaf-outline',
     accent: 'deal',
     accentSoft: 'dealSoft',
@@ -27,8 +29,8 @@ export const OLFACTORY_FAMILIES: OlfactoryFamily[] = [
   },
   {
     key: 'florale',
-    label: 'Florale',
-    tagline: 'Un bouquet au cou',
+    get label() { return i18next.t('families.florale.label'); },
+    get tagline() { return i18next.t('families.florale.tagline'); },
     icon: 'flower-outline',
     accent: 'primary',
     accentSoft: 'primarySoft',
@@ -36,8 +38,8 @@ export const OLFACTORY_FAMILIES: OlfactoryFamily[] = [
   },
   {
     key: 'hesperidee',
-    label: 'Hespéridée',
-    tagline: "L'éclat du matin",
+    get label() { return i18next.t('families.hesperidee.label'); },
+    get tagline() { return i18next.t('families.hesperidee.tagline'); },
     icon: 'sunny-outline',
     accent: 'fair',
     accentSoft: 'fairSoft',
@@ -45,8 +47,8 @@ export const OLFACTORY_FAMILIES: OlfactoryFamily[] = [
   },
   {
     key: 'ambree',
-    label: 'Ambrée',
-    tagline: 'La chaleur du soir',
+    get label() { return i18next.t('families.ambree.label'); },
+    get tagline() { return i18next.t('families.ambree.tagline'); },
     icon: 'flame-outline',
     accent: 'secondary',
     accentSoft: 'secondarySoft',
@@ -54,8 +56,8 @@ export const OLFACTORY_FAMILIES: OlfactoryFamily[] = [
   },
   {
     key: 'gourmande',
-    label: 'Gourmande',
-    tagline: 'Vanille et caramel',
+    get label() { return i18next.t('families.gourmande.label'); },
+    get tagline() { return i18next.t('families.gourmande.tagline'); },
     icon: 'cafe-outline',
     accent: 'seasonFall',
     accentSoft: 'seasonFallSoft',
@@ -63,8 +65,8 @@ export const OLFACTORY_FAMILIES: OlfactoryFamily[] = [
   },
   {
     key: 'aromatique',
-    label: 'Aromatique',
-    tagline: 'Herbes et lavande',
+    get label() { return i18next.t('families.aromatique.label'); },
+    get tagline() { return i18next.t('families.aromatique.tagline'); },
     icon: 'sparkles-outline',
     accent: 'seasonSpring',
     accentSoft: 'seasonSpringSoft',

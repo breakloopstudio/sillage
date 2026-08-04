@@ -15,9 +15,12 @@ import Animated, {
   useReducedMotion,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { alpha, tintLuminous } from '../../utils/alpha';
+import { hapticsLight } from '../../services/haptics';
+import type { ScanMode } from './scanMode';
 
 export interface RecentScan {
   parfumId: string;
@@ -33,15 +36,18 @@ interface Props {
   recentScans?: RecentScan[];
   onOpenRecent?: (parfumId: string) => void;
   isOnline?: boolean;
+  mode?: ScanMode;
+  onChangeMode?: (mode: ScanMode) => void;
 }
 
 const VF = 210;
 const CORNER = 26;
 const LINE_H = 3;
 
-export function ScanIdle({ onStartScan, onOpenSearch, onClose, recentScans = [], onOpenRecent, isOnline = true }: Props) {
+export function ScanIdle({ onStartScan, onOpenSearch, onClose, recentScans = [], onOpenRecent, isOnline = true, mode = 'single', onChangeMode }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const scanY = useSharedValue(0);
@@ -65,7 +71,7 @@ export function ScanIdle({ onStartScan, onOpenSearch, onClose, recentScans = [],
         style={[s.closeBtn, { top: insets.top + 12 }]}
         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
         accessibilityRole="button"
-        accessibilityLabel="Fermer le scan"
+        accessibilityLabel={t('scan.closeScanA11y')}
       >
         <Ionicons name="close" size={20} color={theme.colors.textMuted} />
       </Pressable>
@@ -98,26 +104,51 @@ export function ScanIdle({ onStartScan, onOpenSearch, onClose, recentScans = [],
         </View>
 
         <Text style={s.overline}>Sillage</Text>
-        <Text style={s.title}>Cadre le flacon</Text>
+        <Text style={s.title}>{mode === 'collection' ? t('scan.idleTitleCollection') : t('scan.idleTitle')}</Text>
         <Text style={s.desc}>
-          L'IA reconnaît le parfum et trouve{'\n'}le meilleur prix pour toi.
+          {mode === 'collection' ? t('scan.idleDescCollection') : t('scan.idleDesc')}
         </Text>
 
         <View style={s.actions}>
+          <View style={s.segmented}>
+            <Pressable
+              style={[s.segment, mode === 'single' && s.segmentActive]}
+              onPress={() => { if (mode !== 'single') { hapticsLight(); onChangeMode?.('single'); } }}
+              hitSlop={{ top: 6, bottom: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('scan.modeSingle')}
+              accessibilityState={{ selected: mode === 'single' }}
+            >
+              <Ionicons name="scan-outline" size={15} color={mode === 'single' ? theme.colors.primary : theme.colors.textMuted} />
+              <Text style={[s.segmentText, mode === 'single' && s.segmentTextActive]} allowFontScaling={false}>{t('scan.modeSingle')}</Text>
+            </Pressable>
+            <Pressable
+              style={[s.segment, mode === 'collection' && s.segmentActive]}
+              onPress={() => { if (mode !== 'collection') { hapticsLight(); onChangeMode?.('collection'); } }}
+              hitSlop={{ top: 6, bottom: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('scan.modeCollection')}
+              accessibilityState={{ selected: mode === 'collection' }}
+            >
+              <Ionicons name="albums-outline" size={15} color={mode === 'collection' ? theme.colors.primary : theme.colors.textMuted} />
+              <Text style={[s.segmentText, mode === 'collection' && s.segmentTextActive]} allowFontScaling={false}>{t('scan.modeCollection')}</Text>
+            </Pressable>
+          </View>
+
           <Pressable onPress={onStartScan} style={[s.cta, !isOnline && { opacity: 0.5 }]}>
             <Ionicons name="camera-outline" size={20} color={textOn(theme.colors.primary)} style={{ marginRight: 8 }} />
-            <Text style={s.ctaText}>Scanner un flacon</Text>
+            <Text style={s.ctaText}>{mode === 'collection' ? t('scan.scanCtaCollection') : t('scan.scanCta')}</Text>
           </Pressable>
 
-          <Pressable onPress={onOpenSearch} style={s.link} accessibilityRole="button" accessibilityLabel="Rechercher dans le catalogue">
+          <Pressable onPress={onOpenSearch} style={s.link} accessibilityRole="button" accessibilityLabel={t('scan.searchCatalog')}>
             <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
-            <Text style={s.linkText}>Rechercher dans le catalogue</Text>
+            <Text style={s.linkText}>{t('scan.searchCatalog')}</Text>
           </Pressable>
         </View>
 
         {recentScans.length > 0 && (
           <View style={s.recentWrap}>
-            <Text style={s.recentTitle}>Scans récents</Text>
+            <Text style={s.recentTitle}>{t('scan.recentScans')}</Text>
             <View style={s.recentRow}>
               {recentScans.map((r) => (
                 <Pressable
@@ -134,7 +165,7 @@ export function ScanIdle({ onStartScan, onOpenSearch, onClose, recentScans = [],
                       <Ionicons name="flask-outline" size={20} color={theme.colors.textMuted} />
                     </View>
                   )}
-                  <Text style={s.recentLabel} numberOfLines={1}>{r.nom ?? r.marque ?? 'Parfum'}</Text>
+                  <Text style={s.recentLabel} numberOfLines={1}>{r.nom ?? r.marque ?? t('scan.parfumFallback')}</Text>
                 </Pressable>
               ))}
             </View>
@@ -142,12 +173,12 @@ export function ScanIdle({ onStartScan, onOpenSearch, onClose, recentScans = [],
         )}
 
         {!isOnline && (
-          <Text style={s.offlineHint}>Scan indisponible hors-ligne</Text>
+          <Text style={s.offlineHint}>{t('scan.offlineHint')}</Text>
         )}
       </View>
 
       <Text style={[s.tip, { marginBottom: 24 + insets.bottom }]}>
-        Astuce : cadre la marque et le nom pour un résultat optimal
+        {mode === 'collection' ? t('scan.tipCollection') : t('scan.tip')}
       </Text>
     </View>
   );
@@ -254,6 +285,35 @@ function getStyles(t: Theme) {
     actions: {
       width: '100%',
       maxWidth: 320,
+    },
+    segmented: {
+      flexDirection: 'row',
+      backgroundColor: t.colors.surface2,
+      borderRadius: 20,
+      padding: 3,
+      marginBottom: 12,
+    },
+    segment: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 8,
+      borderRadius: 18,
+    },
+    segmentActive: {
+      backgroundColor: t.colors.surface,
+      ...t.shadow.card,
+    },
+    segmentText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      color: t.colors.textMuted,
+    },
+    segmentTextActive: {
+      fontFamily: 'Inter_600SemiBold',
+      color: t.colors.text,
     },
     cta: {
       flexDirection: 'row',

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Parfum } from '../models';
+import i18next from 'i18next';
 import { searchParfumsCached } from '../services/catalog';
 
 export function useCatalog() {
@@ -36,7 +37,7 @@ export function useCatalog() {
         console.warn('[useCatalog] search failed:', (err as Error)?.message ?? String(err));
         if (mountedRef.current && requestIdRef.current === id) {
           setSearching(false);
-          setError((err as Error)?.message ?? 'La recherche a échoué.');
+          setError((err as Error)?.message ?? i18next.t('search.searchFailedMsg'));
         }
       }
     }, 150);

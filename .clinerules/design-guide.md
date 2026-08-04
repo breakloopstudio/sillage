@@ -244,15 +244,20 @@ La voix « Luxe malin » est celle d'un expert chaleureux : précis, sensoriel, 
 - Factuel puis bienveillant : constat d'abord, action ensuite (« Aucune note de cœur renseignée », jamais « Pas de notes :( »).
 - Jamais d'émoticônes dans les messages système.
 
+**Internationalisation (i18n, rules.md §23)**
+
+- Ces règles de copy gouvernent la langue source FR. Chaque langue cible a ses propres conventions (ponctuation, tutoiement/vouvoiement, longueur) définies dans le glossaire de traduction — ne pas calquer la typographie FR (espaces insécables, `·`, `–`) sur les autres langues : le formatage passe par `Intl`.
+- Le ton « expert chaleureux » est invariant ; seule sa déclinaison linguistique change.
+
 ### 3.7 Formatage des données
 
 Toute donnée chiffrée ou datée affichée passe par un helper de formatage — jamais de concaténation manuelle.
 
-**Prix** : `formatPrice(value, { decimals = 2 })` obligatoire pour tout montant (wrapper `Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })`). Rendu : « 89,99 € » (virgule décimale, espace fine insécable avant €), milliers groupés « 1 299 € ». **`toFixed` est interdit** sur un montant affiché (point décimal anglais). Prix rond en carte : « 89 € » (`decimals = 0`).
+**Prix** : `formatPrice(value, { decimals = 2 })` obligatoire pour tout montant (wrapper `Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' })`, la locale suit la langue active i18next — rules.md §23). Rendu FR : « 89,99 € » (virgule décimale, espace avant €), milliers groupés « 1 299 € ». **`toFixed` est interdit** sur un montant affiché (point décimal anglais). Prix rond en carte : « 89 € » (`decimals = 0`).
 
 **Volumes** : « 100 ml » — espace fine insécable entre valeur et unité.
 
-**Pourcentages** : signe moins typographique `−` (U+2212) + espace fine insécable avant % — badge « −23 % », jamais « -23% ».
+**Pourcentages** : `formatDiscount` / `formatVariationPct` (`Intl.NumberFormat(locale, { style: 'percent' })`) — le signe, l'espace et le signe moins suivent les conventions ICU de la locale active (« −23 % » en FR, « -23% » en EN). Jamais de glyphes manuels (U+2212) ni de concaténation.
 
 **Dates** : relatives sous 7 j (« aujourd'hui », « hier », « il y a 3 j »), absolues au-delà (« 12 juil. 2026 »). Jamais de format ISO affiché.
 

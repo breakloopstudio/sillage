@@ -20,6 +20,7 @@ import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, cancelAnimation, useReducedMotion, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 
 interface Props {
@@ -33,6 +34,7 @@ interface Props {
 
 export default function ImageViewerPopup({ visible, imageUrl, imageUrl2x, brand, name, onClose }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const s = useMemo(() => getStyles(theme), [theme]);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -93,7 +95,7 @@ export default function ImageViewerPopup({ visible, imageUrl, imageUrl2x, brand,
           style={s.backdropTouch}
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Fermer l'aperçu de la photo"
+          accessibilityLabel={t('imageViewer.closeA11y')}
         />
       </Animated.View>
 

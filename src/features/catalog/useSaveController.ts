@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'expo-router';
+import i18next from 'i18next';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { addUserParfum, updateUserParfum, markTried as markTriedService, removeUserParfum, getUserParfum } from '../../services/user-parfum';
 import { addPossession } from '../../services/possessions';
@@ -9,16 +10,18 @@ import type { TrySheetSaveData } from '../scentlist/TrySheet';
 import type { Parfum } from '../../models';
 import type { UserParfum, UserParfumStatus, ScentVerdict, PossessionType } from '../../models/user-parfum.interface';
 
-const STATUS_LABELS: Record<UserParfumStatus, string> = {
-  to_try: 'À sentir',
-  tried: 'Senti',
-  want: 'À sentir',
-  have: 'Je l\u2019ai',
-  had: 'Je l\u2019ai eu',
+// Labels résolus à l'appel via i18next (§23) — statusLabel est invoquée au render.
+type SaveStatusKey = 'save.status.toTry' | 'save.status.tried' | 'save.status.have' | 'save.status.had';
+const STATUS_LABEL_KEYS: Record<UserParfumStatus, SaveStatusKey> = {
+  to_try: 'save.status.toTry',
+  tried: 'save.status.tried',
+  want: 'save.status.toTry',
+  have: 'save.status.have',
+  had: 'save.status.had',
 };
 
 export function statusLabel(s: UserParfumStatus): string {
-  return STATUS_LABELS[s];
+  return i18next.t(STATUS_LABEL_KEYS[s]);
 }
 
 export function useSaveController(parfum: Parfum | null) {
@@ -51,9 +54,9 @@ export function useSaveController(parfum: Parfum | null) {
   const saveLabel = useMemo<string | null>(() => {
     if (!item) return null;
     if (item.status === 'tried' && item.verdict) {
-      return verdictLabel(item.verdict) ?? STATUS_LABELS.tried;
+      return verdictLabel(item.verdict) ?? statusLabel('tried');
     }
-    return STATUS_LABELS[item.status];
+    return statusLabel(item.status);
   }, [item]);
 
   const openSaveSheet = useCallback(() => {

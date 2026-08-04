@@ -64,7 +64,7 @@ npx tsc --noEmit     # 0 erreur attendu (global)
 
 ### Tests
 ```bash
-npx jest --ci         # 816 tests, 74 suites
+npx jest --ci         # 902 tests, 80 suites
 npm test              # watch mode
 npm run test:ci       # CI mode avec couverture
 npm run test:supabase # E2E backend cloud (29 checks)
@@ -72,6 +72,13 @@ npm run test:supabase # E2E backend cloud (29 checks)
 
 ### Lint
 Pas de lint configuré (pas d'ESLint). La vérification passe par `npx tsc --noEmit`.
+
+### i18n (traductions)
+```bash
+npm run i18n:extract   # scanne le code → aligne src/locales/{lang}/{ns}.json (idempotent)
+npm run i18n:sync      # propage fr (source) vers les langues secondaires sans écraser l'existant
+```
+Toute chaîne user-facing passe par `t()` — règles complètes : `.clinerules/rules.md` §23.
 
 ## Stack
 react-native 0.86.0 · expo ~57 · expo-router ~57
@@ -82,6 +89,7 @@ react-native-draggable-flatlist ^4.0 (modal ShelfManager ; réordonnancement en 
 @react-native-async-storage/async-storage · expo-navigation-bar ~57 · expo-system-ui ~57 · typescript ~6.0
 react-hook-form ^7.81 · zod ^4.4
 expo-speech-recognition ^56 · expo-audio ~57 · expo-file-system ~57 · expo-location ~57
+i18next 26 · react-i18next 17 · intl-pluralrules (i18n, §23 rules ; tooling i18next-cli en dev)
 
 ## Variables d'environnement (.env, gitignoré)
 | Variable | Usage |
@@ -99,6 +107,7 @@ expo-speech-recognition ^56 · expo-audio ~57 · expo-file-system ~57 · expo-lo
 ### Navigation
 4 onglets (TopTabs swipeables) + FAB Scan central : **Catalogue | Favoris | Ma Parfumerie | Communauté**.
 DockBar custom (verre dépoli, 3 états : expanded/compact/hidden). Accès profil = avatar rond en haut à droite (SearchChrome → route racine `/profile`).
+Roue chromatique = route racine `/wheel` (exploration par couleur → `/search?color=<key>`, cache mémoire partagé).
 
 ### Modèle de données utilisateur
 - `user_parfum` (PK: user_id + parfum_id) — statut (`to_try | tried | want | have | had`), verdict, rating, notes, shelf_ids, sotd_count, is_signature
@@ -124,6 +133,7 @@ DockBar custom (verre dépoli, 3 états : expanded/compact/hidden). Accès profi
 3. **`toNum()` obligatoire sur colonnes `numeric`** — PostgREST renvoie les `numeric` en **string** ; `typeof === 'number'` retourne toujours null.
 4. **RLS partout** — toutes les tables user ont `auth.uid() = user_id`. Le catalogue `parfums` est en lecture publique, écriture admin-only.
 5. **Auth optionnelle** — l'app fonctionne sans compte. Pas de redirection forcée vers `/auth/login`.
+6. **i18n** — toute chaîne user-facing via `t()` (jamais de FR inline dans le nouveau code), jamais de `t()` au scope module, formatage via `formatPrice`/`formatNumber` (§23 rules).
 
 ## Pièges connus
 
@@ -212,3 +222,7 @@ Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/imag
 | v9.6 | Voix round 2 (cas réels : « L'Homme Idéal Parfum » ouvrait l'EDT, « Serge Lutens Écrin de Fumée » → « serge lutins écran de », « Electimuss Imperium » → « electimus imper ») : rescoring concentration (candidat « nom + concentration » ajouté, match exact d'une fiche qui ne confirme pas la concentration rétrogradé +50→+25, détection `typeFromNom` par phrase canonique la plus longue — « Eau de Parfum » ne confirme plus « Parfum »), confiance interprétation STRICTE (nom écorché non récupéré → 'low' même marque identifiée → seconde chance, few-shot « serge lutins écran de »), vocabulaire complet : 237 marques du catalogue + top 400 noms (garde budget 7000 car. → ~210 noms retenus) dans `transcribe-voice`, marques niches (Electimuss, Orto Parisi, Ex Nihilo, BDK…) dans `interpret-voice-query`, biasing client = 237 marques ASCII + 100 noms, règle concentration fin d'énoncé dans le prompt d'interprétation |
 | v9.7 | Pipeline voix MULTILINGUE (objectif 87 langues du Play Store) : `transcribe-voice` v4 = modèle `gpt-transcribe` (recommandé OpenAI) avec vocabulaire en paramètre `keywords` dédié (237 marques + 400 noms, sanitize `<>`, fallback retry sans keywords sur 400) au lieu du prompt tronqué, `languages` = indices ISO 639-1 de l'appareil (jamais `language` singulier avec ce modèle, réponse JSON `{text, languages}`), prompt d'instruction court en anglais neutre en langue ; `interpret-voice-query` v3 = prompt système réécrit en anglais agnostique de la langue de l'énoncé (FR/EN/ES/IT/…), noms jamais traduits, 2 few-shots non-FR (« baccarat rouge five forty » → Baccarat Rouge 540, « agua de yo » → Acqua di Gio) ; client : `expo-localization` (~57.0.1) + `src/utils/device-locale.ts` (`deviceSttLang` BCP-47, `deviceVoiceLanguages` max 3), `useVoiceSearch` ne force plus `fr-FR` (repli `en-US` unique si locale non supportée par le moteur STT), `transcribeVoice` envoie les langues appareil (3ᵉ paramètre optionnel, 4 call sites inchangés) ; fallback 400 retire keywords ET languages (retry « bare ») |
 | v9.8 | Audit global & durcissement + permissions just-in-time + transparence scan : audit 8 subagents + 3 reviewers (`docs/audit-2026-08-04.md`, 0 critique, 1 élevé corrigé) → migration `0060` (`REVOKE` PUBLIC/anon sur `recompute_perf_strings`, CHECK + troncature `runner_scores.skin`, `export_user_data` v3.1.0 complète RGPD), Edge Functions durcies (cron météo paginé `.range()`+`.order()`, `delete-user-account` fail-closed sans repli `iat`, `send-notification` valide title/body/data, `check-price-alerts` POST-only), scripts sécurisés (`purge-2x` dry-run PAR DÉFAUT + `--write`, `import-fresh` checkpoint guardé `!dryRun` + `--refresh`, `readEnvVar` strip quotes, paginations `.order()`), polish client (hitSlop SearchChrome ≥ 44 px, `ScanLoading` Reduced Motion, 1 seul haptique SOTD `success`, `DockBar` via `alpha()`, `.gitignore` `.env.*`, `.env.example` complet) ; **primers de permission** : `PermissionPrimer` + `usePermissionPrimer`/`usePushPrimer` (`permission-primers.ts`, 4 clés camera/mic/location/push, popup explicatif une seule fois au moment de l'intention, flag AsyncStorage `@sillage/primer-*`) — jamais de prompt système à froid, push proposé à la 1ʳᵉ alerte prix (`AlertPriceToggle`) ou au toggle Settings, enregistrement au lancement gaté par le réglage `pushNotifs` + purge des tokens au retrait ; **transparence scan** : `scan-display.ts` (chip héros « Vérifié visuellement / Reconnu à la forme / Correspondance probable », ligne « Lu : / Hypothèse : »), `ScanClarify` guidé par `failureReason` (blur/glare/label_unreadable/bad_framing/not_a_perfume), lecture incertaine + aucun candidat ≥ 50 → saisie assistée pré-remplie ; refus micro définitif → bouton « Réglages » (`VoiceOverlay`) — 816 tests / 74 suites |
+| v9.9 | Scan « fiche express » : héros des résultats actionnable sans quitter l'écran — cœur `FavButton lg` sur l'image, CTA primary « Voir la fiche », cloche alerte prix (`PriceAlertSheet` canonique rendue à la racine de `ScanResults` + push primer §22, redirect login si déconnecté, masquée sans prix) ; jest-setup durci (animations d'entrée chainables, `withSequence`, mock `NativeEventEmitter` avec `__esModule` — bug latent FlatList en test) + 8 tests `ScanResults` |
+| v9.10 | Scan **mode collection** : toggle « Un flacon / Ma collection » sur l'idle. Une photo d'étagère → Edge Function mode `collection` (schema `bottles[]` + `estimatedCount`, confiance forcée par flacon = texte lu + marque + nom, escalade si 0 détection, re-ranking visuel PLAFONNÉ à 3 flacons en parallèle) → matching catalogue par détection (`searchParfumFromScan`, seuil `_scanScore ≥ 50`) → état `collection-results` (`ScanCollectionResults`) : liste multi-select, VÉRIFIÉS cochés par défaut (les « Correspondance probable » à valider), flacons déjà en collection marqués et exclus, ajout en lot statut `have` (`Promise.allSettled` → écran confirmation). Pas d'entrée `user_scans` par flacon (1 photo ≠ N scans). Helpers purs `collection-scan.ts` + `scanMode.ts` |
+| v9.11 | **Roue chromatique** (exploration par couleur) : route racine `/wheel` — anneau SVG (`react-native-svg`) de 12 couleurs-ancres curatées (9 teintes sur l'anneau + 3 neutres au centre noir/blanc/gris, marron traité comme teinte), snap vers l'ancre la plus proche (`hueToAnchor`) ; chaque couleur mappe vers le vocabulaire olfactif du catalogue (accords GIN `main_accords` && + notes FTS `search_vector` @@ + affinité saisonnière, mapping curaté client `chromatic-wheel.ts` — itération éditoriale sans migration) ; RPC `chroma_parfums` (`0061` : BitmapOr sur 2 index GIN existants, scoring sur candidats uniquement, tri intensité chromatique → popularité ; `0062` : branches bornées par popularité AVANT scoring — fix timeout E2E sur notes fréquentes musc/jasmin/rose) ; `getParfumsByColor` + cache mémoire + dédup in-flight PARTAGÉS entre `/wheel` et `/search?color=` (la sélection posée préchauffe la liste, rendu instantané) ; SVG monté après la transition d'ouverture (320 ms, anti drop de frames) + prefetch des 12 premières images ; labels/taglines via i18next (`chroma.*`). **+ util `relative-date.ts`** (`formatRelativeShort` : « à l'instant / il y a N min / N h / N j », absolu Intl au-delà de 7 j) utilisé par la vue Alertes de Favoris (`lastChecked`) |
+| v9.12 | Internationalisation (i18n) complète — préparation Play Store/App Store : infrastructure `i18next` 26 + `react-i18next` 17 + `expo-localization` (FR = langue source, `src/locales/fr/common.json` unique, clés typées `src/types/i18next.d.ts`, tooling `i18next-cli` extract/sync idempotent, détection préférence AsyncStorage → locale appareil) ; extraction de TOUTES les chaînes user-facing : 4 onglets, fiche détail, sheets, scan/voix, wardrobe, profil, historique, auth, profils publics, étagères, perfumer, admin, pages légales, Flacon Runner (missions/défi quotidien/skins/pickups), hooks (météo/voix/auth/catalogue/scan), composants (OfflineBanner, ErrorBoundary, ParfumCard a11y, PublicProfileCard, BrandSheet, SaveButton), couche services (erreurs scan/voix/compte/recherche + canaux Android de notification), message de partage ; getters `i18next.t` pour les tables de labels au scope module (§23), timeouts Edge Functions refactorés par code marker (`SCAN_TIMEOUT`/`VOICE_TIMEOUT`) pour préserver les détections d'erreur `.includes()` ; exceptions conservées : noms de marques/parfums, données catalogue (notes/accords/familles), mots-clés de matching — 902 tests / 80 suites |

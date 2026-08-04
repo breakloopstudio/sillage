@@ -4,6 +4,7 @@ import {
   useSpeechRecognitionEvent,
 } from 'expo-speech-recognition';
 import * as FileSystem from 'expo-file-system';
+import i18next from 'i18next';
 import { deviceSttLang } from '../utils/device-locale';
 
 // Biasing STT on-device (contextualStrings) : marques + top noms de parfums.
@@ -214,13 +215,13 @@ export function useVoiceSearch(
         })
         .catch((err: unknown) => {
           console.warn('[useVoiceSearch] Failed to read audio file:', (err as Error)?.message ?? String(err));
-          onErrorRef.current?.('Impossible de lire l\'enregistrement audio.');
+          onErrorRef.current?.(i18next.t('voice.errorReadAudio'));
         })
         .finally(() => {
           FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
         });
     } else {
-      onErrorRef.current?.('Aucune parole détectée.');
+      onErrorRef.current?.(i18next.t('voice.errorNoSpeech'));
     }
   }, [clearTimers]);
 
@@ -291,7 +292,7 @@ export function useVoiceSearch(
   useSpeechRecognitionEvent('error', (event) => {
     if (sessionIdRef.current === 0) return;
     const code = event.error;
-    const msg = event.message || 'Erreur de reconnaissance vocale.';
+    const msg = event.message || i18next.t('voice.recognitionError');
 
     if (GRACEFUL_ERRORS.includes(code)) {
       return;
@@ -367,9 +368,9 @@ export function useVoiceSearch(
         startPendingRef.current = false;
         setState('error');
         if (!perm.canAskAgain) {
-          onErrorRef.current?.('Le micro est désactivé pour Sillage. Active-le dans les réglages de l\'appareil.', 'mic-denied-permanent');
+          onErrorRef.current?.(i18next.t('voice.micDisabledPermanent'), 'mic-denied-permanent');
         } else {
-          onErrorRef.current?.('Accès au micro refusé. Tu peux réessayer quand tu veux.', 'mic-denied');
+          onErrorRef.current?.(i18next.t('voice.micDenied'), 'mic-denied');
         }
         return;
       }
@@ -390,7 +391,7 @@ export function useVoiceSearch(
         startPendingRef.current = false;
         sessionIdRef.current = 0;
         setState('error');
-        onErrorRef.current?.('Impossible de démarrer la reconnaissance vocale.');
+        onErrorRef.current?.(i18next.t('voice.errorStart'));
       });
 
       // Auto-stop à 15 s : haptique légère (fin d'enregistrement, pas un achèvement §2.6).
@@ -404,7 +405,7 @@ export function useVoiceSearch(
       sessionIdRef.current = 0;
       clearTimers();
       try { ExpoSpeechRecognitionModule.abort(); } catch { /* cleanup */ }
-      const msg = err instanceof Error ? err.message : 'Erreur inconnue.';
+      const msg = err instanceof Error ? err.message : i18next.t('voice.errorUnknown');
       console.warn('[useVoiceSearch] start() failed:', msg);
       setState('error');
       onErrorRef.current?.(msg);

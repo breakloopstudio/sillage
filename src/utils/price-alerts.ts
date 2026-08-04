@@ -1,6 +1,8 @@
 // src/utils/price-alerts.ts — Helpers purs pour les alertes prix
 // Suggestion du prix cible + calcul de variation depuis l'activation.
 
+import { formatVariationPct } from './format-price';
+
 function round5(v: number): number {
   return Math.max(5, Math.round(v / 5) * 5);
 }
@@ -27,11 +29,9 @@ export function alertVariation(initialPrice: number | null, currentPrice: number
   return (currentPrice - initialPrice) / initialPrice;
 }
 
-/** Formate une variation en pourcentage signé (« −18 % », « +5 % »). */
+/** Formate une variation en pourcentage signé, locale-aware (« −18 % », « +5 % »). */
 export function formatVariation(variation: number): string {
-  const pct = Math.round(variation * 100);
-  const sign = pct > 0 ? '+' : pct < 0 ? '−' : '';
-  return `${sign}${Math.abs(pct)} %`;
+  return formatVariationPct(variation);
 }
 
 export type PriceAlertState = 'reached' | 'near' | 'watching';
@@ -57,4 +57,32 @@ export function priceAlertState(targetPrice: number | null, currentPrice: number
   if (currentPrice <= targetPrice) return 'reached';
   if (currentPrice <= targetPrice * 1.1) return 'near';
   return 'watching';
+}
+
+/**
+ * Progression d'une alerte à cible entre l'ancre d'activation et la cible (0 → 1).
+ * null si une donnée manque ou si la cible n'est pas sous l'ancre (span ≤ 0).
+ */
+export function alertProgress(
+  initialPrice: number | null,
+  targetPrice: number | null,
+  currentPrice: number | null
+): number | null {
+  if (initialPrice == null || targetPrice == null || currentPrice == null) return null;
+  const span = initialPrice - targetPrice;
+  if (span <= 0) return null;
+  return Math.min(1, Math.max(0, (initialPrice - currentPrice) / span));
+}
+
+/** Somme des baisses constatées (initial − courant) sur un lot d'alertes suivies. */
+export function watchSavings(
+  rows: Array<{ initialPrice: number | null; currentPrice: number | null }>
+): number {
+  let total = 0;
+  for (const r of rows) {
+    if (r.initialPrice != null && r.currentPrice != null && r.currentPrice < r.initialPrice) {
+      total += r.initialPrice - r.currentPrice;
+    }
+  }
+  return total;
 }

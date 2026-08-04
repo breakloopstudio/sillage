@@ -1,4 +1,4 @@
-import { suggestTargetPrice, alertVariation, formatVariation, priceAlertDropAbs, priceAlertState } from '../../src/utils/price-alerts';
+import { suggestTargetPrice, alertVariation, formatVariation, priceAlertDropAbs, priceAlertState, alertProgress, watchSavings } from '../../src/utils/price-alerts';
 
 describe('suggestTargetPrice', () => {
   it('returns null without a usable best price', () => {
@@ -46,16 +46,21 @@ describe('alertVariation', () => {
 });
 
 describe('formatVariation', () => {
-  it('formats a drop with a typographic minus', () => {
-    expect(formatVariation(-0.18)).toBe('\u221218\u00A0%');
+  // Locale-aware (i18n Phase 0) : pourcentage signé en français, conventions ICU.
+  const pct = new Intl.NumberFormat('fr', { style: 'percent', signDisplay: 'exceptZero', maximumFractionDigits: 0 });
+
+  it('formats a drop with the locale minus sign', () => {
+    expect(formatVariation(-0.18)).toBe(pct.format(-0.18));
+    expect(formatVariation(-0.18)).toContain('18');
   });
 
   it('formats a rise with a plus sign', () => {
-    expect(formatVariation(0.05)).toBe('+5\u00A0%');
+    expect(formatVariation(0.05)).toBe(pct.format(0.05));
+    expect(formatVariation(0.05)).toContain('+');
   });
 
   it('formats zero without a sign', () => {
-    expect(formatVariation(0)).toBe('0 %');
+    expect(formatVariation(0)).toBe(pct.format(0));
   });
 });
 
@@ -92,5 +97,52 @@ describe('priceAlertState', () => {
 
   it('is watching when the current price is well above the target', () => {
     expect(priceAlertState(70, 90)).toBe('watching');
+  });
+});
+
+describe('alertProgress', () => {
+  it('returns null when any input is missing', () => {
+    expect(alertProgress(null, 50, 75)).toBeNull();
+    expect(alertProgress(100, null, 75)).toBeNull();
+    expect(alertProgress(100, 50, null)).toBeNull();
+  });
+
+  it('returns null when the target is not below the anchor (span <= 0)', () => {
+    expect(alertProgress(100, 100, 90)).toBeNull();
+    expect(alertProgress(100, 120, 90)).toBeNull();
+  });
+
+  it('returns 0 when the current price is at or above the anchor', () => {
+    expect(alertProgress(100, 50, 100)).toBe(0);
+    expect(alertProgress(100, 50, 110)).toBe(0);
+  });
+
+  it('returns 1 when the current price is at or below the target', () => {
+    expect(alertProgress(100, 50, 50)).toBe(1);
+    expect(alertProgress(100, 50, 40)).toBe(1);
+  });
+
+  it('returns 0.5 at the midpoint', () => {
+    expect(alertProgress(100, 50, 75)).toBe(0.5);
+  });
+
+  it('clamps above 1 and below 0', () => {
+    expect(alertProgress(100, 50, 20)).toBe(1);
+    expect(alertProgress(100, 50, 200)).toBe(0);
+  });
+});
+
+describe('watchSavings', () => {
+  it('returns 0 for an empty list or missing prices', () => {
+    expect(watchSavings([])).toBe(0);
+    expect(watchSavings([{ initialPrice: null, currentPrice: 80 }])).toBe(0);
+    expect(watchSavings([{ initialPrice: 100, currentPrice: null }])).toBe(0);
+  });
+
+  it('sums only the drops', () => {
+    expect(watchSavings([
+      { initialPrice: 100, currentPrice: 80 },
+      { initialPrice: 50, currentPrice: 55 },
+    ])).toBe(20);
   });
 });

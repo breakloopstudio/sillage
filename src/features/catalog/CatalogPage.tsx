@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, type SharedValue } from 'react-native-reanimated';
 import { Link, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '../../contexts/AuthContext';
 import ParfumCard from '../../components/ParfumCard';
 import BrandCapsules from './BrandCapsules';
@@ -20,6 +21,7 @@ import { useStaleWhileRevalidate } from '../../hooks/useStaleWhileRevalidate';
 import type { CardMode } from '../../components/ParfumCard';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
+import { formatNumber } from '../../utils/format-price';
 import { currentSeason, SEASON_META } from '../../utils/season';
 import type { Parfum } from '../../models';
 import { getCached, setCached } from '../../services/impl/home-cache';
@@ -48,6 +50,7 @@ interface Props {
 
 export default function CatalogPage({ scrollY }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const s = useMemo(() => getStyles(theme), [theme]);
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
@@ -69,7 +72,7 @@ export default function CatalogPage({ scrollY }: Props) {
   }, [scrollY, setGridDensity]);
 
   const [suggestionParfums, setSuggestionParfums] = useState<Parfum[]>([]);
-  const [suggestionLabel, setSuggestionLabel] = useState('Parfums populaires');
+  const [suggestionKind, setSuggestionKind] = useState<'popular' | 'foryou' | 'trending'>('popular');
   const [suggestionLoading, setSuggestionLoading] = useState(true);
   const [personalizedFailed, setPersonalizedFailed] = useState(false);
 
@@ -114,7 +117,7 @@ export default function CatalogPage({ scrollY }: Props) {
       const exploit = raw.slice(0, 5);
       const discover = seededShuffle(raw.slice(5), today).slice(0, 3);
       setSuggestionParfums([...exploit, ...discover]);
-      setSuggestionLabel('Pour vous');
+      setSuggestionKind('foryou');
       setSuggestionLoading(false);
       personalizedAppliedRef.current = true;
       setPersonalizedFailed(false);
@@ -145,7 +148,7 @@ export default function CatalogPage({ scrollY }: Props) {
     if (sharedLoading) return;
     if (sharedPool.length > 0) {
       setSuggestionParfums(seededShuffle(sharedPool, today).slice(0, 8));
-      setSuggestionLabel('Tendances du moment');
+      setSuggestionKind('trending');
     } else {
       setSuggestionParfums([]);
     }
@@ -184,6 +187,10 @@ export default function CatalogPage({ scrollY }: Props) {
 
   const handleFamilyTap = useCallback((familyKey: string) => {
     router.push(`/search?family=${encodeURIComponent(familyKey)}`);
+  }, [router]);
+
+  const handleColorTap = useCallback(() => {
+    router.push('/wheel');
   }, [router]);
 
   const handleViewAllBrands = useCallback(() => {
@@ -231,9 +238,9 @@ export default function CatalogPage({ scrollY }: Props) {
       {/* Row: Pour vous / Tendances */}
       {!suggestionLoading && suggestionParfums.length > 0 && (
         <CatalogRow
-          title={suggestionLabel}
-          subtitle="Suggestions basées sur tes goûts"
-          actionLabel="Voir tout →"
+          title={t(`catalog.suggestions.${suggestionKind}`)}
+          subtitle={t('catalog.suggestions.subtitle')}
+          actionLabel={t('catalog.seeAll')}
           onAction={scrollToGrid}
           collapsible
           defaultCollapsed={false}
@@ -247,8 +254,8 @@ export default function CatalogPage({ scrollY }: Props) {
       {/* Row: Parfaits pour la saison (saison dominante) */}
       {!seasonalLoading && seasonal.length > 0 && (
         <CatalogRow
-          title={`Parfaits pour ${SEASON_META[season].withArticle}`}
-          subtitle="Les fragrances qui s'épanouissent en ce moment"
+          title={t('catalog.seasonalRow', { season: SEASON_META[season].withArticle })}
+          subtitle={t('catalog.seasonalRowSubtitle')}
           collapsible
           defaultCollapsed={false}
         >
@@ -261,8 +268,8 @@ export default function CatalogPage({ scrollY }: Props) {
       {/* Row: Les mieux notés (preuve sociale) */}
       {!topRatedLoading && topRatedDisplay.length > 0 && (
         <CatalogRow
-          title="Les mieux notés"
-          subtitle="Plébiscités par la communauté"
+          title={t('catalog.topRated')}
+          subtitle={t('catalog.topRatedSubtitle')}
           collapsible
           defaultCollapsed={false}
         >
@@ -275,8 +282,8 @@ export default function CatalogPage({ scrollY }: Props) {
       {/* Row: Meilleures affaires */}
       {!dealsLoading && bestDeals.length > 0 && (
         <CatalogRow
-          title="Meilleures affaires"
-          subtitle="Les meilleurs rapports qualité-prix"
+          title={t('catalog.bestDeals')}
+          subtitle={t('catalog.bestDealsSubtitle')}
           collapsible
           defaultCollapsed={false}
         >
@@ -287,13 +294,13 @@ export default function CatalogPage({ scrollY }: Props) {
       )}
 
       {/* Row: Explorer par famille (ambiance cards) */}
-      <FamilyAmbianceCards onFamilyTap={handleFamilyTap} />
+      <FamilyAmbianceCards onFamilyTap={handleFamilyTap} onColorTap={handleColorTap} />
 
       {/* Grid controls */}
       <View style={s.gridControls}>
         <View style={s.gridControlsRow}>
           <Text style={s.gridCount}>
-            {totalCount != null ? `${new Intl.NumberFormat('fr-FR').format(totalCount)} parfums` : '…'}
+            {totalCount != null ? t('catalog.parfumCount', { count: totalCount, formatted: formatNumber(totalCount) }) : '…'}
           </Text>
         </View>
         <View style={s.gridControlsRow}>
@@ -314,19 +321,19 @@ export default function CatalogPage({ scrollY }: Props) {
       </View>
     </View>
   ), [
-    s, suggestionParfums, suggestionLabel, suggestionLoading,
+    t, s, suggestionParfums, suggestionKind, suggestionLoading,
     seasonal, seasonalLoading, topRatedDisplay, topRatedLoading, season,
     bestDeals, dealsLoading, gridDensity, totalCount,
-    handleViewAllBrands, handleBrandTap, handleFamilyTap, scrollToGrid, handleDensityChange,
+    handleViewAllBrands, handleBrandTap, handleFamilyTap, handleColorTap, scrollToGrid, handleDensityChange,
   ]);
 
   return (
     <SafeAreaView edges={['bottom']} style={s.container}>
       {authReady && !isAuthenticated && (
         <View style={s.banner}>
-          <Text style={s.bannerText}>Connecte-toi pour des suggestions personnalisées</Text>
+          <Text style={s.bannerText}>{t('catalog.loginBanner')}</Text>
           <Link href="/auth/login" style={s.bannerLink}>
-            <Text style={s.bannerLinkText}>Connexion</Text>
+            <Text style={s.bannerLinkText}>{t('catalog.login')}</Text>
           </Link>
         </View>
       )}
@@ -334,7 +341,7 @@ export default function CatalogPage({ scrollY }: Props) {
       <View style={s.headerBar}>
         <View style={{ flex: 1 }}>
           <Text style={s.heroTitle}>Sillage</Text>
-          <Text style={s.heroSub}>Trouve ton parfum au meilleur prix</Text>
+          <Text style={s.heroSub}>{t('catalog.heroSub')}</Text>
         </View>
       </View>
 

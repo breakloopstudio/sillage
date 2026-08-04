@@ -11,6 +11,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
 
 export default function CollapsingHeader({ scrollY, brand, name, rightAction }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
 
@@ -44,7 +46,7 @@ export default function CollapsingHeader({ scrollY, brand, name, rightAction }: 
             style={s.backBtn}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Retour"
+            accessibilityLabel={t('back')}
           >
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
           </Pressable>

@@ -18,6 +18,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons';
+import { useTranslation } from 'react-i18next';
 import { hapticsLight, hapticsSuccess, hapticsError } from '../../services/haptics';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { submitRunnerScore, clearRunnerLeaderboardCache } from '../../services/runner';
@@ -470,12 +471,13 @@ function FloatingPopup({ entry, onDone, reduceMotion }: { entry: PopupEntry; onD
 }
 
 function SkinSwatch({ def, unlocked, selected, onSelect }: { def: typeof SKINS[number]; unlocked: boolean; selected: boolean; onSelect: (key: string) => void }) {
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={() => { if (unlocked) onSelect(def.key); }}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel={unlocked ? `Skin ${def.label}` : `Skin ${def.label}, débloque à ${def.threshold} points`}
+      accessibilityLabel={unlocked ? t('runner.skinA11y', { label: def.label }) : t('runner.skinA11yLocked', { label: def.label, threshold: def.threshold })}
       style={{ alignItems: 'center', gap: 4, opacity: unlocked ? 1 : 0.45 }}
     >
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#15101E', borderWidth: 2, borderColor: selected ? '#D4A960' : 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
@@ -496,6 +498,7 @@ function SkinSwatch({ def, unlocked, selected, onSelect }: { def: typeof SKINS[n
 
 export default function RunnerGame({ onClose }: Props) {
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const s = useMemo(() => getStyles(insets.top, insets.bottom), [insets.top, insets.bottom]);
   const reduceMotion = useReducedMotion();
@@ -857,7 +860,7 @@ export default function RunnerGame({ onClose }: Props) {
       if (n) { notesByType[def.key] = n; parts.push(`${n}× ${def.label}`); }
     }
     const notesCollected = Object.values(notesByType).reduce((sum, n) => sum + n, 0);
-    setCollectedText(parts.length > 0 ? `Ta composition : ${parts.join(', ')}` : '');
+    setCollectedText(parts.length > 0 ? t('runner.composition', { notes: parts.join(', ') }) : '');
 
     const daily = dailyChallengeRef.current;
     if (daily && !dailyDoneRef.current && daily.check({ score: finalScore, distance: dist, maxCombo: combo, nearMiss, shieldBreaks, notesCollected })) {
@@ -968,9 +971,9 @@ export default function RunnerGame({ onClose }: Props) {
   const handleShare = useCallback(() => {
     hapticsLight();
     Share.share({
-      message: `J\u2019ai signé ${displayScore} points sur Flacon Runner 🏃\n${runnerShareUrl(displayScore)}`,
+      message: t('runner.shareMessage', { score: displayScore, url: runnerShareUrl(displayScore) }),
     }).catch(() => {});
-  }, [displayScore]);
+  }, [displayScore, t]);
 
   const handleOpenSuggested = useCallback(() => {
     if (suggestedParfum) {
@@ -1157,10 +1160,10 @@ export default function RunnerGame({ onClose }: Props) {
               style={[s.startOverlay, { backgroundColor: 'rgba(11,7,18,0.55)' }]}
               onPress={startCountdown}
               accessibilityRole="button"
-              accessibilityLabel="Démarrer la partie"
+              accessibilityLabel={t('runner.startA11y')}
             >
-              <Text style={s.title}>Flacon Runner</Text>
-              <Text style={s.subtitle}>Saute les éclats · cueille les notes</Text>
+              <Text style={s.title}>{t('runner.title')}</Text>
+              <Text style={s.subtitle}>{t('runner.subtitle')}</Text>
               <View style={s.skinRow}>
                 {SKINS.map(def => (
                   <SkinSwatch
@@ -1172,22 +1175,22 @@ export default function RunnerGame({ onClose }: Props) {
                   />
                 ))}
               </View>
-              <Text style={s.tapLabel}>Tape pour jouer</Text>
+              <Text style={s.tapLabel}>{t('runner.tapToPlay')}</Text>
               <Text style={s.hint} maxFontSizeMultiplier={1.3}>
-                Tape pour sauter, double tape pour t'envoler{'\n'}Notes = pouvoirs · Jauge pleine : fièvre
+                {t('runner.hint')}
               </Text>
               {dailyChallenge != null && (
                 <View style={s.dailyCard}>
                   <Ionicons name={dailyDone ? 'checkmark-circle' : (dailyChallenge.icon as never)} size={20} color={dailyDone ? '#2DD4BF' : '#D4A960'} />
                   <View style={s.dailyCardText}>
-                    <Text allowFontScaling={false} style={s.dailyOverline}>Le geste du jour</Text>
-                    <Text style={s.dailyLabel}>{dailyDone ? 'Réussi — reviens demain' : dailyChallenge.label}</Text>
+                    <Text allowFontScaling={false} style={s.dailyOverline}>{t('runner.dailyOverline')}</Text>
+                    <Text style={s.dailyLabel}>{dailyDone ? t('runner.dailyDoneLabel') : dailyChallenge.label}</Text>
                   </View>
                 </View>
               )}
               {highScore > 0 && (
                 <>
-                  <Text style={s.startHiLabel}>Record</Text>
+                  <Text style={s.startHiLabel}>{t('runner.record')}</Text>
                   <Text allowFontScaling={false} style={s.startHiScore}>{highScore}</Text>
                 </>
               )}
@@ -1197,48 +1200,48 @@ export default function RunnerGame({ onClose }: Props) {
 
         {showGameOver && (
           <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(300)} style={s.goOverlay}>
-            <Text style={s.goTitle}>Flacon brisé</Text>
+            <Text style={s.goTitle}>{t('runner.gameOverTitle')}</Text>
             <Text allowFontScaling={false} style={s.goScore}>{displayScore}</Text>
             {isRecord && (
               <View style={s.recordBadge}>
-                <Text allowFontScaling={false} style={s.recordText}>Nouveau record</Text>
+                <Text allowFontScaling={false} style={s.recordText}>{t('runner.newRecord')}</Text>
               </View>
             )}
-            <Text style={s.goHiLabel}>Record{' '}: {Math.max(highScore, displayScore)}</Text>
+            <Text style={s.goHiLabel}>{t('runner.recordLabel', { score: Math.max(highScore, displayScore) })}</Text>
             <View style={s.goStats}>
               <View style={s.goStat}>
                 <Text allowFontScaling={false} style={s.goStatNum}>{finalStats.distance}</Text>
-                <Text allowFontScaling={false} style={s.goStatLabel}>mètres</Text>
+                <Text allowFontScaling={false} style={s.goStatLabel}>{t('runner.statMeters')}</Text>
               </View>
               <View style={s.goStat}>
                 <Text allowFontScaling={false} style={s.goStatNum}>×{Math.max(1, finalStats.maxCombo)}</Text>
-                <Text allowFontScaling={false} style={s.goStatLabel}>combo max</Text>
+                <Text allowFontScaling={false} style={s.goStatLabel}>{t('runner.statComboMax')}</Text>
               </View>
               <View style={s.goStat}>
                 <Text allowFontScaling={false} style={s.goStatNum}>{finalStats.nearMiss}</Text>
-                <Text allowFontScaling={false} style={s.goStatLabel}>frôlés</Text>
+                <Text allowFontScaling={false} style={s.goStatLabel}>{t('runner.statNearmiss')}</Text>
               </View>
             </View>
             {newSkinLabels.map(label => (
               <View key={label} style={s.newSkinBadge}>
                 <Ionicons name="color-palette-outline" size={14} color="#1F1A2E" />
-                <Text allowFontScaling={false} style={s.newSkinText}>Skin « {label} » débloqué</Text>
+                <Text allowFontScaling={false} style={s.newSkinText}>{t('runner.newSkinUnlocked', { label })}</Text>
               </View>
             ))}
             {freshTiers.map(f => (
               <View key={f.mission.key} style={s.missionBadge}>
                 <Ionicons name={f.mission.icon as never} size={14} color="#D4A960" />
-                <Text allowFontScaling={false} style={s.missionText}>{f.mission.label} · {f.tier}/3</Text>
+                <Text allowFontScaling={false} style={s.missionText}>{t('runner.missionTier', { label: f.mission.label, tier: f.tier })}</Text>
               </View>
             ))}
             {dailyJustDone && (
               <View style={s.dailyDoneBadge}>
                 <Ionicons name="checkmark-circle-outline" size={14} color="#1F1A2E" />
-                <Text allowFontScaling={false} style={s.dailyDoneText}>Geste du jour réussi</Text>
+                <Text allowFontScaling={false} style={s.dailyDoneText}>{t('runner.dailyDoneBadge')}</Text>
               </View>
             )}
             {worldRank != null && (
-              <Text allowFontScaling={false} style={s.rankText}>Rang mondial : #{worldRank}</Text>
+              <Text allowFontScaling={false} style={s.rankText}>{t('runner.worldRank', { rank: worldRank })}</Text>
             )}
             {collectedText ? (
               <Text style={s.goPickups}>{collectedText}</Text>
@@ -1247,7 +1250,7 @@ export default function RunnerGame({ onClose }: Props) {
               <View style={s.nextObjRow}>
                 <Ionicons name={nextObj.icon as never} size={13} color="#988EA8" />
                 <Text allowFontScaling={false} style={s.nextObjText}>
-                  Prochain : {nextObj.label} – {nextObj.current}/{nextObj.target} {nextObj.unit}
+                  {t('runner.nextObjective', { label: nextObj.label, current: nextObj.current, target: nextObj.target, unit: nextObj.unit })}
                 </Text>
               </View>
             )}
@@ -1256,41 +1259,41 @@ export default function RunnerGame({ onClose }: Props) {
                 style={s.suggestedCard}
                 onPress={handleOpenSuggested}
                 accessibilityRole="button"
-                accessibilityLabel={`Ta course ressemble à ${suggestedParfum.nom} de ${suggestedParfum.marque}. Voir la fiche.`}
+                accessibilityLabel={t('runner.suggestedA11y', { nom: suggestedParfum.nom, marque: suggestedParfum.marque })}
               >
                 <Image source={{ uri: suggestedParfum.imageUrl }} style={s.suggestedImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={suggestedParfum.id} />
                 <View style={s.suggestedText}>
-                  <Text allowFontScaling={false} style={s.suggestedOverline}>Ta course a un sillage</Text>
+                  <Text allowFontScaling={false} style={s.suggestedOverline}>{t('runner.suggestedOverline')}</Text>
                   <Text numberOfLines={1} style={s.suggestedName}>{suggestedParfum.nom}</Text>
-                  <Text numberOfLines={1} style={s.suggestedBrand}>{suggestedParfum.marque} · voir la fiche</Text>
+                  <Text numberOfLines={1} style={s.suggestedBrand}>{t('runner.suggestedBrand', { marque: suggestedParfum.marque })}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color="#988EA8" />
               </Pressable>
             )}
-            <Pressable style={s.retryBtn} onPress={handleRestart} accessibilityRole="button" accessibilityLabel="Rejouer">
-              <Text style={s.retryText}>Rejouer</Text>
+            <Pressable style={s.retryBtn} onPress={handleRestart} accessibilityRole="button" accessibilityLabel={t('runner.retry')}>
+              <Text style={s.retryText}>{t('runner.retry')}</Text>
             </Pressable>
-            <Pressable style={s.shareBtn} onPress={handleShare} hitSlop={8} accessibilityRole="button" accessibilityLabel="Partager mon score">
+            <Pressable style={s.shareBtn} onPress={handleShare} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('runner.shareScore')}>
               <Ionicons name="share-social-outline" size={16} color="#D4A960" />
-              <Text style={s.shareText}>Partager mon score</Text>
+              <Text style={s.shareText}>{t('runner.shareScore')}</Text>
             </Pressable>
-            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Quitter">
-              <Text style={s.quitText}>Quitter</Text>
+            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('runner.quit')}>
+              <Text style={s.quitText}>{t('runner.quit')}</Text>
             </Pressable>
           </Animated.View>
         )}
 
         {showPause && (
           <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(200)} style={s.goOverlay}>
-            <Text style={s.goTitle}>Pause</Text>
-            <Pressable style={s.retryBtn} onPress={handleResume} accessibilityRole="button" accessibilityLabel="Reprendre">
-              <Text style={s.retryText}>Reprendre</Text>
+            <Text style={s.goTitle}>{t('runner.pause')}</Text>
+            <Pressable style={s.retryBtn} onPress={handleResume} accessibilityRole="button" accessibilityLabel={t('runner.resume')}>
+              <Text style={s.retryText}>{t('runner.resume')}</Text>
             </Pressable>
-            <Pressable style={s.quitBtn} onPress={handleRestart} hitSlop={8} accessibilityRole="button" accessibilityLabel="Recommencer">
-              <Text style={s.quitText}>Recommencer</Text>
+            <Pressable style={s.quitBtn} onPress={handleRestart} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('runner.restart')}>
+              <Text style={s.quitText}>{t('runner.restart')}</Text>
             </Pressable>
-            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Quitter">
-              <Text style={s.quitText}>Quitter</Text>
+            <Pressable style={s.quitBtn} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('runner.quit')}>
+              <Text style={s.quitText}>{t('runner.quit')}</Text>
             </Pressable>
           </Animated.View>
         )}

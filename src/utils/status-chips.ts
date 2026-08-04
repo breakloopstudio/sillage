@@ -1,3 +1,6 @@
+// src/utils/status-chips.ts — Modèle 3 chips de statut (labels résolus via i18next à l'affichage, §23)
+
+import i18next from 'i18next';
 import type { UserParfumStatus } from '../models/user-parfum.interface';
 
 export type StatusChipId = 'to_try' | 'have' | 'had';
@@ -10,9 +13,9 @@ export interface StatusChip {
 }
 
 export const STATUS_CHIPS: StatusChip[] = [
-  { id: 'to_try', label: 'À sentir',   icon: 'eye-outline',        status: 'to_try' },
-  { id: 'have',   label: 'Je l\u2019ai', icon: 'checkmark-circle-outline', status: 'have' },
-  { id: 'had',    label: 'Fini', icon: 'archive-outline',           status: 'had' },
+  { id: 'to_try', get label() { return i18next.t('status.to_try'); }, icon: 'eye-outline',                status: 'to_try' },
+  { id: 'have',   get label() { return i18next.t('status.have'); },   icon: 'checkmark-circle-outline',   status: 'have' },
+  { id: 'had',    get label() { return i18next.t('status.had'); },    icon: 'archive-outline',            status: 'had' },
 ];
 
 export function chipForStatus(status: UserParfumStatus | null | undefined): StatusChipId | null {

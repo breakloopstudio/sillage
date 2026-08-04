@@ -4,9 +4,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, ActivityIndicator, FlatList, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { getParfumsByMarque } from '../../src/services/catalog';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
+import { formatNumber } from '../../src/utils/format-price';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useDensityPreference, GRID_MODES } from '../../src/hooks/useDensityPreference';
@@ -18,11 +21,12 @@ const MAX_RESULTS = 1000;
 
 type SortKey = 'pop' | 'priceAsc' | 'priceDesc' | 'new';
 
+// Labels résolus à l'affichage via getters i18next (§23) — jamais lus au scope module.
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'pop', label: 'Populaires' },
-  { key: 'priceAsc', label: 'Prix croissant' },
-  { key: 'priceDesc', label: 'Prix décroissant' },
-  { key: 'new', label: 'Nouveautés' },
+  { key: 'pop', get label() { return i18next.t('brand.sortOptions.pop'); } },
+  { key: 'priceAsc', get label() { return i18next.t('brand.sortOptions.priceAsc'); } },
+  { key: 'priceDesc', get label() { return i18next.t('brand.sortOptions.priceDesc'); } },
+  { key: 'new', get label() { return i18next.t('brand.sortOptions.new'); } },
 ];
 
 const DENSITY_ICON: Record<string, string> = {
@@ -37,6 +41,7 @@ export default function BrandPage() {
   const router = useRouter();
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { density: gridDensity, setDensity: setGridDensity } = useDensityPreference();
 
   const [parfums, setParfums] = useState<Parfum[]>([]);
@@ -106,18 +111,21 @@ export default function BrandPage() {
 
   const gridNumCols = gridDensity === 'list' ? 1 : 2;
   const gridKey = `${gridNumCols}col`;
-  const currentSortLabel = SORT_OPTIONS.find(o => o.key === activeSort)?.label ?? 'Tri';
-  const countLabel = `${displayed.length >= MAX_RESULTS ? `${MAX_RESULTS}+` : displayed.length} parfum${displayed.length > 1 ? 's' : ''}`;
+  const currentSortLabel = SORT_OPTIONS.find(o => o.key === activeSort)?.label ?? t('sort');
+  const countLabel = t('brand.parfumCount', {
+    count: displayed.length,
+    formatted: displayed.length >= MAX_RESULTS ? `${MAX_RESULTS}+` : formatNumber(displayed.length),
+  });
   const colors = theme.colors as Record<string, string>;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Retour" style={s.backBtn}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel={t('back')} style={s.backBtn}>
           <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
         </Pressable>
         <View style={s.headerBody}>
-          <Text style={s.overline}>La maison</Text>
+          <Text style={s.overline}>{t('brand.overline')}</Text>
           <Text style={s.name} numberOfLines={1}>{name ?? ''}</Text>
         </View>
       </View>
@@ -127,14 +135,14 @@ export default function BrandPage() {
       ) : error ? (
         <View style={s.center}>
           <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.textMuted} />
-          <Text style={s.emptyTitle}>Chargement impossible</Text>
-          <Text style={s.emptyDesc} maxFontSizeMultiplier={1.3}>Vérifie ta connexion et réessaie.</Text>
+          <Text style={s.emptyTitle}>{t('brand.loadError')}</Text>
+          <Text style={s.emptyDesc} maxFontSizeMultiplier={1.3}>{t('brand.loadErrorDesc')}</Text>
         </View>
       ) : parfums.length === 0 ? (
         <View style={s.center}>
           <Ionicons name="storefront-outline" size={48} color={theme.colors.textMuted} />
-          <Text style={s.emptyTitle}>Aucun parfum</Text>
-          <Text style={s.emptyDesc} maxFontSizeMultiplier={1.3}>Aucun parfum du catalogue n'est référencé pour cette maison.</Text>
+          <Text style={s.emptyTitle}>{t('brand.empty')}</Text>
+          <Text style={s.emptyDesc} maxFontSizeMultiplier={1.3}>{t('brand.emptyDesc')}</Text>
         </View>
       ) : (
         <FlatList
@@ -176,10 +184,10 @@ export default function BrandPage() {
                   onPress={() => handleFamilyTap(null)}
                   hitSlop={{ top: 2, bottom: 2 }}
                   accessibilityRole="button"
-                  accessibilityLabel="Toutes les familles"
+                  accessibilityLabel={t('brand.allFamiliesA11y')}
                 >
                   <Ionicons name="apps-outline" size={14} color={activeFamily === null ? theme.colors.primaryInk : theme.colors.textMuted} />
-                  <Text style={[s.familyChipText, activeFamily === null && s.familyChipTextAllActive]} allowFontScaling={false}>Toutes</Text>
+                  <Text style={[s.familyChipText, activeFamily === null && s.familyChipTextAllActive]} allowFontScaling={false}>{t('brand.allFamilies')}</Text>
                   <Text style={[s.familyChipCount, activeFamily === null && s.familyChipCountAllActive]} allowFontScaling={false}>{parfums.length}</Text>
                 </Pressable>
                 {presentFamilies.map(fam => {

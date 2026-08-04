@@ -2,50 +2,21 @@
 
 import { useMemo } from 'react';
 import { View, Text, type ViewStyle } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import Button from './Button';
 
 type Variant = 'collection' | 'favoris' | 'historique' | 'wardrobe' | 'scentlist' | 'alertes';
 
-const CONFIG = {
-  collection: {
-    icon: 'flask-outline',
-    title: 'Ta collection est vide',
-    desc: 'Ajoute les parfums que tu possèdes pour constituer ton inventaire personnel.',
-    cta: 'Explorer le catalogue',
-  },
-  favoris: {
-    icon: 'heart-outline',
-    title: 'Ton nez n\'a pas encore de coup de cœur',
-    desc: 'Parcourt le catalogue et garde tes parfums préférés à portée de main. Pas d\'obligation d\'achat, juste l\'émotion.',
-    cta: 'Explorer le catalogue',
-  },
-  historique: {
-    icon: 'scan-outline',
-    title: 'Aucun scan pour l\'instant',
-    desc: 'Photographie un flacon de parfum pour commencer ton historique. Chaque scan te rapproche du meilleur prix.',
-    cta: 'Scanner un flacon',
-  },
-  wardrobe: {
-    icon: 'flask-outline',
-    title: 'Ta parfumerie est vide',
-    desc: 'Ajoute tes premiers flacons pour constituer ta collection personnelle.',
-    cta: 'Explorer le catalogue',
-  },
-  scentlist: {
-    icon: 'eyedrop-outline',
-    title: 'Ton carnet d\'essais est vide',
-    desc: 'Sauvegarde les parfums que tu veux sentir, puis note tes impressions après l\'essai. En boutique, c\'est ton meilleur allié.',
-    cta: 'Explorer le catalogue',
-  },
-  alertes: {
-    icon: 'notifications-outline',
-    title: 'Aucune alerte pour l\'instant',
-    desc: 'Active une alerte sur un coup de cœur pour être prévenu quand son prix baisse.',
-    cta: 'Voir mes coups de cœur',
-  },
-} as const satisfies Record<Variant, { icon: string; title: string; desc: string; cta: string }>;
+const ICONS = {
+  collection: 'flask-outline',
+  favoris: 'heart-outline',
+  historique: 'scan-outline',
+  wardrobe: 'flask-outline',
+  scentlist: 'eyedrop-outline',
+  alertes: 'notifications-outline',
+} as const satisfies Record<Variant, string>;
 
 interface Props {
   variant: Variant;
@@ -57,8 +28,11 @@ interface Props {
 export default function EmptyState({ variant, onAction, style, actionLabel }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
-  const { icon, title, desc, cta } = CONFIG[variant];
-  const ctaLabel = actionLabel ?? cta;
+  const { t } = useTranslation('common');
+  const icon = ICONS[variant];
+  const title = t(`empty.${variant}.title`);
+  const desc = t(`empty.${variant}.desc`);
+  const ctaLabel = actionLabel ?? t(`empty.${variant}.cta`);
 
   return (
     <View style={[s.container, style]}>

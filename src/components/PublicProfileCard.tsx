@@ -8,6 +8,7 @@ import { View, Text, Pressable, TextInput, Platform, Share, ActivityIndicator } 
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, useReducedMotion } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { useMyProfile } from '../hooks/useMyProfile';
 import { normalizePseudo, isValidPseudo, profileShareUrl } from '../utils/share';
@@ -26,6 +27,7 @@ interface Props {
 
 export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedded = false, onPublicSaved }: Props) {
   const { theme, resolvedMode } = useTheme();
+  const { t } = useTranslation();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const { profile, loading, save } = useMyProfile(uid);
@@ -81,7 +83,7 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedd
   const handleSave = useCallback(async () => {
     if (saving) return;
     if (!pseudoValid) {
-      setError('Pseudo : 3 à 20 caractères (lettres, chiffres, _ ou -).');
+      setError(t('publicProfileCard.errorPseudoFormat'));
       return;
     }
     setSaving(true);
@@ -92,11 +94,11 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedd
       if (isPublic) onPublicSaved?.();
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
-      setError(code === '23505' ? 'Ce pseudo est déjà pris.' : translateSupabaseError(e));
+      setError(code === '23505' ? t('publicProfileCard.pseudoTaken') : translateSupabaseError(e));
     } finally {
       setSaving(false);
     }
-  }, [pseudo, pseudoValid, bio, isPublic, photoUrl, save, onPublicSaved]);
+  }, [pseudo, pseudoValid, bio, isPublic, photoUrl, save, onPublicSaved, t]);
 
   const handleShare = useCallback(() => {
     if (!profile?.pseudo) return;
@@ -123,7 +125,7 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedd
 
   return (
     <View style={[s.card, embedded && s.cardEmbedded]}>
-      <Text style={s.label}>Pseudo</Text>
+      <Text style={s.label}>{t('publicProfileCard.pseudoLabel')}</Text>
       <View style={s.pseudoRow}>
         <Text style={s.pseudoPrefix}>@</Text>
         <TextInput
@@ -139,15 +141,15 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedd
         />
       </View>
       {pseudo.length > 0 && !pseudoValid ? (
-        <Text style={s.hintError}>3 à 20 caractères : lettres, chiffres, _ ou -.</Text>
+        <Text style={s.hintError}>{t('publicProfileCard.hintPseudoFormat')}</Text>
       ) : null}
 
-      <Text style={s.label}>Bio (optionnel)</Text>
+      <Text style={s.label}>{t('publicProfileCard.bioLabel')}</Text>
       <TextInput
         style={s.bioInput}
         value={bio}
         onChangeText={handleBioChange}
-        placeholder="Amateur de boisés sombres…"
+        placeholder={t('publicProfileCard.bioPlaceholder')}
         placeholderTextColor={theme.colors.textMuted}
         multiline
         maxLength={BIO_MAX}
@@ -160,11 +162,11 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedd
         onPress={handleTogglePublic}
         accessibilityRole="switch"
         accessibilityState={{ checked: isPublic }}
-        accessibilityLabel="Collection publique"
+        accessibilityLabel={t('publicProfileCard.publicCollection')}
       >
         <View style={s.toggleText}>
-          <Text style={s.toggleLabel}>Collection publique</Text>
-          <Text style={s.toggleDesc}>Chacun peut voir tes parfums (pas tes notes).</Text>
+          <Text style={s.toggleLabel}>{t('publicProfileCard.publicCollection')}</Text>
+          <Text style={s.toggleDesc}>{t('publicProfileCard.publicCollectionDesc')}</Text>
         </View>
         <View style={[s.track, isPublic && s.trackActive]}>
           <Animated.View style={[s.knob, { backgroundColor: isPublic ? theme.colors.primary : theme.colors.textMuted }, knobStyle]} />
@@ -178,19 +180,19 @@ export default function PublicProfileCard({ uid, photoUrl, defaultPseudo, embedd
         onPress={handleSave}
         disabled={saving}
         accessibilityRole="button"
-        accessibilityLabel="Enregistrer le profil"
+        accessibilityLabel={t('publicProfileCard.saveProfileA11y')}
       >
-        {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={s.saveBtnText}>Enregistrer</Text>}
+        {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={s.saveBtnText}>{t('publicProfileCard.save')}</Text>}
       </Pressable>
 
       {isSavedPublic && !embedded ? (
         <View style={s.shareRow}>
-          <Pressable style={s.shareBtn} onPress={handleShare} accessibilityRole="button" accessibilityLabel="Partager mon profil">
+          <Pressable style={s.shareBtn} onPress={handleShare} accessibilityRole="button" accessibilityLabel={t('publicProfileCard.shareProfileA11y')}>
             <Ionicons name="share-social-outline" size={16} color={theme.colors.primaryInk} />
-            <Text style={s.shareBtnText} allowFontScaling={false}>Partager</Text>
+            <Text style={s.shareBtnText} allowFontScaling={false}>{t('publicProfileCard.share')}</Text>
           </Pressable>
-          <Pressable style={s.viewBtn} onPress={handleViewPublic} hitSlop={6} accessibilityRole="button" accessibilityLabel="Voir mon profil public">
-            <Text style={s.viewBtnText} allowFontScaling={false}>Voir mon profil</Text>
+          <Pressable style={s.viewBtn} onPress={handleViewPublic} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('publicProfileCard.viewPublicA11y')}>
+            <Text style={s.viewBtnText} allowFontScaling={false}>{t('publicProfileCard.viewPublic')}</Text>
             <Ionicons name="chevron-forward" size={14} color={theme.colors.primary} />
           </Pressable>
         </View>

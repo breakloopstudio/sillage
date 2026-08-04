@@ -5,6 +5,7 @@
 // 100 % local (AsyncStorage), robuste au cold-start.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18next from 'i18next';
 import { todayKey } from './runner-stats';
 
 const DAILY_KEY = '@sillage/runner-daily';
@@ -45,12 +46,12 @@ function lcg(seed: number): () => number {
 }
 
 const DEFS: Array<(rand: () => number) => DailyChallenge> = [
-  (rand) => { const t = 500 + Math.floor(rand() * 4) * 250; return { id: 'score', label: `Atteins ${t} points`, icon: 'trophy-outline', check: c => c.score >= t }; },
-  (rand) => { const t = 4 + Math.floor(rand() * 3) * 2; return { id: 'notes', label: `Collecte ${t} notes`, icon: 'leaf-outline', check: c => c.notesCollected >= t }; },
-  (rand) => { const t = 2 + Math.floor(rand() * 3); return { id: 'combo', label: `Enchaîne un combo ×${t}`, icon: 'flash-outline', check: c => c.maxCombo >= t }; },
-  (rand) => { const t = 3 + Math.floor(rand() * 3) * 2; return { id: 'nearmiss', label: `Frôle ${t} éclats`, icon: 'speedometer-outline', check: c => c.nearMiss >= t }; },
-  (rand) => { const t = 800 + Math.floor(rand() * 4) * 400; return { id: 'distance', label: `Cours ${t} mètres`, icon: 'walk-outline', check: c => c.distance >= t }; },
-  (rand) => { const t = 1 + Math.floor(rand() * 2); return { id: 'shield', label: `Absorbe ${t} impact${t > 1 ? 's' : ''}`, icon: 'shield-checkmark-outline', check: c => c.shieldBreaks >= t }; },
+  (rand) => { const th = 500 + Math.floor(rand() * 4) * 250; return { id: 'score', label: i18next.t('runner.dailyScore', { count: th }), icon: 'trophy-outline', check: c => c.score >= th }; },
+  (rand) => { const th = 4 + Math.floor(rand() * 3) * 2; return { id: 'notes', label: i18next.t('runner.dailyNotes', { count: th }), icon: 'leaf-outline', check: c => c.notesCollected >= th }; },
+  (rand) => { const th = 2 + Math.floor(rand() * 3); return { id: 'combo', label: i18next.t('runner.dailyCombo', { count: th }), icon: 'flash-outline', check: c => c.maxCombo >= th }; },
+  (rand) => { const th = 3 + Math.floor(rand() * 3) * 2; return { id: 'nearmiss', label: i18next.t('runner.dailyNearmiss', { count: th }), icon: 'speedometer-outline', check: c => c.nearMiss >= th }; },
+  (rand) => { const th = 800 + Math.floor(rand() * 4) * 400; return { id: 'distance', label: i18next.t('runner.dailyDistance', { count: th }), icon: 'walk-outline', check: c => c.distance >= th }; },
+  (rand) => { const th = 1 + Math.floor(rand() * 2); return { id: 'shield', label: i18next.t('runner.dailyShield', { count: th }), icon: 'shield-checkmark-outline', check: c => c.shieldBreaks >= th }; },
 ];
 
 export function getDailyChallenge(date: Date = new Date()): DailyChallenge {

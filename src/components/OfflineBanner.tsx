@@ -5,6 +5,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 
 export const OFFLINE_BANNER_BAND = 32;
@@ -16,6 +17,7 @@ interface Props {
 
 export default function OfflineBanner({ visible, variant = 'offline' }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const totalHeight = OFFLINE_BANNER_BAND + insets.top;
@@ -35,7 +37,7 @@ export default function OfflineBanner({ visible, variant = 'offline' }: Props) {
   const ink = isReconnect ? theme.colors.dealInk : theme.colors.fairInk;
   const borderColor = isReconnect ? theme.colors.deal : theme.colors.fair;
   const icon = isReconnect ? 'checkmark-circle-outline' : 'wifi-outline';
-  const label = isReconnect ? 'Connexion rétablie' : 'Mode hors-ligne';
+  const label = isReconnect ? t('reconnected') : t('offline');
 
   return (
     <Animated.View style={[s.banner, { height: totalHeight, paddingTop: insets.top, backgroundColor: bg, borderBottomColor: borderColor }, animatedStyle]}>

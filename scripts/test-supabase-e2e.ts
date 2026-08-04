@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createClient } from '@supabase/supabase-js';
+import { CHROMATIC_WHEEL } from '../src/utils/chromatic-wheel';
 
 function readEnvVar(key: string): string {
   const content = fs.readFileSync(path.resolve('.env'), 'utf8');
@@ -61,6 +62,26 @@ async function main(): Promise<void> {
 
     const { data: similar, error: simErr } = await anon.rpc('similar_parfums', { accords: ['fresh', 'spicy'], exclude_id: 'dior_sauvage', lim: 3 });
     check('RPC similar_parfums', !simErr && (similar?.length ?? 0) > 0, `${similar?.length ?? 0} résultats${simErr ? `, ${simErr.message}` : ''}`);
+
+    // Roue chromatique (0061) : chaque couleur doit renvoyer des résultats,
+    // guards (lim plafonné, entrées vides), projection parfum_card.
+    for (const c of CHROMATIC_WHEEL) {
+      const t0 = Date.now();
+      const { data: chroma, error: cErr } = await anon.rpc('chroma_parfums', {
+        p_accords: c.accords, p_notes: c.notes, p_season: c.season, p_limit: 10,
+      });
+      const dt = Date.now() - t0;
+      // Budget < 2 s : protège la régression 0061 (red timeoutait > 3 s avant le
+      // bornage des branches par popularité, migration 0062).
+      check(`RPC chroma_parfums(${c.key})`, !cErr && (chroma?.length ?? 0) > 0 && dt < 2000, `${dt}ms, ${chroma?.length ?? 0} résultats${cErr ? `, ${cErr.message}` : ''}`);
+      if (c.key === 'black' && chroma?.[0]) console.log(`     → 1er noir: ${chroma[0].marque} ${chroma[0].nom}`);
+    }
+    const { data: chromaLim } = await anon.rpc('chroma_parfums', { p_accords: ['citrus'], p_limit: 500 });
+    check('chroma_parfums lim plafonné à 50', (chromaLim?.length ?? 0) <= 50, `${chromaLim?.length ?? 0} résultats`);
+    const { data: chromaEmpty, error: chromaEmptyErr } = await anon.rpc('chroma_parfums', { p_accords: [] });
+    check('chroma_parfums entrées vides → 0 résultat', !chromaEmptyErr && (chromaEmpty?.length ?? 0) === 0);
+    const { data: chromaCard } = await anon.rpc('chroma_parfums', { p_accords: ['amber'], p_limit: 1 });
+    check('chroma_parfums projection parfum_card (pas de search_vector)', !!chromaCard?.[0] && !('search_vector' in chromaCard[0]));
   }
 
   // ─── 2. Création user via Admin API (évite rate-limit SMTP + confirmation) ─

@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useReducedMotion, FadeInDown, FadeIn } from 'react-native-reanimated';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useAuthContext } from '../../src/contexts/AuthContext';
@@ -77,16 +79,24 @@ function dedupParfums(items: Parfum[]): Parfum[] {
   return out;
 }
 
+// Fragments de phrase timeline — résolus via i18next au moment de l'appel (§23.3).
+// NB : l'ordre des mots est figé dans la structure du rendu (pseudo + mid + nom + tail) ;
+// à restructurer en templates complets pour les langues à ordre différent (Phase 2).
+// Le séparateur ' · ' de recapPhrase est aussi une convention FR (Phase 2).
 function verdictVerb(v: FollowedVerdict['verdict']): string {
-  return v === 'love' ? ' adore ' : v === 'like' ? ' aime ' : v === 'meh' ? ' mitigé sur ' : ' n’aime pas ';
+  const key = v === 'love' ? 'community.timeline.verdictLove'
+    : v === 'like' ? 'community.timeline.verdictLike'
+    : v === 'meh' ? 'community.timeline.verdictMeh'
+    : 'community.timeline.verdictDislike';
+  return i18next.t(key);
 }
 
 function recapPhrase(r: WeeklyRecap): string {
   const segs: string[] = [];
-  if (r.scans > 0) segs.push(`${r.scans} flacon${r.scans > 1 ? 's' : ''} croisé${r.scans > 1 ? 's' : ''}`);
-  if (r.favorites > 0) segs.push(`${r.favorites} cœur${r.favorites > 1 ? 's' : ''}`);
-  if (r.daysWorn > 0) segs.push(`porté ${r.daysWorn} jour${r.daysWorn > 1 ? 's' : ''}`);
-  if (r.verdicts > 0) segs.push(`${r.verdicts} avis posé${r.verdicts > 1 ? 's' : ''}`);
+  if (r.scans > 0) segs.push(i18next.t('community.recap.scans', { count: r.scans }));
+  if (r.favorites > 0) segs.push(i18next.t('community.recap.favorites', { count: r.favorites }));
+  if (r.daysWorn > 0) segs.push(i18next.t('community.recap.daysWorn', { count: r.daysWorn }));
+  if (r.verdicts > 0) segs.push(i18next.t('community.recap.verdicts', { count: r.verdicts }));
   return segs.join(' · ');
 }
 
@@ -106,6 +116,7 @@ interface TimelineRow {
 export default function CommunautePage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const router = useRouter();
   const { user, isAuthenticated } = useAuthContext();
   const uid = user?.uid ?? null;
@@ -258,10 +269,10 @@ export default function CommunautePage() {
     if (!sotd) return;
     hapticsLight();
     const url = parfumShareUrl(sotd.parfumId);
-    const text = `Aujourd’hui je porte ${sotd.marque} – ${sotd.nom}`;
+    const text = t('shareSotd', { marque: sotd.marque, nom: sotd.nom });
     if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
     else Share.share({ message: `${text}\n${url}` }).catch(() => {});
-  }, [sotd]);
+  }, [sotd, t]);
 
   const handleAnchorLayout = useCallback((y: number, h: number) => {
     setSotdHeroAnchor(y + h);
@@ -276,7 +287,7 @@ export default function CommunautePage() {
   const seedMerged = useMemo(() => dedupParfums([...topLovedSeed, ...trendingSeed]), [topLovedSeed, trendingSeed]);
   const commParfums = useMemo(() => comm.map(toParfum), [comm]);
   const commLoveTotal = useMemo(() => comm.reduce((sum, c) => sum + (c.love_count ?? 0), 0), [comm]);
-  const commLabel = commLoveTotal < 5 ? 'par les premiers nez' : 'par la communauté';
+  const commLabel = commLoveTotal < 5 ? t('community.airDuTemps.byEarlyNoses') : t('community.airDuTemps.byCommunity');
 
   const commFull = !loading && comm.length >= MIN_ROW_CAROUSEL;
   const commThin = !loading && comm.length >= 1 && comm.length < MIN_ROW_CAROUSEL;
@@ -304,10 +315,10 @@ export default function CommunautePage() {
       key: `h-${h.pseudo}-${h.parfum_id}-${h.added_at}`,
       pseudo: h.pseudo, avatar_url: h.avatar_url, parfum_id: h.parfum_id,
       nom: h.nom, marque: h.marque, image_url: h.image_url,
-      mid: ' a ajouté ', tail: ' à sa parfumerie', date: h.added_at,
+      mid: i18next.t('community.timeline.addedMid'), tail: i18next.t('community.timeline.addedTail'), date: h.added_at,
     }));
     return [...verdicts, ...haves].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [followedVerdicts, followedHave]);
+  }, [followedVerdicts, followedHave, t]);
 
   const handleFamilyExplore = useCallback(() => {
     hapticsLight();
@@ -321,17 +332,17 @@ export default function CommunautePage() {
     hapticsLight();
     const phrase = recapPhrase(recap);
     const url = profileShareUrl(profile.pseudo);
-    const text = `Ma semaine olfactive — ${phrase}.`;
+    const text = t('community.recap.shareText', { phrase });
     if (Platform.OS === 'ios') Share.share({ url, message: text }).catch(() => {});
     else Share.share({ message: `${text}\n${url}` }).catch(() => {});
-  }, [recap, profile?.pseudo]);
+  }, [recap, profile?.pseudo, t]);
 
   const handleRecapCta = useCallback(() => {
     if (recapPublic) handleShareRecap();
     else router.push('/profile');
   }, [recapPublic, handleShareRecap, router]);
 
-  const recapCtaLabel = recapPublic ? 'Partager' : 'Rendre public';
+  const recapCtaLabel = recapPublic ? t('community.recap.share') : t('community.recap.makePublic');
   const recapCtaIcon = recapPublic ? 'share-social-outline' : 'chevron-forward';
 
   return (
@@ -345,7 +356,7 @@ export default function CommunautePage() {
         refreshControl={<RefreshControl refreshing={loading || lbLoading} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
       >
         <View style={s.header}>
-          <Text style={s.title}>Communauté</Text>
+          <Text style={s.title}>{t('community.title')}</Text>
         </View>
 
         <Reveal index={0} onLayout={(e) => handleAnchorLayout(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
@@ -370,12 +381,12 @@ export default function CommunautePage() {
               <Ionicons name={weekFamily.icon as never} size={20} color={theme.colors.primary} accessible={false} />
             </View>
             <View style={s.challengeTexts}>
-              <Text style={s.challengeOverline}>Le geste de la semaine</Text>
+              <Text style={s.challengeOverline}>{t('community.challenge.overline')}</Text>
               <Text style={s.challengeTitle} numberOfLines={1}>{weekFamily.label}</Text>
               <Text style={s.challengeTagline} numberOfLines={2} maxFontSizeMultiplier={1.3}>{weekFamily.tagline}</Text>
             </View>
-            <Pressable style={({ pressed }) => [s.challengeCta, pressed && s.pressFade]} onPress={handleFamilyExplore} accessibilityRole="button" accessibilityLabel={`Explorer la famille ${weekFamily.label}`}>
-              <Text style={s.challengeCtaText}>Explorer</Text>
+            <Pressable style={({ pressed }) => [s.challengeCta, pressed && s.pressFade]} onPress={handleFamilyExplore} accessibilityRole="button" accessibilityLabel={t('community.challenge.exploreA11y', { family: weekFamily.label })}>
+              <Text style={s.challengeCtaText}>{t('community.challenge.explore')}</Text>
               <Ionicons name="arrow-forward" size={15} color={theme.colors.primaryInk} accessible={false} />
             </Pressable>
           </View>
@@ -385,7 +396,7 @@ export default function CommunautePage() {
           <Reveal index={2} style={s.recapCard}>
             <View style={s.recapRow}>
               <View style={s.recapTexts}>
-                <Text style={s.recapOverline}>Ta semaine</Text>
+                <Text style={s.recapOverline}>{t('community.recap.overline')}</Text>
                 <Text style={s.recapPhrase} numberOfLines={2} maxFontSizeMultiplier={1.3}>{recapPhrase(recap)}</Text>
               </View>
               <Pressable
@@ -393,7 +404,7 @@ export default function CommunautePage() {
                 onPress={handleRecapCta}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 accessibilityRole="button"
-                accessibilityLabel={recapPublic ? 'Partager ta semaine olfactive' : 'Rendre ton profil public pour partager ta semaine'}
+                accessibilityLabel={recapPublic ? t('community.recap.shareA11y') : t('community.recap.makePublicA11y')}
               >
                 <Text style={s.recapCtaText}>{recapCtaLabel}</Text>
                 <Ionicons name={recapCtaIcon as never} size={15} color={theme.colors.primary} accessible={false} />
@@ -403,14 +414,14 @@ export default function CommunautePage() {
         ) : null}
 
         <View style={s.section}>
-          <SectionHeader style={s.sectionHeader} title="Les nez" subtitle="Trouve et suis des passionnés" icon="people-outline" tint="primary" tintBg="primarySoft" />
+          <SectionHeader style={s.sectionHeader} title={t('community.nez.title')} subtitle={t('community.nez.subtitle')} icon="people-outline" tint="primary" tintBg="primarySoft" />
           <View style={s.pseudoRow}>
             <Ionicons name="person-outline" size={16} color={theme.colors.textMuted} accessible={false} />
             <TextInput
               style={s.pseudoInput}
               value={pseudoQuery}
               onChangeText={handlePseudoChange}
-              placeholder="Chercher un pseudo…"
+              placeholder={t('community.nez.searchPlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -444,7 +455,7 @@ export default function CommunautePage() {
 
           {isAuthenticated && hasFollowedActivity ? (
             <View style={s.followedBlock}>
-              <Text style={s.subLabel}>Activité de tes suivis</Text>
+              <Text style={s.subLabel}>{t('community.nez.activity')}</Text>
               {followedSotd.length > 0 ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
                   {followedSotd.map((item) => (
@@ -474,7 +485,7 @@ export default function CommunautePage() {
 
           {public_profiles.length >= MIN_ROW_GRID ? (
             <View style={s.profilesBlock}>
-              <Text style={s.subLabel}>Collections à découvrir</Text>
+              <Text style={s.subLabel}>{t('community.nez.collections')}</Text>
               <View style={s.profilesGrid}>
                 {public_profiles.map((p) => (
                   <ProfileCard key={p.pseudo} profile={p} styles={s} theme={theme} onPress={() => handleProfilePress(p.pseudo)} />
@@ -495,19 +506,19 @@ export default function CommunautePage() {
             <View style={s.iconCircle}>
               <Ionicons name="people-outline" size={32} color={theme.colors.primary} />
             </View>
-            <Text style={s.stateHeading}>Les membres arrivent</Text>
+            <Text style={s.stateHeading}>{t('community.empty.heading')}</Text>
             <Text style={s.stateText}>
               {isAuthenticated
-                ? 'Suis des nez pour voir leur activité ici, et rends ton profil visible pour être découvert.'
-                : 'Rends ton profil visible pour être parmi les premiers nez de la communauté.'}
+                ? t('community.empty.following')
+                : t('community.empty.publicProfile')}
             </Text>
             <Pressable style={s.ctaBtn} onPress={() => router.push('/profile')} accessibilityRole="button">
-              <Text style={s.ctaBtnText}>{isAuthenticated ? 'Mon profil public' : 'Créer mon profil'}</Text>
+              <Text style={s.ctaBtnText}>{isAuthenticated ? t('community.empty.ctaProfile') : t('community.empty.ctaCreate')}</Text>
             </Pressable>
           </Animated.View>
         ) : showAnyAir ? (
           <View style={s.section}>
-            <SectionHeader style={s.sectionHeader} title="L’air du temps" subtitle="Ce qui se porte et se convoite" icon="trending-up-outline" tint="primary" tintBg="primarySoft" />
+            <SectionHeader style={s.sectionHeader} title={t('community.airDuTemps.title')} subtitle={t('community.airDuTemps.subtitle')} icon="trending-up-outline" tint="primary" tintBg="primarySoft" />
             {commFull ? (
               <View style={s.subSection}>
                 <Text style={s.subLabel}>{commLabel}</Text>
@@ -533,7 +544,7 @@ export default function CommunautePage() {
                 ) : null}
                 {showSeedRow ? (
                   <View style={s.subSection}>
-                    <Text style={s.subLabel}>La sélection de la maison</Text>
+                    <Text style={s.subLabel}>{t('community.airDuTemps.houseSelection')}</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
                       {seedMerged.map((p) => (
                         <View key={p.id} style={s.cardWrap}>
@@ -589,6 +600,7 @@ function TodayHero({
   styles: ReturnType<typeof getStyles>;
   theme: Theme;
 }) {
+  const { t } = useTranslation('common');
   const showWeather = weather !== null && !weatherLoading;
   const wmo = showWeather ? getWmoMeta((weather as WeatherData).weatherCode) : null;
   const iconName = wmo
@@ -606,8 +618,8 @@ function TodayHero({
     <View style={s.heroCard}>
       <View style={s.heroTop}>
         <View style={s.heroTitles}>
-          <Text style={s.heroTitle}>L’air du jour</Text>
-          <Text style={s.heroEditorial}>Ce que la journée porte.</Text>
+          <Text style={s.heroTitle}>{t('community.hero.title')}</Text>
+          <Text style={s.heroEditorial}>{t('community.hero.editorial')}</Text>
         </View>
         {showWeather && wmo && iconName ? (
           <View style={s.heroWeather}>
@@ -621,7 +633,7 @@ function TodayHero({
         ) : null}
       </View>
 
-      {showRow ? <Text style={s.heroTodayLabel}>Portés aujourd’hui</Text> : null}
+      {showRow ? <Text style={s.heroTodayLabel}>{t('community.hero.todayLabel')}</Text> : null}
 
       {showRow ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hRow}>
@@ -641,7 +653,7 @@ function TodayHero({
           onLongPress={sotd ? onShareSotd : undefined}
           delayLongPress={400}
           accessibilityRole="button"
-          accessibilityLabel={sotd ? `Ton parfum du jour : ${sotd.nom} ${sotd.marque}. Appuie longuement pour partager.` : 'Choisir ton parfum du jour'}
+          accessibilityLabel={sotd ? t('community.hero.yourSotdA11y', { nom: sotd.nom, marque: sotd.marque }) : t('community.hero.pickSotdA11y')}
         >
           <View style={s.heroMeThumbWrap}>
             {sotd?.imageUrl ? (
@@ -651,20 +663,21 @@ function TodayHero({
             )}
           </View>
           <Text style={s.heroMeLineText} numberOfLines={1}>
-            {sotd ? `Aujourd’hui tu portes ${sotd.nom}` : 'Choisis ton parfum du jour'}
+            {sotd ? t('community.hero.yourSotd', { nom: sotd.nom }) : t('community.hero.pickSotd')}
           </Text>
           <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} accessible={false} />
         </Pressable>
       ) : sotdToday.length === 0 ? (
-        <Text style={s.heroTodayEmpty}>Les premiers flacons du jour apparaîtront ici.</Text>
+        <Text style={s.heroTodayEmpty}>{t('community.hero.todayEmpty')}</Text>
       ) : null}
     </View>
   );
 }
 
 function SotdCard({ item, isMe, styles: s, theme, onPress }: { item: CommunitySotd; isMe?: boolean; styles: ReturnType<typeof getStyles>; theme: Theme; onPress: () => void }) {
+  const { t } = useTranslation('common');
   return (
-    <Pressable style={s.sotdCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={isMe ? `Toi : ${item.nom}` : `${item.pseudo} porte ${item.nom}`}>
+    <Pressable style={s.sotdCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={isMe ? t('community.hero.sotdA11yMe', { nom: item.nom }) : t('community.hero.sotdA11yOther', { pseudo: item.pseudo, nom: item.nom })}>
       <View style={s.sotdImgWrap}>
         {item.image_url ? (
           <Image source={{ uri: item.image_url }} style={s.sotdImg} contentFit="contain" transition={200} />
@@ -675,20 +688,21 @@ function SotdCard({ item, isMe, styles: s, theme, onPress }: { item: CommunitySo
         )}
         {isMe ? (
           <View style={s.sotdMeBadge}>
-            <Text allowFontScaling={false} style={s.sotdMeBadgeText}>Toi</Text>
+            <Text allowFontScaling={false} style={s.sotdMeBadgeText}>{t('community.hero.you')}</Text>
           </View>
         ) : null}
       </View>
       <Text style={s.sotdName} numberOfLines={1}>{item.nom}</Text>
-      <Text style={s.sotdPseudo} numberOfLines={1}>{isMe ? 'ton parfum' : `@${item.pseudo}`}</Text>
+      <Text style={s.sotdPseudo} numberOfLines={1}>{isMe ? t('community.hero.yourPerfume') : `@${item.pseudo}`}</Text>
     </Pressable>
   );
 }
 
 function ProfileCard({ profile, styles: s, theme, onPress }: { profile: CommunityProfile; styles: ReturnType<typeof getStyles>; theme: Theme; onPress: () => void }) {
+  const { t } = useTranslation('common');
   const initial = profile.pseudo.charAt(0).toUpperCase();
   return (
-    <Pressable style={s.profileCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Profil de ${profile.pseudo}, ${profile.collection_count} parfums`}>
+    <Pressable style={s.profileCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={t('community.nez.profileA11y', { pseudo: profile.pseudo, count: profile.collection_count })}>
       <View style={s.profileTop}>
         {profile.avatar_url ? (
           <Image source={{ uri: profile.avatar_url }} style={s.profileAvatar} contentFit="cover" transition={200} />
@@ -700,7 +714,7 @@ function ProfileCard({ profile, styles: s, theme, onPress }: { profile: Communit
         <View style={s.profileInfo}>
           <Text style={s.profilePseudo} numberOfLines={1}>@{profile.pseudo}</Text>
           <Text style={s.profileCount} allowFontScaling={false}>
-            {profile.collection_count} parfum{profile.collection_count > 1 ? 's' : ''}
+            {t('community.nez.profileCount', { count: profile.collection_count })}
           </Text>
         </View>
       </View>
@@ -716,19 +730,20 @@ function ProfileCard({ profile, styles: s, theme, onPress }: { profile: Communit
 }
 
 function RunnerFooter({ entry, loading, onPress, styles: s, theme }: { entry: LeaderboardEntry | null; loading: boolean; onPress: () => void; styles: ReturnType<typeof getStyles>; theme: Theme }) {
+  const { t } = useTranslation('common');
   const sub = loading
-    ? 'Chargement…'
+    ? t('community.runner.loading')
     : entry
-      ? `Ton rang #${entry.rank} · ${entry.score} pts`
-      : 'Lance une partie';
+      ? t('community.runner.rank', { rank: entry.rank, score: entry.score })
+      : t('community.runner.start');
   return (
-    <Pressable style={({ pressed }) => [s.runnerFooter, pressed && s.pressFade]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Flacon Runner, ${entry ? `ton rang ${entry.rank}, ${entry.score} points` : 'aucune partie jouée'}. Jouer`}>
+    <Pressable style={({ pressed }) => [s.runnerFooter, pressed && s.pressFade]} onPress={onPress} accessibilityRole="button" accessibilityLabel={t('community.runner.a11y', { detail: entry ? t('community.runner.rankA11y', { rank: entry.rank, score: entry.score }) : t('community.runner.noGameA11y') })}>
       <Ionicons name="game-controller-outline" size={16} color={theme.colors.textMuted} accessible={false} />
       <View style={s.runnerFooterText}>
         <Text style={s.runnerFooterTitle}>Flacon Runner</Text>
         <Text style={s.runnerFooterSub} numberOfLines={1} allowFontScaling={false}>{sub}</Text>
       </View>
-      <Text style={s.runnerFooterCta}>Jouer</Text>
+      <Text style={s.runnerFooterCta}>{t('community.runner.play')}</Text>
       <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} accessible={false} />
     </Pressable>
   );

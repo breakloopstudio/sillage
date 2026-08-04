@@ -4,6 +4,7 @@ import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import {
   LEGAL_COMPANY_NAME, LEGAL_COMPANY_FORM, LEGAL_ADDRESS, LEGAL_RCS,
@@ -13,65 +14,66 @@ import {
 export default function LegalPage() {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const router = useRouter();
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityLabel="Retour">
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityLabel={t('back')}>
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
           </Pressable>
-          <Text style={s.title}>Mentions légales</Text>
+          <Text style={s.title}>{t('legal.title')}</Text>
           <View style={{ width: 32 }} />
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Éditeur de l'application</Text>
+          <Text style={s.sectionTitle}>{t('legal.editorSection')}</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'application Sillage est éditée par {LEGAL_COMPANY_NAME}.{'\n'}
-            {LEGAL_COMPANY_FORM !== 'À_COMPLÉTER' ? `\nForme juridique : ${LEGAL_COMPANY_FORM}` : ''}
-            {LEGAL_ADDRESS !== 'À_COMPLÉTER' ? `\nSiège social : ${LEGAL_ADDRESS}` : ''}
-            {LEGAL_RCS !== 'À_COMPLÉTER' ? `\nRCS : ${LEGAL_RCS}` : ''}
-            {'\n\n'}Contact : {LEGAL_EMAIL}
+            {t('legal.editorIntro', { company: LEGAL_COMPANY_NAME })}{'\n'}
+            {LEGAL_COMPANY_FORM !== 'À_COMPLÉTER' ? `\n${t('legal.legalForm', { value: LEGAL_COMPANY_FORM })}` : ''}
+            {LEGAL_ADDRESS !== 'À_COMPLÉTER' ? `\n${t('legal.headOffice', { value: LEGAL_ADDRESS })}` : ''}
+            {LEGAL_RCS !== 'À_COMPLÉTER' ? `\n${t('legal.rcs', { value: LEGAL_RCS })}` : ''}
+            {'\n\n'}{t('legal.contactLabel')} {LEGAL_EMAIL}
           </Text>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Directeur de la publication</Text>
+          <Text style={s.sectionTitle}>{t('legal.directorSection')}</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            {LEGAL_DIRECTOR_NAME}, représentant légal de {LEGAL_COMPANY_NAME}
+            {t('legal.directorLine', { director: LEGAL_DIRECTOR_NAME, company: LEGAL_COMPANY_NAME })}
           </Text>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Hébergement</Text>
+          <Text style={s.sectionTitle}>{t('legal.hostingSection')}</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'application est hébergée par :{'\n\n'}
+            {t('legal.hostingIntro')}{'\n\n'}
             {LEGAL_HOST_NAME}{'\n'}
             {LEGAL_HOST_ADDRESS}{'\n'}
-            Tél. : {LEGAL_HOST_PHONE}{'\n\n'}
-            Les données sont stockées dans la région Europe.
+            {t('legal.hostPhone', { phone: LEGAL_HOST_PHONE })}{'\n\n'}
+            {t('legal.dataRegion')}
           </Text>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Propriété intellectuelle</Text>
+          <Text style={s.sectionTitle}>{t('legal.ipSection')}</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'ensemble du code source, du design, des textes et des éléments graphiques de l'application Sillage est la propriété exclusive de l'éditeur, sauf mention contraire.{'\n\n'}
-            Toute reproduction, représentation, modification ou adaptation, partielle ou totale, est interdite sans autorisation préalable.{'\n\n'}
-            La base de données de parfums est constituée à partir de données publiques et reste la propriété de leurs auteurs respectifs.
+            {t('legal.ipParagraph1')}{'\n\n'}
+            {t('legal.ipParagraph2')}{'\n\n'}
+            {t('legal.ipParagraph3')}
           </Text>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Contact</Text>
+          <Text style={s.sectionTitle}>{t('legal.contactSection')}</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            Pour toute question relative à l'application, contactez-nous à l'adresse : {LEGAL_EMAIL}.
+            {t('legal.contactParagraph', { email: LEGAL_EMAIL })}
           </Text>
         </View>
 
-        <Text style={s.version}>Dernière mise à jour : juillet 2026</Text>
+        <Text style={s.version}>{t('legal.lastUpdate')}</Text>
       </ScrollView>
     </SafeAreaView>
   );

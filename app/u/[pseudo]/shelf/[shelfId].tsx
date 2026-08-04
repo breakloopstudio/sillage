@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../../../src/theme/ThemeContext';
 import { useAuthContext } from '../../../../src/contexts/AuthContext';
 import { useUserParfumContext } from '../../../../src/contexts/UserParfumContext';
@@ -37,6 +38,7 @@ export default function PublicShelfPage() {
   const shelfId = Array.isArray(searchParams.shelfId) ? searchParams.shelfId[0] : searchParams.shelfId;
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const router = useRouter();
   const mountedRef = useRef(true);
 
@@ -96,9 +98,9 @@ export default function PublicShelfPage() {
   }, [items, router]);
 
   const inspireButton = isOwnProfile ? null : !isAuthenticated ? (
-    <Pressable style={s.inspireBtnOutline} onPress={handleLogin} accessibilityRole="button" accessibilityLabel="Se connecter pour s’inspirer de cette étagère">
+    <Pressable style={s.inspireBtnOutline} onPress={handleLogin} accessibilityRole="button" accessibilityLabel={t('publicShelf.loginToInspireA11y')}>
       <Ionicons name="log-in-outline" size={18} color={theme.colors.primary} />
-      <Text style={s.inspireBtnOutlineText} allowFontScaling={false}>Se connecter pour s’inspirer</Text>
+      <Text style={s.inspireBtnOutlineText} allowFontScaling={false}>{t('publicShelf.loginToInspire')}</Text>
     </Pressable>
   ) : (
     <Pressable
@@ -106,7 +108,7 @@ export default function PublicShelfPage() {
       onPress={(inspiredDone || missing.length === 0) ? undefined : handleOpenInspire}
       disabled={inspiredDone || missing.length === 0}
       accessibilityRole="button"
-      accessibilityLabel={(inspiredDone || missing.length === 0) ? 'Déjà dans ta parfumerie' : `S’inspirer de cette étagère, ${missing.length} parfums`}
+      accessibilityLabel={(inspiredDone || missing.length === 0) ? t('publicShelf.alreadyInParfumerie') : t('publicShelf.inspireA11y', { count: missing.length })}
     >
       <Ionicons
         name={(inspiredDone || missing.length === 0) ? 'checkmark-circle-outline' : 'sparkles-outline'}
@@ -117,15 +119,15 @@ export default function PublicShelfPage() {
         style={[s.inspireBtnText, (inspiredDone || missing.length === 0) && s.inspireBtnTextDisabled]}
         allowFontScaling={false}
       >
-        {(inspiredDone || missing.length === 0) ? 'Déjà dans ta parfumerie' : `S’inspirer de cette étagère (${missing.length})`}
+        {(inspiredDone || missing.length === 0) ? t('publicShelf.alreadyInParfumerie') : t('publicShelf.inspireWithCount', { count: missing.length })}
       </Text>
     </Pressable>
   );
 
-  const headerTitle = shelf?.name ?? 'Étagère';
+  const headerTitle = shelf?.name ?? t('publicShelf.titleFallback');
   const header = (
     <View style={s.header}>
-      <Pressable onPress={handleBack} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Retour">
+      <Pressable onPress={handleBack} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel={t('back')}>
         <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
       </Pressable>
       <Text style={s.title} numberOfLines={1}>{headerTitle}</Text>
@@ -150,8 +152,8 @@ export default function PublicShelfPage() {
           <View style={s.stateIcon}>
             <Ionicons name="lock-closed-outline" size={28} color={theme.colors.textMuted} />
           </View>
-          <Text style={s.stateTitle}>Étagère privée ou introuvable</Text>
-          <Text style={s.stateDesc}>Ce membre n’a pas partagé cette étagère, ou elle n’existe plus.</Text>
+          <Text style={s.stateTitle}>{t('publicShelf.privateTitle')}</Text>
+          <Text style={s.stateDesc}>{t('publicShelf.privateDesc')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -164,7 +166,7 @@ export default function PublicShelfPage() {
       {header}
       <View style={s.content}>
         <View style={s.identity}>
-          <Pressable onPress={handleOpenProfile} style={s.authorRow} accessibilityRole="button" accessibilityLabel={`Voir le profil de ${shelf.pseudo}`}>
+          <Pressable onPress={handleOpenProfile} style={s.authorRow} accessibilityRole="button" accessibilityLabel={t('publicShelf.viewProfileA11y', { pseudo: shelf.pseudo })}>
             {shelf.avatarUrl && !imgFailed ? (
               <Image source={{ uri: shelf.avatarUrl }} style={s.avatar} contentFit="cover" transition={200} onError={() => setImgFailed(true)} />
             ) : (

@@ -2,6 +2,7 @@
 import { View, Text, Pressable } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 import { pickInitialLayer, type LayerKey } from './pyramid/geometry';
@@ -29,6 +30,7 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
   const { theme, resolvedMode } = useTheme();
   const c = theme.colors;
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
 
   const [selected, setSelected] = useState<Set<LayerKey>>(() => {
     const initial = pickInitialLayer(topNotes.length, heartNotes.length, baseNotes.length);
@@ -37,11 +39,11 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
 
   const layers: [LayerDef, LayerDef, LayerDef] = useMemo(
     () => [
-      { key: 'top', label: 'Tête', notes: topNotes, color: c.pyramidTop, soft: c.pyramidTopSoft, ink: c.pyramidTopInk },
-      { key: 'heart', label: 'Cœur', notes: heartNotes, color: c.pyramidHeart, soft: c.pyramidHeartSoft, ink: c.pyramidHeartInk },
-      { key: 'base', label: 'Fond', notes: baseNotes, color: c.pyramidBase, soft: c.pyramidBaseSoft, ink: c.pyramidBaseInk },
+      { key: 'top', label: t('pyramid.layer.top'), notes: topNotes, color: c.pyramidTop, soft: c.pyramidTopSoft, ink: c.pyramidTopInk },
+      { key: 'heart', label: t('pyramid.layer.heart'), notes: heartNotes, color: c.pyramidHeart, soft: c.pyramidHeartSoft, ink: c.pyramidHeartInk },
+      { key: 'base', label: t('pyramid.layer.base'), notes: baseNotes, color: c.pyramidBase, soft: c.pyramidBaseSoft, ink: c.pyramidBaseInk },
     ],
-    [topNotes, heartNotes, baseNotes, c],
+    [topNotes, heartNotes, baseNotes, c, t],
   );
 
   const openableKeys = useMemo(
@@ -94,7 +96,7 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
 
     const generalLayer: LayerDef = {
       key: 'base',
-      label: 'Notes',
+      label: t('pyramid.notes'),
       notes: general,
       color: c.primary,
       soft: c.primarySoft,
@@ -108,7 +110,7 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
             <View style={s.headerBadge}>
               <Ionicons name="layers-outline" size={14} color={c.primaryInk} />
             </View>
-            <Text style={s.title}>Notes</Text>
+            <Text style={s.title}>{t('pyramid.notes')}</Text>
           </View>
         </View>
         <NoteCloud layer={generalLayer} onNotePress={handleGeneralNotePress} />
@@ -124,15 +126,15 @@ export default function OlfactoryPyramid({ topNotes, heartNotes, baseNotes, gene
             <View style={s.headerBadge}>
               <Ionicons name="layers-outline" size={14} color={c.primaryInk} />
             </View>
-            <Text style={s.title}>Pyramide olfactive</Text>
+            <Text style={s.title}>{t('pyramid.title')}</Text>
           </View>
           <Pressable
             onPress={handleToggleAll}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel={allOpen ? 'Tout replier' : 'Tout afficher'}
+            accessibilityLabel={allOpen ? t('pyramid.collapseAll') : t('pyramid.expandAll')}
           >
-            <Text style={s.headerAction}>{allOpen ? 'Tout replier' : 'Tout afficher'}</Text>
+            <Text style={s.headerAction}>{allOpen ? t('pyramid.collapseAll') : t('pyramid.expandAll')}</Text>
           </Pressable>
         </View>
       </View>

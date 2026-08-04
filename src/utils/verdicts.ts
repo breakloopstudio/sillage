@@ -1,3 +1,6 @@
+// src/utils/verdicts.ts — Options de verdict (labels résolus via i18next à l'affichage, §23)
+
+import i18next from 'i18next';
 import type { ScentVerdict } from '../models/user-parfum.interface';
 
 export interface VerdictOption {
@@ -8,10 +11,10 @@ export interface VerdictOption {
 }
 
 export const VERDICT_OPTIONS: VerdictOption[] = [
-  { key: 'love',    label: 'Coup de cœur',  icon: 'heart',          token: 'secondary' },
-  { key: 'like',    label: 'J\'aime',       icon: 'thumbs-up',      token: 'deal' },
-  { key: 'meh',     label: 'Mitigé',        icon: 'remove-outline', token: 'fair' },
-  { key: 'dislike', label: 'Pas pour moi',  icon: 'thumbs-down',    token: 'primary' },
+  { key: 'love',    get label() { return i18next.t('verdicts.love'); },    icon: 'heart',          token: 'secondary' },
+  { key: 'like',    get label() { return i18next.t('verdicts.like'); },    icon: 'thumbs-up',      token: 'deal' },
+  { key: 'meh',     get label() { return i18next.t('verdicts.meh'); },     icon: 'remove-outline', token: 'fair' },
+  { key: 'dislike', get label() { return i18next.t('verdicts.dislike'); }, icon: 'thumbs-down',    token: 'primary' },
 ];
 
 export function verdictLabel(v: ScentVerdict | null | undefined): string | null {

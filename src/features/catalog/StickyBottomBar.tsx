@@ -13,9 +13,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
-import { formatPrice } from '../../utils/format-price';
+import { formatPrice, formatDiscount } from '../../utils/format-price';
 import SaveButton from './SaveButton';
 
 interface Props {
@@ -34,6 +35,7 @@ export default function StickyBottomBar({
   saveLabel, purchaseUrl, onSavePress, onPurchasePress,
 }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -85,7 +87,7 @@ export default function StickyBottomBar({
               <Text style={s.price} numberOfLines={1} allowFontScaling={false}>{formatPrice(bestPrice!)}</Text>
               {discountPct !== null && discountPct > 0 && discountPct <= 95 && (
                 <View style={[s.discountBadge, { backgroundColor: theme.colors.deal }]}>
-                  <Text style={s.discountText} allowFontScaling={false}>{`−${discountPct} %`}</Text>
+                  <Text style={s.discountText} allowFontScaling={false}>{formatDiscount(discountPct)}</Text>
                 </View>
               )}
             </View>
@@ -95,8 +97,8 @@ export default function StickyBottomBar({
         <SaveButton label={saveLabel} onPress={onSavePress} variant="bar" />
 
         {purchaseUrl ? (
-          <Pressable onPress={onPurchasePress} style={s.cta} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel="Voir l'offre">
-            <Text style={s.ctaText}>Voir l'offre</Text>
+          <Pressable onPress={onPurchasePress} style={s.cta} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel={t('detail.seeOffer')}>
+            <Text style={s.ctaText}>{t('detail.seeOffer')}</Text>
           </Pressable>
         ) : null}
       </View>

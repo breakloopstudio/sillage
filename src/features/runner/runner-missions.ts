@@ -4,6 +4,7 @@
 // plus proche pour l'effet « presque » (rejeu) affiché au game over.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18next from 'i18next';
 
 export interface MissionContext {
   score: number;
@@ -40,15 +41,15 @@ export interface NextObjective {
 }
 
 export const MISSIONS: Mission[] = [
-  { key: 'score', label: 'Prestige', icon: 'trophy-outline', unit: 'pts', value: c => c.score, tiers: [50, 500, 3000] },
-  { key: 'distance', label: 'Marathon', icon: 'walk-outline', unit: 'm', value: c => c.distance, tiers: [500, 1500, 5000] },
-  { key: 'combo', label: 'Enchaînement', icon: 'flash-outline', unit: '×', value: c => c.maxCombo, tiers: [2, 3, 4] },
-  { key: 'nearmiss', label: 'Frôleur', icon: 'speedometer-outline', unit: 'frôlés', value: c => c.nearMiss, tiers: [3, 5, 10] },
-  { key: 'shield', label: 'Rempart', icon: 'shield-checkmark-outline', unit: 'impacts', value: c => c.shieldBreaks, tiers: [1, 3, 6] },
-  { key: 'harvest', label: 'Récolte', icon: 'leaf-outline', unit: 'notes', value: c => c.notesCollected, tiers: [4, 8, 15] },
-  { key: 'runs', label: 'Habitué', icon: 'footsteps-outline', unit: 'runs', value: c => c.totalRuns, tiers: [5, 20, 50] },
-  { key: 'explorer', label: 'Explorateur', icon: 'compass-outline', unit: 'm', value: c => c.totalDistance, tiers: [5000, 20000, 50000] },
-  { key: 'collector', label: 'Collectionneur', icon: 'flask-outline', unit: 'notes', value: c => c.totalNotes, tiers: [20, 100, 300] },
+  { key: 'score', get label() { return i18next.t('runner.missionScore'); }, icon: 'trophy-outline', unit: 'pts', value: c => c.score, tiers: [50, 500, 3000] },
+  { key: 'distance', get label() { return i18next.t('runner.missionDistance'); }, icon: 'walk-outline', unit: 'm', value: c => c.distance, tiers: [500, 1500, 5000] },
+  { key: 'combo', get label() { return i18next.t('runner.missionCombo'); }, icon: 'flash-outline', unit: '×', value: c => c.maxCombo, tiers: [2, 3, 4] },
+  { key: 'nearmiss', get label() { return i18next.t('runner.missionNearmiss'); }, icon: 'speedometer-outline', get unit() { return i18next.t('runner.unitNearmiss'); }, value: c => c.nearMiss, tiers: [3, 5, 10] },
+  { key: 'shield', get label() { return i18next.t('runner.missionShield'); }, icon: 'shield-checkmark-outline', get unit() { return i18next.t('runner.unitShield'); }, value: c => c.shieldBreaks, tiers: [1, 3, 6] },
+  { key: 'harvest', get label() { return i18next.t('runner.missionHarvest'); }, icon: 'leaf-outline', get unit() { return i18next.t('runner.unitNotes'); }, value: c => c.notesCollected, tiers: [4, 8, 15] },
+  { key: 'runs', get label() { return i18next.t('runner.missionRuns'); }, icon: 'footsteps-outline', get unit() { return i18next.t('runner.unitRuns'); }, value: c => c.totalRuns, tiers: [5, 20, 50] },
+  { key: 'explorer', get label() { return i18next.t('runner.missionExplorer'); }, icon: 'compass-outline', unit: 'm', value: c => c.totalDistance, tiers: [5000, 20000, 50000] },
+  { key: 'collector', get label() { return i18next.t('runner.missionCollector'); }, icon: 'flask-outline', get unit() { return i18next.t('runner.unitNotes'); }, value: c => c.totalNotes, tiers: [20, 100, 300] },
 ];
 
 const MISSIONS_KEY = '@sillage/runner-missions';

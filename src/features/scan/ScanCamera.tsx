@@ -13,6 +13,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 
@@ -26,11 +27,13 @@ interface Props {
   onCapture: (burstBase64: string[]) => void;
   onCancel: () => void;
   onImportGallery?: () => void;
+  idleHint?: string;
 }
 
-export function ScanCamera({ onCapture, onCancel, onImportGallery }: Props) {
+export function ScanCamera({ onCapture, onCancel, onImportGallery, idleHint }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const cameraRef = useRef<CameraView>(null);
   const insets = useSafeAreaInsets();
   const [capturing, setCapturing] = useState(false);
@@ -83,13 +86,13 @@ export function ScanCamera({ onCapture, onCancel, onImportGallery }: Props) {
       } else if (mountedRef.current) {
         setCapturing(false);
         setCaptureIndex(0);
-        Alert.alert('Erreur', 'Aucune photo capturée. Veuillez réessayer.');
+        Alert.alert(t('scan.errorTitle'), t('scan.noPhotoError'));
       }
     } catch {
       if (!mountedRef.current) return;
       setCapturing(false);
       setCaptureIndex(0);
-      Alert.alert('Erreur', 'Échec de la capture. Veuillez réessayer.');
+      Alert.alert(t('scan.errorTitle'), t('scan.captureError'));
     }
   };
 
@@ -117,13 +120,13 @@ export function ScanCamera({ onCapture, onCancel, onImportGallery }: Props) {
 
           <Text style={s.hint}>
             {capturing
-              ? (BURST_COUNT > 1 ? `${captureIndex}/${BURST_COUNT} — Ne bougez plus` : 'Ne bougez plus')
-              : 'Cadre le flacon et appuie sur le déclencheur'}
+              ? (BURST_COUNT > 1 ? t('scan.holdStillBurst', { index: captureIndex, count: BURST_COUNT }) : t('scan.holdStill'))
+              : (idleHint ?? t('scan.cameraHint'))}
           </Text>
 
           <View style={[s.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
             {onImportGallery ? (
-              <Pressable onPress={onImportGallery} style={s.galleryBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Importer de la galerie">
+              <Pressable onPress={onImportGallery} style={s.galleryBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('scan.importGalleryA11y')}>
                 <Ionicons name="images-outline" size={24} color="#FFF" />
               </Pressable>
             ) : (

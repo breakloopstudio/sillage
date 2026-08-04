@@ -1,13 +1,14 @@
 // src/features/scan/ScanScreen.tsx — Orchestrateur scan avec caméra réelle
 // Pipeline métier → useScanPipeline (testable)
 
-import { useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 import { useNetwork } from '../../hooks/useNetwork';
 import { useScans } from '../../hooks/useScans';
 import { useScanReducer } from '../../hooks/useScanReducer';
@@ -19,8 +20,10 @@ import { ScanCamera } from './ScanCamera';
 import { ScanLoading } from './ScanLoading';
 import { ScanClarify } from './ScanClarify';
 import { ScanResults } from './ScanResults';
+import { ScanCollectionResults } from './ScanCollectionResults';
 import { ScanNoResult } from './ScanNoResult';
 import { ScanError } from './ScanError';
+import type { ScanMode } from './scanMode';
 import PermissionPrimer from '../../components/PermissionPrimer';
 import { usePermissionPrimer } from '../../hooks/usePermissionPrimer';
 import { PERMISSION_PRIMERS } from '../../utils/permission-primers';
@@ -41,6 +44,7 @@ async function resizeToBase64(uri: string): Promise<string | null> {
 export function ScanScreen() {
   const { user } = useAuthContext();
   const { isOnline } = useNetwork();
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const { state, dispatch } = useScanReducer();
@@ -48,6 +52,8 @@ export function ScanScreen() {
 
   const mountedRef = useRef(true);
   const lastBurstRef = useRef<string[] | null>(null);
+  const lastModeRef = useRef<ScanMode>('single');
+  const [scanMode, setScanMode] = useState<ScanMode>('single');
 
   useEffect(() => {
     mountedRef.current = true;
@@ -55,7 +61,17 @@ export function ScanScreen() {
   }, []);
 
   // Pipeline métier : GPT-4o → recherche → résultats → historique
-  const { startAnalysis, cancelAnalysis } = useScanPipeline(dispatch, user?.uid ?? null, mountedRef);
+  const { startAnalysis, startCollectionAnalysis, cancelAnalysis } = useScanPipeline(dispatch, user?.uid ?? null, mountedRef);
+
+  const launchAnalysis = useCallback((images: string[]) => {
+    lastBurstRef.current = images;
+    lastModeRef.current = scanMode;
+    if (scanMode === 'collection') {
+      startCollectionAnalysis({ image: images[0] });
+    } else {
+      startAnalysis({ images });
+    }
+  }, [scanMode, startAnalysis, startCollectionAnalysis]);
 
   // Scans récents réussis (vignettes sur l'idle)
   const { scans } = useScans(user?.uid ?? null);
@@ -69,9 +85,9 @@ export function ScanScreen() {
 
   const guardOnline = useCallback((): boolean => {
     if (isOnline) return true;
-    Alert.alert('Hors-ligne', 'Le scan nécessite une connexion internet. Réessaie quand tu es connecté.');
+    Alert.alert(t('scan.offlineTitle'), t('scan.offlineMessage'));
     return false;
-  }, [isOnline]);
+  }, [isOnline, t]);
 
   // ─── Handlers UI ──────────────────────────────────────
 
@@ -90,18 +106,18 @@ export function ScanScreen() {
       const r = await requestPermission();
       if (!r.granted) {
         if (!r.canAskAgain) {
-          Alert.alert('Caméra désactivée', 'Active la caméra dans les réglages de l\'appareil pour scanner un flacon.', [
-            { text: 'Annuler', style: 'cancel' },
-            { text: 'Réglages', onPress: () => Linking.openSettings() },
+          Alert.alert(t('scan.cameraDisabledTitle'), t('scan.cameraDisabledMessage'), [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('openSettings'), onPress: () => Linking.openSettings() },
           ]);
         } else {
-          Alert.alert('Caméra nécessaire', 'La caméra sert à scanner le flacon. Tu peux réessayer quand tu veux.');
+          Alert.alert(t('scan.cameraNeededTitle'), t('scan.cameraNeededMessage'));
         }
         return;
       }
     }
     dispatch({ type: 'OPEN_CAMERA' });
-  }, [permission, requestPermission, dispatch]);
+  }, [permission, requestPermission, dispatch, t]);
 
   const handleOpenCamera = useCallback(async () => {
     if (!guardOnline()) return;
@@ -131,21 +147,19 @@ export function ScanScreen() {
       if (result.canceled || !result.assets?.[0]?.uri) return;
       const base64 = await resizeToBase64(result.assets[0].uri);
       if (!base64) {
-        Alert.alert('Erreur', 'Impossible de traiter cette image.');
+        Alert.alert(t('scan.errorTitle'), t('scan.processImageError'));
         return;
       }
       const images = [`data:image/jpeg;base64,${base64}`];
-      lastBurstRef.current = images;
-      startAnalysis({ images });
+      launchAnalysis(images);
     } catch {
-      Alert.alert('Erreur', "Impossible d'accéder à la galerie.");
+      Alert.alert(t('scan.errorTitle'), t('scan.galleryError'));
     }
-  }, [startAnalysis, guardOnline]);
+  }, [launchAnalysis, guardOnline, t]);
 
   const handleCapture = useCallback((burstBase64: string[]) => {
-    lastBurstRef.current = burstBase64;
-    startAnalysis({ images: burstBase64 });
-  }, [startAnalysis]);
+    launchAnalysis(burstBase64);
+  }, [launchAnalysis]);
 
   const handleClarify = useCallback(async (marque: string, nom: string, typeParfum: string | null, volumeMl: number | null) => {
     if (!guardOnline()) return;
@@ -158,11 +172,15 @@ export function ScanScreen() {
     if (!guardOnline()) return;
     const burst = lastBurstRef.current;
     if (burst && burst.length > 0) {
-      startAnalysis({ images: burst });
+      if (lastModeRef.current === 'collection') {
+        startCollectionAnalysis({ image: burst[0] });
+      } else {
+        startAnalysis({ images: burst });
+      }
     } else {
       reset();
     }
-  }, [reset, startAnalysis, guardOnline]);
+  }, [reset, startAnalysis, startCollectionAnalysis, guardOnline]);
 
   const handleOpenCatalog = useCallback(() => {
     setPendingCatalogQuery(state.kind === 'results' ? (state.parfums[0]?.marque ?? '') : '');
@@ -196,10 +214,10 @@ export function ScanScreen() {
   let view: ReactNode;
   switch (state.kind) {
     case 'idle':
-      view = <ScanIdle isOnline={isOnline} onStartScan={handleOpenCamera} onOpenSearch={handleOpenSearch} onClose={handleClose} recentScans={recentScans} onOpenRecent={handleOpenRecent} />;
+      view = <ScanIdle isOnline={isOnline} onStartScan={handleOpenCamera} onOpenSearch={handleOpenSearch} onClose={handleClose} recentScans={recentScans} onOpenRecent={handleOpenRecent} mode={scanMode} onChangeMode={setScanMode} />;
       break;
     case 'camera':
-      view = <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} onImportGallery={handleGalleryImport} />;
+      view = <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} onImportGallery={handleGalleryImport} idleHint={scanMode === 'collection' ? t('scan.cameraHintCollection') : undefined} />;
       break;
     case 'scanning':
       view = <ScanLoading onCancel={handleCancelScan} thumbnail={state.images?.[0]} />;
@@ -209,6 +227,9 @@ export function ScanScreen() {
       break;
     case 'results':
       view = <ScanResults parfums={state.parfums} confidence={state.confidence} read={state.read} onOpenCatalog={handleOpenCatalog} onRescan={handleOpenCamera} />;
+      break;
+    case 'collection-results':
+      view = <ScanCollectionResults matches={state.matches} estimatedCount={state.estimatedCount} onRescan={handleOpenCamera} onReset={reset} />;
       break;
     case 'no-result':
       view = <ScanNoResult marque={state.scanResult.marque} onSearchCatalog={handleSearchCatalog} onRescan={handleOpenCamera} onManual={handleManual} onReset={reset} />;

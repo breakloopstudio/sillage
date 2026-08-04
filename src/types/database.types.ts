@@ -51,33 +51,6 @@ export type Database = {
         }
         Relationships: []
       }
-      collection: {
-        Row: {
-          added_at: string
-          image_url: string | null
-          marque: string | null
-          nom: string | null
-          parfum_id: string
-          user_id: string
-        }
-        Insert: {
-          added_at?: string
-          image_url?: string | null
-          marque?: string | null
-          nom?: string | null
-          parfum_id: string
-          user_id: string
-        }
-        Update: {
-          added_at?: string
-          image_url?: string | null
-          marque?: string | null
-          nom?: string | null
-          parfum_id?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       favoris: {
         Row: {
           added_at: string
@@ -212,6 +185,13 @@ export type Database = {
             foreignKeyName: "parfum_votes_parfum_id_fkey"
             columns: ["parfum_id"]
             isOneToOne: false
+            referencedRelation: "parfum_card"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parfum_votes_parfum_id_fkey"
+            columns: ["parfum_id"]
+            isOneToOne: false
             referencedRelation: "parfums"
             referencedColumns: ["id"]
           },
@@ -222,8 +202,6 @@ export type Database = {
           annee: number | null
           best_price: number | null
           cached_at: string | null
-          confidence: string | null
-          country: string | null
           created_at: string
           famille_olfactive: string | null
           gender: string | null
@@ -231,7 +209,6 @@ export type Database = {
           id: string
           image_url: string | null
           image_url_2x: string | null
-          image_verified: boolean | null
           longevity: string | null
           longevity_breakout: Json | null
           main_accords: string[]
@@ -244,7 +221,6 @@ export type Database = {
           occasion_ranking: Json | null
           offers: Json
           perfumers: string[]
-          popularity: string | null
           popularity_score: number | null
           price_value: string | null
           purchase_url: string | null
@@ -268,8 +244,6 @@ export type Database = {
           annee?: number | null
           best_price?: number | null
           cached_at?: string | null
-          confidence?: string | null
-          country?: string | null
           created_at?: string
           famille_olfactive?: string | null
           gender?: string | null
@@ -277,7 +251,6 @@ export type Database = {
           id: string
           image_url?: string | null
           image_url_2x?: string | null
-          image_verified?: boolean | null
           longevity?: string | null
           longevity_breakout?: Json | null
           main_accords?: string[]
@@ -290,7 +263,6 @@ export type Database = {
           occasion_ranking?: Json | null
           offers?: Json
           perfumers?: string[]
-          popularity?: string | null
           popularity_score?: number | null
           price_value?: string | null
           purchase_url?: string | null
@@ -314,8 +286,6 @@ export type Database = {
           annee?: number | null
           best_price?: number | null
           cached_at?: string | null
-          confidence?: string | null
-          country?: string | null
           created_at?: string
           famille_olfactive?: string | null
           gender?: string | null
@@ -323,7 +293,6 @@ export type Database = {
           id?: string
           image_url?: string | null
           image_url_2x?: string | null
-          image_verified?: boolean | null
           longevity?: string | null
           longevity_breakout?: Json | null
           main_accords?: string[]
@@ -336,7 +305,6 @@ export type Database = {
           occasion_ranking?: Json | null
           offers?: Json
           perfumers?: string[]
-          popularity?: string | null
           popularity_score?: number | null
           price_value?: string | null
           purchase_url?: string | null
@@ -413,6 +381,7 @@ export type Database = {
           last_price: number | null
           parfum_id: string
           target_price: number | null
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -422,6 +391,7 @@ export type Database = {
           last_price?: number | null
           parfum_id: string
           target_price?: number | null
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -431,6 +401,7 @@ export type Database = {
           last_price?: number | null
           parfum_id?: string
           target_price?: number | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -612,60 +583,6 @@ export type Database = {
         }
         Relationships: []
       }
-      scentlist: {
-        Row: {
-          added_at: string
-          best_price: number | null
-          famille_olfactive: string | null
-          image_url: string | null
-          marque: string | null
-          nom: string | null
-          notes: string | null
-          parfum_id: string
-          rating: number | null
-          reference_price: number | null
-          status: Database["public"]["Enums"]["scent_status"]
-          tried_at: string | null
-          updated_at: string
-          user_id: string
-          verdict: Database["public"]["Enums"]["scent_verdict"] | null
-        }
-        Insert: {
-          added_at?: string
-          best_price?: number | null
-          famille_olfactive?: string | null
-          image_url?: string | null
-          marque?: string | null
-          nom?: string | null
-          notes?: string | null
-          parfum_id: string
-          rating?: number | null
-          reference_price?: number | null
-          status?: Database["public"]["Enums"]["scent_status"]
-          tried_at?: string | null
-          updated_at?: string
-          user_id: string
-          verdict?: Database["public"]["Enums"]["scent_verdict"] | null
-        }
-        Update: {
-          added_at?: string
-          best_price?: number | null
-          famille_olfactive?: string | null
-          image_url?: string | null
-          marque?: string | null
-          nom?: string | null
-          notes?: string | null
-          parfum_id?: string
-          rating?: number | null
-          reference_price?: number | null
-          status?: Database["public"]["Enums"]["scent_status"]
-          tried_at?: string | null
-          updated_at?: string
-          user_id?: string
-          verdict?: Database["public"]["Enums"]["scent_verdict"] | null
-        }
-        Relationships: []
-      }
       search_stop_words: {
         Row: {
           word: string
@@ -723,6 +640,7 @@ export type Database = {
           is_public: boolean
           name: string
           order: number
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -734,6 +652,7 @@ export type Database = {
           is_public?: boolean
           name: string
           order?: number
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -745,6 +664,7 @@ export type Database = {
           is_public?: boolean
           name?: string
           order?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -756,6 +676,7 @@ export type Database = {
           marque: string
           nom: string
           parfum_id: string
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -764,6 +685,7 @@ export type Database = {
           marque: string
           nom: string
           parfum_id: string
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -772,6 +694,7 @@ export type Database = {
           marque?: string
           nom?: string
           parfum_id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -878,72 +801,6 @@ export type Database = {
         }
         Relationships: []
       }
-      wardrobe: {
-        Row: {
-          added_at: string
-          all_notes: string[] | null
-          famille_olfactive: string | null
-          image_url: string | null
-          is_signature: boolean
-          longevity: string | null
-          marque: string | null
-          nom: string | null
-          notes: string | null
-          ownership: Database["public"]["Enums"]["ownership_type"]
-          parfum_id: string
-          rating: number | null
-          season_scores: Json | null
-          shelf_ids: string[]
-          sillage: string | null
-          size_ml: number | null
-          sotd_count: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          added_at?: string
-          all_notes?: string[] | null
-          famille_olfactive?: string | null
-          image_url?: string | null
-          is_signature?: boolean
-          longevity?: string | null
-          marque?: string | null
-          nom?: string | null
-          notes?: string | null
-          ownership?: Database["public"]["Enums"]["ownership_type"]
-          parfum_id: string
-          rating?: number | null
-          season_scores?: Json | null
-          shelf_ids?: string[]
-          sillage?: string | null
-          size_ml?: number | null
-          sotd_count?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          added_at?: string
-          all_notes?: string[] | null
-          famille_olfactive?: string | null
-          image_url?: string | null
-          is_signature?: boolean
-          longevity?: string | null
-          marque?: string | null
-          nom?: string | null
-          notes?: string | null
-          ownership?: Database["public"]["Enums"]["ownership_type"]
-          parfum_id?: string
-          rating?: number | null
-          season_scores?: Json | null
-          shelf_ids?: string[]
-          sillage?: string | null
-          size_ml?: number | null
-          sotd_count?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       mv_top_loved: {
@@ -967,6 +824,102 @@ export type Database = {
           marque: string | null
           nom: string | null
           parfum_id: string | null
+        }
+        Relationships: []
+      }
+      parfum_card: {
+        Row: {
+          annee: number | null
+          best_price: number | null
+          cached_at: string | null
+          created_at: string | null
+          famille_olfactive: string | null
+          gender: string | null
+          id: string | null
+          image_url: string | null
+          image_url_2x: string | null
+          longevity: string | null
+          main_accords: string[] | null
+          marque: string | null
+          nom: string | null
+          notes_coeur: string[] | null
+          notes_fond: string[] | null
+          notes_tete: string[] | null
+          perfumers: string[] | null
+          popularity_score: number | null
+          price_value: string | null
+          rating: string | null
+          rating_count: number | null
+          rating_score: number | null
+          reference_price: number | null
+          review_count: number | null
+          season_ranking: Json | null
+          sillage: string | null
+          source: Database["public"]["Enums"]["parfum_source"] | null
+          type_parfum: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          annee?: number | null
+          best_price?: number | null
+          cached_at?: string | null
+          created_at?: string | null
+          famille_olfactive?: string | null
+          gender?: string | null
+          id?: string | null
+          image_url?: string | null
+          image_url_2x?: string | null
+          longevity?: string | null
+          main_accords?: string[] | null
+          marque?: string | null
+          nom?: string | null
+          notes_coeur?: string[] | null
+          notes_fond?: string[] | null
+          notes_tete?: string[] | null
+          perfumers?: string[] | null
+          popularity_score?: number | null
+          price_value?: string | null
+          rating?: string | null
+          rating_count?: number | null
+          rating_score?: number | null
+          reference_price?: number | null
+          review_count?: number | null
+          season_ranking?: Json | null
+          sillage?: string | null
+          source?: Database["public"]["Enums"]["parfum_source"] | null
+          type_parfum?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          annee?: number | null
+          best_price?: number | null
+          cached_at?: string | null
+          created_at?: string | null
+          famille_olfactive?: string | null
+          gender?: string | null
+          id?: string | null
+          image_url?: string | null
+          image_url_2x?: string | null
+          longevity?: string | null
+          main_accords?: string[] | null
+          marque?: string | null
+          nom?: string | null
+          notes_coeur?: string[] | null
+          notes_fond?: string[] | null
+          notes_tete?: string[] | null
+          perfumers?: string[] | null
+          popularity_score?: number | null
+          price_value?: string | null
+          rating?: string | null
+          rating_count?: number | null
+          rating_score?: number | null
+          reference_price?: number | null
+          review_count?: number | null
+          season_ranking?: Json | null
+          sillage?: string | null
+          source?: Database["public"]["Enums"]["parfum_source"] | null
+          type_parfum?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -997,6 +950,51 @@ export type Database = {
       check_and_increment_quota: {
         Args: { p_kind: string; p_max: number }
         Returns: undefined
+      }
+      chroma_parfums: {
+        Args: {
+          p_accords: string[]
+          p_limit?: number
+          p_notes?: string[]
+          p_season?: string
+        }
+        Returns: {
+          annee: number | null
+          best_price: number | null
+          cached_at: string | null
+          created_at: string | null
+          famille_olfactive: string | null
+          gender: string | null
+          id: string | null
+          image_url: string | null
+          image_url_2x: string | null
+          longevity: string | null
+          main_accords: string[] | null
+          marque: string | null
+          nom: string | null
+          notes_coeur: string[] | null
+          notes_fond: string[] | null
+          notes_tete: string[] | null
+          perfumers: string[] | null
+          popularity_score: number | null
+          price_value: string | null
+          rating: string | null
+          rating_count: number | null
+          rating_score: number | null
+          reference_price: number | null
+          review_count: number | null
+          season_ranking: Json | null
+          sillage: string | null
+          source: Database["public"]["Enums"]["parfum_source"] | null
+          type_parfum: string | null
+          updated_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "parfum_card"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       community_highlights: { Args: never; Returns: Json }
       delete_shelf: { Args: { p_shelf_id: string }; Returns: undefined }
@@ -1039,51 +1037,36 @@ export type Database = {
           annee: number | null
           best_price: number | null
           cached_at: string | null
-          confidence: string | null
-          country: string | null
-          created_at: string
+          created_at: string | null
           famille_olfactive: string | null
           gender: string | null
-          general_notes: string[]
-          id: string
+          id: string | null
           image_url: string | null
           image_url_2x: string | null
-          image_verified: boolean | null
           longevity: string | null
-          longevity_breakout: Json | null
-          main_accords: string[]
-          main_accords_percentage: Json | null
-          marque: string
-          nom: string
-          notes_coeur: string[]
-          notes_fond: string[]
-          notes_tete: string[]
-          occasion_ranking: Json | null
-          offers: Json
-          perfumers: string[]
-          popularity: string | null
+          main_accords: string[] | null
+          marque: string | null
+          nom: string | null
+          notes_coeur: string[] | null
+          notes_fond: string[] | null
+          notes_tete: string[] | null
+          perfumers: string[] | null
           popularity_score: number | null
           price_value: string | null
-          purchase_url: string | null
           rating: string | null
-          rating_count: number
+          rating_count: number | null
           rating_score: number | null
           reference_price: number | null
-          review_count: number
-          search_text: string | null
-          search_vector: unknown
+          review_count: number | null
           season_ranking: Json | null
           sillage: string | null
-          sillage_breakout: Json | null
-          similar_ids: string[]
-          similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
           type_parfum: string | null
-          updated_at: string
+          updated_at: string | null
         }[]
         SetofOptions: {
           from: "*"
-          to: "parfums"
+          to: "parfum_card"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -1191,51 +1174,36 @@ export type Database = {
           annee: number | null
           best_price: number | null
           cached_at: string | null
-          confidence: string | null
-          country: string | null
-          created_at: string
+          created_at: string | null
           famille_olfactive: string | null
           gender: string | null
-          general_notes: string[]
-          id: string
+          id: string | null
           image_url: string | null
           image_url_2x: string | null
-          image_verified: boolean | null
           longevity: string | null
-          longevity_breakout: Json | null
-          main_accords: string[]
-          main_accords_percentage: Json | null
-          marque: string
-          nom: string
-          notes_coeur: string[]
-          notes_fond: string[]
-          notes_tete: string[]
-          occasion_ranking: Json | null
-          offers: Json
-          perfumers: string[]
-          popularity: string | null
+          main_accords: string[] | null
+          marque: string | null
+          nom: string | null
+          notes_coeur: string[] | null
+          notes_fond: string[] | null
+          notes_tete: string[] | null
+          perfumers: string[] | null
           popularity_score: number | null
           price_value: string | null
-          purchase_url: string | null
           rating: string | null
-          rating_count: number
+          rating_count: number | null
           rating_score: number | null
           reference_price: number | null
-          review_count: number
-          search_text: string | null
-          search_vector: unknown
+          review_count: number | null
           season_ranking: Json | null
           sillage: string | null
-          sillage_breakout: Json | null
-          similar_ids: string[]
-          similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
           type_parfum: string | null
-          updated_at: string
+          updated_at: string | null
         }[]
         SetofOptions: {
           from: "*"
-          to: "parfums"
+          to: "parfum_card"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -1254,51 +1222,36 @@ export type Database = {
           annee: number | null
           best_price: number | null
           cached_at: string | null
-          confidence: string | null
-          country: string | null
-          created_at: string
+          created_at: string | null
           famille_olfactive: string | null
           gender: string | null
-          general_notes: string[]
-          id: string
+          id: string | null
           image_url: string | null
           image_url_2x: string | null
-          image_verified: boolean | null
           longevity: string | null
-          longevity_breakout: Json | null
-          main_accords: string[]
-          main_accords_percentage: Json | null
-          marque: string
-          nom: string
-          notes_coeur: string[]
-          notes_fond: string[]
-          notes_tete: string[]
-          occasion_ranking: Json | null
-          offers: Json
-          perfumers: string[]
-          popularity: string | null
+          main_accords: string[] | null
+          marque: string | null
+          nom: string | null
+          notes_coeur: string[] | null
+          notes_fond: string[] | null
+          notes_tete: string[] | null
+          perfumers: string[] | null
           popularity_score: number | null
           price_value: string | null
-          purchase_url: string | null
           rating: string | null
-          rating_count: number
+          rating_count: number | null
           rating_score: number | null
           reference_price: number | null
-          review_count: number
-          search_text: string | null
-          search_vector: unknown
+          review_count: number | null
           season_ranking: Json | null
           sillage: string | null
-          sillage_breakout: Json | null
-          similar_ids: string[]
-          similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
           type_parfum: string | null
-          updated_at: string
+          updated_at: string | null
         }[]
         SetofOptions: {
           from: "*"
-          to: "parfums"
+          to: "parfum_card"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -1318,51 +1271,36 @@ export type Database = {
           annee: number | null
           best_price: number | null
           cached_at: string | null
-          confidence: string | null
-          country: string | null
-          created_at: string
+          created_at: string | null
           famille_olfactive: string | null
           gender: string | null
-          general_notes: string[]
-          id: string
+          id: string | null
           image_url: string | null
           image_url_2x: string | null
-          image_verified: boolean | null
           longevity: string | null
-          longevity_breakout: Json | null
-          main_accords: string[]
-          main_accords_percentage: Json | null
-          marque: string
-          nom: string
-          notes_coeur: string[]
-          notes_fond: string[]
-          notes_tete: string[]
-          occasion_ranking: Json | null
-          offers: Json
-          perfumers: string[]
-          popularity: string | null
+          main_accords: string[] | null
+          marque: string | null
+          nom: string | null
+          notes_coeur: string[] | null
+          notes_fond: string[] | null
+          notes_tete: string[] | null
+          perfumers: string[] | null
           popularity_score: number | null
           price_value: string | null
-          purchase_url: string | null
           rating: string | null
-          rating_count: number
+          rating_count: number | null
           rating_score: number | null
           reference_price: number | null
-          review_count: number
-          search_text: string | null
-          search_vector: unknown
+          review_count: number | null
           season_ranking: Json | null
           sillage: string | null
-          sillage_breakout: Json | null
-          similar_ids: string[]
-          similar_ids_cached_at: string | null
           source: Database["public"]["Enums"]["parfum_source"] | null
           type_parfum: string | null
-          updated_at: string
+          updated_at: string | null
         }[]
         SetofOptions: {
           from: "*"
-          to: "parfums"
+          to: "parfum_card"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -1380,11 +1318,9 @@ export type Database = {
       unfollow_by_pseudo: { Args: { p_pseudo: string }; Returns: undefined }
     }
     Enums: {
-      ownership_type: "have" | "want" | "had" | "sample" | "decant"
       parfum_source: "seed" | "manual"
       possession_type: "bottle" | "decant" | "sample"
       scan_status: "success" | "no-result" | "error"
-      scent_status: "to_try" | "tried"
       scent_verdict: "love" | "like" | "meh" | "dislike"
       user_parfum_status: "to_try" | "tried" | "want" | "have" | "had"
     }
@@ -1517,11 +1453,9 @@ export const Constants = {
   },
   public: {
     Enums: {
-      ownership_type: ["have", "want", "had", "sample", "decant"],
       parfum_source: ["seed", "manual"],
       possession_type: ["bottle", "decant", "sample"],
       scan_status: ["success", "no-result", "error"],
-      scent_status: ["to_try", "tried"],
       scent_verdict: ["love", "like", "meh", "dislike"],
       user_parfum_status: ["to_try", "tried", "want", "have", "had"],
     },

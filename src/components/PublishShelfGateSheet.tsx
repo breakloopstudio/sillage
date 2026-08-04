@@ -11,6 +11,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight } from '../services/haptics';
 import PublicProfileCard from './PublicProfileCard';
@@ -30,6 +31,7 @@ export default function PublishShelfGateSheet({
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [gateCleared, setGateCleared] = useState(false);
@@ -82,12 +84,12 @@ export default function PublishShelfGateSheet({
             <Ionicons name="globe-outline" size={18} color={theme.colors.primaryInk} />
           </View>
           <View style={s.headerTexts}>
-            <Text style={s.title} numberOfLines={1}>Rendre « {shelfName} » publique</Text>
+            <Text style={s.title} numberOfLines={1}>{t('publishGate.title', { shelfName })}</Text>
             <Text style={s.subtitle}>
-              Pour partager une étagère, ton profil doit être public. Choisis un pseudo, active la visibilité, enregistre — puis publie l’étagère.
+              {t('publishGate.subtitle')}
             </Text>
           </View>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
+          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
             <Ionicons name="close" size={22} color={theme.colors.text} />
           </Pressable>
         </View>
@@ -107,7 +109,7 @@ export default function PublishShelfGateSheet({
           onPress={handlePublish}
           disabled={!gateCleared}
           accessibilityRole="button"
-          accessibilityLabel={gateCleared ? `Publier l’étagère ${shelfName}` : 'Enregistre d’abord ton profil public'}
+          accessibilityLabel={gateCleared ? t('publishGate.publishA11y', { shelfName }) : t('publishGate.saveProfileFirstA11y')}
         >
           <Ionicons
             name={gateCleared ? 'globe-outline' : 'lock-closed-outline'}
@@ -115,7 +117,7 @@ export default function PublishShelfGateSheet({
             color={gateCleared ? '#FFFFFF' : theme.colors.textMuted}
           />
           <Text style={[s.publishBtnText, !gateCleared && s.publishBtnTextDisabled]} allowFontScaling={false}>
-            {gateCleared ? 'Publier l’étagère' : 'Profil public requis'}
+            {gateCleared ? t('publishGate.publish') : t('publishGate.profileRequired')}
           </Text>
         </Pressable>
       </Animated.View>

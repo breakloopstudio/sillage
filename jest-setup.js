@@ -1,37 +1,56 @@
 // jest-setup.js — Sillage test environment
 
 // Mock Reanimated
+// Animations d'entrée/sortie chainables (FadeIn.duration(300), FadeInDown.delay(i).duration(260)…).
+// Préfixe « mock » obligatoire : la factory jest.mock est hoistée.
+const mockChainableAnim = () => {
+  const a = {};
+  for (const m of ['duration', 'delay', 'easing', 'springify', 'damping', 'stiffness', 'mass', 'randomDelay']) {
+    a[m] = () => a;
+  }
+  return a;
+};
 jest.mock('react-native-reanimated', () => ({
   useSharedValue: (v) => ({ value: v }),
   useAnimatedStyle: () => ({}),
   useAnimatedProps: () => ({}),
   useDerivedValue: (fn) => ({ value: fn() }),
   useAnimatedReaction: () => {},
+  useAnimatedScrollHandler: (fn) => fn,
   useReducedMotion: () => false,
   withSpring: (v) => v,
   withTiming: (v) => v,
   withRepeat: (v) => v,
   withDelay: (_, v) => v,
+  withSequence: (...args) => args[args.length - 1],
   cancelAnimation: () => {},
   runOnJS: (fn) => fn,
   makeMutable: (v) => ({ value: v }),
   isSharedValue: () => false,
   setUpTests: () => {},
-  Easing: { out: (x) => x, inOut: (x) => x, linear: (x) => x, ease: (x) => x },
+  Easing: { out: (x) => x, in: (x) => x, inOut: (x) => x, linear: (x) => x, ease: (x) => x, cubic: (x) => x },
   Layout: { duration: 300 },
-  SlideInLeft: { duration: 300 },
-  SlideOutRight: { duration: 300 },
-  FadeIn: { duration: 300 },
-  FadeOut: { duration: 300 },
+  SlideInLeft: mockChainableAnim(),
+  SlideOutRight: mockChainableAnim(),
+  SlideInRight: mockChainableAnim(),
+  SlideOutLeft: mockChainableAnim(),
+  FadeIn: mockChainableAnim(),
+  FadeInDown: mockChainableAnim(),
+  FadeInUp: mockChainableAnim(),
+  FadeOut: mockChainableAnim(),
+  FadeOutDown: mockChainableAnim(),
+  FadeOutUp: mockChainableAnim(),
+  ZoomIn: mockChainableAnim(),
+  ZoomOut: mockChainableAnim(),
   createAnimatedComponent: (c) => c,
-  FlatList: 'FlatList',
+  FlatList: require('react-native').FlatList,
   ScrollView: 'ScrollView',
   View: 'View',
   Text: 'Text',
   Image: 'Image',
   default: {
     View: 'View', Text: 'Text', Image: 'Image',
-    ScrollView: 'ScrollView', FlatList: 'FlatList',
+    ScrollView: 'ScrollView', FlatList: require('react-native').FlatList,
     createAnimatedComponent: (c) => c,
   },
 }));
@@ -155,8 +174,21 @@ jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageTag: 'fr-FR', languageCode: 'fr', regionCode: 'FR' }],
 }));
 
+// i18n — i18next initialisé en français (langue source) avant les tests.
+// Les tests peuvent continuer à asserter le texte FR des composants.
+// NB : on initialise via options.ts (module pur) et NON via src/i18n/index pour
+// ne pas instancier le mock AsyncStorage global avant les jest.mock locaux des
+// suites qui re-définissent leur propre mock (home-cache, SWR…).
+const i18next = require('i18next');
+const { initReactI18next } = require('react-i18next');
+const { buildInitOptions } = require('./src/i18n/options');
+const { SOURCE_LANGUAGE } = require('./src/i18n/config');
+
+i18next.use(initReactI18next).init(buildInitOptions(SOURCE_LANGUAGE));
+
 // Mock NativeEventEmitter pour expo-modules-core
+// (__esModule requis : sans lui l'interop babel double le .default et FlatList casse)
 jest.mock('react-native/Libraries/EventEmitter/NativeEventEmitter', () => {
   const { EventEmitter } = require('events');
-  return { default: EventEmitter };
+  return { __esModule: true, default: EventEmitter };
 });

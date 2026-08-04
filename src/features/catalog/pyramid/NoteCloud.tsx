@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { type Theme } from '../../../theme/ThemeContext';
 import { translateNote } from '../../../utils/translate-note';
 import { getNoteEmoji } from '../../../utils/note-descriptions';
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export default function NoteCloud({ layer, onNotePress }: Props) {
+  const { t } = useTranslation('common');
   const handlePress = useCallback(
     (note: string) => {
       hapticsLight();
@@ -38,7 +40,7 @@ export default function NoteCloud({ layer, onNotePress }: Props) {
     return (
       <View style={sEmpty}>
         <Text style={[sEmptyText, { color: layer.ink }]}>
-          Aucune note de {layer.label.toLowerCase()} renseignée
+          {t('pyramid.noNotes', { label: layer.label.toLowerCase() })}
         </Text>
       </View>
     );
@@ -55,7 +57,7 @@ export default function NoteCloud({ layer, onNotePress }: Props) {
             onPress={() => handlePress(note)}
             hitSlop={{ top: 7, bottom: 7 }}
             accessibilityRole="button"
-            accessibilityLabel={`Note ${translateNote(note)}`}
+            accessibilityLabel={t('pyramid.noteA11y', { note: translateNote(note) })}
             style={({ pressed }) => [
               sPetal,
               {

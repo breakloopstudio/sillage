@@ -7,6 +7,7 @@ import { View, Text, Pressable, Modal, FlatList, TextInput, StyleSheet, PanRespo
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { hapticsLight } from '../../services/haptics';
@@ -65,6 +66,7 @@ interface Props {
 
 export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
   const { theme, resolvedMode } = useTheme();
+  const { t } = useTranslation();
   const s = useMemo(() => getStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
@@ -223,7 +225,7 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
         </View>
 
         <View style={s.header}>
-          <Text style={s.title}>Toutes les marques</Text>
+          <Text style={s.title}>{t('brandSheet.title')}</Text>
           <Pressable onPress={handleClose} hitSlop={12}>
             <Ionicons name="close" size={24} color={theme.colors.textMuted} />
           </Pressable>
@@ -234,7 +236,7 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
             <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
             <TextInput
               style={s.searchInput}
-              placeholder="Rechercher une marque..."
+              placeholder={t('brandSheet.searchPlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               value={search}
               onChangeText={setSearch}
@@ -254,7 +256,7 @@ export default function BrandSheet({ visible, onClose, onSelectBrand }: Props) {
           {filtered.length === 0 ? (
             <View style={s.emptyWrap}>
               <Ionicons name="search-outline" size={32} color={theme.colors.textMuted} style={{ opacity: 0.5 }} />
-              <Text style={s.emptyText}>Aucune marque trouvée</Text>
+              <Text style={s.emptyText}>{t('brandSheet.empty')}</Text>
             </View>
           ) : (
             <FlatList<Section>

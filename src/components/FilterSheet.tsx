@@ -7,6 +7,7 @@ import { View, Text, Pressable, ScrollView, useWindowDimensions, BackHandler } f
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { translateNote } from '../utils/translate-note';
 import { SEASON_ORDER, SEASON_META, SEASON_MATCH_THRESHOLD, type SeasonKey } from '../utils/season';
@@ -68,6 +69,7 @@ function FilterChip({ label, count, active, onPress, icon, activeBg, activeInk }
 export default function FilterSheet({ visible, items, filters, resultCount, onFiltersChange, onReset, onClose }: FilterSheetProps) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
   const reduced = useReducedMotion();
@@ -153,7 +155,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
   }, [filters, onFiltersChange]);
 
   const showReset = hasActiveFilters(filters);
-  const footerLabel = resultCount === 0 ? 'Aucun résultat' : `Voir les ${resultCount} résultat${resultCount > 1 ? 's' : ''}`;
+  const footerLabel = resultCount === 0 ? t('filters.footerNone') : t('filters.footerSee', { count: resultCount });
 
   if (!mounted) return null;
 
@@ -166,16 +168,16 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
         <View style={s.handle} />
 
         <View style={s.header}>
-          <Text style={s.title}>Filtres</Text>
+          <Text style={s.title}>{t('filters.title')}</Text>
           {showReset ? (
             <Pressable onPress={handleReset} hitSlop={8}>
-              <Text style={s.resetLabel}>Réinitialiser</Text>
+              <Text style={s.resetLabel}>{t('filters.reset')}</Text>
             </Pressable>
           ) : null}
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={s.scroll} contentContainerStyle={s.scrollContent}>
-          <Text style={s.sectionLabel}>Famille</Text>
+          <Text style={s.sectionLabel}>{t('filters.family')}</Text>
           <View style={s.chipsWrap}>
             {counts.families.map(([fam, cnt]) => (
               <FilterChip
@@ -188,7 +190,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
             ))}
           </View>
 
-          <Text style={s.sectionLabel}>Saison</Text>
+          <Text style={s.sectionLabel}>{t('filters.season')}</Text>
           <View style={s.chipsWrap}>
             {SEASON_ORDER.map(k => {
               const meta = SEASON_META[k];
@@ -209,7 +211,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
             })}
           </View>
 
-          <Text style={s.sectionLabel}>Tenue</Text>
+          <Text style={s.sectionLabel}>{t('filters.longevitySection')}</Text>
           <View style={s.chipsWrap}>
             {LONGEVITY_OPTIONS.map(opt => (
               <FilterChip
@@ -222,7 +224,7 @@ export default function FilterSheet({ visible, items, filters, resultCount, onFi
             ))}
           </View>
 
-          <Text style={s.sectionLabel}>Sillage</Text>
+          <Text style={s.sectionLabel}>{t('filters.sillageSection')}</Text>
           <View style={s.chipsWrap}>
             {SILLAGE_OPTIONS.map(opt => (
               <FilterChip

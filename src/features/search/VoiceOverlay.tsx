@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import ParfumCard from '../../components/ParfumCard';
 import type { Parfum } from '../../models';
@@ -83,6 +84,7 @@ export default function VoiceOverlay({
   onOpenSettings,
 }: Props) {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const panelTop = insets.top + SEARCH_BAR_AREA;
@@ -120,9 +122,9 @@ export default function VoiceOverlay({
           <View style={s.listeningRow}>
             <Ionicons name="mic" size={20} color={theme.colors.primary} />
             <View style={s.listeningContent}>
-              <Text style={s.listeningLabel} allowFontScaling={false}>À l'écoute…</Text>
+              <Text style={s.listeningLabel} allowFontScaling={false}>{t('voice.listening')}</Text>
               <Text style={s.transcriptText} numberOfLines={3} maxFontSizeMultiplier={1.3}>
-                {phase.transcript || 'Parlez maintenant…'}
+                {phase.transcript || t('voice.speakNow')}
               </Text>
             </View>
           </View>
@@ -132,7 +134,7 @@ export default function VoiceOverlay({
           <View style={s.searchingRow}>
             <ActivityIndicator size="small" color={theme.colors.primary} />
             <View style={s.searchingContent}>
-              <Text style={s.searchingLabel}>Recherche en cours</Text>
+              <Text style={s.searchingLabel}>{t('voice.searching')}</Text>
               {phase.query ? (
                 <Text style={s.searchingQuery} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                   « {phase.query} »
@@ -148,15 +150,15 @@ export default function VoiceOverlay({
             <Text style={s.errorText} maxFontSizeMultiplier={1.3}>{phase.message}</Text>
             <View style={s.actionRow}>
               <Pressable style={s.ghostBtn} onPress={onCancel} hitSlop={8}>
-                <Text style={s.ghostBtnText} allowFontScaling={false}>Annuler</Text>
+                <Text style={s.ghostBtnText} allowFontScaling={false}>{t('cancel')}</Text>
               </Pressable>
               {phase.showSettings && onOpenSettings ? (
-                <Pressable style={s.retryBtn} onPress={onOpenSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Ouvrir les réglages">
-                  <Text style={s.retryText} allowFontScaling={false}>Réglages</Text>
+                <Pressable style={s.retryBtn} onPress={onOpenSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('openSettings')}>
+                  <Text style={s.retryText} allowFontScaling={false}>{t('openSettings')}</Text>
                 </Pressable>
               ) : (
                 <Pressable style={s.retryBtn} onPress={onRetry} hitSlop={8}>
-                  <Text style={s.retryText} allowFontScaling={false}>Réessayer</Text>
+                  <Text style={s.retryText} allowFontScaling={false}>{t('voice.retry')}</Text>
                 </Pressable>
               )}
             </View>
@@ -166,14 +168,14 @@ export default function VoiceOverlay({
         {phase.type === 'empty' && (
           <View style={s.centered}>
             <Ionicons name="search-outline" size={24} color={theme.colors.textMuted} />
-            <Text style={s.emptyTitle}>Aucun résultat</Text>
-            <Text style={s.emptyDesc}>Essaie une autre formulation.</Text>
+            <Text style={s.emptyTitle}>{t('voice.noResults')}</Text>
+            <Text style={s.emptyDesc}>{t('voice.noResultsDesc')}</Text>
             <View style={s.actionRow}>
               <Pressable style={s.ghostBtn} onPress={onCancel} hitSlop={8}>
-                <Text style={s.ghostBtnText} allowFontScaling={false}>Annuler</Text>
+                <Text style={s.ghostBtnText} allowFontScaling={false}>{t('cancel')}</Text>
               </Pressable>
               <Pressable style={s.retryBtn} onPress={onRetry} hitSlop={8}>
-                <Text style={s.retryText} allowFontScaling={false}>Réessayer</Text>
+                <Text style={s.retryText} allowFontScaling={false}>{t('voice.retry')}</Text>
               </Pressable>
             </View>
           </View>
@@ -187,7 +189,7 @@ export default function VoiceOverlay({
                   « {phase.query} »
                 </Text>
                 <Text style={s.resultsCount} allowFontScaling={false}>
-                  {phase.results.length} résultat{phase.results.length > 1 ? 's' : ''}
+                  {t('voice.resultsCount', { count: phase.results.length })}
                 </Text>
               </View>
               <Pressable onPress={onCancel} style={s.closeBtn} hitSlop={8}>
@@ -216,7 +218,7 @@ export default function VoiceOverlay({
 
             <Pressable style={s.viewAllRow} onPress={onViewAll}>
               <Text style={s.viewAllText} allowFontScaling={false}>
-                Voir les {phase.results.length} résultats
+                {t('voice.viewAll', { count: phase.results.length })}
               </Text>
               <Ionicons name="arrow-forward" size={14} color={theme.colors.primary} />
             </Pressable>

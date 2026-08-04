@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Linking } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { useNetwork } from '../src/hooks/useNetwork';
@@ -15,6 +16,7 @@ import { getAccountDataSummary, shareAccountData, deleteAllScans, deleteAllFcmTo
 export default function PrivacyCenterPage() {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const router = useRouter();
   const { user } = useAuthContext();
   const { isOnline } = useNetwork();
@@ -71,9 +73,9 @@ export default function PrivacyCenterPage() {
     if (!val) {
       const currentCount = summary?.priceAlerts ?? 0;
       if (currentCount > 0) {
-        Alert.alert('Désactiver les alertes prix ?', `${currentCount} alerte(s) active(s) seront supprimée(s).`, [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Désactiver', style: 'destructive', onPress: async () => {
+        Alert.alert(t('privacyCenter.disableAlertsTitle'), t('privacyCenter.disableAlertsMessage', { count: currentCount }), [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('privacyCenter.disable'), style: 'destructive', onPress: async () => {
             setPriceAlerts(false);
             updateUserSetting(uid, 'priceAlerts', false).catch(() => {});
             deleteAllPriceAlerts(uid).catch(() => {});
@@ -84,26 +86,26 @@ export default function PrivacyCenterPage() {
     }
     setPriceAlerts(val);
     updateUserSetting(uid, 'priceAlerts', val).catch(() => {});
-  }, [uid, summary?.priceAlerts]);
+  }, [uid, summary?.priceAlerts, t]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
-    try { await shareAccountData(); } catch (e: unknown) { Alert.alert('Erreur', (e as Error).message || "L'export a échoué."); }
+    try { await shareAccountData(); } catch (e: unknown) { Alert.alert(t('privacyCenter.exportErrorTitle'), (e as Error).message || t('privacyCenter.exportErrorDesc')); }
     finally { setExporting(false); }
-  }, []);
+  }, [t]);
 
   const handleDeleteScans = useCallback(() => {
     const currentCount = summary?.scans ?? 0;
     if (currentCount === 0) return;
-    Alert.alert('Vider l\'historique ?', `${currentCount} scan(s) seront supprimé(s). Cette action est irréversible.`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
+    Alert.alert(t('privacyCenter.clearHistoryTitle'), t('privacyCenter.clearHistoryMessage', { count: currentCount }), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('privacyCenter.delete'), style: 'destructive', onPress: async () => {
         const deleted = await deleteAllScans(uid);
-        Alert.alert('Historique vidé', `${deleted} scan(s) supprimé(s).`);
+        Alert.alert(t('privacyCenter.historyClearedTitle'), t('privacyCenter.historyClearedMessage', { count: deleted }));
         if (uid) getAccountDataSummary(uid).then(setSummary).catch(() => {});
       }},
     ]);
-  }, [uid, summary?.scans]);
+  }, [uid, summary?.scans, t]);
 
   const countVal = (v: number | undefined) => summaryLoading ? '—' : String(v ?? 0);
 
@@ -111,22 +113,22 @@ export default function PrivacyCenterPage() {
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityLabel="Retour">
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityLabel={t('back')}>
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
           </Pressable>
-          <Text style={s.title}>Confidentialité</Text>
+          <Text style={s.title}>{t('privacyCenter.title')}</Text>
           <View style={{ width: 32 }} />
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Mes données stockées</Text>
+          <Text style={s.sectionTitle}>{t('privacyCenter.storedDataSection')}</Text>
           {[
-            { icon: 'heart-outline', label: 'Favoris', count: summary?.favoris },
-            { icon: 'flask-outline', label: 'Parfumerie', count: summary?.wardrobe },
-            { icon: 'scan-outline', label: 'Scans', count: summary?.scans },
-            { icon: 'albums-outline', label: 'Étagères', count: summary?.shelves },
-            { icon: 'notifications-outline', label: 'Alertes prix', count: summary?.priceAlerts },
-            { icon: 'calendar-outline', label: 'Parfums du jour', count: summary?.sotdEntries },
+            { icon: 'heart-outline', label: t('privacyCenter.dataFavoris'), count: summary?.favoris },
+            { icon: 'flask-outline', label: t('privacyCenter.dataWardrobe'), count: summary?.wardrobe },
+            { icon: 'scan-outline', label: t('privacyCenter.dataScans'), count: summary?.scans },
+            { icon: 'albums-outline', label: t('privacyCenter.dataShelves'), count: summary?.shelves },
+            { icon: 'notifications-outline', label: t('privacyCenter.dataAlerts'), count: summary?.priceAlerts },
+            { icon: 'calendar-outline', label: t('privacyCenter.dataSotd'), count: summary?.sotdEntries },
           ].map((row, i) => (
             <View key={i} style={s.dataRow}>
               <View style={s.dataRowLeft}>
@@ -139,13 +141,13 @@ export default function PrivacyCenterPage() {
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Consentements</Text>
+          <Text style={s.sectionTitle}>{t('privacyCenter.consentsSection')}</Text>
           <View style={s.row}>
             <View style={s.rowLeft}>
               <Ionicons name="push-outline" size={20} color={theme.colors.text} />
               <View>
-                <Text style={s.rowLabel}>Notifications push</Text>
-                <Text style={s.rowDesc}>Notifications désactivées et tokens supprimés à l'arrêt</Text>
+                <Text style={s.rowLabel}>{t('privacyCenter.pushNotifs')}</Text>
+                <Text style={s.rowDesc}>{t('privacyCenter.pushNotifsDesc')}</Text>
               </View>
             </View>
             <Switch value={pushNotifs} onValueChange={handlePushNotifs} trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }} thumbColor={pushNotifs ? theme.colors.primary : theme.colors.textMuted} />
@@ -154,8 +156,8 @@ export default function PrivacyCenterPage() {
             <View style={s.rowLeft}>
               <Ionicons name="partly-sunny-outline" size={20} color={theme.colors.text} />
               <View>
-                <Text style={s.rowLabel}>Suggestions météo</Text>
-                <Text style={s.rowDesc}>Coordonnées GPS effacées à l'arrêt</Text>
+                <Text style={s.rowLabel}>{t('privacyCenter.weatherNotifs')}</Text>
+                <Text style={s.rowDesc}>{t('privacyCenter.weatherNotifsDesc')}</Text>
               </View>
             </View>
             <Switch value={weatherNotifs} onValueChange={handleWeatherNotifs} trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }} thumbColor={weatherNotifs ? theme.colors.primary : theme.colors.textMuted} />
@@ -164,8 +166,8 @@ export default function PrivacyCenterPage() {
             <View style={s.rowLeft}>
               <Ionicons name="cash-outline" size={20} color={theme.colors.text} />
               <View>
-                <Text style={s.rowLabel}>Alertes prix</Text>
-                <Text style={s.rowDesc}>Alertes supprimées à l'arrêt</Text>
+                <Text style={s.rowLabel}>{t('privacyCenter.priceAlerts')}</Text>
+                <Text style={s.rowDesc}>{t('privacyCenter.priceAlertsDesc')}</Text>
               </View>
             </View>
             <Switch value={priceAlerts} onValueChange={handlePriceAlerts} trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }} thumbColor={priceAlerts ? theme.colors.primary : theme.colors.textMuted} />
@@ -174,24 +176,24 @@ export default function PrivacyCenterPage() {
             <View style={s.rowLeft}>
               <Ionicons name="location-outline" size={20} color={theme.colors.text} />
               <View>
-                <Text style={s.rowLabel}>Localisation</Text>
-                <Text style={s.rowDesc}>Permet les suggestions météo</Text>
+                <Text style={s.rowLabel}>{t('privacyCenter.location')}</Text>
+                <Text style={s.rowDesc}>{t('privacyCenter.locationDesc')}</Text>
               </View>
             </View>
             <Pressable onPress={() => Linking.openSettings()} hitSlop={8}>
-              <Text style={s.actionLink}>Réglages</Text>
+              <Text style={s.actionLink}>{t('privacyCenter.settings')}</Text>
             </Pressable>
           </View>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Actions</Text>
+          <Text style={s.sectionTitle}>{t('privacyCenter.actionsSection')}</Text>
           <Pressable style={s.actionRow} onPress={handleExport} disabled={exporting || !isOnline}>
             <View style={s.rowLeft}>
               <Ionicons name="download-outline" size={20} color={theme.colors.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={s.rowLabel}>Exporter mes données</Text>
-                <Text style={s.rowDesc}>{isOnline ? 'Format JSON structuré, lisible par machine' : 'Connexion Internet requise'}</Text>
+                <Text style={s.rowLabel}>{t('privacyCenter.exportData')}</Text>
+                <Text style={s.rowDesc}>{isOnline ? t('privacyCenter.exportDesc') : t('privacyCenter.exportRequiresConnection')}</Text>
               </View>
             </View>
             {exporting ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />}
@@ -200,8 +202,8 @@ export default function PrivacyCenterPage() {
             <View style={s.rowLeft}>
               <Ionicons name="trash-bin-outline" size={20} color={theme.colors.overpriced} />
               <View style={{ flex: 1 }}>
-                <Text style={[s.rowLabel, { color: theme.colors.overpriced }]}>Vider l'historique des scans</Text>
-                <Text style={s.rowDesc}>Supprime tous les scans sans supprimer le compte</Text>
+                <Text style={[s.rowLabel, { color: theme.colors.overpriced }]}>{t('privacyCenter.clearScans')}</Text>
+                <Text style={s.rowDesc}>{t('privacyCenter.clearScansDesc')}</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
@@ -210,8 +212,8 @@ export default function PrivacyCenterPage() {
             <View style={s.rowLeft}>
               <Ionicons name="warning-outline" size={20} color={theme.colors.overpriced} />
               <View style={{ flex: 1 }}>
-                <Text style={[s.rowLabel, { color: theme.colors.overpriced }]}>Supprimer mon compte</Text>
-                <Text style={s.rowDesc}>Effacement complet et irréversible</Text>
+                <Text style={[s.rowLabel, { color: theme.colors.overpriced }]}>{t('privacyCenter.deleteAccount')}</Text>
+                <Text style={s.rowDesc}>{t('privacyCenter.deleteAccountDesc')}</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
@@ -219,18 +221,18 @@ export default function PrivacyCenterPage() {
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Informations</Text>
+          <Text style={s.sectionTitle}>{t('privacyCenter.infoSection')}</Text>
           <Pressable style={s.actionRow} onPress={() => router.push('/legal')}>
             <View style={s.rowLeft}>
               <Ionicons name="document-text-outline" size={20} color={theme.colors.text} />
-              <Text style={s.rowLabel}>Mentions légales</Text>
+              <Text style={s.rowLabel}>{t('privacyCenter.legalNotices')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
           </Pressable>
           <Pressable style={s.actionRow} onPress={() => router.push('/privacy')}>
             <View style={s.rowLeft}>
               <Ionicons name="shield-outline" size={20} color={theme.colors.text} />
-              <Text style={s.rowLabel}>Politique de confidentialité</Text>
+              <Text style={s.rowLabel}>{t('privacyCenter.privacyPolicy')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
           </Pressable>

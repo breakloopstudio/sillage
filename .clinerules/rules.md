@@ -30,6 +30,7 @@ app/
 ├── search.tsx                # Recherche (fade)
 ├── history.tsx               # Historique des scans (route racine, poussée depuis Profil)
 ├── runner.tsx                # Flacon Runner (easter egg, slide_from_bottom, route racine)
+├── wheel.tsx                 # Roue chromatique (exploration par couleur, slide_from_bottom, route racine)
 ├── profile.tsx               # Profil (route racine, poussée depuis l'avatar en haut à droite dans SearchChrome — identité, stats, SOTD, navigation, déconnexion)
 ├── scentlist.tsx             # Redirection /scentlist → /(tabs)/collection (deep links ; JAMAIS dans (tabs)/ — cf. §5)
 ├── u/[pseudo].tsx            # Profil public d'un membre (lecture seule, sans auth, bouton Suivre si connecté, cible du deep link sillage://u/<pseudo>)
@@ -49,18 +50,20 @@ src/
 │   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards, AccordProfile (profil d'accords : ruban de composition + rows annotées expansibles), PerformanceProfile (Tenue & sillage : jauge fléchée rail+curseur animés + bouton vote 👍), SeasonProfile (Quand le porter : colonnes saisons + moment Jour/Soir + bouton vote 👍), pyramid/geometry.ts (helpers géométrie SVG pyramide)
 │   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 4 onglets + FAB Scan central) + NavigationChromeContext
 │   ├── runner/               # Flacon Runner v2 (pouvoirs/vies/missions/classement, cf. §17) : RunnerGame, useRunnerLoop, RunnerBottle, RunnerBackground, RunnerGround, RunnerObstacles, RunnerPickups, RunnerSpeedLines, RunnerHud, RunnerParticles, runner-sounds, runner-missions, runner-types, runner-storage
-│   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
+│   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/) ; ScanCollectionResults (mode collection multi-flacons) + scanMode.ts
 │   ├── scentlist/            # TrySheet (éditeur « Notes détaillées » de la fiche unifiée)
 │   ├── search/     (2)       # SearchChrome (barre recherche + voix) + VoiceOverlay
-│   └── wardrobe/             # SOTDCard, SOTDPicker, StarRating, ShelfManager (DraggableFlatList), ShelfCard (meuble : rayon teinté, tri ↕, badge globe, déplacement étagère ↕), BottleThumb (flacon nu, long-press)
+│   ├── wardrobe/             # SOTDCard, SOTDPicker, StarRating, ShelfManager (DraggableFlatList), ShelfCard (meuble : rayon teinté, tri ↕, badge globe, déplacement étagère ↕), BottleThumb (flacon nu, long-press)
+│   └── wheel/                # ChromaticWheel (anneau SVG 12 couleurs-ancres, snap ancre la plus proche — route /wheel)
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (3)         # env, index, legal (firebase.config supprimé — migration Supabase)
 ├── models/       (8)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
-├── utils/        (29)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-5 longévité / 1-4 sillage + ticks), season-profile (profil saisons + occasions + moment), parfum-labels (typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration — labels canoniques + concentration fiable depuis le nom), scan-match (rescoring fuzzy scan/voix : alias marques, fuzzy Levenshtein, concentration), scan-display (chip héros + ligne « Lu/Hypothèse »), permission-primers (copy + flags AsyncStorage des primers §22), device-locale (deviceSttLang BCP-47 + deviceVoiceLanguages)
+├── utils/        (32)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-5 longévité / 1-4 sillage + ticks), season-profile (profil saisons + occasions + moment), parfum-labels (typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration — labels canoniques + concentration fiable depuis le nom), scan-match (rescoring fuzzy scan/voix : alias marques, fuzzy Levenshtein, concentration), scan-display (chip héros + ligne « Lu/Hypothèse »), permission-primers (copy + flags AsyncStorage des primers §22), device-locale (deviceSttLang BCP-47 + deviceVoiceLanguages), chromatic-wheel (12 couleurs-ancres → vocabulaire olfactif, hueToAnchor, chromaSwatch), collection-scan (helpers purs scan mode collection), relative-date (formatRelativeShort « il y a N j »)
+├── i18n/                     # config.ts (SUPPORTED_LANGUAGES, SOURCE_LANGUAGE fr), options.ts (buildInitOptions), resources.ts (JSON bundlés), index.ts (initI18n, setAppLanguage) — i18next §23 ; src/locales/{lang}/{ns}.json (fr = source) ; src/services/language-storage.ts (préférence @sillage/language)
 └── types/        (1)         # database.types.ts — types Database générés (`supabase gen types typescript --linked`) ; type le client Supabase + payloads d'écriture (M4)
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0060) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057 : sécurité RPC, cleanup tables/index/enums morts, index manquants, intégrité updated_at/CHECK, vue parfum_card, perf serveur, DROP colonnes mortes), longévité 5 crans 1:1 + reset votes perf (0058), grant SELECT parfum_card (0059), durcissement post-audit (0060 : REVOKE PUBLIC/anon recompute_perf_strings, CHECK+troncature runner_scores.skin, export_user_data v3.1.0 RGPD)
+├── migrations/   (0001→0062) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057 : sécurité RPC, cleanup tables/index/enums morts, index manquants, intégrité updated_at/CHECK, vue parfum_card, perf serveur, DROP colonnes mortes), longévité 5 crans 1:1 + reset votes perf (0058), grant SELECT parfum_card (0059), durcissement post-audit (0060 : REVOKE PUBLIC/anon recompute_perf_strings, CHECK+troncature runner_scores.skin, export_user_data v3.1.0 RGPD), roue chromatique (0061 RPC chroma_parfums BitmapOr GIN+FTS, 0062 branches bornées par popularité avant scoring)
 ├── functions/                # Edge Functions Deno : analyze-perfume-image, interpret-voice-query, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
@@ -97,6 +100,7 @@ supabase/                     # Backend Supabase (versionné)
 - Historique : route racine, poussée depuis Profil
 - Perfumer : route racine, poussée depuis la signature nez de la fiche détail (slide_from_right)
 - Brand : route racine, poussée depuis la chip « La maison » de la fiche détail et les sélecteurs de marques (BrandCapsules, BrandSheet) (slide_from_right)
+- Roue chromatique `/wheel` : route racine (slide_from_bottom) — exploration par couleur ; sélection → `/search?color=<key>` lit le même cache mémoire partagé (`getParfumsByColor`)
 - Profil public `/u/[pseudo]` : route racine en lecture seule, accessible sans auth (cible du deep link de partage `sillage://u/<pseudo>`)
 - Étagère publique `/u/[pseudo]/shelf/[shelfId]` : page publique d'une étagère (identique à la privée, sans actions owner ; cible du deep link de partage `sillage://u/<pseudo>/shelf/<shelfId>`)
 - `NavigationChromeContext` pour le comportement scroll du dock (3 états : expanded / compact / hidden) — chaque écran actif écrit `scrollY.value` (UI thread via `useAnimatedScrollHandler`), le layout réagit sans conflit de gestes ; expose `dockCompact` (collapse des labels) + `dockTranslateY` (hide) + `resetDock()`
@@ -126,8 +130,10 @@ supabase/                     # Backend Supabase (versionné)
 - `searchParfumFromScan` score : +50 nom exact, +25 nom partiel (inclusion ≥3 car.), fuzzy Levenshtein dégradé +10..+40 (typos de lecture, seuil 0.55), +15 marque exacte (canonicalisée via alias YSL/MFK/JPG…), +8 marque partielle, ±12 concentration (valeurs canoniques des deux côtés) ; marque seule → `getParfumsByMarques(brandQueryForms)` (.in sur les formes de surface, alias inclus, fallback trgm forme longue) ; tri score desc → popularité desc → prix asc
 - `ScanResults` affiche les résultats dans l'ordre de pertinence (pas de tri par prix)
 - **Transparence (v9.8)** : chip héros résolue par `scan-display.ts` (`scanChip` : « Vérifié visuellement » / « Reconnu à la forme » / « Correspondance probable ») + ligne « Lu : … / Hypothèse : … » (`scanReadLine`, toujours visible en reconnaissance de forme NON vérifiée). `ScanClarify` guidé par `failureReason` (blur/glare/label_unreadable/bad_framing/not_a_perfume → hint de prise de vue ; `not_a_perfume` → « Ce n'est pas un flacon »). Lecture incertaine + aucun candidat `_scanScore ≥ 50` → clarify pré-rempli (pas de match faible affiché comme une certitude)
+- **Héros « fiche express » (v9.9)** : le top match des résultats est actionnable sans quitter l'écran — cœur `FavButton size="lg"` sur l'image, rangée d'actions sous le prix (CTA primary « Voir la fiche » + cloche alerte prix). La cloche ouvre la `PriceAlertSheet` canonique (rendue à la RACINE de `ScanResults`, frère du FlatList — jamais dans le header de liste, risque de clipping) + push primer §22 à la création ; masquée sans `bestPrice` (gate fiche détail), redirect `/auth/login` si déconnecté (pattern FavButton). Cartes « Autres correspondances » inchangées (cœur seulement)
 - Import galerie : même pipeline, sans permission caméra
-- États : `idle | camera | scanning | results | no-result | clarify | error`
+- **Mode collection (v9.10)** : toggle « Un flacon / Ma collection » sur l'idle. Une photo d'étagère → Edge Function mode `collection` (schema `bottles[]` + `estimatedCount`, confiance forcée par flacon = texte lu + marque + nom, escalade si 0 détection, re-ranking visuel PLAFONNÉ à 3 flacons en parallèle) → matching catalogue par détection (`searchParfumFromScan`, seuil `_scanScore ≥ 50`) → état `collection-results` (`ScanCollectionResults`) : liste multi-select, VÉRIFIÉS cochés par défaut (les « Correspondance probable » à valider), flacons déjà en collection marqués et exclus, ajout en lot statut `have` (`Promise.allSettled` → écran confirmation). Pas d'entrée `user_scans` par flacon (1 photo ≠ N scans)
+- États : `idle | camera | scanning | results | collection-results | no-result | clarify | error`
 - Reducer géré par `useScanReducer`
 
 ---
@@ -223,7 +229,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 816 tests, 74 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 902 tests, 80 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 29 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
@@ -389,3 +395,39 @@ Aucun prompt système de permission ne part à froid. Chaque permission est pré
 - **Enregistrement au lancement** (`app/_layout.tsx`) : double gate — réglage `pushNotifs` (consentement app) ET permission OS déjà accordée (vérifiée dans `startFcmRegistration`). Consentement retiré → purge des tokens (`deleteAllFcmTokens`), la promesse du privacy-center reste vraie.
 - **Call sites** : `ScanScreen` (camera), `SearchChrome` + `/search` (mic), `collection` (location, SOTD/météo) + `settings` (push + location), `favoris` + `AlertPriceToggle` (push).
 - **Refus définitif** (micro) : `VoiceErrorCode 'mic-denied-permanent'` → l'overlay vocal affiche un bouton « Réglages » (`Linking.openSettings`) au lieu de « Réessayer ».
+
+---
+
+## §23 — Internationalisation (i18n)
+
+**Stack** : `i18next` 26 + `react-i18next` 17 + polyfill `intl-pluralrules` · ressources dans `src/locales/{lang}/{ns}.json` · **FR = langue source** (`fr.json` fait foi) · tooling `i18next-cli` (`npm run i18n:extract` / `i18n:sync`, config `i18next.config.mjs`) · détection : préférence AsyncStorage (`@sillage/language`) → locale appareil (`expo-localization`) → fallback.
+
+### Règles du code
+
+1. **Toute chaîne user-facing passe par `t()`** — UI, messages d'erreur, accessibilityLabels, textes de notifications côté client. Exceptions : noms propres (parfums, marques), données catalogue (traduites via la couche données, Phase 4).
+2. **Jamais de `t()` au scope module** — un `t()` à l'import s'exécute avant l'init i18next et renvoie la clé crue. Les tables de labels (chips, options, configs) restent des données paires (icône/clé) ; le texte est résolu au render, ou via un getter qui reçoit `t`.
+3. **Composants** : `useTranslation(ns)` · **services/hooks/utils** : `import i18next from 'i18next'` puis `i18next.t()` (jamais le hook hors React).
+4. **Pluriels et interpolations i18next** (`_one`/`_other`, `{{count}}`) — jamais de concaténation `+ 's'`, jamais d'accord ternaire, jamais de phrase construite par morceaux.
+5. **Clés namespacées** par domaine (`common` partagé ; `catalog`, `detail`, `settings`… par écran), segments camelCase (`empty.collection.title`). Les clés sont typées TypeScript (`src/types/i18next.d.ts`) : une clé inexistante = erreur de compilation.
+6. **Formatage locale-aware** : `formatPrice` / `formatNumber` / `formatDecimal` / `formatDiscount` / `formatVariationPct` (`src/utils/format-price.ts`) — jamais `toLocaleString('fr-FR')`, jamais `toFixed` sur un montant.
+7. **Jest** : i18next est initialisé en `fr` dans `jest-setup.js` (via `buildInitOptions` de `src/i18n/options.ts`, module pur — PAS via `src/i18n/index`, pour ne pas instancier le mock AsyncStorage global avant les `jest.mock` locaux des suites). Les tests peuvent asserter le texte FR.
+8. **Gate de rendu** : `app/_layout.tsx` attend `initI18n()` avant le premier rendu (comme les polices).
+9. **Clés dynamiques** (`i18next.t(variable)` — codes d'erreur, crans, labelKeys) : invisibles pour l'extracteur. Leur famille doit être protégée par `preservePatterns` dans `i18next.config.mjs` (`errors.*`, `occasions.*`, `perf.*`) et les clés ajoutées à la main dans `fr.json` — sinon `i18n:extract` les purge.
+10. **Changement de langue à chaud** : tout composant affichant du texte porte `useTranslation` (re-rendu au changement de langue). Les getters des tables de labels sont résolus au render — un composant qui les consomme sans `useTranslation` ne se rafraîchit qu'au remount (dette acceptée tant que FR est la seule langue ; chaque écran migré en Phase 1 reçoit son `useTranslation`).
+
+### Workflow de maintenance
+
+- **En codant** : ajouter les clés dans `fr.json` en même temps que le code (ou laisser `i18n:extract` les aligner).
+- **Avant commit** : `npm run i18n:extract` (idempotent : ajoute les clés manquantes, retire les clés mortes, trie).
+- **Pluriels** : un appel `t(key, { count })` fait générer par l'extracteur les formes `key_one`/`key_many`/`key_other` — renseigner chaque forme dans `fr.json` (FR : `_one` au singulier, `_many` = `_other`). Ne jamais écrire la clé au singulier nu quand `count` est passé.
+- **Avant release** : `npm run i18n:sync` (propage `fr` vers les langues secondaires sans écraser l'existant) puis traduction du delta (script LLM + glossaire, Phase 2) et relecture.
+- **Fallback** : chaîne manquante → langue source `fr` — l'utilisateur ne voit jamais une clé crue.
+- **Nouvelle langue** : ajouter le code dans `SUPPORTED_LANGUAGES`/`AVAILABLE_LANGUAGES` (`src/i18n/config.ts`), le JSON dans `src/locales/{lang}/`, **l'import dans `src/i18n/resources.ts`** (sinon la langue est acceptée mais tombe en fallback silencieux), la locale dans `i18next.config.mjs` (`locales` — `secondaryLanguages` en est dérivé automatiquement) + `app.json` (`expo.locales`, permissions iOS/Android localisées).
+
+### État d'avancement
+
+- **Phase 0 (faite)** : infra complète, formatage locale-aware, réglage Langue (Settings), pilote `EmptyState`, tooling extract/sync.
+- **Phase 1 (à faire)** : extraction des ~1 500 chaînes restantes (utils de labels d'abord : verdicts, status-chips, saisons, familles, perf-profile, error-translator, permission-primers ; puis écrans par fréquentation ; légal ; a11y).
+- **Phases 2-3** : EN (relecture humaine) puis ES/DE/IT/PT-BR ; `UNSUPPORTED_FALLBACK_LANGUAGE` passe de `'fr'` à `'en'` quand EN est complet.
+- **Phase 4** : traductions du catalogue (notes, descriptions) en Supabase Storage + cache disque ; colonne `language` en base pour les push et le share SSR.
+- **Phase 5** : multi-devise (conversion indicative, `currencyCode` expo-localization).

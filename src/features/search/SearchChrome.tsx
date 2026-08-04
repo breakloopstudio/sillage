@@ -6,6 +6,7 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { alpha } from '../../utils/alpha';
@@ -36,6 +37,7 @@ import type { VoicePhase } from './VoiceOverlay';
 
 export default function SearchChrome() {
   const { theme, resolvedMode } = useTheme();
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const s = useMemo(() => getSearchStyles(theme, insets.top), [theme, insets.top]);
   const router = useRouter();
@@ -132,17 +134,17 @@ export default function SearchChrome() {
     } catch (err: unknown) {
       if (requestId !== voiceRequestIdRef.current) return;
       const msg = (err as Error)?.message;
-      setVoicePhase({ type: 'error', message: msg || 'La recherche a échoué. Vérifie ta connexion.' });
+      setVoicePhase({ type: 'error', message: msg || t('voice.searchFailedMsg') });
     }
-  }, [isAuthenticated, applyVoiceOutcome]);
+  }, [isAuthenticated, applyVoiceOutcome, t]);
 
   const handleVoiceError = useCallback((msg: string, code?: VoiceErrorCode) => {
     setVoicePhase({
       type: 'error',
-      message: msg || 'Erreur de reconnaissance vocale.',
+      message: msg || t('voice.recognitionError'),
       showSettings: code === 'mic-denied-permanent',
     });
-  }, []);
+  }, [t]);
 
   const voiceSearch = useVoiceSearch(handleVoiceResult, handleVoiceError);
   const { voiceEnabled } = useVoicePreference();
@@ -178,12 +180,12 @@ export default function SearchChrome() {
   // audio + re-transcription (≤15 s) + seconde interprétation peuvent se chaîner.
   useEffect(() => {
     if (voicePhase.type !== 'searching') return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       voiceRequestIdRef.current++;
-      setVoicePhase({ type: 'error', message: 'La recherche prend trop de temps. Réessaie.' });
+      setVoicePhase({ type: 'error', message: t('voice.timeoutMsg') });
     }, 35_000);
-    return () => clearTimeout(t);
-  }, [voicePhase]);
+    return () => clearTimeout(timer);
+  }, [voicePhase, t]);
 
   useEffect(() => {
     if (voiceSearch.state === 'listening') {
@@ -202,7 +204,7 @@ export default function SearchChrome() {
 
   const handleFabPressIn = useCallback(() => {
     if (!isOnline) {
-      handleVoiceError('Recherche vocale indisponible hors-ligne.');
+      handleVoiceError(t('voice.offlineMsg'));
       return;
     }
     if (micPrimer.needsPrimer) {
@@ -210,7 +212,7 @@ export default function SearchChrome() {
       return;
     }
     startVoiceSession();
-  }, [isOnline, micPrimer, startVoiceSession, handleVoiceError]);
+  }, [isOnline, micPrimer, startVoiceSession, handleVoiceError, t]);
 
   const handleFabPressOut = useCallback(() => {
     voiceSearch.stop();
@@ -278,22 +280,22 @@ export default function SearchChrome() {
           <Pressable
             onPress={handleSearchPress}
             style={s.searchBarPressable}
-            accessibilityLabel="Rechercher un parfum"
+            accessibilityLabel={t('searchChrome.searchA11y')}
           >
             <Ionicons name="search-outline" size={18} color={theme.colors.textMuted} />
             {showVoiceTranscript ? (
               <Text style={s.voiceTranscript} numberOfLines={1}>
-                {voiceTranscript || 'Parle…'}
+                {voiceTranscript || t('searchChrome.speakPlaceholder')}
               </Text>
             ) : (
-              <Text style={s.searchPlaceholder} numberOfLines={1}>Rechercher un parfum…</Text>
+              <Text style={s.searchPlaceholder} numberOfLines={1}>{t('searchChrome.searchPlaceholder')}</Text>
             )}
           </Pressable>
         </View>
-        <Pressable onPress={handleSettingsPress} style={s.settingsBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres">
+        <Pressable onPress={handleSettingsPress} style={s.settingsBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel={t('searchChrome.openSettingsA11y')}>
           <Ionicons name="settings-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
-        <Pressable onPress={handleAvatarPress} style={s.avatarBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel="Ouvrir le profil">
+        <Pressable onPress={handleAvatarPress} style={s.avatarBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel={t('searchChrome.openProfileA11y')}>
           {user?.photoURL && !avatarFailed ? (
             <Image source={{ uri: user.photoURL }} style={s.avatarImg} onError={() => setAvatarFailed(true)} />
           ) : (
@@ -334,7 +336,7 @@ export default function SearchChrome() {
               pressed && s.micFabPressed,
               showVoiceTranscript && s.micFabActive,
             ]}
-            accessibilityLabel="Recherche vocale"
+            accessibilityLabel={t('searchChrome.voiceSearchA11y')}
           >
             <Ionicons
               name={showVoiceTranscript ? 'mic' : 'mic-outline'}

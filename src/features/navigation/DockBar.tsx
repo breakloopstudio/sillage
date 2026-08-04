@@ -17,6 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import i18next from 'i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { alpha, tintLuminous } from '../../utils/alpha';
@@ -69,11 +70,12 @@ export function getTabCenter(screenWidth: number, tabVisualIndex: number): numbe
   return 2 * tabW + FAB_SPACE + (tabVisualIndex - 2 + 0.5) * tabW;
 }
 
+// Labels d'onglets résolus à l'affichage via getters i18next (§23).
 const TAB_MAP = {
-  index:      { iconActive: 'book',  iconInactive: 'book-outline',  label: 'Catalogue' },
-  favoris:    { iconActive: 'heart', iconInactive: 'heart-outline', label: 'Favoris' },
-  collection: { iconActive: 'flask', iconInactive: 'flask-outline', label: 'Parfumerie' },
-  communaute: { iconActive: 'people', iconInactive: 'people-outline', label: 'Communauté' },
+  index:      { iconActive: 'book',  iconInactive: 'book-outline',  get label() { return i18next.t('tabs.catalog'); } },
+  favoris:    { iconActive: 'heart', iconInactive: 'heart-outline', get label() { return i18next.t('tabs.favorites'); } },
+  collection: { iconActive: 'flask', iconInactive: 'flask-outline', get label() { return i18next.t('tabs.perfumerie'); } },
+  communaute: { iconActive: 'people', iconInactive: 'people-outline', get label() { return i18next.t('tabs.community'); } },
 } as const;
 
 export default function DockBar({ state, navigation }: BottomTabBarProps) {
@@ -252,7 +254,7 @@ export default function DockBar({ state, navigation }: BottomTabBarProps) {
               onPressOut={handleFabOut}
               onPress={handleFabPress}
               accessibilityRole="button"
-              accessibilityLabel="Scanner un parfum"
+              accessibilityLabel={i18next.t('scan.scanFabA11y')}
             >
               <LinearGradient style={s.fabShade} colors={RIM_SHADE} />
               <View style={[s.fabInner, m.fabRing]}>

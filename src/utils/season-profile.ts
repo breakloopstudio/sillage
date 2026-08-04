@@ -1,3 +1,4 @@
+import i18next from 'i18next';
 import {
   SEASON_ORDER,
   SEASON_META,
@@ -6,57 +7,65 @@ import {
 } from './season';
 
 // ─── Occasions (déplacé depuis la fiche détail) ──────────────────────────────
-// Plusieurs clés EN → même label FR ; on déduplique par label en gardant le
-// score max. Les clés inconnues sont ignorées (jamais de fallback brut).
+// Plusieurs clés EN → même clé de label i18n ; on déduplique par clé de label
+// (indépendant de la langue) en gardant le score max. Les clés inconnues sont
+// ignorées (jamais de fallback brut).
 
-export const OCCASION_META: Record<string, { label: string; icon: string }> = {
-  casual:       { label: 'Jour',        icon: 'sunny' },
-  day:          { label: 'Jour',        icon: 'sunny' },
-  daily:        { label: 'Jour',        icon: 'sunny' },
-  evening:      { label: 'Soirée',      icon: 'moon' },
-  night:        { label: 'Soirée',      icon: 'moon' },
-  'night out':  { label: 'Soirée',      icon: 'moon' },
-  night_out:    { label: 'Soirée',      icon: 'moon' },
-  party:        { label: 'Fête',        icon: 'musical-notes' },
-  club:         { label: 'Fête',        icon: 'musical-notes' },
-  work:         { label: 'Bureau',      icon: 'briefcase' },
-  office:       { label: 'Bureau',      icon: 'briefcase' },
-  business:     { label: 'Bureau',      icon: 'briefcase' },
-  professional: { label: 'Bureau',      icon: 'briefcase' },
-  date:         { label: 'Rendez-vous', icon: 'heart' },
-  romantic:     { label: 'Rendez-vous', icon: 'heart' },
-  formal:       { label: 'Formel',      icon: 'shirt' },
-  sport:        { label: 'Sport',       icon: 'fitness' },
-  leisure:      { label: 'Loisir',      icon: 'game-controller' },
+export type OccasionLabelKey =
+  | 'occasions.day'
+  | 'occasions.evening'
+  | 'occasions.party'
+  | 'occasions.work'
+  | 'occasions.romantic'
+  | 'occasions.formal'
+  | 'occasions.sport'
+  | 'occasions.leisure';
+
+export const OCCASION_META: Record<string, { labelKey: OccasionLabelKey; icon: string }> = {
+  casual:       { labelKey: 'occasions.day',      icon: 'sunny' },
+  day:          { labelKey: 'occasions.day',      icon: 'sunny' },
+  daily:        { labelKey: 'occasions.day',      icon: 'sunny' },
+  evening:      { labelKey: 'occasions.evening',  icon: 'moon' },
+  night:        { labelKey: 'occasions.evening',  icon: 'moon' },
+  'night out':  { labelKey: 'occasions.evening',  icon: 'moon' },
+  night_out:    { labelKey: 'occasions.evening',  icon: 'moon' },
+  party:        { labelKey: 'occasions.party',    icon: 'musical-notes' },
+  club:         { labelKey: 'occasions.party',    icon: 'musical-notes' },
+  work:         { labelKey: 'occasions.work',     icon: 'briefcase' },
+  office:       { labelKey: 'occasions.work',     icon: 'briefcase' },
+  business:     { labelKey: 'occasions.work',     icon: 'briefcase' },
+  professional: { labelKey: 'occasions.work',     icon: 'briefcase' },
+  date:         { labelKey: 'occasions.romantic', icon: 'heart' },
+  romantic:     { labelKey: 'occasions.romantic', icon: 'heart' },
+  formal:       { labelKey: 'occasions.formal',   icon: 'shirt' },
+  sport:        { labelKey: 'occasions.sport',    icon: 'fitness' },
+  leisure:      { labelKey: 'occasions.leisure',  icon: 'game-controller' },
 };
 
 export interface RankedItem { key: string; label: string; icon: string; score: number }
 
 export function rankAndDedupe(ranking: { name: string; score: number }[] | null | undefined): RankedItem[] {
   if (!ranking) return [];
-  const byLabel = new Map<string, RankedItem>();
+  const byLabelKey = new Map<OccasionLabelKey, RankedItem>();
   for (const item of ranking) {
     const k = item.name.toLowerCase().trim();
     const meta = OCCASION_META[k];
     if (!meta) continue;
-    const existing = byLabel.get(meta.label);
+    const existing = byLabelKey.get(meta.labelKey);
     if (!existing || item.score > existing.score) {
-      byLabel.set(meta.label, { key: k, label: meta.label, icon: meta.icon, score: item.score });
+      byLabelKey.set(meta.labelKey, { key: k, label: i18next.t(meta.labelKey), icon: meta.icon, score: item.score });
     }
   }
-  return [...byLabel.values()].sort((a, b) => b.score - a.score);
+  return [...byLabelKey.values()].sort((a, b) => b.score - a.score);
 }
 
 // ─── Moment de la journée (dérivé du vote, pas inventé) ──────────────────────
 // Les votes `day`/`night` existent dans season_ranking mais ne sont pas des
 // saisons → on les lit à part. On n'affiche un moment que si l'écart est net.
+// (Textes d'affichage : encore inline FR dans SeasonProfile — clés i18n
+// ajoutées à l'extraction du composant.)
 
 const DAY_NIGHT_THRESHOLD = 0.25;
-
-export const DAY_NIGHT_TEXT: Record<'day' | 'night', string> = {
-  day: 'plutôt en journée',
-  night: 'se porte plutôt le soir',
-};
 
 export function dayNightLabel(day: number, night: number): 'day' | 'night' | null {
   const max = Math.max(day, night);

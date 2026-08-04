@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   PERMISSION_PRIMERS,
-  PRIMER_REASSURANCE,
+  getPrimerReassurance,
   hasSeenPrimer,
   markPrimerSeen,
   type PermissionPrimerKey,
@@ -33,12 +33,12 @@ describe('PERMISSION_PRIMERS (copy)', () => {
       expect(copy.message).not.toContain('!');
       expect(copy.acceptLabel).not.toContain('!');
     }
-    expect(PRIMER_REASSURANCE).not.toContain('!');
+    expect(getPrimerReassurance()).not.toContain('!');
   });
 
   it('la réassurance mentionne le retrait du consentement', () => {
-    expect(PRIMER_REASSURANCE).toContain('Paramètres');
-    expect(PRIMER_REASSURANCE).toContain('Confidentialité');
+    expect(getPrimerReassurance()).toContain('Paramètres');
+    expect(getPrimerReassurance()).toContain('Confidentialité');
   });
 });
 

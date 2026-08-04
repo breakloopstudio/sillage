@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, TextInput, Modal, ScrollView, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import StarRating from '../wardrobe/StarRating';
 import type { UserParfum, ScentVerdict } from '../../models/user-parfum.interface';
@@ -34,6 +35,7 @@ export default function TrySheet({
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
 
   const isEditing = existingItem !== null && existingItem.status === 'tried';
@@ -88,7 +90,7 @@ export default function TrySheet({
               </View>
 
               <View style={s.section}>
-                <Text style={s.sectionTitle}>Ton verdict</Text>
+                <Text style={s.sectionTitle}>{t('trySheet.verdict')}</Text>
                 <View style={s.verdictRow}>
                   {VERDICT_OPTIONS.map(opt => {
                     const active = verdict === opt.key;
@@ -115,15 +117,15 @@ export default function TrySheet({
               </View>
 
               <View style={s.section}>
-                <Text style={s.sectionTitle}>Ta note</Text>
+                <Text style={s.sectionTitle}>{t('trySheet.yourRating')}</Text>
                 <StarRating rating={rating} size={28} onChange={(r) => setRating(r)} />
               </View>
 
               <View style={s.section}>
-                <Text style={s.sectionTitle}>Tes impressions</Text>
+                <Text style={s.sectionTitle}>{t('trySheet.impressions')}</Text>
                 <TextInput
                   style={s.notesInput}
-                  placeholder="Texture, tenue réelle, comparaison..."
+                  placeholder={t('trySheet.notesPlaceholder')}
                   placeholderTextColor={theme.colors.textMuted}
                   multiline
                   numberOfLines={4}
@@ -135,8 +137,8 @@ export default function TrySheet({
 
               <View style={s.toggleRow}>
                 <View style={s.toggleLeft}>
-                  <Text style={s.toggleLabel}>Ajouter à ma parfumerie</Text>
-                  <Text style={s.toggleHint}>Échantillon</Text>
+                  <Text style={s.toggleLabel}>{t('trySheet.addToParfumerie')}</Text>
+                  <Text style={s.toggleHint}>{t('trySheet.sampleHint')}</Text>
                 </View>
                 <Pressable
                   style={[s.toggleSwitch, addToWardrobe ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.border }]}
@@ -151,13 +153,13 @@ export default function TrySheet({
                   {saving ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={s.saveBtnText}>{isEditing ? 'Modifier l\'essai' : 'Enregistrer l\'essai'}</Text>
+                    <Text style={s.saveBtnText}>{isEditing ? t('trySheet.editSave') : t('trySheet.save')}</Text>
                   )}
                 </Pressable>
 
                 {isEditing && onRemove ? (
                   <Pressable style={s.removeBtn} onPress={onRemove} disabled={saving}>
-                    <Text style={s.removeBtnText}>Retirer du carnet</Text>
+                    <Text style={s.removeBtnText}>{t('trySheet.removeFromNotebook')}</Text>
                   </Pressable>
                 ) : null}
               </View>

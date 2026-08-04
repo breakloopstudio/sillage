@@ -7,6 +7,7 @@ import { View, Text, TextInput, FlatList, ScrollView, Pressable, ActivityIndicat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useCatalog } from '../src/hooks/useCatalog';
 import { useVoiceSearch, type VoiceState, type VoiceResult, type VoiceErrorCode } from '../src/hooks/useVoiceSearch';
@@ -28,8 +29,9 @@ import {
   consumePendingCatalogQuery,
   setPendingParfum,
 } from '../src/services/catalog-bridge';
-import { getParfumsByFamily, getPopularParfums, getPersonalizedSuggestions, getSeasonalParfums, getSuggestionIndex } from '../src/services/catalog';
+import { getParfumsByFamily, getParfumsByColor, getPopularParfums, getPersonalizedSuggestions, getSeasonalParfums, getSuggestionIndex } from '../src/services/catalog';
 import { getFamilyByKey } from '../src/utils/olfactory-families';
+import { getColorByKey, chromaSwatch } from '../src/utils/chromatic-wheel';
 import { buildSuggestionIndex, matchSuggestions, type SuggestionIndex, type SuggestionTerm } from '../src/utils/suggest';
 import ParfumCard from '../src/components/ParfumCard';
 import CatalogRow from '../src/features/catalog/CatalogRow';
@@ -41,6 +43,7 @@ import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { useDensityPreference, GRID_MODES } from '../src/hooks/useDensityPreference';
 import { useNetwork } from '../src/hooks/useNetwork';
 import { textOn } from '../src/utils/contrast';
+import { formatNumber } from '../src/utils/format-price';
 import type { Parfum } from '../src/models';
 
 const RECENT_KEY = '@sillage/recent-searches';
@@ -67,7 +70,7 @@ async function saveRecentToStorage(items: string[]): Promise<void> {
 
 const discoverStore = {
   loaded: false,
-  label: 'Tendances du moment',
+  kind: 'trending' as 'foryou' | 'trending',
   trends: [] as Parfum[],
   seasonal: [] as Parfum[],
 };
@@ -91,16 +94,21 @@ const suggestStore = {
 export default function SearchScreen() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const router = useRouter();
-  const { q: rawQ, family: rawFamily } = useLocalSearchParams<{ q?: string; family?: string }>();
+  const { q: rawQ, family: rawFamily, color: rawColor } = useLocalSearchParams<{ q?: string; family?: string; color?: string }>();
   const routeQuery = Array.isArray(rawQ) ? rawQ[0] : rawQ;
   const familyKey = Array.isArray(rawFamily) ? rawFamily[0] : rawFamily;
+  const colorKey = Array.isArray(rawColor) ? rawColor[0] : rawColor;
   const familyDef = useMemo(() => getFamilyByKey(familyKey), [familyKey]);
+  // Modes facette mutuellement exclusifs : la famille prime si les deux params
+  // sont présents (URL craftée), sinon deux bannières se superposeraient.
+  const colorDef = useMemo(() => (familyDef ? undefined : getColorByKey(colorKey)), [familyDef, colorKey]);
   const [initialQuery] = useState(() => routeQuery ?? consumePendingCatalogQuery());
 
   const inputRef = useRef<TextInput>(null);
-  const [searchText, setSearchText] = useState(() => familyDef?.label ?? initialQuery ?? '');
+  const [searchText, setSearchText] = useState(() => familyDef?.label ?? colorDef?.label ?? initialQuery ?? '');
   const recentLoadedRef = useRef(false);
   const { parfums, searching, error, search, clear, inject } = useCatalog();
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -109,6 +117,14 @@ export default function SearchScreen() {
   const voiceRequestIdRef = useRef(0);
   const [familyResults, setFamilyResults] = useState<Parfum[] | null>(familyDef ? [] : null);
   const [familyLoading, setFamilyLoading] = useState(!!familyDef);
+  const [colorResults, setColorResults] = useState<Parfum[] | null>(colorDef ? [] : null);
+  const [colorLoading, setColorLoading] = useState(!!colorDef);
+  // Quitte les modes facette (famille / couleur) — appelé dès que l'utilisateur
+  // tape, efface, ou relance un pipeline voix.
+  const clearFacetResults = useCallback(() => {
+    setFamilyResults(null);
+    setColorResults(null);
+  }, []);
   const { density: searchDensity, setDensity: setSearchDensity } = useDensityPreference();
   const { isOnline } = useNetwork();
   const [recentSearches, setRecentSearches] = useState<string[]>(recentStore.items);
@@ -117,14 +133,14 @@ export default function SearchScreen() {
   const [discover, setDiscover] = useState<{ trends: Parfum[]; seasonal: Parfum[] } | null>(
     discoverStore.loaded ? { trends: discoverStore.trends, seasonal: discoverStore.seasonal } : null,
   );
-  const [discoverLabel, setDiscoverLabel] = useState(discoverStore.label);
+  const [discoverKind, setDiscoverKind] = useState<'foryou' | 'trending'>(discoverStore.kind);
   const [suggestIndex, setSuggestIndex] = useState<SuggestionIndex>(suggestStore.index);
 
   const persistRecent = useCallback((term: string) => {
-    const t = term.trim();
-    if (!t || t.length < 2) return;
+    const trimmed = term.trim();
+    if (!trimmed || trimmed.length < 2) return;
     recentLoadedRef.current = true;
-    recentStore.items = [t, ...recentStore.items.filter(x => x.toLowerCase() !== t.toLowerCase())].slice(0, 5);
+    recentStore.items = [trimmed, ...recentStore.items.filter(x => x.toLowerCase() !== trimmed.toLowerCase())].slice(0, 5);
     setRecentSearches(recentStore.items);
     saveRecentToStorage(recentStore.items);
   }, []);
@@ -179,13 +195,13 @@ export default function SearchScreen() {
         if (best.results.length > 0) {
           if (best.autoOpen) { openVoiceAutoOpen(best); return; }
           setSearchText(best.query);
-          setFamilyResults(null);
+          clearFacetResults();
           inject(best.results);
           return;
         }
 
         setSearchText(best.query);
-        setFamilyResults(null);
+        clearFacetResults();
         inject([]);
       } else if (result.audioBase64) {
         // Pas de transcript on-device → Whisper d'abord (voie historique).
@@ -196,13 +212,13 @@ export default function SearchScreen() {
           if (requestId !== voiceRequestIdRef.current) return;
           if (outcome.autoOpen) { openVoiceAutoOpen(outcome); return; }
           setSearchText(outcome.query);
-          setFamilyResults(null);
+          clearFacetResults();
           inject(outcome.results);
         }
       }
     } catch (err: unknown) {
       if (requestId !== voiceRequestIdRef.current) return;
-      setVoiceError((err as Error)?.message || 'La recherche vocale a échoué.');
+      setVoiceError((err as Error)?.message || t('search.voiceError'));
     } finally {
       // Reset inconditionnel : si l'utilisateur tape pendant le pipeline, le
       // requestId change et le reset conditionnel ne tournerait jamais →
@@ -210,12 +226,12 @@ export default function SearchScreen() {
       // pipeline voix ne peut démarrer tant que voiceSearching est true.
       setVoiceSearching(false);
     }
-  }, [isAuthenticated, inject, openVoiceAutoOpen]);
+  }, [isAuthenticated, inject, openVoiceAutoOpen, t, clearFacetResults]);
 
   const handleVoiceError = useCallback((msg: string, code?: VoiceErrorCode) => {
-    setVoiceError(msg || 'Erreur de reconnaissance vocale.');
+      setVoiceError(msg || t('search.voiceErrorRecognition'));
     setVoiceErrorCode(code ?? null);
-  }, []);
+  }, [t]);
 
   const voiceSearch = useVoiceSearch(handleVoiceResult, handleVoiceError);
   const micPrimer = usePermissionPrimer('mic');
@@ -229,7 +245,7 @@ export default function SearchScreen() {
       const pending = consumePendingVoiceResults();
       if (pending && pending.results.length > 0) {
         setVoiceError(null);
-        setFamilyResults(null);
+        clearFacetResults();
         setSearchText(pending.query);
         inject(pending.results);
       }
@@ -243,10 +259,10 @@ export default function SearchScreen() {
   }, [voiceSearch.transcript, voiceState]);
 
   useEffect(() => {
-    if (familyDef) return;
-    const t = setTimeout(() => inputRef.current?.focus(), 250);
-    return () => clearTimeout(t);
-  }, [familyDef]);
+    if (familyDef || colorDef) return;
+    const timer = setTimeout(() => inputRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
+  }, [familyDef, colorDef]);
 
   useEffect(() => {
     if (!familyDef) return;
@@ -258,6 +274,19 @@ export default function SearchScreen() {
       .finally(() => { if (!cancelled) setFamilyLoading(false); });
     return () => { cancelled = true; };
   }, [familyDef]);
+
+  // Mode couleur : lit le cache mémoire partagé (le fetch posé dans /wheel
+  // préchauffe cette entrée → rendu instantané, jamais de second fetch).
+  useEffect(() => {
+    if (!colorDef) return;
+    let cancelled = false;
+    setColorLoading(true);
+    getParfumsByColor(colorDef.key, 50)
+      .then(list => { if (!cancelled) setColorResults(list); })
+      .catch(() => { if (!cancelled) setColorResults([]); })
+      .finally(() => { if (!cancelled) setColorLoading(false); });
+    return () => { cancelled = true; };
+  }, [colorDef]);
 
   useEffect(() => {
     loadRecentFromStorage().then(items => {
@@ -277,28 +306,28 @@ export default function SearchScreen() {
         (async () => {
           if (isAuthenticated) {
             const perso = await getPersonalizedSuggestions(user?.uid ?? '', 12);
-            if (perso.length > 0) return { items: perso, label: 'Pour toi' };
+            if (perso.length > 0) return { items: perso, kind: 'foryou' as const };
           }
           const pop = await getPopularParfums(12);
-          return { items: pop, label: 'Tendances du moment' };
+          return { items: pop, kind: 'trending' as const };
         })(),
         getSeasonalParfums(season, 12),
       ]);
       if (cancelled) return;
       const raw = trendsRes.status === 'fulfilled'
         ? trendsRes.value
-        : { items: [] as Parfum[], label: 'Tendances du moment' };
+        : { items: [] as Parfum[], kind: 'trending' as const };
       const trends = seededShuffle(raw.items, today).slice(0, 8);
       const trendIds = new Set(trends.map(p => p.id));
       const seasonal = (seasonalRes.status === 'fulfilled' ? seasonalRes.value : [])
         .filter(p => !trendIds.has(p.id))
         .slice(0, 8);
       discoverStore.loaded = true;
-      discoverStore.label = raw.label;
+      discoverStore.kind = raw.kind;
       discoverStore.trends = trends;
       discoverStore.seasonal = seasonal;
       setDiscover({ trends, seasonal });
-      setDiscoverLabel(raw.label);
+      setDiscoverKind(raw.kind);
     })();
     return () => { cancelled = true; };
   }, [authReady, isAuthenticated, user?.uid, season]);
@@ -317,26 +346,26 @@ export default function SearchScreen() {
   }, []);
 
   useEffect(() => {
-    if (familyDef) return;
+    if (familyDef || colorDef) return;
     if (initialQuery && initialQuery.trim().length >= 2) {
       setSearchText(initialQuery);
       search(initialQuery.trim());
     }
-  }, [initialQuery, familyDef]);
+  }, [initialQuery, familyDef, colorDef]);
 
-  const handleTextChange = useCallback((t: string) => {
+  const handleTextChange = useCallback((text: string) => {
     voiceRequestIdRef.current++;
-    setSearchText(t);
-    setFamilyResults(null);
+    setSearchText(text);
+    clearFacetResults();
     setVoiceError(null);
     setVoiceErrorCode(null);
     if (voiceState !== 'idle') voiceSearch.cancel();
-    t.trim().length >= 2 ? search(t) : clear();
+    text.trim().length >= 2 ? search(text) : clear();
   }, [search, clear, voiceState, voiceSearch]);
 
   const handleVoiceToggle = useCallback(() => {
     if (!isOnline) {
-      handleVoiceError('Recherche vocale indisponible hors-ligne.');
+      handleVoiceError(t('search.voiceOffline'));
       return;
     }
     if (voiceState === 'listening' || voiceState === 'processing') {
@@ -352,7 +381,7 @@ export default function SearchScreen() {
     setVoiceErrorCode(null);
     clear();
     voiceSearch.start();
-  }, [isOnline, voiceState, voiceSearch, clear, handleVoiceError, micPrimer]);
+  }, [isOnline, voiceState, voiceSearch, clear, handleVoiceError, micPrimer, t]);
 
   const handleMicPrimerAccept = useCallback(() => {
     micPrimer.accept();
@@ -432,10 +461,12 @@ export default function SearchScreen() {
   }, [persistRecent, router, search]);
 
   const inFamilyMode = familyResults !== null;
-  const displayParfums = inFamilyMode ? familyResults! : parfums;
-  const isSearching = searching || familyLoading;
+  const inColorMode = colorResults !== null;
+  const inFacetMode = inFamilyMode || inColorMode;
+  const displayParfums = inFamilyMode ? familyResults! : inColorMode ? colorResults! : parfums;
+  const isSearching = searching || familyLoading || colorLoading;
   const hasResults = displayParfums.length > 0 && !isSearching;
-  const showSuggestions = searchText.trim().length >= 1 && suggestions.length > 0 && !hasResults && !inFamilyMode;
+  const showSuggestions = searchText.trim().length >= 1 && suggestions.length > 0 && !hasResults && !inFacetMode;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
@@ -449,7 +480,7 @@ export default function SearchScreen() {
           <TextInput
             ref={inputRef}
             style={s.input}
-            placeholder="Rechercher un parfum..."
+              placeholder={t('search.placeholder')}
             placeholderTextColor={theme.colors.textMuted}
             value={searchText}
             onChangeText={handleTextChange}
@@ -483,19 +514,19 @@ export default function SearchScreen() {
                 voiceRequestIdRef.current++;
                 if (voiceState !== 'idle') voiceSearch.cancel();
                 setSearchText('');
-                setFamilyResults(null);
+                clearFacetResults();
                 setVoiceError(null);
                 clear();
               }}
               hitSlop={8}
-              accessibilityLabel="Effacer la recherche"
+              accessibilityLabel={t('search.clearSearchA11y')}
             >
               <Ionicons name="close-circle" size={18} color={theme.colors.textMuted} />
             </Pressable>
           )}
         </View>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={s.cancelBtn} accessibilityLabel="Fermer la recherche">
-          <Text style={s.cancelText}>Annuler</Text>
+        <Pressable onPress={() => router.back()} hitSlop={8} style={s.cancelBtn} accessibilityLabel={t('search.closeSearchA11y')}>
+            <Text style={s.cancelText}>{t('cancel')}</Text>
         </Pressable>
       </View>
 
@@ -510,14 +541,14 @@ export default function SearchScreen() {
           {recentSearches.length > 0 && (
             <View style={s.recentSection}>
               <View style={s.recentHeaderRow}>
-                <Text style={s.sectionTitle}>Recherches récentes</Text>
+                <Text style={s.sectionTitle}>{t('search.recent')}</Text>
                 <Pressable
                   onPress={handleClearRecent}
                   hitSlop={12}
                   style={s.clearBtn}
-                  accessibilityLabel="Effacer les recherches récentes"
+                  accessibilityLabel={t('search.clearRecentA11y')}
                 >
-                  <Text style={s.clearBtnText}>Tout effacer</Text>
+                  <Text style={s.clearBtnText}>{t('search.clearAll')}</Text>
                 </Pressable>
               </View>
               <View style={s.recentChips}>
@@ -537,7 +568,7 @@ export default function SearchScreen() {
           )}
 
           <View style={s.brandsSection}>
-            <Text style={[s.sectionTitle, s.brandsTitle]}>Maisons iconiques</Text>
+            <Text style={[s.sectionTitle, s.brandsTitle]}>{t('search.iconicBrands')}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -557,7 +588,7 @@ export default function SearchScreen() {
           </View>
 
           {discover !== null && discover.trends.length > 0 && (
-            <CatalogRow title={discoverLabel} collapsible={false}>
+            <CatalogRow title={discoverKind === 'foryou' ? t('catalog.suggestions.foryouTu') : t('catalog.suggestions.trending')} collapsible={false}>
               {discover.trends.map(p => (
                 <ParfumCard key={p.id} parfum={p} mode="carousel" />
               ))}
@@ -565,7 +596,7 @@ export default function SearchScreen() {
           )}
 
           {discover !== null && discover.seasonal.length > 0 && (
-            <CatalogRow title={`Parfaits pour ${SEASON_META[season].withArticle}`} collapsible={false}>
+            <CatalogRow title={t('catalog.seasonalRow', { season: SEASON_META[season].withArticle })} collapsible={false}>
               {discover.seasonal.map(p => (
                 <ParfumCard key={p.id} parfum={p} mode="carousel" />
               ))}
@@ -583,7 +614,7 @@ export default function SearchScreen() {
                 style={[s.suggestRow, i < suggestions.length - 1 && s.suggestRowBorder]}
                 onPress={() => handleSuggestionPress(term)}
                 accessibilityRole="button"
-                accessibilityLabel={term.kind === 'brand' ? `${term.label}, marque` : term.sub ? `${term.label}, ${term.sub}` : term.label}
+                accessibilityLabel={term.kind === 'brand' ? t('search.brandSuggestionA11y', { label: term.label }) : term.sub ? t('search.suggestionA11y', { label: term.label, sub: term.sub }) : term.label}
               >
                 <Ionicons
                   name={term.kind === 'brand' ? 'business-outline' : 'flask-outline'}
@@ -613,11 +644,27 @@ export default function SearchScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.familyTitle}>{familyDef.label}</Text>
                     <Text style={s.familyMeta}>
-                      {displayParfums.length.toLocaleString('fr-FR')} parfums · {familyDef.tagline}
+                      {t('catalog.parfumCount', { count: displayParfums.length, formatted: formatNumber(displayParfums.length) })} · {familyDef.tagline}
                     </Text>
                   </View>
                 </View>
               )}
+              {inColorMode && colorDef && (() => {
+                const cs = chromaSwatch(colorDef.key, resolvedMode);
+                return (
+                  <View style={[s.familyHeader, { backgroundColor: cs.soft }]}>
+                    <View style={[s.familyIcon, { backgroundColor: cs.swatch, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }]}>
+                      <Ionicons name="color-palette-outline" size={16} color={textOn(cs.swatch)} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.familyTitle}>{colorDef.label}</Text>
+                      <Text style={s.familyMeta}>
+                        {t('catalog.parfumCount', { count: displayParfums.length, formatted: formatNumber(displayParfums.length) })} · {colorDef.tagline}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })()}
               <View style={s.densityRow}>
                 {GRID_MODES.map(m => (
                   <Pressable
@@ -646,22 +693,22 @@ export default function SearchScreen() {
                 maxToRenderPerBatch={10}
               />
             </>
-          ) : (error || voiceError) && !inFamilyMode ? (
+          ) : (error || voiceError) && !inFacetMode ? (
             <View style={s.errorContainer}>
               <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.primary} style={{ marginBottom: 12 }} />
-              <Text style={s.errorTitle}>{voiceErrorCode === 'mic-denied-permanent' ? 'Micro désactivé' : 'Impossible de rechercher'}</Text>
+              <Text style={s.errorTitle}>{voiceErrorCode === 'mic-denied-permanent' ? t('search.micDisabled') : t('search.searchFailed')}</Text>
               <Text style={s.errorDesc}>{error ?? voiceError}</Text>
               {voiceErrorCode === 'mic-denied-permanent' ? (
-                <Pressable style={s.errorSettingsBtn} onPress={handleOpenSystemSettings} accessibilityRole="button" accessibilityLabel="Ouvrir les réglages">
-                  <Text style={s.errorSettingsBtnText}>Ouvrir les réglages</Text>
+            <Pressable style={s.errorSettingsBtn} onPress={handleOpenSystemSettings} accessibilityRole="button" accessibilityLabel={t('openSettings')}>
+              <Text style={s.errorSettingsBtnText}>{t('openSettings')}</Text>
                 </Pressable>
               ) : null}
             </View>
-          ) : !isSearching && (inFamilyMode || searchText.length >= 2) ? (
+          ) : !isSearching && (inFacetMode || searchText.length >= 2) ? (
             <View style={s.empty}>
               <Ionicons name="search-outline" size={48} color={theme.colors.textMuted} style={{ opacity: 0.4 }} />
-              <Text style={s.emptyTitle}>Aucun résultat</Text>
-              <Text style={s.emptyDesc}>Essaie une autre orthographe ou scanne un flacon.</Text>
+            <Text style={s.emptyTitle}>{t('search.noResults')}</Text>
+            <Text style={s.emptyDesc}>{t('search.noResultsDesc')}</Text>
             </View>
           ) : null}
         </>

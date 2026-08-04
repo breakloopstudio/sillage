@@ -1,3 +1,4 @@
+import i18next from 'i18next';
 import { translateNote } from './translate-note';
 
 export interface AccordRow {
@@ -19,21 +20,29 @@ export const ACCORD_GROUPS: { name: string; words: string[] }[] = [
   { name: 'fresh', words: ['citrus', 'agrume', 'hesperide', 'hespéridé', 'lemon', 'citron', 'bergamot', 'bergamote', 'marine', 'marin', 'aquatic', 'aquatique', 'ozone', 'ozonique', 'aldehydic', 'aldehyde', 'fresh', 'frais', 'neroli', 'grapefruit', 'pamplemousse'] },
 ];
 
-const WORD_SCORE: Record<string, { pct: number; label: string }> = {
-  dominant: { pct: 95, label: 'Dominant' },
-  prominent: { pct: 75, label: 'Présent' },
-  moderate: { pct: 50, label: 'Modéré' },
-  soft: { pct: 28, label: 'Discret' },
-  subtle: { pct: 15, label: 'En fond' },
-  faint: { pct: 6, label: 'En fond' },
+// Labels d'intensité résolus à l'appel via i18next (§23) — buildAccords est
+// invoqué au render dans AccordProfile.
+type IntensityKey =
+  | 'accordProfile.intensity.dominant'
+  | 'accordProfile.intensity.prominent'
+  | 'accordProfile.intensity.moderate'
+  | 'accordProfile.intensity.soft'
+  | 'accordProfile.intensity.subtle';
+const WORD_SCORE: Record<string, { pct: number; key: IntensityKey }> = {
+  dominant: { pct: 95, key: 'accordProfile.intensity.dominant' },
+  prominent: { pct: 75, key: 'accordProfile.intensity.prominent' },
+  moderate: { pct: 50, key: 'accordProfile.intensity.moderate' },
+  soft: { pct: 28, key: 'accordProfile.intensity.soft' },
+  subtle: { pct: 15, key: 'accordProfile.intensity.subtle' },
+  faint: { pct: 6, key: 'accordProfile.intensity.subtle' },
 };
 
 function labelFromScore(n: number): string {
-  if (n >= 85) return 'Dominant';
-  if (n >= 65) return 'Présent';
-  if (n >= 40) return 'Modéré';
-  if (n >= 20) return 'Discret';
-  return 'En fond';
+  if (n >= 85) return i18next.t('accordProfile.intensity.dominant');
+  if (n >= 65) return i18next.t('accordProfile.intensity.prominent');
+  if (n >= 40) return i18next.t('accordProfile.intensity.moderate');
+  if (n >= 20) return i18next.t('accordProfile.intensity.soft');
+  return i18next.t('accordProfile.intensity.subtle');
 }
 
 function parsePct(value: string): { pct: number; label: string | null } {
@@ -41,7 +50,7 @@ function parsePct(value: string): { pct: number; label: string | null } {
   const n = parseInt(trimmed.replace('%', ''), 10);
   if (!isNaN(n)) return { pct: Math.max(0, Math.min(100, n)), label: labelFromScore(n) };
   const word = WORD_SCORE[trimmed.toLowerCase()];
-  if (word) return word;
+  if (word) return { pct: word.pct, label: i18next.t(word.key) };
   return { pct: 40, label: null };
 }
 

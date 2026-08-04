@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
 import { useFocusEffect } from 'expo-router';
+import i18next from 'i18next';
 import { fetchWeather, type WeatherData } from '../services/weather';
 
 const POSITION_TIMEOUT_MS = 10_000;
@@ -73,7 +74,7 @@ export function useWeather(enabled = true): UseWeatherResult {
           setWeather(data);
           setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         } else {
-          setError('Impossible de récupérer la météo.');
+          setError(i18next.t('weather.errorFetch'));
         }
       }
       return true;
@@ -99,11 +100,11 @@ export function useWeather(enabled = true): UseWeatherResult {
       // accordée. La demande explicite passe par requestPermission().
       if (status === 'granted') {
         if (await fetchWithPosition(force)) return;
-        if (mountedRef.current) setError('Impossible de récupérer la météo.');
+        if (mountedRef.current) setError(i18next.t('weather.errorFetch'));
       }
     } catch (e: unknown) {
       if (mountedRef.current) {
-        setError('Erreur lors de la récupération de la météo.');
+        setError(i18next.t('weather.errorGeneric'));
       }
       console.warn('[useWeather]', (e as Error)?.message ?? String(e));
     } finally {
@@ -130,7 +131,7 @@ export function useWeather(enabled = true): UseWeatherResult {
         try {
           const ok = await fetchWithPosition(true);
           hasLoadedRef.current = true;
-          if (!ok && mountedRef.current) setError('Impossible de récupérer la météo.');
+          if (!ok && mountedRef.current) setError(i18next.t('weather.errorFetch'));
         } finally {
           if (mountedRef.current) setLoading(false);
         }
@@ -143,7 +144,7 @@ export function useWeather(enabled = true): UseWeatherResult {
 
       // Refus définitif (l'OS ne re-prompt plus) → orienter vers les réglages.
       if (status === 'denied' && !perm.canAskAgain) {
-        if (mountedRef.current) setError('La localisation est désactivée. Active-la dans les réglages de l\'appareil.');
+        if (mountedRef.current) setError(i18next.t('weather.locationDisabled'));
         return false;
       }
 
@@ -155,12 +156,12 @@ export function useWeather(enabled = true): UseWeatherResult {
       }
 
       if (mountedRef.current) setError(!req.canAskAgain
-        ? 'La localisation est désactivée. Active-la dans les réglages de l\'appareil.'
-        : 'Sans localisation, la météo reste indisponible.');
+        ? i18next.t('weather.locationDisabled')
+        : i18next.t('weather.noLocation'));
       return false;
     } catch (e: unknown) {
       console.warn('[useWeather] requestPermission failed:', (e as Error)?.message ?? String(e));
-      if (mountedRef.current) setError('Erreur lors de la récupération de la météo.');
+      if (mountedRef.current) setError(i18next.t('weather.errorGeneric'));
       return false;
     }
   }, [fetchWithPosition]);

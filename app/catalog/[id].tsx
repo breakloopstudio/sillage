@@ -6,6 +6,7 @@ import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { getParfumById, getParfumsByIds, updateParfum, getSimilarParfums } from '../../src/services/catalog';
@@ -52,11 +53,11 @@ const STICKY_TRIGGER_OFFSET = 56;
 
 // ─── Titres de section ───────────────────────────────────────
 
-function SectionTitle({ icon, title, subtitle, tint, tintSoft, s, t }: { icon: string; title: string; subtitle?: string; tint?: string; tintSoft?: string; s: ReturnType<typeof getStyles>; t: Theme }) {
+function SectionTitle({ icon, title, subtitle, tint, tintSoft, s, theme }: { icon: string; title: string; subtitle?: string; tint?: string; tintSoft?: string; s: ReturnType<typeof getStyles>; theme: Theme }) {
   return (
     <View style={s.sectionTitle}>
-      <View style={[s.sectionIconWrap, { backgroundColor: tintSoft ?? t.colors.primarySoft }]}>
-        <Ionicons name={icon as never} size={14} color={tint ?? t.colors.primaryInk} />
+      <View style={[s.sectionIconWrap, { backgroundColor: tintSoft ?? theme.colors.primarySoft }]}>
+        <Ionicons name={icon as never} size={14} color={tint ?? theme.colors.primaryInk} />
       </View>
       <View style={s.sectionTitleBody}>
         <Text style={s.sectionTitleText}>{title}</Text>
@@ -71,8 +72,9 @@ export default function CatalogDetailPage() {
   const id: string | undefined = Array.isArray(rawId) ? rawId[0] : rawId;
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
-  const { theme: t } = useTheme();
-  const s = useMemo(() => getStyles(t), [t]);
+  const { theme } = useTheme();
+  const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
 
   const { user, isAuthenticated, isAdmin } = useAuthContext();
   const [parfum, setParfum] = useState<Parfum | null>(null);
@@ -235,7 +237,7 @@ export default function CatalogDetailPage() {
     if (!parfum) return;
     hapticsLight();
     const url = parfumShareUrl(parfum.id);
-    const text = `Découvre ${parfum.marque} – ${parfum.nom} sur Sillage`;
+    const text = t('detail.shareText', { marque: parfum.marque, nom: parfum.nom });
     try {
       if (Platform.OS === 'ios') {
         await Share.share({ url, message: text });
@@ -243,7 +245,7 @@ export default function CatalogDetailPage() {
         await Share.share({ message: `${text}\n${url}` });
       }
     } catch { /* annulation utilisateur */ }
-  }, [parfum]);
+  }, [parfum, t]);
   const handlePurchasePress = useCallback(() => {
     if (parfum?.purchaseUrl) Linking.openURL(parfum.purchaseUrl);
   }, [parfum?.purchaseUrl]);
@@ -309,12 +311,12 @@ export default function CatalogDetailPage() {
   const content = (
     <>
       {loading ? (
-      <View style={s.center}><ActivityIndicator size="large" color={t.colors.primary} /></View>
+      <View style={s.center}><ActivityIndicator size="large" color={theme.colors.primary} /></View>
     ) : !parfum ? (
-      <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:t.colors.textMuted}}>Parfum introuvable.</Text></View>
+      <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>{t('detail.notFound')}</Text></View>
     ) : (
-      <View style={{flex:1,backgroundColor:t.colors.background}}>
-          <CollapsingHeader scrollY={scrollY} brand={parfum.marque} name={parfum.nom} rightAction={{ icon: 'share-social-outline', onPress: handleShare, accessibilityLabel: 'Partager ce parfum' }} />
+      <View style={{flex:1,backgroundColor:theme.colors.background}}>
+          <CollapsingHeader scrollY={scrollY} brand={parfum.marque} name={parfum.nom} rightAction={{ icon: 'share-social-outline', onPress: handleShare, accessibilityLabel: t('detail.shareA11y') }} />
         <Animated.ScrollView
           style={{flex:1}}
           contentContainerStyle={scrollContentStyle}
@@ -353,11 +355,11 @@ export default function CatalogDetailPage() {
                   {parfum.purchaseUrl ? (
                     <>
                       <Button variant="primary" onPress={handlePurchasePress} icon="cart-outline" style={s.buyBtn}>
-                        Voir l'offre
+                        {t('detail.seeOffer')}
                       </Button>
-                      <Pressable style={s.affiliateCaption} onPress={handleOpenAffiliateInfo} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel="À propos des liens partenaires">
-                        <Text style={s.affiliateCaptionText}>Lien partenaire · comment ça marche</Text>
-                        <Ionicons name="information-circle-outline" size={13} color={t.colors.textMuted} />
+                      <Pressable style={s.affiliateCaption} onPress={handleOpenAffiliateInfo} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel={t('detail.affiliateA11y')}>
+                        <Text style={s.affiliateCaptionText}>{t('detail.affiliateCaption')}</Text>
+                        <Ionicons name="information-circle-outline" size={13} color={theme.colors.textMuted} />
                       </Pressable>
                     </>
                   ) : null}
@@ -379,7 +381,7 @@ export default function CatalogDetailPage() {
               {/* ─── Comparer les marchands ─── */}
               {parfum.offers && parfum.offers.length > 1 ? (
                 <View style={s.infoZone}>
-                  <SectionTitle icon="pricetags-outline" title="Comparer les marchands" tint={t.colors.deal} tintSoft={t.colors.dealSoft} s={s} t={t} />
+                  <SectionTitle icon="pricetags-outline" title={t('detail.compareMerchants')} tint={theme.colors.deal} tintSoft={theme.colors.dealSoft} s={s} theme={theme} />
                   {parfum.offers.map((offer, i) => (
                     <Pressable
                       key={`${offer.marchand}-${i}`}
@@ -398,9 +400,9 @@ export default function CatalogDetailPage() {
                       </View>
                     </Pressable>
                   ))}
-                  <Pressable style={s.affiliateCaption} onPress={handleOpenAffiliateInfo} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel="À propos des liens partenaires">
-                    <Text style={s.affiliateCaptionText}>Liens partenaires · comment ça marche</Text>
-                    <Ionicons name="information-circle-outline" size={13} color={t.colors.textMuted} />
+                  <Pressable style={s.affiliateCaption} onPress={handleOpenAffiliateInfo} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel={t('detail.affiliateA11y')}>
+                    <Text style={s.affiliateCaptionText}>{t('detail.affiliateCaptionPlural')}</Text>
+                    <Ionicons name="information-circle-outline" size={13} color={theme.colors.textMuted} />
                   </Pressable>
                 </View>
               ) : null}
@@ -415,14 +417,14 @@ export default function CatalogDetailPage() {
                       onPress={handleFamilyPress}
                       hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
                       accessibilityRole="button"
-                      accessibilityLabel={`Explorer la famille ${familyLabel}`}
-                      style={({ pressed }) => [s.familyPill, { backgroundColor: t.colors.primarySoft }, pressed && { opacity: 0.7 }]}
+                      accessibilityLabel={t('detail.exploreFamilyA11y', { family: familyLabel })}
+                      style={({ pressed }) => [s.familyPill, { backgroundColor: theme.colors.primarySoft }, pressed && { opacity: 0.7 }]}
                     >
-                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
+                      <Text style={[s.familyPillText, { color: theme.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
                     </Pressable>
                   ) : (
-                    <View style={[s.familyPill, { backgroundColor: t.colors.primarySoft }]}>
-                      <Text style={[s.familyPillText, { color: t.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
+                    <View style={[s.familyPill, { backgroundColor: theme.colors.primarySoft }]}>
+                      <Text style={[s.familyPillText, { color: theme.colors.primaryInk }]} allowFontScaling={false}>{familyLabel}</Text>
                     </View>
                   )
                 ) : null}
@@ -433,7 +435,7 @@ export default function CatalogDetailPage() {
                 ))}
                 {ratingLabel ? (
                   <View style={s.notePill}>
-                    <Ionicons name="star" size={10} color={t.colors.textMuted} />
+                    <Ionicons name="star" size={10} color={theme.colors.textMuted} />
                     <Text style={s.notePillValue} allowFontScaling={false}>{ratingLabel}</Text>
                   </View>
                 ) : null}
@@ -446,10 +448,10 @@ export default function CatalogDetailPage() {
                 style={({ pressed }) => [s.brandChip, pressed && { opacity: 0.7 }]}
                 hitSlop={{ top: 5, bottom: 5 }}
                 accessibilityRole="button"
-                accessibilityLabel={`Voir la maison ${parfum.marque}`}
+                accessibilityLabel={t('detail.brandA11y', { marque: parfum.marque })}
                 onPress={handleBrandPress}
               >
-                <Ionicons name="storefront-outline" size={12} color={t.colors.primaryInk} />
+                <Ionicons name="storefront-outline" size={12} color={theme.colors.primaryInk} />
                 <Text style={s.brandChipText} allowFontScaling={false}>{parfum.marque}</Text>
               </Pressable>
               {perfumersList.map(name => (
@@ -458,13 +460,13 @@ export default function CatalogDetailPage() {
                   style={({ pressed }) => [s.noseChip, pressed && { opacity: 0.7 }]}
                   hitSlop={{ top: 5, bottom: 5 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Voir les créations de ${name}`}
+                  accessibilityLabel={t('detail.perfumerA11y', { name })}
                   onPress={() => {
                     hapticsLight();
                     router.push(`/perfumer/${encodeURIComponent(name)}`);
                   }}
                 >
-                  <Ionicons name="finger-print-outline" size={12} color={t.colors.textMuted} />
+                  <Ionicons name="finger-print-outline" size={12} color={theme.colors.textMuted} />
                   <Text style={s.noseChipText} allowFontScaling={false}>{name}</Text>
                 </Pressable>
               ))}
@@ -513,7 +515,7 @@ export default function CatalogDetailPage() {
                 {/* ─── Ça s'en rapproche (recommandations) ─── */}
                 {similars.length > 0 ? (
                   <View style={s.infoZone}>
-                    <SectionTitle icon="sparkles-outline" title="Ça s'en rapproche" subtitle="Même sillage, autre flacon" s={s} t={t} />
+                    <SectionTitle icon="sparkles-outline" title={t('detail.similar')} subtitle={t('detail.similarSubtitle')} s={s} theme={theme} />
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.similarRow}>
                       {similars.map(sim => {
                         const diff = (hasBestPrice && typeof sim.bestPrice === 'number' && sim.bestPrice > 0)
@@ -531,10 +533,10 @@ export default function CatalogDetailPage() {
                             />
                             {diff !== null ? (
                               <Text
-                                style={[s.similarDelta, { color: diff < 0 ? t.colors.dealInk : diff > 0 ? t.colors.overpricedInk : t.colors.textMuted }]}
+                                style={[s.similarDelta, { color: diff < 0 ? theme.colors.dealInk : diff > 0 ? theme.colors.overpricedInk : theme.colors.textMuted }]}
                                 allowFontScaling={false}
                               >
-                                {diff < 0 ? `−${formatPrice(Math.abs(diff), { decimals: 0 })}` : diff > 0 ? `+${formatPrice(diff, { decimals: 0 })}` : 'Même prix'}
+                                {diff < 0 ? `−${formatPrice(Math.abs(diff), { decimals: 0 })}` : diff > 0 ? `+${formatPrice(diff, { decimals: 0 })}` : t('detail.samePrice')}
                               </Text>
                             ) : null}
                           </View>
@@ -543,7 +545,7 @@ export default function CatalogDetailPage() {
                     </ScrollView>
                   </View>
                 ) : null}
-                {similarsLoading ? <ActivityIndicator style={{ marginTop: 12 }} color={t.colors.primary} /> : null}
+                {similarsLoading ? <ActivityIndicator style={{ marginTop: 12 }} color={theme.colors.primary} /> : null}
         </View>
         </Animated.ScrollView>
 
@@ -606,8 +608,8 @@ export default function CatalogDetailPage() {
       />
       <InfoPopup
         visible={affiliateInfoOpen}
-        title="Liens partenaires"
-        message="Quand tu achètes via un lien « Voir l'offre », le marchand peut nous reverser une petite commission, sans aucun surcoût pour toi. C'est ce qui finance Sillage et nous permet de rester indépendants. Les prix et le classement ne sont jamais influencés."
+        title={t('detail.affiliateTitle')}
+        message={t('detail.affiliateMessage')}
         icon="handshake-outline"
         onClose={handleCloseAffiliateInfo}
       />
@@ -615,13 +617,13 @@ export default function CatalogDetailPage() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.colors.background }}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       {content}
       {/* bottomOffset 84 = hauteur barre flottante (padding 12 + inner ~60) + marge 12 */}
       <VoiceUndoBanner
         visible={voiceBannerVisible && voiceAlt !== null}
-        label="Ce n'est pas lui ?"
-        actionLabel="Voir les autres"
+        label={t('detail.voiceNotHim')}
+        actionLabel={t('detail.voiceSeeOthers')}
         onPress={handleVoiceBannerPress}
         onDismiss={handleVoiceBannerDismiss}
         bottomOffset={insets.bottom + 84}

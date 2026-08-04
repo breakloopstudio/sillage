@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { searchParfumsCached, updateParfum } from '../src/services/catalog';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
@@ -21,6 +22,7 @@ const DEBOUNCE_MS = 300;
 export default function AdminPage() {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { isAuthenticated, isAdmin } = useAuthContext();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,7 +71,7 @@ export default function AdminPage() {
   const selectedParfum = searchResults.find(p => p.id === selectedId) ?? null;
 
   const pickImage = useCallback(async () => {
-    if (!ImagePicker) { Alert.alert('Non disponible', 'Installe expo-image-picker pour uploader des images.'); return; }
+    if (!ImagePicker) { Alert.alert(t('admin.pickerUnavailableTitle'), t('admin.pickerUnavailableDesc')); return; }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -81,10 +83,10 @@ export default function AdminPage() {
         setUploadErr(false);
       }
     } catch {
-      setUploadMsg("Impossible d'ouvrir la galerie.");
+      setUploadMsg(t('admin.galleryError'));
       setUploadErr(true);
     }
-  }, []);
+  }, [t]);
 
   const doUpload = useCallback(async () => {
     if (!selectedId || !selectedUri) return;
@@ -92,34 +94,34 @@ export default function AdminPage() {
     try {
       const url = await uploadParfumImage(selectedId, selectedUri);
       await updateParfum(selectedId, { imageUrl: url });
-      setUploadMsg(`Image uploadée ! ${selectedParfum?.marque} – ${selectedParfum?.nom}`);
+      setUploadMsg(t('admin.uploadSuccess', { marque: selectedParfum?.marque ?? '', nom: selectedParfum?.nom ?? '' }));
       setSelectedUri(null); setSelectedId(null);
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Erreur d'upload.";
+      const message = e instanceof Error ? e.message : t('admin.uploadError');
       setUploadMsg(message);
       setUploadErr(true);
     } finally {
       setUploading(false);
     }
-  }, [selectedId, selectedUri, selectedParfum]);
+  }, [selectedId, selectedUri, selectedParfum, t]);
 
-  if (!isAuthenticated) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>Connectez-vous en tant qu'admin.</Text></View>;
-  if (!isAdmin) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>Accès réservé aux administrateurs.</Text></View>;
+  if (!isAuthenticated) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>{t('admin.loginAsAdmin')}</Text></View>;
+  if (!isAdmin) return <View style={s.center}><Text style={{fontFamily:'Inter_400Regular',color:theme.colors.textMuted}}>{t('admin.adminsOnly')}</Text></View>;
 
   return (
     <SafeAreaView style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
-        <Text style={s.title}>Administration</Text>
+        <Text style={s.title}>{t('admin.title')}</Text>
 
-        <Text style={s.sub}>Upload image parfum</Text>
+        <Text style={s.sub}>{t('admin.uploadSubtitle')}</Text>
         <Text style={s.desc}>
-          Attribue une photo à un parfum existant. Recherche un parfum, puis choisis une image.
+          {t('admin.uploadDesc')}
         </Text>
 
-        <Text style={s.fieldLabel}>Rechercher un parfum</Text>
+        <Text style={s.fieldLabel}>{t('admin.searchLabel')}</Text>
         <TextInput
           style={s.searchInput}
-          placeholder="Tapez au moins 3 caractères..."
+          placeholder={t('admin.searchPlaceholder')}
           placeholderTextColor={theme.colors.textMuted}
           value={searchQuery}
           onChangeText={handleSearchChange}
@@ -131,19 +133,19 @@ export default function AdminPage() {
 
         {!searching && searchQuery.trim().length >= MIN_QUERY && searchResults.length === 0 && (
           <Text style={{ fontFamily: 'Inter_400Regular', color: theme.colors.textMuted, fontSize: 13, marginTop: 8 }}>
-            Aucun résultat pour « {searchQuery.trim()} »
+            {t('admin.noResults', { query: searchQuery.trim() })}
           </Text>
         )}
 
         {!searching && searchQuery.trim().length < MIN_QUERY && searchResults.length === 0 && (
           <Text style={{ fontFamily: 'Inter_400Regular', color: theme.colors.textMuted, fontSize: 13, marginTop: 8 }}>
-            Tapez au moins 3 caractères pour chercher
+            {t('admin.typeToSearch')}
           </Text>
         )}
 
         {searchResults.length > 0 && (
           <>
-            <Text style={s.fieldLabel}>Parfum cible ({searchResults.length} résultat{searchResults.length > 1 ? 's' : ''})</Text>
+            <Text style={s.fieldLabel}>{t('admin.targetParfum', { count: searchResults.length })}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.pickerRow}>
               {searchResults.slice(0, 50).map(p => (
                 <Pressable
@@ -162,29 +164,29 @@ export default function AdminPage() {
 
         {selectedParfum?.imageUrl && (
           <View style={s.currentImgWrap}>
-            <Text style={s.fieldLabel}>Image actuelle</Text>
+            <Text style={s.fieldLabel}>{t('admin.currentImage')}</Text>
             <Image source={{ uri: selectedParfum.imageUrl }} style={s.currentImg} contentFit="cover" transition={200} />
           </View>
         )}
 
         <Pressable style={s.btnOutline} onPress={pickImage} disabled={uploading}>
-          <Text style={s.btnOutlineText}>{selectedUri ? "Changer l'image" : 'Choisir une image'}</Text>
+          <Text style={s.btnOutlineText}>{selectedUri ? t('admin.changeImage') : t('admin.chooseImage')}</Text>
         </Pressable>
 
         {selectedUri && (
           <View style={s.previewWrap}>
             <Image source={{ uri: selectedUri }} style={s.preview} contentFit="cover" transition={200} />
             <Pressable style={s.clearPreview} onPress={() => setSelectedUri(null)}>
-              <Text style={{fontFamily:'Inter_400Regular',color:theme.colors.danger,fontSize:13}}>✕ Retirer</Text>
+              <Text style={{fontFamily:'Inter_400Regular',color:theme.colors.danger,fontSize:13}}>✕ {t('admin.removePreview')}</Text>
             </Pressable>
           </View>
         )}
 
-        {selectedUri && selectedId && (
+        {selectedUri && selectedParfum != null && (
           <Pressable style={[s.btnUpload, uploading && { opacity: 0.5 }]} onPress={doUpload} disabled={uploading}>
             {uploading
               ? <ActivityIndicator size="small" color={textOn(theme.colors.primary)}/>
-              : <Text style={s.btnUploadText}>Uploader pour {selectedParfum?.marque} – {selectedParfum?.nom}</Text>
+              : <Text style={s.btnUploadText}>{t('admin.uploadFor', { marque: selectedParfum.marque ?? '', nom: selectedParfum.nom ?? '' })}</Text>
             }
           </Pressable>
         )}

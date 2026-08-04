@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Ionicons from "@react-native-vector-icons/ionicons/static";
+import i18next from 'i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { textOn } from '../utils/contrast';
 
@@ -43,10 +44,10 @@ class ErrorBoundaryInner extends React.Component<InnerProps, State> {
       return (
         <View style={s.container}>
           <Ionicons name="alert-circle-outline" size={64} color={dangerColor} />
-          <Text style={s.title}>Oups !</Text>
-          <Text style={s.desc}>Une erreur inattendue est survenue.{'\n'}Veuillez redémarrer l'application.</Text>
+          <Text style={s.title}>{i18next.t('errorBoundary.title')}</Text>
+          <Text style={s.desc}>{i18next.t('errorBoundary.desc')}</Text>
           <Pressable style={s.btn} onPress={this.handleReset}>
-            <Text style={s.btnText}>Réessayer</Text>
+            <Text style={s.btnText}>{i18next.t('errorBoundary.retry')}</Text>
           </Pressable>
         </View>
       );

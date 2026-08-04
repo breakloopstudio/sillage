@@ -8,6 +8,7 @@ import {
 import { Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../src/services/supabase';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
@@ -19,6 +20,7 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/;
 export default function LoginPage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const keyboardAppearance = resolvedMode === 'dark' ? 'dark' : 'light';
   const insets = useSafeAreaInsets();
   const { login, loginWithGoogle } = useAuthContext();
@@ -34,17 +36,17 @@ export default function LoginPage() {
 
   const handleEmailLogin = useCallback(async () => {
     if (!canSubmit) return;
-    if (!EMAIL_RE.test(email.trim())) { setErrorMessage('Adresse email invalide.'); return; }
+    if (!EMAIL_RE.test(email.trim())) { setErrorMessage(t('auth.invalidEmail')); return; }
     Keyboard.dismiss();
     setLoading('email'); setErrorMessage(null);
     try { await login(email.trim(), password); }
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(translateSupabaseError(e) || 'Erreur de connexion.');
+      setErrorMessage(translateSupabaseError(e) || t('auth.loginError'));
     }
     finally { setLoading(null); }
-  }, [canSubmit, email, password, login]);
+  }, [canSubmit, email, password, login, t]);
 
   const handleGoogle = useCallback(async () => {
     Keyboard.dismiss();
@@ -53,26 +55,26 @@ export default function LoginPage() {
     catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/cancelled') return;
-      setErrorMessage(translateSupabaseError(e) || 'Erreur connexion Google.');
+      setErrorMessage(translateSupabaseError(e) || t('auth.googleError'));
     }
     finally { setLoading(null); }
-  }, [loginWithGoogle]);
+  }, [loginWithGoogle, t]);
 
   const handleForgotPassword = useCallback(async () => {
     const trimmed = email.trim();
-    if (!EMAIL_RE.test(trimmed)) { setErrorMessage("Saisis d'abord ton adresse email."); return; }
+    if (!EMAIL_RE.test(trimmed)) { setErrorMessage(t('auth.enterEmailFirst')); return; }
     Keyboard.dismiss();
     setLoading('forgotPassword'); setErrorMessage(null); setSuccessMessage(null);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
       if (error) throw error;
-      setSuccessMessage('Email de réinitialisation envoyé. Vérifie ta boîte de réception.');
+      setSuccessMessage(t('auth.resetEmailSent'));
     } catch (e: unknown) {
       const msg = translateSupabaseError(e);
       if (msg) setErrorMessage(msg);
     }
     finally { setLoading(null); }
-  }, [email]);
+  }, [email, t]);
 
   const onEmailChange = useCallback((v: string) => { setEmail(v); if (errorMessage) setErrorMessage(null); if (successMessage) setSuccessMessage(null); }, [errorMessage, successMessage]);
   const onPasswordChange = useCallback((v: string) => { setPassword(v); if (errorMessage) setErrorMessage(null); if (successMessage) setSuccessMessage(null); }, [errorMessage, successMessage]);
@@ -92,7 +94,7 @@ export default function LoginPage() {
           </View>
           <View style={s.header}>
             <Text style={s.title}>Sillage</Text>
-            <Text style={s.subtitle}>Découvre l'univers des parfums</Text>
+            <Text style={s.subtitle}>{t('auth.loginSubtitle')}</Text>
           </View>
 
           <Pressable
@@ -106,19 +108,19 @@ export default function LoginPage() {
             ) : (
               <Ionicons name="logo-google" size={20} color={theme.colors.text} style={{ marginRight: 8 }} />
             )}
-            <Text style={s.googleText}>Continuer avec Google</Text>
+            <Text style={s.googleText}>{t('auth.continueWithGoogle')}</Text>
           </Pressable>
 
           <View style={s.divider}>
             <View style={s.dividerLine} />
-            <Text style={s.dividerText}>ou par email</Text>
+            <Text style={s.dividerText}>{t('auth.orByEmail')}</Text>
             <View style={s.dividerLine} />
           </View>
 
           <View style={s.inputGroup}>
             <TextInput
               style={s.input}
-              placeholder="votre@email.com"
+              placeholder={t('auth.emailPlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               value={email}
               onChangeText={onEmailChange}
@@ -132,14 +134,14 @@ export default function LoginPage() {
               onSubmitEditing={() => passwordRef.current?.focus()}
               blurOnSubmit={false}
               keyboardAppearance={keyboardAppearance}
-              accessibilityLabel="Adresse email"
+              accessibilityLabel={t('auth.emailLabel')}
             />
           </View>
           <View style={s.inputGroup}>
             <TextInput
               ref={passwordRef}
               style={[s.input, { paddingRight: 40 }]}
-              placeholder="••••••"
+              placeholder={t('auth.passwordPlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               value={password}
               onChangeText={onPasswordChange}
@@ -149,21 +151,21 @@ export default function LoginPage() {
               returnKeyType="go"
               onSubmitEditing={handleEmailLogin}
               keyboardAppearance={keyboardAppearance}
-              accessibilityLabel="Mot de passe"
+              accessibilityLabel={t('auth.passwordLabel')}
             />
             <Pressable
               onPress={togglePassword}
               style={s.eyeBtn}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              accessibilityLabel={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
             >
               <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.colors.textMuted} />
             </Pressable>
           </View>
 
           <Pressable onPress={handleForgotPassword} style={s.forgotLink} disabled={isLoading}>
-            <Text style={s.forgotText}>Mot de passe oublié ?</Text>
+            <Text style={s.forgotText}>{t('auth.forgotPassword')}</Text>
           </Pressable>
 
           {errorMessage ? (
@@ -186,13 +188,13 @@ export default function LoginPage() {
             {loading === 'email' ? (
               <ActivityIndicator size="small" color={textOn(theme.colors.primary)} />
             ) : (
-              <Text style={s.submitText}>Se connecter</Text>
+              <Text style={s.submitText}>{t('auth.login')}</Text>
             )}
           </Pressable>
 
           <Link href="/auth/register" style={s.link}>
             <Text style={s.linkText}>
-              Pas encore de compte ? <Text style={s.linkBold}>S'inscrire</Text>
+              {t('auth.noAccount')} <Text style={s.linkBold}>{t('auth.register')}</Text>
             </Text>
           </Link>
         </View>

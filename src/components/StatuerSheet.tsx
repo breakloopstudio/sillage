@@ -12,6 +12,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { hapticsLight, hapticsError } from '../services/haptics';
 import { STATUS_CHIPS, chipForStatus } from '../utils/status-chips';
@@ -41,6 +42,7 @@ export default function StatuerSheet({
 }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [imgFailed, setImgFailed] = useState(false);
@@ -113,12 +115,12 @@ export default function StatuerSheet({
             </View>
           </View>
 
-          <Pressable style={s.actionRow} onPress={handleView} accessibilityRole="button" accessibilityLabel="Voir la fiche">
+          <Pressable style={s.actionRow} onPress={handleView} accessibilityRole="button" accessibilityLabel={t('sheet.viewDetail')}>
             <Ionicons name="eye-outline" size={20} color={theme.colors.text} />
-            <Text style={s.actionLabel}>Voir la fiche</Text>
+            <Text style={s.actionLabel}>{t('sheet.viewDetail')}</Text>
           </Pressable>
 
-          <Text style={s.sectionLabel}>Ton statut</Text>
+          <Text style={s.sectionLabel}>{t('sheet.yourStatus')}</Text>
           <View style={s.chips}>
             {STATUS_CHIPS.map(chip => {
               const active = activeChip === chip.id;
@@ -128,7 +130,7 @@ export default function StatuerSheet({
                   style={[s.chip, active && s.chipActive]}
                   onPress={() => handleStatus(chip.status)}
                   accessibilityRole="button"
-                  accessibilityLabel={active ? `${chip.label} (sélectionné)` : chip.label}
+                  accessibilityLabel={active ? t('sheet.selectedA11y', { label: chip.label }) : chip.label}
                 >
                   <Ionicons name={chip.icon as never} size={14} color={active ? theme.colors.primaryInk : theme.colors.textMuted} />
                   <Text style={[s.chipText, active && s.chipTextActive]} allowFontScaling={false}>{chip.label}</Text>
@@ -139,7 +141,7 @@ export default function StatuerSheet({
 
           {showShelves ? (
             <>
-              <Text style={s.sectionLabel}>Étagères</Text>
+              <Text style={s.sectionLabel}>{t('sheet.shelves')}</Text>
               <View style={s.shelfChips}>
                 {shelves!.map(sh => {
                   const active = currentShelfIds.includes(sh.id);
@@ -149,7 +151,7 @@ export default function StatuerSheet({
                       style={[s.shelfChip, active && s.chipActive]}
                       onPress={() => handleToggleShelf(sh.id)}
                       accessibilityRole="button"
-                      accessibilityLabel={active ? `${sh.name} (dans l’étagère)` : sh.name}
+                      accessibilityLabel={active ? t('sheet.inShelfA11y', { name: sh.name }) : sh.name}
                       accessibilityState={{ checked: active }}
                     >
                       {sh.color ? <View style={[s.shelfDot, { backgroundColor: sh.color }]} /> : null}
@@ -164,7 +166,7 @@ export default function StatuerSheet({
 
           {showPin ? (
             <>
-              <Text style={s.sectionLabel}>Épinglé en tête de</Text>
+              <Text style={s.sectionLabel}>{t('sheet.pinnedSection')}</Text>
               <View style={s.shelfChips}>
                 {activeShelves.map(sh => {
                   const pinned = pinnedIds.includes(sh.id);
@@ -174,7 +176,7 @@ export default function StatuerSheet({
                       style={[s.shelfChip, pinned && s.pinChipActive]}
                       onPress={() => handleTogglePin(sh.id)}
                       accessibilityRole="button"
-                      accessibilityLabel={pinned ? `${sh.name} (épinglé)` : `Épingler dans ${sh.name}`}
+                      accessibilityLabel={pinned ? t('sheet.pinnedA11y', { name: sh.name }) : t('sheet.pinInA11y', { name: sh.name })}
                       accessibilityState={{ checked: pinned }}
                     >
                       <Ionicons name={pinned ? 'star' : 'star-outline'} size={13} color={pinned ? theme.colors.secondaryInk : theme.colors.textMuted} />
@@ -192,8 +194,8 @@ export default function StatuerSheet({
           </Pressable>
         </ScrollView>
 
-        <Pressable style={s.cancelBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Annuler">
-          <Text style={s.cancelText}>Annuler</Text>
+        <Pressable style={s.cancelBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('cancel')}>
+          <Text style={s.cancelText}>{t('cancel')}</Text>
         </Pressable>
       </Animated.View>
     </View>

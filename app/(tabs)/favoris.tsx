@@ -1,11 +1,13 @@
 // app/(tabs)/favoris.tsx — Favoris (couche intention : tous les ❤️ + alertes prix)
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useFavorisContext } from '../../src/contexts/FavorisContext';
@@ -17,16 +19,19 @@ import { useNavigationChrome } from '../../src/features/navigation/NavigationChr
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
 import { getParfumsByIds, getParfumById } from '../../src/services/catalog';
+import { getLowestObservedPrices } from '../../src/services/user-data';
 import { hapticsLight, hapticsError } from '../../src/services/haptics';
 import { favoriMatchesSearch } from '../../src/utils/favori-filters';
-import { alertVariation, formatVariation, priceAlertState, priceAlertDropAbs } from '../../src/utils/price-alerts';
+import { alertVariation, formatVariation, priceAlertState, priceAlertDropAbs, alertProgress, watchSavings } from '../../src/utils/price-alerts';
 import { priceTier } from '../../src/utils/price-tier';
 import { formatPrice } from '../../src/utils/format-price';
+import { formatRelativeShort } from '../../src/utils/relative-date';
 import EmptyState from '../../src/components/EmptyState';
 import AuthGate from '../../src/components/AuthGate';
 import ParfumCard from '../../src/components/ParfumCard';
 import FavoriSheet from '../../src/components/FavoriSheet';
 import PriceAlertSheet from '../../src/components/PriceAlertSheet';
+import ActionSheet, { type ActionItem } from '../../src/components/ActionSheet';
 import PermissionPrimer from '../../src/components/PermissionPrimer';
 import { usePushPrimer } from '../../src/hooks/usePushPrimer';
 import { PERMISSION_PRIMERS } from '../../src/utils/permission-primers';
@@ -35,14 +40,15 @@ import type { UserParfumStatus } from '../../src/models/user-parfum.interface';
 
 type FavPillId = 'all' | 'untreated';
 
+// Labels résolus à l'affichage via getters i18next (§23) — jamais lus au scope module.
 const FAV_PILLS: { id: FavPillId; label: string; icon: string }[] = [
-  { id: 'all',       label: 'Tous',      icon: 'apps-outline' },
-  { id: 'untreated', label: 'À traiter', icon: 'eye-outline' },
+  { id: 'all',       get label() { return i18next.t('favorites.pills.all'); },       icon: 'apps-outline' },
+  { id: 'untreated', get label() { return i18next.t('favorites.pills.untreated'); }, icon: 'eye-outline' },
 ];
 
 const FAV_VIEW_TABS: { key: FavorisView; label: string; icon: string }[] = [
-  { key: 'favoris', label: 'Favoris', icon: 'heart-outline' },
-  { key: 'alerts',  label: 'Alertes', icon: 'notifications-outline' },
+  { key: 'favoris', get label() { return i18next.t('favorites.viewTabs.favoris'); }, icon: 'heart-outline' },
+  { key: 'alerts',  get label() { return i18next.t('favorites.viewTabs.alerts'); },  icon: 'notifications-outline' },
 ];
 
 const DENSITY_ICON: Record<string, string> = {
@@ -82,6 +88,7 @@ interface AlertRow {
   initialPrice: number | null;
   referencePrice: number | null;
   variation: number | null;
+  lastChecked: Date | null;
 }
 
 interface AlertEditTarget {
@@ -100,6 +107,7 @@ function isReached(r: AlertRow): boolean {
 export default function FavorisPage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
   const uid = user?.uid ?? null;
@@ -122,6 +130,8 @@ export default function FavorisPage() {
   const [reachedOnly, setReachedOnly] = useState(false);
   const [sheetItem, setSheetItem] = useState<UserFavori | null>(null);
   const [alertTarget, setAlertTarget] = useState<AlertEditTarget | null>(null);
+  const [alertMenu, setAlertMenu] = useState<AlertRow | null>(null);
+  const [lowestMap, setLowestMap] = useState<Map<string, number>>(() => new Map());
   const [catalogFallback, setCatalogFallback] = useState<Map<string, DisplayInfo>>(new Map());
 
   const displayMap = useMemo<Map<string, DisplayInfo>>(() => {
@@ -169,6 +179,7 @@ export default function FavorisPage() {
         initialPrice: a.initialPrice,
         referencePrice: d.referencePrice ?? null,
         variation: alertVariation(a.initialPrice, currentPrice),
+        lastChecked: a.lastChecked,
       });
     }
     return rows.sort((x, y) => {
@@ -186,6 +197,26 @@ export default function FavorisPage() {
   }, [alerts, mergedDisplay]);
 
   const reachedCount = useMemo(() => alertRows.filter(isReached).length, [alertRows]);
+
+  const alertIdsKey = useMemo(() => alertRows.map(r => r.parfumId).join(','), [alertRows]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!alertIdsKey) { setLowestMap(new Map()); return; }
+    getLowestObservedPrices(alertIdsKey.split(',')).then(m => { if (!cancelled) setLowestMap(m); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [alertIdsKey]);
+
+  const watchSavingsTotal = useMemo(() => watchSavings(alertRows), [alertRows]);
+
+  const suggestions = useMemo<AlertEditTarget[]>(() => {
+    const rows: AlertEditTarget[] = [];
+    for (const f of favoris) {
+      if (byParfumId.has(f.parfumId) || f.bestPrice == null) continue;
+      rows.push({ parfumId: f.parfumId, nom: f.nom ?? '', marque: f.marque ?? '', imageUrl: f.imageUrl ?? null, bestPrice: f.bestPrice, referencePrice: f.referencePrice });
+      if (rows.length >= 3) break;
+    }
+    return rows;
+  }, [favoris, byParfumId]);
 
   const alertRowsFiltered = useMemo(() => {
     let r = alertRows;
@@ -216,6 +247,14 @@ export default function FavorisPage() {
   const handleCardPress = useCallback((f: UserFavori) => {
     setPendingParfum(favoriToCard(f));
     router.push(`/catalog/${f.parfumId}`);
+  }, [router]);
+
+  const goToParfum = useCallback(async (parfumId: string) => {
+    try {
+      const p = await getParfumById(parfumId);
+      if (p) setPendingParfum(p);
+    } catch (e: unknown) { console.warn('[favoris] getParfumById failed:', (e as Error)?.message ?? String(e)); }
+    router.push(`/catalog/${parfumId}`);
   }, [router]);
 
   const handleLongPress = useCallback((f: UserFavori) => { hapticsLight(); setSheetItem(f); }, []);
@@ -292,16 +331,58 @@ export default function FavorisPage() {
 
   const handleAlertLongPress = useCallback((row: AlertRow) => {
     hapticsLight();
-    router.push(`/catalog/${row.parfumId}`);
-  }, [router]);
+    setAlertMenu(row);
+  }, []);
+
+  const handleAlertMenuView = useCallback(() => {
+    if (alertMenu) void goToParfum(alertMenu.parfumId);
+    setAlertMenu(null);
+  }, [alertMenu, goToParfum]);
+
+  const handleAlertMenuEdit = useCallback(() => {
+    if (alertMenu) handleAlertCardPress(alertMenu);
+    setAlertMenu(null);
+  }, [alertMenu, handleAlertCardPress]);
+
+  const handleAlertMenuDisable = useCallback(() => {
+    if (alertMenu) {
+      hapticsError();
+      setAlert(alertMenu.parfumId, false).catch(() => {});
+    }
+    setAlertMenu(null);
+  }, [alertMenu, setAlert]);
+
+  const alertMenuActions = useMemo<ActionItem[]>(() => [
+    { icon: 'eye-outline', label: t('favorites.alertMenu.view'), onPress: handleAlertMenuView },
+    { icon: 'create-outline', label: t('favorites.alertMenu.edit'), onPress: handleAlertMenuEdit },
+    { icon: 'notifications-off-outline', label: t('favorites.alertMenu.disable'), onPress: handleAlertMenuDisable, destructive: true },
+  ], [t, handleAlertMenuView, handleAlertMenuEdit, handleAlertMenuDisable]);
+
+  const handleSuggestPress = useCallback((sg: AlertEditTarget) => { hapticsLight(); setAlertTarget(sg); }, []);
 
   const renderAlertItem = useCallback(({ item: row }: { item: AlertRow }) => {
     const tier = priceTier(row.currentPrice, row.referencePrice);
     const dropAbs = priceAlertDropAbs(row.initialPrice, row.currentPrice);
     const state = priceAlertState(row.targetPrice, row.currentPrice);
-    const tierLabel = tier === 'deal' ? ', bonne affaire' : tier === 'fair' ? ', prix correct' : tier === 'overpriced' ? ', trop cher' : '';
-    const stateLabel = state === 'reached' ? ', objectif atteint' : state === 'near' ? ', bientôt à ta cible' : row.variation != null ? `, ${formatVariation(row.variation)}` : ', en veille';
-    const a11y = `${row.marque} ${row.nom}${row.currentPrice != null ? `, ${formatPrice(row.currentPrice, { decimals: 0 })}` : ''}${tierLabel}${stateLabel}`;
+    const progress = alertProgress(row.initialPrice, row.targetPrice, row.currentPrice);
+    const lowest = lowestMap.get(row.parfumId) ?? null;
+    const chipParts: string[] = [];
+    if (row.variation != null) chipParts.push(formatVariation(row.variation));
+    if (dropAbs != null && dropAbs !== 0) chipParts.push(dropAbs < 0 ? `−${formatPrice(Math.abs(dropAbs), { decimals: 0 })}` : `+${formatPrice(dropAbs, { decimals: 0 })}`);
+    const chipNeg = (row.variation != null && row.variation < 0) || (row.variation == null && dropAbs != null && dropAbs < 0);
+    const infoParts: string[] = [];
+    if (lowest != null) infoParts.push(t('favorites.alert.lowest', { price: formatPrice(lowest, { decimals: 0 }) }));
+    const checked = formatRelativeShort(row.lastChecked);
+    if (checked) infoParts.push(t('favorites.alert.checked', { when: checked }));
+    const tierLabel = tier === 'deal' ? t('favorites.alert.a11yTierDeal') : tier === 'fair' ? t('favorites.alert.a11yTierFair') : tier === 'overpriced' ? t('favorites.alert.a11yTierOverpriced') : null;
+    const stateLabel = state === 'reached' ? t('favorites.alert.a11yStateReached') : state === 'near' ? t('favorites.alert.a11yStateNear') : row.variation != null ? formatVariation(row.variation) : t('favorites.alert.a11yStateWatching');
+    const a11y = [
+      `${row.marque} ${row.nom}`,
+      row.currentPrice != null ? formatPrice(row.currentPrice, { decimals: 0 }) : null,
+      tierLabel,
+      stateLabel,
+      progress != null ? t('favorites.alert.progressA11y', { pct: Math.round(progress * 100) }) : null,
+    ].filter(Boolean).join(', ');
     return (
       <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} onLongPress={() => handleAlertLongPress(row)} accessibilityRole="button" accessibilityLabel={a11y}>
         {row.imageUrl ? (
@@ -319,39 +400,38 @@ export default function FavorisPage() {
             {row.currentPrice != null ? <Text style={s.alertPrice} allowFontScaling={false}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
             {row.referencePrice != null && row.referencePrice !== row.currentPrice ? <Text style={s.alertRef} allowFontScaling={false}>{formatPrice(row.referencePrice, { decimals: 0 })}</Text> : null}
           </View>
-          {(row.variation != null || (dropAbs != null && dropAbs !== 0)) ? (
+          {progress != null ? (
+            <View style={s.gaugeTrack} accessible={false}>
+              {progress > 0 ? <View style={[s.gaugeFill, { width: `${Math.max(4, progress * 100)}%` }]} /> : null}
+            </View>
+          ) : null}
+          {chipParts.length > 0 ? (
             <View style={s.alertChipRow}>
-              {row.variation != null ? (
-                <View style={[s.alertVarChip, { backgroundColor: row.variation < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                  <Text style={[s.alertVarText, { color: row.variation < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
-                </View>
-              ) : null}
-              {dropAbs != null && dropAbs !== 0 ? (
-                <View style={[s.alertVarChip, { backgroundColor: dropAbs < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                  <Text style={[s.alertVarText, { color: dropAbs < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{dropAbs < 0 ? `−${formatPrice(Math.abs(dropAbs), { decimals: 0 })}` : `+${formatPrice(dropAbs, { decimals: 0 })}`}</Text>
-                </View>
-              ) : null}
+              <View style={[s.alertVarChip, { backgroundColor: chipNeg ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+                <Text style={[s.alertVarText, { color: chipNeg ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{chipParts.join(' · ')}</Text>
+              </View>
             </View>
           ) : null}
           {state === 'reached' ? (
             <View style={[s.alertStateChip, { backgroundColor: theme.colors.dealSoft }]}>
               <Ionicons name="checkmark-circle-outline" size={12} color={theme.colors.dealInk} accessible={false} />
-              <Text style={[s.alertStateText, { color: theme.colors.dealInk }]} allowFontScaling={false}>Objectif atteint</Text>
+              <Text style={[s.alertStateText, { color: theme.colors.dealInk }]} allowFontScaling={false}>{t('favorites.alert.reached')}</Text>
             </View>
           ) : state === 'near' ? (
             <View style={[s.alertStateChip, { backgroundColor: theme.colors.fairSoft }]}>
               <Ionicons name="trending-down-outline" size={12} color={theme.colors.fairInk} accessible={false} />
-              <Text style={[s.alertStateText, { color: theme.colors.fairInk }]} allowFontScaling={false}>Bientôt à ta cible</Text>
+              <Text style={[s.alertStateText, { color: theme.colors.fairInk }]} allowFontScaling={false}>{t('favorites.alert.near')}</Text>
             </View>
           ) : row.targetPrice != null ? (
-            <Text style={s.alertCaption}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text>
+            <Text style={s.alertCaption}>{t('favorites.alert.target', { price: formatPrice(row.targetPrice, { decimals: 0 }) })}</Text>
           ) : (
-            <Text style={s.alertCaption}>Surveille les baisses</Text>
+            <Text style={s.alertCaption}>{t('favorites.alert.watching')}</Text>
           )}
+          {infoParts.length > 0 ? <Text style={s.alertCaption}>{infoParts.join(' · ')}</Text> : null}
         </View>
       </Pressable>
     );
-  }, [s, theme, handleAlertCardPress, handleAlertLongPress]);
+  }, [s, theme, handleAlertCardPress, handleAlertLongPress, t, lowestMap]);
 
   const handlePillTap = useCallback((pill: FavPillId) => { hapticsLight(); setActivePill(pill); }, []);
   const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setSearchQuery(''); setReachedOnly(false); setViewPref(v); resetDock(); }, [setViewPref, resetDock]);
@@ -404,7 +484,7 @@ export default function FavorisPage() {
   if (!isAuthenticated) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <AuthGate icon="heart-outline" description="Retrouve tes coups de cœur et tes alertes prix." />
+        <AuthGate icon="heart-outline" description={t('favorites.authGate')} />
       </SafeAreaView>
     );
   }
@@ -412,7 +492,7 @@ export default function FavorisPage() {
   if (upLoading) {
     return (
       <SafeAreaView edges={['bottom']} style={s.container}>
-        <View style={s.header}><Text style={s.title}>Favoris</Text></View>
+        <View style={s.header}><Text style={s.title}>{t('favorites.title')}</Text></View>
         <ActivityIndicator style={s.loadingSpinner} color={theme.colors.primary} />
       </SafeAreaView>
     );
@@ -422,7 +502,9 @@ export default function FavorisPage() {
     <View>
       <View style={s.header}>
         <Text style={s.title}>
-          {effectiveView === 'favoris' ? 'Favoris' : 'Alertes'}{' '}·{' '}{effectiveView === 'favoris' ? favoris.length : alertRows.length}
+          {effectiveView === 'favoris'
+            ? t('favorites.titleWithCount', { count: favoris.length })
+            : t('favorites.alertsWithCount', { count: alertRows.length })}
         </Text>
       </View>
       <View style={s.segmented}>
@@ -446,7 +528,7 @@ export default function FavorisPage() {
     </View>
   );
 
-  const reachedLabel = `${reachedCount} objectif${reachedCount > 1 ? 's' : ''} atteint${reachedCount > 1 ? 's' : ''}`;
+  const reachedLabel = t('favorites.objectifsReached', { count: reachedCount });
 
   const sheetStatus = sheetItem ? statusByParfumId.get(sheetItem.parfumId) ?? null : null;
   const sheetHasAlert = sheetItem ? byParfumId.has(sheetItem.parfumId) : false;
@@ -476,7 +558,7 @@ export default function FavorisPage() {
                 <EmptyState variant="favoris" onAction={handleEmptyExplore} />
               ) : (
                 <View>
-                  {renderSearchRow('Nom, marque ou note...')}
+                  {renderSearchRow(t('favorites.searchPlaceholder'))}
 
                   <View style={s.toolsRow}>
                     {GRID_MODES.map(m => (
@@ -517,7 +599,7 @@ export default function FavorisPage() {
                     <View style={s.emptyFilter}>
                       <Ionicons name="heart-outline" size={28} color={theme.colors.textMuted} />
                       <Text style={s.emptyFilterText}>
-                        {searchQuery.trim() || activePill !== 'all' ? 'Aucun parfum ne correspond à cette vue' : 'Aucun favori pour l’instant'}
+                        {searchQuery.trim() || activePill !== 'all' ? t('favorites.emptyFiltered') : t('favorites.emptyNone')}
                       </Text>
                     </View>
                   ) : null}
@@ -537,9 +619,28 @@ export default function FavorisPage() {
           windowSize={5}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
+          extraData={resolvedMode}
           ListHeaderComponent={
             <View>
               {topChrome}
+              {alertRows.length > 0 ? (
+                <View style={s.watchCard} accessible accessibilityLabel={t('favorites.watch.a11y', { count: alertRows.length, active: alertRows.length, reached: reachedCount, savings: formatPrice(watchSavingsTotal, { decimals: 0 }) })}>
+                  <View style={s.watchCol}>
+                    <Text style={s.watchNum} allowFontScaling={false}>{alertRows.length}</Text>
+                    <Text style={s.watchLabel} allowFontScaling={false}>{t('favorites.watch.active')}</Text>
+                  </View>
+                  <View style={s.watchSep} accessible={false} />
+                  <View style={s.watchCol}>
+                    <Text style={[s.watchNum, { color: theme.colors.deal }]} allowFontScaling={false}>{reachedCount}</Text>
+                    <Text style={s.watchLabel} allowFontScaling={false}>{t('favorites.watch.reached')}</Text>
+                  </View>
+                  <View style={s.watchSep} accessible={false} />
+                  <View style={s.watchCol}>
+                    <Text style={[s.watchNum, watchSavingsTotal > 0 ? { color: theme.colors.deal } : null]} allowFontScaling={false}>{formatPrice(watchSavingsTotal, { decimals: 0 })}</Text>
+                    <Text style={s.watchLabel} allowFontScaling={false}>{t('favorites.watch.savings')}</Text>
+                  </View>
+                </View>
+              ) : null}
               {reachedCount > 0 ? (
                 <Pressable
                   style={[s.reachedRow, reachedOnly && s.reachedRowActive]}
@@ -555,7 +656,7 @@ export default function FavorisPage() {
                   <Ionicons name={reachedOnly ? 'close-outline' : 'chevron-forward'} size={16} color={theme.colors.textMuted} accessible={false} />
                 </Pressable>
               ) : null}
-              {alertRows.length > 0 ? renderSearchRow('Nom ou marque...') : null}
+              {alertRows.length > 0 ? renderSearchRow(t('favorites.searchPlaceholderAlerts')) : null}
             </View>
           }
           ListEmptyComponent={
@@ -563,14 +664,40 @@ export default function FavorisPage() {
               <EmptyState
                 variant="alertes"
                 onAction={favoris.length ? () => setViewPref('favoris') : handleEmptyExplore}
-                actionLabel={favoris.length ? undefined : 'Explorer le catalogue'}
+                actionLabel={favoris.length ? undefined : t('favorites.exploreCatalog')}
               />
             ) : (
               <View style={s.emptyFilter}>
                 <Ionicons name="search-outline" size={28} color={theme.colors.textMuted} />
-                <Text style={s.emptyFilterText}>Aucune alerte ne correspond à cette vue</Text>
+                <Text style={s.emptyFilterText}>{t('favorites.emptyAlertsFiltered')}</Text>
               </View>
             )
+          }
+          ListFooterComponent={
+            alertRows.length > 0 && suggestions.length > 0 && !reachedOnly && !searchQuery.trim() ? (
+              <View>
+                <Text style={s.suggestLabel}>{t('favorites.suggestions.title')}</Text>
+                {suggestions.map(sg => (
+                  <View key={sg.parfumId} style={s.suggestRow}>
+                    {sg.imageUrl ? (
+                      <Image source={{ uri: sg.imageUrl }} style={s.suggestImg} contentFit="contain" cachePolicy="memory-disk" recyclingKey={sg.parfumId} />
+                    ) : (
+                      <View style={[s.suggestImg, s.alertImgPlaceholder]}>
+                        <Ionicons name="flask-outline" size={14} color={theme.colors.textMuted} accessible={false} />
+                      </View>
+                    )}
+                    <View style={s.suggestBody}>
+                      <Text style={s.alertBrand} numberOfLines={1}>{sg.marque}</Text>
+                      <Text style={s.suggestName} numberOfLines={1}>{sg.nom}</Text>
+                    </View>
+                    <Text style={s.alertPrice} allowFontScaling={false}>{formatPrice(sg.bestPrice ?? 0, { decimals: 0 })}</Text>
+                    <Pressable style={s.suggestBtn} onPress={() => handleSuggestPress(sg)} accessibilityRole="button" accessibilityLabel={t('favorites.suggestions.ctaA11y', { nom: sg.nom })}>
+                      <Ionicons name="notifications-outline" size={18} color={theme.colors.primaryInk} accessible={false} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null
           }
           renderItem={renderAlertItem}
         />
@@ -601,6 +728,13 @@ export default function FavorisPage() {
         existingAlert={alertExisting}
         onClose={() => setAlertTarget(null)}
         onSave={handleAlertSave}
+      />
+
+      <ActionSheet
+        visible={alertMenu !== null}
+        title={alertMenu ? `${alertMenu.marque} ${alertMenu.nom}` : undefined}
+        actions={alertMenuActions}
+        onClose={() => setAlertMenu(null)}
       />
 
       <PermissionPrimer
@@ -658,10 +792,24 @@ function getStyles(t: Theme) {
     alertRef: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     alertChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     alertVarChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
-    alertVarText: { fontFamily: 'Inter_700Bold', fontSize: 10 },
+    alertVarText: { fontFamily: 'Inter_700Bold', fontSize: 10, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     alertStateChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
     alertStateText: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
     alertCaption: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted },
+
+    watchCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.colors.surface, borderRadius: t.radius.card, paddingVertical: 12, paddingHorizontal: 8, borderWidth: 1, borderColor: t.colors.border, marginBottom: 10, ...t.shadow.card },
+    watchCol: { flex: 1, alignItems: 'center', gap: 2 },
+    watchSep: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: t.colors.border },
+    watchNum: { fontFamily: 'Inter_700Bold', fontSize: 20, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
+    watchLabel: { fontFamily: 'Inter_400Regular', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: t.colors.textMuted },
+    gaugeTrack: { height: 4, borderRadius: 2, backgroundColor: t.colors.surface2, overflow: 'hidden' },
+    gaugeFill: { height: 4, borderRadius: 2, backgroundColor: t.colors.deal },
+    suggestLabel: { fontFamily: 'Inter_500Medium', fontSize: 12, color: t.colors.textMuted, marginTop: 16, marginBottom: 8 },
+    suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.colors.surface, borderRadius: t.radius.card, padding: 10, borderWidth: 1, borderColor: t.colors.border, marginBottom: 8, ...t.shadow.card },
+    suggestImg: { width: 36, height: 48, borderRadius: t.radius.sm, backgroundColor: t.colors.surface2 },
+    suggestBody: { flex: 1, minWidth: 0, gap: 2 },
+    suggestName: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 13, color: t.colors.text },
+    suggestBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
 
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
     searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: t.colors.surface2, borderRadius: 20, paddingHorizontal: 12, height: 40, gap: 8 },

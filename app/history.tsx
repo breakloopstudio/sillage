@@ -3,11 +3,13 @@
 
 import { useState, useMemo, useCallback, memo } from 'react';
 import { View, Text, ScrollView, SectionList, Pressable, ActivityIndicator, Alert, TextInput, RefreshControl } from 'react-native';
+import i18next from 'i18next';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { useScans } from '../src/hooks/useScans';
 import { getParfumById } from '../src/services/catalog';
@@ -58,7 +60,11 @@ function isThisMonth(d: Date): boolean {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
-const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+// Mois localisés via Intl (pas de tableau hardcodé — i18n §23).
+function monthYearLabel(d: Date): string {
+  const s = new Intl.DateTimeFormat(i18next.language, { month: 'long', year: 'numeric' }).format(d);
+  return s.replace(/^./, c => c.toUpperCase());
+}
 
 interface ScanCard { scan: UserScan; repeatCount: number }
 interface ScanSection { title: string; data: ScanCard[] }
@@ -82,11 +88,11 @@ function groupScansByPeriod(scans: UserScan[]): ScanSection[] {
     if (!d) continue;
 
     let label: string;
-    if (isToday(d)) label = "Aujourd'hui";
-    else if (isYesterday(d)) label = 'Hier';
-    else if (isThisWeek(d)) label = 'Cette semaine';
-    else if (isThisMonth(d)) label = 'Ce mois';
-    else label = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    if (isToday(d)) label = i18next.t('history.today');
+    else if (isYesterday(d)) label = i18next.t('history.yesterday');
+    else if (isThisWeek(d)) label = i18next.t('history.thisWeek');
+    else if (isThisMonth(d)) label = i18next.t('history.thisMonth');
+    else label = monthYearLabel(d);
 
     const last = groups[groups.length - 1];
     if (last && last.label === label) {
@@ -153,6 +159,7 @@ function ScanHistoryCardBase({
 }) {
   const { theme } = useTheme();
   const s = useMemo(() => getCardStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const date = getScanDate(scan.scannedAt);
   const dateStr = formatScanTime(date);
   const dotColor = getDotColor(scan.status, theme);
@@ -174,7 +181,7 @@ function ScanHistoryCardBase({
         )}
         <View style={s.infoNoResult}>
           {scan.marque ? <Text style={s.brand} numberOfLines={1}>{scan.marque}</Text> : null}
-          <Text style={s.name} numberOfLines={1}>{scan.nom ?? scan.rawText ?? 'Scan sans résultat'}</Text>
+          <Text style={s.name} numberOfLines={1}>{scan.nom ?? scan.rawText ?? t('history.noResultScan')}</Text>
           <View style={s.footer}>
             <View style={s.dateRow}>
               <Ionicons name="time-outline" size={12} color={theme.colors.textMuted} />
@@ -223,6 +230,7 @@ const ScanHistoryCard = memo(ScanHistoryCardBase, (prev, next) =>
 export default function HistoryPage() {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   const { user, authReady, isAuthenticated } = useAuthContext();
   const router = useRouter();
   const uid = user?.uid ?? null;
@@ -254,12 +262,12 @@ export default function HistoryPage() {
     if (selectedScan.parfumId) {
       actions.push({
         icon: 'eye-outline',
-        label: 'Voir le détail',
+        label: t('history.viewDetail'),
         onPress: () => { goToDetail(selectedScan.parfumId!); setSelectedScan(null); },
       });
       actions.push({
         icon: 'add-circle-outline',
-        label: 'Ajouter à ma parfumerie',
+        label: t('history.addToParfumerie'),
         onPress: () => {
           setSelectedScan(null);
           if (!uid || !selectedScan.parfumId) return;
@@ -271,19 +279,19 @@ export default function HistoryPage() {
 
     actions.push({
       icon: 'trash-outline',
-      label: 'Supprimer',
+      label: t('history.delete'),
       destructive: true,
       onPress: () => {
         setSelectedScan(null);
-        Alert.alert('Supprimer', "Supprimer ce scan de l'historique ?", [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Supprimer', style: 'destructive', onPress: () => removeScan(selectedScan.id).catch(() => {}) },
+        Alert.alert(t('history.delete'), t('history.deleteConfirm'), [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('history.delete'), style: 'destructive', onPress: () => removeScan(selectedScan.id).catch(() => {}) },
         ]);
       },
     });
 
     return actions;
-  }, [selectedScan, uid, goToDetail, removeScan]);
+  }, [selectedScan, uid, goToDetail, removeScan, t]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -346,10 +354,10 @@ export default function HistoryPage() {
       <SafeAreaView edges={['top', 'bottom']} style={s.container}>
         <View style={s.center}>
           <Ionicons name="lock-closed-outline" size={64} color={theme.colors.textMuted} />
-          <Text style={s.authTitle}>Connecte-toi</Text>
-          <Text style={s.authDesc}>Accède à ton historique de scans.</Text>
+          <Text style={s.authTitle}>{t('history.authTitle')}</Text>
+          <Text style={s.authDesc}>{t('history.authDesc')}</Text>
           <Pressable style={s.authBtn} onPress={() => router.push('/auth/login')}>
-            <Text style={s.authBtnText}>Se connecter</Text>
+            <Text style={s.authBtnText}>{t('history.login')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -363,10 +371,10 @@ export default function HistoryPage() {
           contentContainerStyle={{ flexGrow: 1 }}
         >
           <View style={s.headerBar}>
-            <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Retour">
+            <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel={t('back')}>
               <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
             </Pressable>
-            <Text style={s.title}>Historique</Text>
+            <Text style={s.title}>{t('history.title')}</Text>
           </View>
           <EmptyState variant="historique" onAction={() => router.push('/scan')} />
         </ScrollView>
@@ -377,16 +385,16 @@ export default function HistoryPage() {
   const listHeader = (
     <View>
       <View style={s.headerBar}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Retour">
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel={t('back')}>
           <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
         </Pressable>
-        <Text style={s.title}>{loading ? 'Historique' : `Historique · ${scans.length}`}</Text>
+        <Text style={s.title}>{loading ? t('history.title') : t('history.titleWithCount', { count: scans.length })}</Text>
       </View>
 
       {!hasScanToday && (
         <Pressable style={s.todayPrompt} onPress={() => router.push('/scan')}>
           <Ionicons name="sunny-outline" size={18} color={theme.colors.primary} />
-          <Text style={s.todayPromptText}>Scanner un parfum aujourd'hui ?</Text>
+          <Text style={s.todayPromptText}>{t('history.todayPrompt')}</Text>
         </Pressable>
       )}
 
@@ -397,7 +405,7 @@ export default function HistoryPage() {
               <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un scan..."
+                placeholder={t('history.searchPlaceholder')}
                 placeholderTextColor={theme.colors.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -406,7 +414,7 @@ export default function HistoryPage() {
             </View>
             <Pressable style={s.sortBtn} onPress={() => setSortNewest(p => !p)} hitSlop={8}>
               <Ionicons name="swap-vertical-outline" size={16} color={theme.colors.primary} />
-              <Text style={s.sortLabel}>{sortNewest ? 'Récents' : 'Anciens'}</Text>
+              <Text style={s.sortLabel}>{sortNewest ? t('history.sortNewest') : t('history.sortOldest')}</Text>
             </Pressable>
           </View>
         </View>

@@ -1,6 +1,7 @@
 // src/utils/favori-filters.ts — Types, prédicats et helpers pour les filtres favoris
 // Pur (aucun import RN/Firebase) — importable par l'app, les scripts tsx et les tests
 
+import i18next from 'i18next';
 import { translateNote } from './translate-note';
 import { SEASON_MATCH_THRESHOLD, SEASON_META, seasonScoresFromRanking, type SeasonKey } from './season';
 import type { Parfum } from '../models';
@@ -29,17 +30,18 @@ export function sillageBucket(v: string | null | undefined): SillageBucket | nul
   return null;
 }
 
+// Labels résolus à l'affichage via getters i18next (§23).
 export const LONGEVITY_OPTIONS: { bucket: LongevityBucket; label: string }[] = [
-  { bucket: 'weak',     label: 'Courte' },
-  { bucket: 'moderate', label: 'Modérée' },
-  { bucket: 'long',     label: 'Longue' },
-  { bucket: 'eternal',  label: 'Très longue' },
+  { bucket: 'weak',     get label() { return i18next.t('filters.longevity.weak'); } },
+  { bucket: 'moderate', get label() { return i18next.t('filters.longevity.moderate'); } },
+  { bucket: 'long',     get label() { return i18next.t('filters.longevity.long'); } },
+  { bucket: 'eternal',  get label() { return i18next.t('filters.longevity.eternal'); } },
 ];
 
 export const SILLAGE_OPTIONS: { id: SillageFilterId; label: string; buckets: SillageBucket[] }[] = [
-  { id: 'intimate',  label: 'Intime',   buckets: ['intimate'] },
-  { id: 'moderate',  label: 'Modéré',   buckets: ['moderate'] },
-  { id: 'powerful',  label: 'Puissant', buckets: ['strong', 'enormous'] },
+  { id: 'intimate',  get label() { return i18next.t('filters.sillage.intimate'); },   buckets: ['intimate'] },
+  { id: 'moderate',  get label() { return i18next.t('filters.sillage.moderate'); },   buckets: ['moderate'] },
+  { id: 'powerful',  get label() { return i18next.t('filters.sillage.powerful'); },   buckets: ['strong', 'enormous'] },
 ];
 
 export interface FilterableItem {

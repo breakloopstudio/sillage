@@ -5,7 +5,7 @@ import { View, Text, type ViewStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { textOn } from '../utils/contrast';
-import { formatPrice } from '../utils/format-price';
+import { formatPrice, formatDiscount } from '../utils/format-price';
 import { priceTier } from '../utils/price-tier';
 
 type PriceValue = 'deal' | 'fair' | 'overpriced' | 'unknown';
@@ -61,7 +61,7 @@ export default function PriceDisplay({
         )}
         {pct !== null && pct > 0 && pct <= 95 && (
           <View style={[s.discountBadge, { backgroundColor: color }]}>
-            <Text style={[s.discountText, { color: textOn(color) }]}>{`\u2212${pct}\u202F%`}</Text>
+            <Text style={[s.discountText, { color: textOn(color) }]}>{formatDiscount(pct)}</Text>
           </View>
         )}
       </View>
