@@ -48,9 +48,9 @@ describe('checkAABB', () => {
 });
 
 describe('getSpawnDistance', () => {
-  it('returns at least 180', () => {
+  it('returns at least 220', () => {
     for (let i = 0; i < 50; i++) {
-      expect(getSpawnDistance(10000)).toBeGreaterThanOrEqual(180);
+      expect(getSpawnDistance(10000)).toBeGreaterThanOrEqual(220);
     }
   });
 
@@ -72,9 +72,9 @@ describe('getSpawnDistance', () => {
 });
 
 describe('getPickupSpawnDistance', () => {
-  it('returns at least 350', () => {
+  it('returns at least 320', () => {
     for (let i = 0; i < 50; i++) {
-      expect(getPickupSpawnDistance(10000)).toBeGreaterThanOrEqual(350);
+      expect(getPickupSpawnDistance(10000)).toBeGreaterThanOrEqual(320);
     }
   });
 
@@ -94,11 +94,11 @@ describe('getDoubleObstacleChance', () => {
   });
 
   it('increases in tiers', () => {
-    expect(getDoubleObstacleChance(500)).toBe(0.15);
-    expect(getDoubleObstacleChance(1000)).toBe(0.3);
-    expect(getDoubleObstacleChance(1500)).toBe(0.45);
-    expect(getDoubleObstacleChance(2000)).toBe(0.55);
-    expect(getDoubleObstacleChance(9999)).toBe(0.55);
+    expect(getDoubleObstacleChance(500)).toBe(0.1);
+    expect(getDoubleObstacleChance(1000)).toBe(0.2);
+    expect(getDoubleObstacleChance(1500)).toBe(0.28);
+    expect(getDoubleObstacleChance(2000)).toBe(0.35);
+    expect(getDoubleObstacleChance(9999)).toBe(0.35);
   });
 });
 
@@ -111,21 +111,15 @@ describe('pickObstacleType', () => {
     }
   });
 
-  it('can return bee (4) above 300', () => {
-    jest.spyOn(Math, 'random').mockReturnValue(0.30);
-    expect(pickObstacleType(301)).toBe(4);
-    jest.restoreAllMocks();
-  });
-
-  it('can return drop (5) above 600', () => {
+  it('can return drop (4) above 800', () => {
     jest.spyOn(Math, 'random').mockReturnValue(0.10);
-    expect(pickObstacleType(601)).toBe(5);
+    expect(pickObstacleType(801)).toBe(4);
     jest.restoreAllMocks();
   });
 
-  it('never returns bee below 300', () => {
-    jest.spyOn(Math, 'random').mockReturnValue(0.30);
-    expect(pickObstacleType(299)).toBeLessThanOrEqual(3);
+  it('never returns drop below 800', () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0.10);
+    expect(pickObstacleType(799)).toBeLessThanOrEqual(3);
     jest.restoreAllMocks();
   });
 });
@@ -145,13 +139,13 @@ describe('constants coherence', () => {
     }
   });
 
-  it('has 6 obstacle defs', () => {
-    expect(OBSTACLE_DEFS).toHaveLength(6);
+  it('has 5 obstacle defs', () => {
+    expect(OBSTACLE_DEFS).toHaveLength(5);
   });
 
-  it('has exactly one airborne and one falling obstacle', () => {
-    expect(OBSTACLE_DEFS.filter(o => o.airborne)).toHaveLength(1);
+  it('has exactly one falling obstacle and no airborne', () => {
     expect(OBSTACLE_DEFS.filter(o => o.falling)).toHaveLength(1);
+    expect(OBSTACLE_DEFS.filter(o => 'airborne' in o)).toHaveLength(0);
   });
 
   it('has 3 lives', () => {

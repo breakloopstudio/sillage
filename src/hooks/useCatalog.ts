@@ -50,5 +50,14 @@ export function useCatalog() {
     setError(null);
   }, []);
 
-  return { parfums, searching, error, search, clear };
+  /** Injecte des résultats déjà calculés (pipeline voix) sans re-requête. */
+  const inject = useCallback((results: Parfum[]) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    requestIdRef.current++;
+    setParfums(results);
+    setSearching(false);
+    setError(null);
+  }, []);
+
+  return { parfums, searching, error, search, clear, inject };
 }

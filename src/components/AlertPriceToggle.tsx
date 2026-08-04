@@ -6,9 +6,12 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../theme/ThemeContext';
 import { usePriceAlertsContext } from '../contexts/PriceAlertsContext';
+import { usePushPrimer } from '../hooks/usePushPrimer';
+import { PERMISSION_PRIMERS } from '../utils/permission-primers';
 import { formatPrice } from '../utils/format-price';
 import { priceAlertState } from '../utils/price-alerts';
 import PriceAlertSheet from './PriceAlertSheet';
+import PermissionPrimer from './PermissionPrimer';
 
 interface Props {
   parfumId: string;
@@ -24,6 +27,7 @@ export default function AlertPriceToggle({ parfumId, uid, currentPrice, referenc
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { byParfumId, setAlert } = usePriceAlertsContext();
+  const pushPrimer = usePushPrimer(uid);
   const [sheetVisible, setSheetVisible] = useState(false);
 
   const alert = byParfumId.get(parfumId) ?? null;
@@ -33,9 +37,14 @@ export default function AlertPriceToggle({ parfumId, uid, currentPrice, referenc
   const openSheet = useCallback(() => setSheetVisible(true), []);
   const closeSheet = useCallback(() => setSheetVisible(false), []);
   const handleSave = useCallback((next: boolean, targetPrice: number | null) => {
-    setAlert(parfumId, next, { currentPrice, targetPrice }).catch(() => {});
+    // Moment de valeur : l'utilisateur vient de créer une alerte → proposer
+    // les notifications (jamais de prompt à froid, primer une seule fois).
+    // Seulement si l'alerte est réellement sauvegardée.
+    setAlert(parfumId, next, { currentPrice, targetPrice })
+      .then(() => { if (next) void pushPrimer.propose(); })
+      .catch(() => {});
     setSheetVisible(false);
-  }, [parfumId, currentPrice, setAlert]);
+  }, [parfumId, currentPrice, setAlert, pushPrimer]);
 
   const desc = reached
     ? 'Objectif atteint'
@@ -69,6 +78,12 @@ export default function AlertPriceToggle({ parfumId, uid, currentPrice, referenc
         existingAlert={alert}
         onClose={closeSheet}
         onSave={handleSave}
+      />
+      <PermissionPrimer
+        visible={pushPrimer.visible}
+        copy={PERMISSION_PRIMERS.push}
+        onAccept={pushPrimer.accept}
+        onDecline={pushPrimer.decline}
       />
     </>
   );

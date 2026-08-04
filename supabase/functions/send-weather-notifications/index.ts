@@ -17,24 +17,35 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
   if (!verifyCronAuth(req)) return jsonResponse({ error: 'Unauthorized.' }, 401);
   const supabase = createAdminClient();
   const now = new Date();
   const runId = weatherRunId(now);
 
-  // Utilisateurs éligibles (weatherNotifs + pushNotifs + coordonnées GPS)
-  const { data: eligible, error } = await supabase
-    .from('user_settings')
-    .select('user_id, weather_lat, weather_lon')
-    .eq('weather_notifs', true)
-    .eq('push_notifs', true)
-    .not('weather_lat', 'is', null)
-    .not('weather_lon', 'is', null);
-  if (error) {
-    console.error('[sendWeather] fetch eligible error:', error.message);
-    return jsonResponse({ ok: false }, 500);
+  // Utilisateurs éligibles (weatherNotifs + pushNotifs + coordonnées GPS).
+  // Paginé : PostgREST tronque silencieusement à db-max-rows (1000) sans .range().
+  const PAGE = 1000;
+  const rows: { user_id: string; weather_lat: number; weather_lon: number }[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data: page, error } = await supabase
+      .from('user_settings')
+      .select('user_id, weather_lat, weather_lon')
+      .eq('weather_notifs', true)
+      .eq('push_notifs', true)
+      .not('weather_lat', 'is', null)
+      .not('weather_lon', 'is', null)
+      .order('user_id')
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error('[sendWeather] fetch eligible error:', error.message);
+      return jsonResponse({ ok: false }, 500);
+    }
+    if (!page || page.length === 0) break;
+    rows.push(...(page as { user_id: string; weather_lat: number; weather_lon: number }[]));
+    if (page.length < PAGE) break;
   }
-  if (!eligible || eligible.length === 0) {
+  if (rows.length === 0) {
     console.log('[sendWeather] No eligible users.');
     return jsonResponse({ ok: true, processed: 0, sent: 0 });
   }
@@ -44,7 +55,6 @@ Deno.serve(async (req: Request) => {
   let processed = 0, sent = 0, purged = 0;
 
   const BATCH = 10;
-  const rows = eligible as { user_id: string; weather_lat: number; weather_lon: number }[];
 
   for (let i = 0; i < rows.length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH);

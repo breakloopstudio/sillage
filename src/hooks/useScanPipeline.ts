@@ -10,6 +10,17 @@ import { saveScan } from '../services/user-data';
 import { hapticsSuccess, hapticsError } from '../services/haptics';
 
 const MIN_ANIMATION_MS = 400;
+// Lecture incertaine + aucun candidat au-dessus de ce score → saisie assistée.
+const CLARIFY_SCORE_THRESHOLD = 50;
+
+/** Historique : lecture IA complète (volume + confiance + source inclus), schéma unique. */
+function rawTextOf(r: ScanResult): string {
+  return JSON.stringify({
+    marque: r.marque, nom: r.nom, typeParfum: r.typeParfum,
+    volumeMl: r.volumeMl, confidence: r.confidence ?? null,
+    textRead: r.textRead ?? null, visualMatch: r.visualMatch ?? null,
+  });
+}
 
 export function useScanPipeline(
   dispatch: React.Dispatch<ScanAction>,
@@ -21,17 +32,25 @@ export function useScanPipeline(
 
   // ── Helpers internes ──────────────────────────────────
 
-  async function searchAndShow(scanResult: ScanResult, scanId: number) {
+  async function searchAndShow(scanResult: ScanResult, scanId: number, fromVision: boolean) {
     try {
       const parfums = await searchParfumFromScan(scanResult);
       if (!mountedRef.current || scanIdRef.current !== scanId) return;
+
+      // Lecture incertaine + aucun candidat solide → clarify pré-rempli plutôt
+      // qu'un match faible affiché comme une certitude.
+      const topScore = parfums[0]?._scanScore ?? 0;
+      if (scanResult.confidence === 'low' && (parfums.length === 0 || topScore < CLARIFY_SCORE_THRESHOLD)) {
+        dispatch({ type: 'SCAN_CLARIFY', scanResult, reason: 'low-confidence' });
+        return;
+      }
 
       if (parfums.length > 0) {
         hapticsSuccess();
         if (uid) {
           const top = parfums[0];
           saveScan(uid, {
-            rawText: JSON.stringify({ marque: scanResult.marque, nom: scanResult.nom, typeParfum: scanResult.typeParfum }),
+            rawText: rawTextOf(scanResult),
             marque: top?.marque ?? scanResult.marque ?? undefined,
             nom: top?.nom ?? scanResult.nom ?? undefined,
             typeParfum: scanResult.typeParfum ?? undefined,
@@ -44,12 +63,12 @@ export function useScanPipeline(
           }).catch(() => {});
         }
         if (mountedRef.current && scanIdRef.current === scanId) {
-          dispatch({ type: 'SCAN_SUCCESS', parfums, confidence: scanResult.confidence });
+          dispatch({ type: 'SCAN_SUCCESS', parfums, confidence: scanResult.confidence, read: fromVision ? scanResult : null });
         }
       } else {
         if (uid) {
           saveScan(uid, {
-            rawText: JSON.stringify({ marque: scanResult.marque, nom: scanResult.nom, typeParfum: scanResult.typeParfum }),
+            rawText: rawTextOf(scanResult),
             marque: scanResult.marque ?? undefined,
             nom: scanResult.nom ?? undefined,
             typeParfum: scanResult.typeParfum ?? undefined,
@@ -64,7 +83,7 @@ export function useScanPipeline(
       console.warn('[scan] search failed:', e);
       if (uid) {
         saveScan(uid, {
-          rawText: JSON.stringify(scanResult),
+          rawText: rawTextOf(scanResult),
           marque: scanResult.marque ?? undefined,
           nom: scanResult.nom ?? undefined,
           status: 'error',
@@ -79,15 +98,17 @@ export function useScanPipeline(
 
   async function clarifyOrSearch(result: ScanResult, scanId: number) {
     const hasSomething = result.marque || result.nom || (result.alternatives && result.alternatives.length > 0);
-    if (!hasSomething) {
+    // Image hors-sujet (pas un flacon) ou rien de lisible → saisie assistée directe.
+    if (result.isPerfume === false || !hasSomething) {
       if (mountedRef.current && scanIdRef.current === scanId) {
         dispatch({ type: 'SCAN_CLARIFY', scanResult: result, reason: 'empty-response' });
       }
       return;
     }
     // Même en low-confidence on cherche : résultats + alternatives proposent des candidats,
-    // l'écran de résultats s'adapte (« Est-ce l'un de ces parfums ? »). Clarify = dernier recours.
-    await searchAndShow(result, scanId);
+    // l'écran de résultats s'adapte (« Correspondance probable »). Clarify = dernier recours
+    // (déclenché dans searchAndShow si aucun candidat solide).
+    await searchAndShow(result, scanId, true);
   }
 
   async function runBurstAnalysis(images: string[], scanId: number) {
@@ -116,7 +137,8 @@ export function useScanPipeline(
       if (payload.images && payload.images.length > 0) {
         await runBurstAnalysis(payload.images, scanId);
       } else if (payload.scanResult) {
-        await searchAndShow(payload.scanResult, scanId);
+        // Saisie manuelle/clarify : pas de lecture IA → read null sur l'écran de résultats.
+        await searchAndShow(payload.scanResult, scanId, false);
       } else {
         if (mountedRef.current && scanIdRef.current === scanId) {
           dispatch({ type: 'SCAN_ERROR', message: 'Une erreur inattendue est survenue. Veuillez réessayer.' });

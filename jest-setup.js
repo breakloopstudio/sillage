@@ -7,6 +7,7 @@ jest.mock('react-native-reanimated', () => ({
   useAnimatedProps: () => ({}),
   useDerivedValue: (fn) => ({ value: fn() }),
   useAnimatedReaction: () => {},
+  useReducedMotion: () => false,
   withSpring: (v) => v,
   withTiming: (v) => v,
   withRepeat: (v) => v,
@@ -147,6 +148,11 @@ jest.mock('expo-font', () => ({
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(),
   impactAsync: jest.fn(),
+}));
+
+// Mock expo-localization (device-locale : STT + transcription multilingue)
+jest.mock('expo-localization', () => ({
+  getLocales: () => [{ languageTag: 'fr-FR', languageCode: 'fr', regionCode: 'FR' }],
 }));
 
 // Mock NativeEventEmitter pour expo-modules-core

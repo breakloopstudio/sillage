@@ -6,6 +6,12 @@ import type { Parfum } from '../../models';
 import { normalize } from '../../utils/normalize';
 import type { SeasonKey } from '../../utils/season';
 import type { SuggestionRow } from '../../utils/suggest';
+import { typeParfumLabel } from '../../utils/parfum-labels';
+import {
+  brandQueryForms, brandsRelated, canonicalBrand, fuzzyNameBonus,
+  SCORE_NOM_EXACT, SCORE_NOM_PARTIEL,
+  SCORE_MARQUE_EXACT, SCORE_MARQUE_PARTIEL, SCORE_TYPE_MATCH, SCORE_TYPE_MISMATCH,
+} from '../../utils/scan-match';
 import { supabase } from '../supabase';
 import type { Database } from '../../types/database.types';
 import { LRUCache, dedupByMarqueNom, SearchError } from './search-shared';
@@ -190,17 +196,117 @@ export interface ScanMatchInput {
   alternatives?: string[];
 }
 
-// Bonus/malus de rescoring scan (pondération nom > marque > concentration).
-const SCORE_NOM_EXACT = 50;
-const SCORE_NOM_PARTIEL = 25;
-const SCORE_MARQUE_EXACT = 15;
-const SCORE_MARQUE_PARTIEL = 8;
-const SCORE_TYPE_MATCH = 12;
-const SCORE_TYPE_MISMATCH = -12;
+/** Rescoring scan d'une liste de candidats — nom (exact > inclusion > fuzzy),
+ *  marque (canonicalisée via alias), concentration (valeurs canoniques des deux côtés). */
 
-/** Recherche optimisée pour le scan — rescoring nom/marque/concentration sur la lecture GPT-4o. */
-export async function searchParfumFromScan(read: ScanMatchInput): Promise<Parfum[]> {
+// Phrases canoniques de concentration, de la plus longue à la plus courte :
+// « eau_de_parfum » contient « parfum » — la plus longue trouvée dans un nom
+// gagne, sinon « Eau de Parfum » confirmerait à tort la concentration « Parfum ».
+const TYPE_PHRASES_DESC = ['eau_de_toilette', 'eau_de_cologne', 'eau_de_parfum', 'extrait', 'cologne', 'parfum'];
+
+function typeFromNom(nomNorm: string): string | null {
+  for (const t of TYPE_PHRASES_DESC) {
+    if (nomNorm.includes(t)) {
+      // « cologne » seul dans un nom confirme la concentration « Eau de Cologne »
+      // (readType est canonicalisé par typeParfumLabel : jamais 'cologne').
+      return t === 'cologne' ? 'eau_de_cologne' : t;
+    }
+  }
+  return null;
+}
+
+function rescoreForScan(rows: Parfum[], read: ScanMatchInput): Array<Parfum & { _scanScore: number }> {
   const { marque, nom, typeParfum, alternatives = [] } = read;
+  const readBrand = marque ? canonicalBrand(marque) : null;
+  const candidateNoms = [nom, ...alternatives].filter((n): n is string => !!n);
+  const readType = typeParfum ? normalize(typeParfumLabel(typeParfum) ?? '') : null;
+  // Concentration prononcée : la demande complète est « nom + concentration »
+  // (« L'Homme Idéal Parfum ») — ajoutée comme candidat pour que le flanker
+  // concentré matche en exact. Les extraits sont nommés « X Extrait de Parfum »
+  // au catalogue (pas « X Extrait ») → candidat supplémentaire.
+  if (readType && nom) {
+    candidateNoms.push(`${nom} ${typeParfumLabel(typeParfum)}`);
+    if (readType === 'extrait') candidateNoms.push(`${nom} Extrait de Parfum`);
+  }
+
+  return rows.map((p) => {
+    let bonus = 0;
+
+    const nomNorm = normalize(p.nom || '');
+    const docType = readType ? normalize(typeParfumLabel(p.typeParfum) ?? '') : '';
+    const typeConfirmed = !!readType && ((docType !== '' && docType === readType) || typeFromNom(nomNorm) === readType);
+
+    // Nom : le meilleur candidat l'emporte (nom lu, alternative, nom+concentration).
+    let nameBonus = 0;
+    if (candidateNoms.length > 0) {
+      nameBonus = Math.max(...candidateNoms.map((c) => fuzzyNameBonus(p.nom, c)));
+    }
+    // Concentration prononcée mais non confirmée par la fiche (type NULL ou
+    // contradictoire) : le match « exact » du nom seul ne matche qu'à moitié la
+    // demande — « L'Homme Idéal » (l'EDT) ne doit pas écraser « L'Homme Idéal
+    // Parfum » quand l'utilisateur a dit « parfum ».
+    if (readType && !typeConfirmed && nameBonus === SCORE_NOM_EXACT) {
+      nameBonus = SCORE_NOM_PARTIEL;
+    }
+    bonus += nameBonus;
+
+    // Marque : canonicalisation (alias YSL/MFK/JPG…) puis inclusion, puis
+    // lignées (sous-ligne ↔ maison mère, ex. Casamorati 1888 ↔ Xerjoff).
+    if (readBrand) {
+      const docBrand = canonicalBrand(p.marque || '');
+      if (docBrand === readBrand) {
+        bonus += SCORE_MARQUE_EXACT;
+      } else if (docBrand.includes(readBrand) || readBrand.includes(docBrand) || brandsRelated(docBrand, readBrand)) {
+        bonus += SCORE_MARQUE_PARTIEL;
+      }
+    }
+
+    // Concentration (flankers EDT/EDP/Extrait…) : canonicalisée des deux côtés
+    // (fin des −12 injustifiés sur « EDP » vs « Eau de Parfum »).
+    if (readType) {
+      if (typeConfirmed) {
+        bonus += SCORE_TYPE_MATCH;
+      } else if (docType) {
+        bonus += SCORE_TYPE_MISMATCH;
+      }
+    }
+
+    return { ...p, _scanScore: bonus };
+  });
+}
+
+/** Tri scan : score desc, puis popularité desc, puis prix croissant. */
+function sortByScanScore(rows: Array<Parfum & { _scanScore: number }>): Array<Parfum & { _scanScore: number }> {
+  return [...rows].sort((a, b) => {
+    const diff = b._scanScore - a._scanScore;
+    if (diff !== 0) return diff;
+    const popDiff = (b.popularityScore ?? 0) - (a.popularityScore ?? 0);
+    if (popDiff !== 0) return popDiff;
+    return (a.bestPrice ?? Infinity) - (b.bestPrice ?? Infinity);
+  });
+}
+
+/** Recherche optimisée pour le scan — rescoring nom/marque/concentration sur la lecture GPT-4o.
+ *  Retourne des Parfum porteurs de `_scanScore` (bonus de pertinence scan). */
+export async function searchParfumFromScan(read: ScanMatchInput): Promise<Array<Parfum & { _scanScore: number }>> {
+  const { marque, nom, alternatives = [] } = read;
+  const hasNom = !!nom || alternatives.length > 0;
+
+  // Marque seule (aucun nom lu) : le top-50 trgm sur un nom de maison est peu
+  // pertinent → catalogue complet de la maison (index b-tree marque), fallback trgm.
+  // On interroge TOUTES les formes de surface de la maison (alias YSL/MFK/JPG…),
+  // pas seulement la valeur lue — le catalogue stocke la forme longue.
+  if (marque && !hasNom) {
+    const forms = brandQueryForms(marque);
+    let rows = await getParfumsByMarques(forms);
+    if (rows.length === 0) {
+      // Fallback trgm sur la forme la plus longue (meilleur rappel que l'abréviation).
+      const longest = forms.reduce((a, b) => (b.length > a.length ? b : a), forms[0] ?? marque);
+      rows = await searchParfumsCached(longest);
+    }
+    if (rows.length === 0) return [];
+    return dedupByMarqueNom(sortByScanScore(rescoreForScan(rows, read)));
+  }
 
   // Requêtes : principale (marque + nom) + une par hypothèse alternative (meilleur rappel).
   const queries: string[] = [];
@@ -212,68 +318,21 @@ export async function searchParfumFromScan(read: ScanMatchInput): Promise<Parfum
   for (const alt of alternatives) pushQuery(alt);
   if (queries.length === 0) return [];
 
-  // La requête principale propage les erreurs (le pipeline les gère) ; les alternatives sont best-effort.
+  // Requêtes parallèles — la principale (index 0) propage ses erreurs (le pipeline
+  // les gère) ; les alternatives sont best-effort.
+  const settled = await Promise.allSettled(queries.map((q) => searchParfumsCached(q)));
   const merged = new Map<string, Parfum>();
-  for (let i = 0; i < queries.length; i++) {
-    try {
-      const rows = await searchParfumsCached(queries[i]);
-      for (const p of rows) if (!merged.has(p.id)) merged.set(p.id, p);
-    } catch (e) {
-      if (i === 0) throw e;
+  for (let i = 0; i < settled.length; i++) {
+    const s = settled[i];
+    if (s.status === 'fulfilled') {
+      for (const p of s.value) if (!merged.has(p.id)) merged.set(p.id, p);
+    } else if (i === 0) {
+      throw s.reason;
     }
   }
   if (merged.size === 0) return [];
 
-  const normMarque = marque ? normalize(marque) : null;
-  const candidateNoms = [nom, ...alternatives]
-    .filter((n): n is string => !!n)
-    .map(normalize);
-  const normType = typeParfum ? normalize(typeParfum) : null;
-
-  const rescored = [...merged.values()].map((p) => {
-    const docMarque = normalize(p.marque || '');
-    const docNom = normalize(p.nom || '');
-    let bonus = 0;
-
-    if (candidateNoms.length > 0) {
-      if (candidateNoms.some((n) => docNom === n)) {
-        bonus += SCORE_NOM_EXACT;
-      } else if (candidateNoms.some((n) => docNom.includes(n) || n.includes(docNom))) {
-        bonus += SCORE_NOM_PARTIEL;
-      }
-    }
-
-    if (normMarque) {
-      if (docMarque === normMarque) {
-        bonus += SCORE_MARQUE_EXACT;
-      } else if (docMarque.includes(normMarque) || normMarque.includes(docMarque)) {
-        bonus += SCORE_MARQUE_PARTIEL;
-      }
-    }
-
-    // Concentration (flankers EDT/EDP/Extrait…) : le type lu départage les homonymes.
-    if (normType) {
-      const docType = normalize(p.typeParfum ?? '');
-      const inNom = docNom.includes(normType);
-      if (docType === normType || inNom) {
-        bonus += SCORE_TYPE_MATCH;
-      } else if (docType) {
-        bonus += SCORE_TYPE_MISMATCH;
-      }
-    }
-
-    return { ...p, _scanScore: bonus };
-  });
-
-  rescored.sort((a, b) => {
-    const diff = (b._scanScore ?? 0) - (a._scanScore ?? 0);
-    if (diff !== 0) return diff;
-    const aPrice = a.bestPrice ?? Infinity;
-    const bPrice = b.bestPrice ?? Infinity;
-    return aPrice - bPrice;
-  });
-
-  return dedupByMarqueNom(rescored);
+  return dedupByMarqueNom(sortByScanScore(rescoreForScan([...merged.values()], read)));
 }
 
 /** Nombre total de parfums au catalogue (head query, pas de données transférées). */
@@ -456,18 +515,25 @@ export async function getParfumsByPerfumer(name: string): Promise<Parfum[]> {
   }
 }
 
-export async function getParfumsByMarque(marque: string): Promise<Parfum[]> {
+/** Catalogue d'une ou plusieurs formes de surface d'une maison (`.in` exact, tri popularité). */
+export async function getParfumsByMarques(marques: string[]): Promise<Parfum[]> {
+  const forms = [...new Set(marques.map((m) => m.trim()).filter(Boolean))];
+  if (forms.length === 0) return [];
   try {
     const { data, error } = await supabase
       .from('parfums')
       .select(CARD_COLUMNS)
-      .eq('marque', marque)
+      .in('marque', forms)
       .order('popularity_score', { ascending: false, nullsFirst: false })
       .limit(1000);
     if (error) throw error;
     return ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToParfum);
   } catch (e: unknown) {
-    console.warn('[catalog] getParfumsByMarque failed:', (e as Error)?.message ?? String(e));
+    console.warn('[catalog] getParfumsByMarques failed:', (e as Error)?.message ?? String(e));
     return [];
   }
+}
+
+export async function getParfumsByMarque(marque: string): Promise<Parfum[]> {
+  return getParfumsByMarques([marque]);
 }

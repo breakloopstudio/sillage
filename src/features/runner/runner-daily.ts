@@ -48,9 +48,9 @@ const DEFS: Array<(rand: () => number) => DailyChallenge> = [
   (rand) => { const t = 500 + Math.floor(rand() * 4) * 250; return { id: 'score', label: `Atteins ${t} points`, icon: 'trophy-outline', check: c => c.score >= t }; },
   (rand) => { const t = 4 + Math.floor(rand() * 3) * 2; return { id: 'notes', label: `Collecte ${t} notes`, icon: 'leaf-outline', check: c => c.notesCollected >= t }; },
   (rand) => { const t = 2 + Math.floor(rand() * 3); return { id: 'combo', label: `Enchaîne un combo ×${t}`, icon: 'flash-outline', check: c => c.maxCombo >= t }; },
-  (rand) => { const t = 3 + Math.floor(rand() * 3) * 2; return { id: 'nearmiss', label: `Frôle ${t} cristaux`, icon: 'speedometer-outline', check: c => c.nearMiss >= t }; },
+  (rand) => { const t = 3 + Math.floor(rand() * 3) * 2; return { id: 'nearmiss', label: `Frôle ${t} éclats`, icon: 'speedometer-outline', check: c => c.nearMiss >= t }; },
   (rand) => { const t = 800 + Math.floor(rand() * 4) * 400; return { id: 'distance', label: `Cours ${t} mètres`, icon: 'walk-outline', check: c => c.distance >= t }; },
-  (rand) => { const t = 1 + Math.floor(rand() * 2); return { id: 'shield', label: `Casse ${t} bouclier${t > 1 ? 's' : ''}`, icon: 'shield-checkmark-outline', check: c => c.shieldBreaks >= t }; },
+  (rand) => { const t = 1 + Math.floor(rand() * 2); return { id: 'shield', label: `Absorbe ${t} impact${t > 1 ? 's' : ''}`, icon: 'shield-checkmark-outline', check: c => c.shieldBreaks >= t }; },
 ];
 
 export function getDailyChallenge(date: Date = new Date()): DailyChallenge {

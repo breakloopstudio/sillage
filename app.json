@@ -17,6 +17,7 @@
         "NSCameraUsageDescription": "Autoriser Sillage à utiliser votre appareil photo pour scanner les flacons de parfum.",
         "NSPhotoLibraryUsageDescription": "Autoriser Sillage à accéder à votre photothèque pour télécharger des photos de parfum.",
         "NSMicrophoneUsageDescription": "Autoriser Sillage à utiliser le micro pour rechercher des parfums à la voix.",
+        "NSLocationWhenInUseUsageDescription": "Sillage utilise ta position pour afficher la météo locale et suggérer des parfums adaptés à la saison.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -45,7 +46,9 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -90,6 +93,12 @@
           "speechRecognitionPermission": "Autoriser Sillage à utiliser la reconnaissance vocale."
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Sillage utilise ta position pour afficher la météo locale et suggérer des parfums adaptés à la saison."
+        }
+      ],
       "expo-audio",
       "expo-sharing",
       [
@@ -97,7 +106,8 @@
         {
           "sounds": []
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "extra": {
       "router": {},

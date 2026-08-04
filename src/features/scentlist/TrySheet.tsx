@@ -1,7 +1,7 @@
 // src/features/scentlist/TrySheet.tsx — Bottom sheet « Marquer comme senti »
 
 import { useState, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, TextInput, Modal, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, TextInput, Modal, ScrollView, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
@@ -59,7 +59,7 @@ export default function TrySheet({
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
       <Pressable style={s.backdrop} onPress={handleBackdrop}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           style={s.sheetWrap}
         >
           <Pressable style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>

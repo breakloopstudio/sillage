@@ -16,8 +16,9 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
 
-// Resize max pour limiter les payloads (ex-capteur 12MP → ~100-300KB base64)
-const MAX_IMAGE_WIDTH = 768;
+// Resize max : 1280px pour l'OCR d'étiquettes (detail high côté serveur),
+// payload contenu par la compression JPEG (ex-capteur 12MP → ~300-600KB base64)
+const MAX_IMAGE_WIDTH = 1280;
 const IMAGE_QUALITY = 0.6;
 const BURST_COUNT = 1;
 

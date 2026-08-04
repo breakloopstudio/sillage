@@ -1,9 +1,9 @@
 import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Share, Alert, type LayoutChangeEvent } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Share, Alert, Linking, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useReducedMotion, LinearTransition } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { useFavorisContext } from '../../src/contexts/FavorisContext';
@@ -18,10 +18,13 @@ import { useNetwork } from '../../src/hooks/useNetwork';
 import { useDensityPreference, GRID_MODES } from '../../src/hooks/useDensityPreference';
 import { useParfumerieViewPreference, type ParfumerieView } from '../../src/hooks/useParfumerieViewPreference';
 import { scoreWardrobeItemForWeather } from '../../src/utils/weather-scoring';
-import { saveWeatherCoords } from '../../src/services/user-data';
+import { saveWeatherCoords, getUserSettings, updateUserSetting } from '../../src/services/user-data';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
+import { usePermissionPrimer } from '../../src/hooks/usePermissionPrimer';
+import { PERMISSION_PRIMERS } from '../../src/utils/permission-primers';
+import PermissionPrimer from '../../src/components/PermissionPrimer';
 import { addToShelf, removeFromShelf, pinShelfItem } from '../../src/services/user-parfum';
-import { hapticsLight, hapticsError } from '../../src/services/haptics';
+import { hapticsLight, hapticsError, hapticsSuccess } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import { useNavigationChrome } from '../../src/features/navigation/NavigationChromeContext';
 import { STATUS_CHIPS, chipForStatus, type StatusChipId } from '../../src/utils/status-chips';
@@ -120,7 +123,11 @@ export default function MaParfumeriePage() {
   const { byShelf } = useShelfItems(uid);
   const { sotd, streak, setTodaySotd } = useSotd(uid);
   const { isOnline } = useNetwork();
-  const { weather, loading: weatherLoading, coords } = useWeather(isAuthenticated && isOnline);
+  // Consentement météo (réglage « Suggestions météo ») : gate la météo in-app
+  // ET la persistance des coordonnées — jamais de GPS sans opt-in explicite.
+  const [weatherConsent, setWeatherConsent] = useState(false);
+  const { weather, loading: weatherLoading, coords, requestPermission: requestWeatherPermission, permissionStatus, permissionCanAskAgain } = useWeather(isAuthenticated && isOnline && weatherConsent);
+  const locationPrimer = usePermissionPrimer('location');
   const { scrollY, resetDock } = useNavigationChrome();
   const { density, setDensity } = useDensityPreference();
   const { view: viewPref, setView: setViewPref } = useParfumerieViewPreference();
@@ -148,6 +155,16 @@ export default function MaParfumeriePage() {
 
   useEffect(() => { statuerItemRef.current = statuerItem; }, [statuerItem]);
 
+  // Relu au focus (les onglets TopTabs restent montés) : un retrait du
+  // consentement dans Settings/privacy-center doit être appliqué dès le retour,
+  // sans attendre un remontage (fixe la ré-écriture des coords après retrait).
+  useFocusEffect(
+    useCallback(() => {
+      if (!uid) return;
+      getUserSettings(uid).then(st => setWeatherConsent(st.weatherNotifs)).catch(() => {});
+    }, [uid]),
+  );
+
   useEffect(() => {
     AsyncStorage.getItem(KEY_EXPAND).then((v) => {
       try {
@@ -173,12 +190,12 @@ export default function MaParfumeriePage() {
 
   const lastWeatherCoords = useRef<string | null>(null);
   useEffect(() => {
-    if (!isAuthenticated || !coords || !uid) return;
+    if (!isAuthenticated || !weatherConsent || !coords || !uid) return;
     const key = `${coords.lat.toFixed(4)},${coords.lon.toFixed(4)}`;
     if (lastWeatherCoords.current === key) return;
     lastWeatherCoords.current = key;
     saveWeatherCoords(uid, coords.lat, coords.lon).catch(() => {});
-  }, [isAuthenticated, coords, uid]);
+  }, [isAuthenticated, weatherConsent, coords, uid]);
 
   const pillCounts = useMemo(() => {
     const counts: Record<ParfPillId, number> = { all: items.length, to_try: 0, have: 0, had: 0 };
@@ -317,9 +334,47 @@ export default function MaParfumeriePage() {
   const handleSotdSelect = useCallback((parfumId: string) => {
     if (parfumId === sotd?.parfumId) { setSotdPickerVisible(false); return; }
     const item = sotdEligible.find(i => i.parfumId === parfumId);
-    if (item) { hapticsLight(); setTodaySotd(item).catch(() => {}); }
+    if (item) { hapticsSuccess(); setTodaySotd(item).catch(() => {}); }
     setSotdPickerVisible(false);
   }, [sotd, sotdEligible, setTodaySotd]);
+
+  // Le geste « activer la météo » pose le consentement app (réglage
+  // weatherNotifs) puis demande la permission OS — sinon requestPermission
+  // serait bloqué par le gate enabled=false (défaut) et le tap serait mort.
+  const enableWeatherAndRequest = useCallback(() => {
+    setWeatherConsent(true);
+    if (uid) updateUserSetting(uid, 'weatherNotifs', true).catch(() => {});
+    void requestWeatherPermission();
+  }, [uid, requestWeatherPermission]);
+
+  // Tap sur le segment météo de la SOTD card : si la permission n'est pas
+  // encore accordée, passer par le primer (jamais de prompt à froid).
+  const handleWeatherEnablePress = useCallback(() => {
+    if (weather) return;
+    // Refus définitif (l'OS ne re-prompt plus) → porte de sortie réglages.
+    // Un refus simple (canAskAgain) repasse par requestPermission qui re-prompt.
+    if (permissionStatus === 'denied' && !permissionCanAskAgain) {
+      Alert.alert('Localisation désactivée', 'Active la localisation dans les réglages de l\'appareil pour afficher la météo.', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Réglages', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+    if (locationPrimer.needsPrimer) {
+      locationPrimer.open();
+      return;
+    }
+    enableWeatherAndRequest();
+  }, [weather, permissionStatus, permissionCanAskAgain, locationPrimer, enableWeatherAndRequest]);
+
+  const handleLocationPrimerAccept = useCallback(() => {
+    locationPrimer.accept();
+    enableWeatherAndRequest();
+  }, [locationPrimer, enableWeatherAndRequest]);
+
+  const handleLocationPrimerDecline = useCallback(() => {
+    locationPrimer.decline();
+  }, [locationPrimer]);
 
   const handleOpenShelfManager = useCallback(() => { setEditShelfId(null); setShelfManagerVisible(true); }, []);
   const handleCloseShelfManager = useCallback(() => setShelfManagerVisible(false), []);
@@ -544,6 +599,7 @@ export default function MaParfumeriePage() {
           onPress={handleSotdPress}
           onChangePress={handleSotdChangePress}
           onShare={handleShareSotd}
+          onWeatherEnablePress={handleWeatherEnablePress}
         />
       </View>
     </View>
@@ -879,6 +935,13 @@ export default function MaParfumeriePage() {
         message="Ces flacons attendent leur place. Un appui maintenu sur l’un d’eux te permet de le ranger dans l’étagère de ton choix."
         icon="help-circle-outline"
         onClose={() => setOrphanHelpOpen(false)}
+      />
+
+      <PermissionPrimer
+        visible={locationPrimer.visible}
+        copy={PERMISSION_PRIMERS.location}
+        onAccept={handleLocationPrimerAccept}
+        onDecline={handleLocationPrimerDecline}
       />
     </SafeAreaView>
   );

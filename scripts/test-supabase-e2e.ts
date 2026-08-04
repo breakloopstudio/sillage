@@ -23,6 +23,17 @@ const SERVICE = readEnvVar('SUPABASE_SERVICE_ROLE_KEY');
 const TEST_EMAIL = `e2e-${Date.now()}@gmail.com`;
 const TEST_PASSWORD = 'E2e-Test-1234!';
 
+let userId = '';
+
+async function deleteTestUser(): Promise<boolean> {
+  if (!userId) return true;
+  const res = await fetch(`${URL}/auth/v1/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE}`, 'apikey': SERVICE },
+  });
+  return res.ok;
+}
+
 let passed = 0;
 let failed = 0;
 function check(name: string, cond: boolean, detail = ''): void {
@@ -55,7 +66,6 @@ async function main(): Promise<void> {
   // ─── 2. Création user via Admin API (évite rate-limit SMTP + confirmation) ─
   console.log('\n2. Auth email');
   const user = createClient(URL, ANON, { auth: { persistSession: false } });
-  let userId = '';
   {
     // Créer le user test via Admin API (email_confirm: true → pas d'email, pas de rate limit)
     const createRes = await fetch(`${URL}/auth/v1/admin/users`, {
@@ -205,11 +215,8 @@ async function main(): Promise<void> {
   // ─── 9. Cleanup : suppression du user test (admin API) ───
   console.log('\n9. Cleanup');
   {
-    const res = await fetch(`${URL}/auth/v1/admin/users/${userId}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${SERVICE}`, 'apikey': SERVICE },
-    });
-    check('delete user (admin API)', res.ok, `HTTP ${res.status}`);
+    const ok = await deleteTestUser();
+    check('delete user (admin API)', ok);
 
     // CASCADE : toutes les lignes user supprimées
     const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
@@ -225,7 +232,12 @@ async function main(): Promise<void> {
   process.exit(failed > 0 ? 1 : 0);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error('❌ E2E échoué :', (e as Error)?.message ?? e);
+  try {
+    if (await deleteTestUser()) {
+      console.log('🧹 User test supprimé (cleanup après crash).');
+    }
+  } catch { /* best-effort */ }
   process.exit(1);
 });

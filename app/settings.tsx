@@ -1,18 +1,23 @@
 // app/settings.tsx — Page de paramètres
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Switch, Pressable, StyleSheet, Share } from 'react-native';
+import { View, Text, ScrollView, Switch, Pressable, StyleSheet, Share, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Constants from 'expo-constants';
+import * as Location from 'expo-location';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { getUserSettings, updateUserSetting } from '../src/services/user-data';
-import { requestFcmPermission, deleteFcmToken } from '../src/services/push';
+import { getPushPermissionStatus, requestFcmPermission, registerPushToken } from '../src/services/push';
+import { deleteAllFcmTokens, clearWeatherCoords } from '../src/services/account';
 import { APP_SHARE_MESSAGE } from '../src/config/legal';
 import { hapticsLight } from '../src/services/haptics';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { useVoicePreference } from '../src/hooks/useVoicePreference';
+import { usePermissionPrimer } from '../src/hooks/usePermissionPrimer';
+import { PERMISSION_PRIMERS } from '../src/utils/permission-primers';
+import PermissionPrimer from '../src/components/PermissionPrimer';
 import type { ThemeMode } from '../src/services/theme-storage';
 
 export default function SettingsPage() {
@@ -23,7 +28,12 @@ export default function SettingsPage() {
   const [priceAlerts, setPriceAlerts] = useState(false);
   const [pushNotifs, setPushNotifs] = useState(true);
   const [weatherNotifs, setWeatherNotifs] = useState(false);
+  // Statut OS réel des notifications (le toggle peut être ON mais l'OS avoir
+  // refusé) — affiché honnêtement + porte de sortie vers les réglages.
+  const [osPushDenied, setOsPushDenied] = useState(false);
   const { voiceEnabled, setVoiceEnabled } = useVoicePreference();
+  const pushPrimer = usePermissionPrimer('push');
+  const locationPrimer = usePermissionPrimer('location');
 
   const easterEggTaps = useRef(0);
   const easterEggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,25 +70,108 @@ export default function SettingsPage() {
     }
   }, [user?.uid]);
 
-  const handlePushNotifs = useCallback(async (val: boolean) => {
-    setPushNotifs(val);
-    if (user?.uid) updateUserSetting(user.uid, 'pushNotifs', val).catch(() => {});
-    if (val) {
-      requestFcmPermission().catch(() => {});
+  // Re-vérifié au focus : après un aller-retour dans les réglages système
+  // (via l'alerte « Réglages »), le statut OS peut avoir changé.
+  useFocusEffect(
+    useCallback(() => {
+      getPushPermissionStatus().then(st => setOsPushDenied(st === 'denied')).catch(() => {});
+    }, []),
+  );
+
+  // Activation push : primer (1ère fois) puis prompt système, enfin enregistrement
+  // du token. Refus OS définitif → porte de sortie vers les réglages.
+  const requestPushAndRegister = useCallback(async () => {
+    if (!user?.uid) return;
+    const granted = await requestFcmPermission();
+    if (granted) {
+      setOsPushDenied(false);
+      await registerPushToken(user.uid);
     } else {
-      deleteFcmToken().catch(() => {});
+      setPushNotifs(false);
+      updateUserSetting(user.uid, 'pushNotifs', false).catch(() => {});
+      const status = await getPushPermissionStatus();
+      setOsPushDenied(status === 'denied');
+      if (status === 'denied') {
+        Alert.alert('Notifications désactivées', 'Active les notifications pour Sillage dans les réglages de l\'appareil.', [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Réglages', onPress: () => Linking.openSettings() },
+        ]);
+      }
     }
   }, [user?.uid]);
+
+  const handlePushNotifs = useCallback(async (val: boolean) => {
+    setPushNotifs(val);
+    if (!user?.uid) return;
+    updateUserSetting(user.uid, 'pushNotifs', val).catch(() => {});
+    if (val) {
+      const status = await getPushPermissionStatus();
+      if (status === 'granted') {
+        await registerPushToken(user.uid);
+        return;
+      }
+      if (status === 'denied') {
+        setOsPushDenied(true);
+        Alert.alert('Notifications désactivées', 'Active les notifications pour Sillage dans les réglages de l\'appareil.', [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Réglages', onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
+      if (pushPrimer.needsPrimer) pushPrimer.open();
+      else void requestPushAndRegister();
+    } else {
+      deleteAllFcmTokens(user.uid).catch(() => {});
+    }
+  }, [user?.uid, pushPrimer, requestPushAndRegister]);
+
+  const handlePushPrimerAccept = useCallback(() => {
+    pushPrimer.accept();
+    void requestPushAndRegister();
+  }, [pushPrimer, requestPushAndRegister]);
+
+  const handlePushPrimerDecline = useCallback(() => {
+    pushPrimer.decline();
+    setPushNotifs(false);
+    if (user?.uid) updateUserSetting(user.uid, 'pushNotifs', false).catch(() => {});
+  }, [pushPrimer, user?.uid]);
 
   const handlePriceAlerts = useCallback(async (val: boolean) => {
     setPriceAlerts(val);
     if (user?.uid) updateUserSetting(user.uid, 'priceAlerts', val).catch(() => {});
   }, [user?.uid]);
 
+  // Activation météo : consentement + primer localisation (1ère fois) puis prompt.
+  // Désactivation : efface les coordonnées stockées (retrait réel du consentement).
   const handleWeatherNotifs = useCallback(async (val: boolean) => {
     setWeatherNotifs(val);
-    if (user?.uid) updateUserSetting(user.uid, 'weatherNotifs', val).catch(() => {});
-  }, [user?.uid]);
+    if (!user?.uid) return;
+    updateUserSetting(user.uid, 'weatherNotifs', val).catch(() => {});
+    if (val) {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') return;
+      if (status === 'denied') {
+        Alert.alert('Localisation désactivée', 'Active la localisation dans les réglages de l\'appareil pour recevoir les suggestions météo.', [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Réglages', onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
+      if (locationPrimer.needsPrimer) locationPrimer.open();
+      else Location.requestForegroundPermissionsAsync().catch(() => {});
+    } else {
+      clearWeatherCoords(user.uid).catch(() => {});
+    }
+  }, [user?.uid, locationPrimer]);
+
+  const handleLocationPrimerAccept = useCallback(() => {
+    locationPrimer.accept();
+    Location.requestForegroundPermissionsAsync().catch(() => {});
+  }, [locationPrimer]);
+
+  const handleLocationPrimerDecline = useCallback(() => {
+    locationPrimer.decline();
+  }, [locationPrimer]);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
@@ -110,7 +203,7 @@ export default function SettingsPage() {
               <Ionicons name="push-outline" size={20} color={theme.colors.text} />
               <View>
                 <Text style={s.rowLabel}>Notifications push</Text>
-                <Text style={s.rowDesc}>Autoriser les notifications sur cet appareil</Text>
+                <Text style={s.rowDesc}>{osPushDenied ? 'Désactivées dans les réglages de l\'appareil' : 'Alertes prix et suggestions sur cet appareil'}</Text>
               </View>
             </View>
             <Switch value={pushNotifs} onValueChange={handlePushNotifs} trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }} thumbColor={pushNotifs ? theme.colors.primary : theme.colors.textMuted} />
@@ -121,7 +214,7 @@ export default function SettingsPage() {
               <Ionicons name="partly-sunny-outline" size={20} color={theme.colors.text} />
               <View>
                 <Text style={s.rowLabel}>Suggestions météo</Text>
-                <Text style={s.rowDesc}>Recevoir chaque matin une suggestion de parfum adapté à la météo</Text>
+                <Text style={s.rowDesc}>Une suggestion adaptée à la météo, chaque matin (utilise ta position)</Text>
               </View>
             </View>
             <Switch value={weatherNotifs} onValueChange={handleWeatherNotifs} trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }} thumbColor={weatherNotifs ? theme.colors.primary : theme.colors.textMuted} />
@@ -246,6 +339,20 @@ export default function SettingsPage() {
           <Text style={s.version}>Sillage v{Constants.expoConfig?.version ?? '1.0.0'}{Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : ''}</Text>
         </Pressable>
       </ScrollView>
+
+      <PermissionPrimer
+        visible={pushPrimer.visible}
+        copy={PERMISSION_PRIMERS.push}
+        onAccept={handlePushPrimerAccept}
+        onDecline={handlePushPrimerDecline}
+      />
+
+      <PermissionPrimer
+        visible={locationPrimer.visible}
+        copy={PERMISSION_PRIMERS.location}
+        onAccept={handleLocationPrimerAccept}
+        onDecline={handleLocationPrimerDecline}
+      />
     </SafeAreaView>
   );
 }

@@ -12,16 +12,18 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
 import { formatPrice } from '../../utils/format-price';
 import { tintLuminous } from '../../utils/alpha';
-import type { Parfum } from '../../models';
+import { scanChip, scanReadLine } from '../../utils/scan-display';
+import type { Parfum, ScanResult } from '../../models';
 
 interface Props {
   parfums: Parfum[];
   confidence?: 'high' | 'low';
+  read?: ScanResult | null;
   onOpenCatalog: () => void;
   onRescan: () => void;
 }
 
-export function ScanResults({ parfums, confidence = 'high', onOpenCatalog, onRescan }: Props) {
+export function ScanResults({ parfums, confidence = 'high', read, onOpenCatalog, onRescan }: Props) {
   const { theme, resolvedMode } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
@@ -30,6 +32,10 @@ export function ScanResults({ parfums, confidence = 'high', onOpenCatalog, onRes
 
   const top = parfums[0];
   const rest = useMemo(() => parfums.slice(1), [parfums]);
+
+  // Chip + ligne « Lu/Hypothèse » résolus par l'utilitaire pur (testé).
+  const chip = useMemo(() => scanChip(confidence, read), [confidence, read]);
+  const readLine = useMemo(() => scanReadLine(read, top), [read, top]);
 
   const handleParfumPress = (parfum: Parfum) => {
     setPendingParfum(parfum);
@@ -65,12 +71,13 @@ export function ScanResults({ parfums, confidence = 'high', onOpenCatalog, onRes
         </View>
 
         <View style={s.heroText}>
-          <View style={[s.chip, isLow ? { backgroundColor: theme.colors.fairSoft } : { backgroundColor: theme.colors.dealSoft }]}>
-            <Ionicons name={isLow ? 'help-circle-outline' : 'checkmark-circle'} size={13} color={isLow ? theme.colors.fairInk : theme.colors.dealInk} style={{ marginRight: 5 }} />
-            <Text style={[s.chipText, { color: isLow ? theme.colors.fairInk : theme.colors.dealInk }]}>
-              {isLow ? 'Correspondance probable' : 'Correspondance'}
+          <View style={[s.chip, { backgroundColor: chip.tone === 'fair' ? theme.colors.fairSoft : theme.colors.dealSoft }]}>
+            <Ionicons name={chip.icon as never} size={13} color={chip.tone === 'fair' ? theme.colors.fairInk : theme.colors.dealInk} style={{ marginRight: 5 }} />
+            <Text style={[s.chipText, { color: chip.tone === 'fair' ? theme.colors.fairInk : theme.colors.dealInk }]}>
+              {chip.label}
             </Text>
           </View>
+          {readLine ? <Text style={s.readLine}>{readLine.prefix}{readLine.text}</Text> : null}
           <Text style={s.overline}>{top.marque}</Text>
           <Text style={s.heroName}>{top.nom}</Text>
           {top.bestPrice != null && (
@@ -148,6 +155,7 @@ function getStyles(t: Theme) {
     heroText: { paddingHorizontal: 24, alignItems: 'flex-start' },
     chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 10 },
     chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 0.3 },
+    readLine: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, marginBottom: 6 },
     overline: { fontFamily: 'Inter_400Regular', fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: t.colors.textMuted, marginBottom: 2 },
     heroName: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 26, color: t.colors.text, marginBottom: 6 },
     priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },

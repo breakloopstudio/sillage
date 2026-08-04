@@ -25,6 +25,8 @@ interface Props {
   onPress: () => void;
   onChangePress: () => void;
   onShare?: () => void;
+  /** Tap sur le segment météo quand la météo est absente (opt-in localisation). */
+  onWeatherEnablePress?: () => void;
 }
 
 function scoreColor(score: number | null | undefined, t: Theme) {
@@ -41,12 +43,13 @@ function scoreBg(score: number | null | undefined, t: Theme) {
   return t.colors.surface2;
 }
 
-export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, streak, onPress, onChangePress, onShare }: Props) {
+export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, streak, onPress, onChangePress, onShare, onWeatherEnablePress }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const [imgFailed, setImgFailed] = useState(false);
 
   const showWeather = weather !== null && !weatherLoading;
+  const showWeatherEnable = !weather && !weatherLoading && !!onWeatherEnablePress;
   const showScore = typeof sotdScore === 'number' && !isNaN(sotdScore) && sotdScore >= 50;
   const showStreak = typeof streak === 'number' && streak >= 2;
   const scColor = scoreColor(sotdScore, theme);
@@ -59,7 +62,7 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, str
       : NIGHT_ICON[wmo.icon] ?? wmo.icon
     : null;
 
-  if (!weather && !sotd) return null;
+  if (!weather && !sotd && !showWeatherEnable) return null;
 
   return (
     <View style={s.line}>
@@ -79,6 +82,20 @@ export default function SOTDCard({ sotd, weather, weatherLoading, sotdScore, str
               <Text style={s.weatherLabel} numberOfLines={1}>{wmo.label}</Text>
             ) : null}
           </View>
+          {sotd ? <Text allowFontScaling={false} style={s.sep}>·</Text> : null}
+        </>
+      ) : showWeatherEnable ? (
+        <>
+          <Pressable
+            style={s.weatherEnableSeg}
+            onPress={onWeatherEnablePress}
+            hitSlop={{ top: 7, bottom: 7 }}
+            accessibilityRole="button"
+            accessibilityLabel="Activer la météo locale"
+          >
+            <Ionicons name="partly-sunny-outline" size={14} color={theme.colors.textMuted} accessible={false} />
+            <Text style={s.weatherEnableLabel} numberOfLines={1}>Météo</Text>
+          </Pressable>
           {sotd ? <Text allowFontScaling={false} style={s.sep}>·</Text> : null}
         </>
       ) : null}
@@ -184,6 +201,17 @@ function getStyles(t: Theme) {
       color: t.colors.textMuted,
       marginLeft: 2,
       maxWidth: 100,
+    },
+    weatherEnableSeg: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 4,
+      flexShrink: 0,
+    },
+    weatherEnableLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      color: t.colors.textMuted,
     },
     sep: {
       fontFamily: 'Inter_400Regular',

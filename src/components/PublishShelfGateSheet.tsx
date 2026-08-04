@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, BackHandler } from 'react-native';
+import { View, Text, Pressable, ScrollView, BackHandler, KeyboardAvoidingView } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
   useSharedValue,
@@ -71,7 +71,7 @@ export default function PublishShelfGateSheet({
   if (!mounted) return null;
 
   return (
-    <View style={s.wrapper}>
+    <KeyboardAvoidingView style={s.wrapper} behavior="padding">
       <Animated.View style={[s.backdrop, backdropStyle]}>
         <Pressable style={s.backdropTouch} onPress={onClose} />
       </Animated.View>
@@ -92,7 +92,7 @@ export default function PublishShelfGateSheet({
           </Pressable>
         </View>
 
-        <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <PublicProfileCard
             uid={uid}
             photoUrl={photoUrl}
@@ -119,7 +119,7 @@ export default function PublishShelfGateSheet({
           </Text>
         </Pressable>
       </Animated.View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

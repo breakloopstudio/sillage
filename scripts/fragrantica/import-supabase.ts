@@ -268,7 +268,7 @@ async function main(): Promise<void> {
   const cloud = args.includes('--target=cloud') || args.includes('--cloud');
 
   if (!fs.existsSync(INPUT_FILE)) {
-    throw new Error(`${INPUT_FILE} introuvable — lancer d'abord npm run export-firestore`);
+    throw new Error(`${INPUT_FILE} introuvable — générer d'abord le fichier NDJSON d'import`);
   }
 
   let importer: Importer;

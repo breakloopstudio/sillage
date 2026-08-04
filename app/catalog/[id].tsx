@@ -9,7 +9,12 @@ import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useAuthContext } from '../../src/contexts/AuthContext';
 import { getParfumById, getParfumsByIds, updateParfum, getSimilarParfums } from '../../src/services/catalog';
-import { consumePendingParfum, setPendingParfum } from '../../src/services/catalog-bridge';
+import {
+  consumePendingParfum,
+  setPendingParfum,
+  consumePendingVoiceAutoOpen,
+  setPendingVoiceResults,
+} from '../../src/services/catalog-bridge';
 import { hapticsLight } from '../../src/services/haptics';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
 import type { Parfum } from '../../src/models';
@@ -33,11 +38,13 @@ import { usePerfVotes } from '../../src/hooks/usePerfVotes';
 import TrySheet from '../../src/features/scentlist/TrySheet';
 import NoteDetailPopup from '../../src/components/NoteDetailPopup';
 import ImageViewerPopup from '../../src/components/ImageViewerPopup';
+import InfoPopup from '../../src/components/InfoPopup';
 import ParfumCard from '../../src/components/ParfumCard';
 import DetailHero from '../../src/features/catalog/DetailHero';
 import CollapsingHeader from '../../src/features/catalog/CollapsingHeader';
 import StickyBottomBar from '../../src/features/catalog/StickyBottomBar';
 import CommunityVerdicts, { VerdictProfilesSheet } from '../../src/features/catalog/CommunityVerdicts';
+import VoiceUndoBanner from '../../src/components/VoiceUndoBanner';
 import type { ParfumVerdict } from '../../src/services/community';
 
 // Décalage (px) avant lequel la barre flottante prend le relais du prix in-flow.
@@ -73,11 +80,20 @@ export default function CatalogDetailPage() {
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [selectedNote, setSelectedNote] = useState<{ name: string; layer: 'top' | 'heart' | 'base' | null } | null>(null);
   const [pending] = useState<Parfum | null>(() => consumePendingParfum());
+  // Auto-ouverture vocale : payload posé par SearchChrome/search avant router.push.
+  // ⚠️ Consommation destructive dans l'initialiseur : sans StrictMode dans l'app
+  // (vérifié), un double-render consommerait le payload au 1er appel.
+  const [voiceAlt] = useState<{ query: string; results: Parfum[] } | null>(() => {
+    const p = id ? consumePendingVoiceAutoOpen(id) : null;
+    return p ? { query: p.query, results: p.results } : null;
+  });
+  const [voiceBannerVisible, setVoiceBannerVisible] = useState(voiceAlt !== null);
   const [imgFailed, setImgFailed] = useState(false);
   const [similars, setSimilars] = useState<Parfum[]>([]);
   const [similarsLoading, setSimilarsLoading] = useState(false);
   const [verdictProfiles, setVerdictProfiles] = useState<ParfumVerdict[]>([]);
   const [showVerdictSheet, setShowVerdictSheet] = useState(false);
+  const [affiliateInfoOpen, setAffiliateInfoOpen] = useState(false);
   const scrollY = useSharedValue(0);
   const priceSectionY = useSharedValue(9999);
   const priceSectionRef = useRef<View>(null);
@@ -236,6 +252,16 @@ export default function CatalogDetailPage() {
   const handleImageViewerClose = useCallback(() => setShowImageViewer(false), []);
   const handleOpenVerdictProfiles = useCallback((v: ParfumVerdict[]) => { setVerdictProfiles(v); setShowVerdictSheet(true); }, []);
   const handleCloseVerdictSheet = useCallback(() => setShowVerdictSheet(false), []);
+  const handleOpenAffiliateInfo = useCallback(() => { hapticsLight(); setAffiliateInfoOpen(true); }, []);
+  const handleCloseAffiliateInfo = useCallback(() => setAffiliateInfoOpen(false), []);
+
+  // Bannière vocale : ramène aux résultats voix (SearchChrome les restaure au focus).
+  const handleVoiceBannerPress = useCallback(() => {
+    if (voiceAlt) setPendingVoiceResults(voiceAlt.query, voiceAlt.results);
+    setVoiceBannerVisible(false);
+    router.back();
+  }, [voiceAlt, router]);
+  const handleVoiceBannerDismiss = useCallback(() => setVoiceBannerVisible(false), []);
 
   const heroUrl = parfum?.imageUrl ?? null;
   const heroUrl2x = parfum?.imageUrl2x ?? null;
@@ -325,9 +351,15 @@ export default function CatalogDetailPage() {
                     large
                   />
                   {parfum.purchaseUrl ? (
-                    <Button variant="primary" onPress={handlePurchasePress} icon="cart-outline" style={s.buyBtn}>
-                      Voir l'offre
-                    </Button>
+                    <>
+                      <Button variant="primary" onPress={handlePurchasePress} icon="cart-outline" style={s.buyBtn}>
+                        Voir l'offre
+                      </Button>
+                      <Pressable style={s.affiliateCaption} onPress={handleOpenAffiliateInfo} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel="À propos des liens partenaires">
+                        <Text style={s.affiliateCaptionText}>Lien partenaire · comment ça marche</Text>
+                        <Ionicons name="information-circle-outline" size={13} color={t.colors.textMuted} />
+                      </Pressable>
+                    </>
                   ) : null}
                 </View>
               ) : null}
@@ -356,7 +388,7 @@ export default function CatalogDetailPage() {
                     >
                       <View style={s.offerLeft}>
                         <Text style={s.offerMerchant}>{offer.marchand}</Text>
-                        {offer.volumeMl ? <Text style={s.offerVolume}>{offer.volumeMl} ml</Text> : null}
+                        {offer.volumeMl ? <Text style={s.offerVolume}>{offer.volumeMl} ml</Text> : null}
                       </View>
                       <View style={s.offerRight}>
                         <Text style={s.offerPrice}>{formatPrice(offer.prix, { decimals: 0 })}</Text>
@@ -366,6 +398,10 @@ export default function CatalogDetailPage() {
                       </View>
                     </Pressable>
                   ))}
+                  <Pressable style={s.affiliateCaption} onPress={handleOpenAffiliateInfo} hitSlop={{ top: 4, bottom: 4 }} accessibilityRole="button" accessibilityLabel="À propos des liens partenaires">
+                    <Text style={s.affiliateCaptionText}>Liens partenaires · comment ça marche</Text>
+                    <Ionicons name="information-circle-outline" size={13} color={t.colors.textMuted} />
+                  </Pressable>
                 </View>
               ) : null}
             </View>
@@ -568,12 +604,28 @@ export default function CatalogDetailPage() {
         verdicts={verdictProfiles}
         onClose={handleCloseVerdictSheet}
       />
+      <InfoPopup
+        visible={affiliateInfoOpen}
+        title="Liens partenaires"
+        message="Quand tu achètes via un lien « Voir l'offre », le marchand peut nous reverser une petite commission, sans aucun surcoût pour toi. C'est ce qui finance Sillage et nous permet de rester indépendants. Les prix et le classement ne sont jamais influencés."
+        icon="handshake-outline"
+        onClose={handleCloseAffiliateInfo}
+      />
     </>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.background }}>
       {content}
+      {/* bottomOffset 84 = hauteur barre flottante (padding 12 + inner ~60) + marge 12 */}
+      <VoiceUndoBanner
+        visible={voiceBannerVisible && voiceAlt !== null}
+        label="Ce n'est pas lui ?"
+        actionLabel="Voir les autres"
+        onPress={handleVoiceBannerPress}
+        onDismiss={handleVoiceBannerDismiss}
+        bottomOffset={insets.bottom + 84}
+      />
     </View>
   );
 }
@@ -595,6 +647,8 @@ function getStyles(t: Theme) {
   // ─── Prix ───
   dealSection: { marginBottom: 8, gap: 10 },
   buyBtn: { marginTop: 2 },
+  affiliateCaption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4, minHeight: 30 },
+  affiliateCaptionText: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted },
   // ─── Sections ──
   infoZone: { marginTop: 24, gap: 8 },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },

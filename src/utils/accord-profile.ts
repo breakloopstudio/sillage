@@ -89,3 +89,10 @@ export function buildAccords(
     .slice(0, 5)
     .map(m => ({ ...m, pct: m.pct as number }));
 }
+
+export function ribbonWidths(rows: AccordRow[]): number[] {
+  if (rows.length === 0) return [];
+  const total = rows.reduce((sum, r) => sum + r.pct, 0);
+  if (total <= 0) return rows.map(() => 100 / rows.length);
+  return rows.map(r => (r.pct / total) * 100);
+}

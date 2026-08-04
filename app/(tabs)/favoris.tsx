@@ -27,6 +27,9 @@ import AuthGate from '../../src/components/AuthGate';
 import ParfumCard from '../../src/components/ParfumCard';
 import FavoriSheet from '../../src/components/FavoriSheet';
 import PriceAlertSheet from '../../src/components/PriceAlertSheet';
+import PermissionPrimer from '../../src/components/PermissionPrimer';
+import { usePushPrimer } from '../../src/hooks/usePushPrimer';
+import { PERMISSION_PRIMERS } from '../../src/utils/permission-primers';
 import type { UserFavori, Parfum } from '../../src/models';
 import type { UserParfumStatus } from '../../src/models/user-parfum.interface';
 
@@ -105,6 +108,7 @@ export default function FavorisPage() {
   const { favoris, removeFavori } = useFavorisContext();
   const { items, loading: upLoading, add, update, statusByParfumId } = useUserParfumContext();
   const { alerts, byParfumId, setAlert } = usePriceAlertsContext();
+  const pushPrimer = usePushPrimer(uid);
   const { density, setDensity } = useDensityPreference();
   const { scrollY, resetDock } = useNavigationChrome();
 
@@ -265,12 +269,15 @@ export default function FavorisPage() {
         } else {
           await setAlert(alertTarget.parfumId, true, { targetPrice });
         }
+        // Moment de valeur : l'utilisateur vient de créer/activer une alerte →
+        // proposer les notifications (jamais de prompt à froid, primer 1 fois).
+        void pushPrimer.propose();
       } else {
         await setAlert(alertTarget.parfumId, false);
       }
     } catch { hapticsError(); }
     setAlertTarget(null);
-  }, [alertTarget, byParfumId, setAlert]);
+  }, [alertTarget, byParfumId, setAlert, pushPrimer]);
 
   const handleAlertCardPress = useCallback((row: AlertRow) => {
     setAlertTarget({
@@ -287,6 +294,64 @@ export default function FavorisPage() {
     hapticsLight();
     router.push(`/catalog/${row.parfumId}`);
   }, [router]);
+
+  const renderAlertItem = useCallback(({ item: row }: { item: AlertRow }) => {
+    const tier = priceTier(row.currentPrice, row.referencePrice);
+    const dropAbs = priceAlertDropAbs(row.initialPrice, row.currentPrice);
+    const state = priceAlertState(row.targetPrice, row.currentPrice);
+    const tierLabel = tier === 'deal' ? ', bonne affaire' : tier === 'fair' ? ', prix correct' : tier === 'overpriced' ? ', trop cher' : '';
+    const stateLabel = state === 'reached' ? ', objectif atteint' : state === 'near' ? ', bientôt à ta cible' : row.variation != null ? `, ${formatVariation(row.variation)}` : ', en veille';
+    const a11y = `${row.marque} ${row.nom}${row.currentPrice != null ? `, ${formatPrice(row.currentPrice, { decimals: 0 })}` : ''}${tierLabel}${stateLabel}`;
+    return (
+      <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} onLongPress={() => handleAlertLongPress(row)} accessibilityRole="button" accessibilityLabel={a11y}>
+        {row.imageUrl ? (
+          <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} cachePolicy="memory-disk" recyclingKey={row.parfumId} />
+        ) : (
+          <View style={[s.alertImg, s.alertImgPlaceholder]}>
+            <Ionicons name="flask-outline" size={18} color={theme.colors.textMuted} />
+          </View>
+        )}
+        <View style={s.alertBody}>
+          <Text style={s.alertBrand} numberOfLines={1}>{row.marque}</Text>
+          <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
+          <View style={s.alertPriceRow}>
+            {tier ? <View style={[s.alertPriceDot, { backgroundColor: theme.colors[tier] }]} accessible={false} /> : null}
+            {row.currentPrice != null ? <Text style={s.alertPrice} allowFontScaling={false}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
+            {row.referencePrice != null && row.referencePrice !== row.currentPrice ? <Text style={s.alertRef} allowFontScaling={false}>{formatPrice(row.referencePrice, { decimals: 0 })}</Text> : null}
+          </View>
+          {(row.variation != null || (dropAbs != null && dropAbs !== 0)) ? (
+            <View style={s.alertChipRow}>
+              {row.variation != null ? (
+                <View style={[s.alertVarChip, { backgroundColor: row.variation < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+                  <Text style={[s.alertVarText, { color: row.variation < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
+                </View>
+              ) : null}
+              {dropAbs != null && dropAbs !== 0 ? (
+                <View style={[s.alertVarChip, { backgroundColor: dropAbs < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+                  <Text style={[s.alertVarText, { color: dropAbs < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{dropAbs < 0 ? `−${formatPrice(Math.abs(dropAbs), { decimals: 0 })}` : `+${formatPrice(dropAbs, { decimals: 0 })}`}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          {state === 'reached' ? (
+            <View style={[s.alertStateChip, { backgroundColor: theme.colors.dealSoft }]}>
+              <Ionicons name="checkmark-circle-outline" size={12} color={theme.colors.dealInk} accessible={false} />
+              <Text style={[s.alertStateText, { color: theme.colors.dealInk }]} allowFontScaling={false}>Objectif atteint</Text>
+            </View>
+          ) : state === 'near' ? (
+            <View style={[s.alertStateChip, { backgroundColor: theme.colors.fairSoft }]}>
+              <Ionicons name="trending-down-outline" size={12} color={theme.colors.fairInk} accessible={false} />
+              <Text style={[s.alertStateText, { color: theme.colors.fairInk }]} allowFontScaling={false}>Bientôt à ta cible</Text>
+            </View>
+          ) : row.targetPrice != null ? (
+            <Text style={s.alertCaption}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text>
+          ) : (
+            <Text style={s.alertCaption}>Surveille les baisses</Text>
+          )}
+        </View>
+      </Pressable>
+    );
+  }, [s, theme, handleAlertCardPress, handleAlertLongPress]);
 
   const handlePillTap = useCallback((pill: FavPillId) => { hapticsLight(); setActivePill(pill); }, []);
   const handleSelectView = useCallback((v: FavorisView) => { hapticsLight(); setSearchQuery(''); setReachedOnly(false); setViewPref(v); resetDock(); }, [setViewPref, resetDock]);
@@ -507,63 +572,7 @@ export default function FavorisPage() {
               </View>
             )
           }
-          renderItem={({ item: row }) => {
-            const tier = priceTier(row.currentPrice, row.referencePrice);
-            const dropAbs = priceAlertDropAbs(row.initialPrice, row.currentPrice);
-            const state = priceAlertState(row.targetPrice, row.currentPrice);
-            const tierLabel = tier === 'deal' ? ', bonne affaire' : tier === 'fair' ? ', prix correct' : tier === 'overpriced' ? ', trop cher' : '';
-            const stateLabel = state === 'reached' ? ', objectif atteint' : state === 'near' ? ', bientôt à ta cible' : row.variation != null ? `, ${formatVariation(row.variation)}` : ', en veille';
-            const a11y = `${row.marque} ${row.nom}${row.currentPrice != null ? `, ${formatPrice(row.currentPrice, { decimals: 0 })}` : ''}${tierLabel}${stateLabel}`;
-            return (
-              <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} onLongPress={() => handleAlertLongPress(row)} accessibilityRole="button" accessibilityLabel={a11y}>
-                {row.imageUrl ? (
-                  <Image source={{ uri: row.imageUrl }} style={s.alertImg} contentFit="contain" transition={200} cachePolicy="memory-disk" recyclingKey={row.parfumId} />
-                ) : (
-                  <View style={[s.alertImg, s.alertImgPlaceholder]}>
-                    <Ionicons name="flask-outline" size={18} color={theme.colors.textMuted} />
-                  </View>
-                )}
-                <View style={s.alertBody}>
-                  <Text style={s.alertBrand} numberOfLines={1}>{row.marque}</Text>
-                  <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
-                  <View style={s.alertPriceRow}>
-                    {tier ? <View style={[s.alertPriceDot, { backgroundColor: theme.colors[tier] }]} accessible={false} /> : null}
-                    {row.currentPrice != null ? <Text style={s.alertPrice} allowFontScaling={false}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
-                    {row.referencePrice != null && row.referencePrice !== row.currentPrice ? <Text style={s.alertRef} allowFontScaling={false}>{formatPrice(row.referencePrice, { decimals: 0 })}</Text> : null}
-                  </View>
-                  {(row.variation != null || (dropAbs != null && dropAbs !== 0)) ? (
-                    <View style={s.alertChipRow}>
-                      {row.variation != null ? (
-                        <View style={[s.alertVarChip, { backgroundColor: row.variation < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                          <Text style={[s.alertVarText, { color: row.variation < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{formatVariation(row.variation)}</Text>
-                        </View>
-                      ) : null}
-                      {dropAbs != null && dropAbs !== 0 ? (
-                        <View style={[s.alertVarChip, { backgroundColor: dropAbs < 0 ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                          <Text style={[s.alertVarText, { color: dropAbs < 0 ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{dropAbs < 0 ? `−${formatPrice(Math.abs(dropAbs), { decimals: 0 })}` : `+${formatPrice(dropAbs, { decimals: 0 })}`}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : null}
-                  {state === 'reached' ? (
-                    <View style={[s.alertStateChip, { backgroundColor: theme.colors.dealSoft }]}>
-                      <Ionicons name="checkmark-circle-outline" size={12} color={theme.colors.dealInk} accessible={false} />
-                      <Text style={[s.alertStateText, { color: theme.colors.dealInk }]} allowFontScaling={false}>Objectif atteint</Text>
-                    </View>
-                  ) : state === 'near' ? (
-                    <View style={[s.alertStateChip, { backgroundColor: theme.colors.fairSoft }]}>
-                      <Ionicons name="trending-down-outline" size={12} color={theme.colors.fairInk} accessible={false} />
-                      <Text style={[s.alertStateText, { color: theme.colors.fairInk }]} allowFontScaling={false}>Bientôt à ta cible</Text>
-                    </View>
-                  ) : row.targetPrice != null ? (
-                    <Text style={s.alertCaption}>Cible {formatPrice(row.targetPrice, { decimals: 0 })}</Text>
-                  ) : (
-                    <Text style={s.alertCaption}>Surveille les baisses</Text>
-                  )}
-                </View>
-              </Pressable>
-            );
-          }}
+          renderItem={renderAlertItem}
         />
       )}
 
@@ -592,6 +601,13 @@ export default function FavorisPage() {
         existingAlert={alertExisting}
         onClose={() => setAlertTarget(null)}
         onSave={handleAlertSave}
+      />
+
+      <PermissionPrimer
+        visible={pushPrimer.visible}
+        copy={PERMISSION_PRIMERS.push}
+        onAccept={pushPrimer.accept}
+        onDecline={pushPrimer.decline}
       />
     </SafeAreaView>
   );

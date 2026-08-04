@@ -3,14 +3,31 @@
 // Mêmes contrôles de densité que la grille catalogue
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, TextInput, FlatList, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, FlatList, ScrollView, Pressable, ActivityIndicator, StyleSheet, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useCatalog } from '../src/hooks/useCatalog';
-import { useVoiceSearch, type VoiceState, type VoiceResult } from '../src/hooks/useVoiceSearch';
-import { transcribeVoice } from '../src/services/voice-search';
+import { useVoiceSearch, type VoiceState, type VoiceResult, type VoiceErrorCode } from '../src/hooks/useVoiceSearch';
+import { usePermissionPrimer } from '../src/hooks/usePermissionPrimer';
+import { PERMISSION_PRIMERS } from '../src/utils/permission-primers';
+import PermissionPrimer from '../src/components/PermissionPrimer';
+import {
+  transcribeVoice,
+  identifyFromVoice,
+  readVoiceAudioBase64,
+  mimeFromAudioUri,
+  voiceNeedsSecondChance,
+  pickBetterVoiceOutcome,
+  type VoiceIdentifyOutcome,
+} from '../src/services/voice-search';
+import {
+  setPendingVoiceAutoOpen,
+  consumePendingVoiceResults,
+  consumePendingCatalogQuery,
+  setPendingParfum,
+} from '../src/services/catalog-bridge';
 import { getParfumsByFamily, getPopularParfums, getPersonalizedSuggestions, getSeasonalParfums, getSuggestionIndex } from '../src/services/catalog';
 import { getFamilyByKey } from '../src/utils/olfactory-families';
 import { buildSuggestionIndex, matchSuggestions, type SuggestionIndex, type SuggestionTerm } from '../src/utils/suggest';
@@ -19,9 +36,8 @@ import CatalogRow from '../src/features/catalog/CatalogRow';
 import { TOP_BRANDS } from '../src/features/catalog/BrandCapsules';
 import { useAuthContext } from '../src/contexts/AuthContext';
 import { currentSeason, SEASON_META } from '../src/utils/season';
-import { hapticsLight, hapticsError } from '../src/services/haptics';
+import { hapticsLight, hapticsError, hapticsSuccess } from '../src/services/haptics';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
-import { consumePendingCatalogQuery, setPendingParfum } from '../src/services/catalog-bridge';
 import { useDensityPreference, GRID_MODES } from '../src/hooks/useDensityPreference';
 import { useNetwork } from '../src/hooks/useNetwork';
 import { textOn } from '../src/utils/contrast';
@@ -86,7 +102,11 @@ export default function SearchScreen() {
   const inputRef = useRef<TextInput>(null);
   const [searchText, setSearchText] = useState(() => familyDef?.label ?? initialQuery ?? '');
   const recentLoadedRef = useRef(false);
-  const { parfums, searching, error, search, clear } = useCatalog();
+  const { parfums, searching, error, search, clear, inject } = useCatalog();
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceErrorCode, setVoiceErrorCode] = useState<VoiceErrorCode | null>(null);
+  const [voiceSearching, setVoiceSearching] = useState(false);
+  const voiceRequestIdRef = useRef(0);
   const [familyResults, setFamilyResults] = useState<Parfum[] | null>(familyDef ? [] : null);
   const [familyLoading, setFamilyLoading] = useState(!!familyDef);
   const { density: searchDensity, setDensity: setSearchDensity } = useDensityPreference();
@@ -100,30 +120,121 @@ export default function SearchScreen() {
   const [discoverLabel, setDiscoverLabel] = useState(discoverStore.label);
   const [suggestIndex, setSuggestIndex] = useState<SuggestionIndex>(suggestStore.index);
 
-  const handleVoiceResult = useCallback(async (result: VoiceResult) => {
-    if (result.text) {
-      setSearchText(result.text);
-      search(result.text.trim());
-      return;
-    }
-    if (result.audioBase64) {
-      try {
-        const whisperText = await transcribeVoice(result.audioBase64, 'audio/wav');
-        if (whisperText.trim()) {
-          setSearchText(whisperText);
-          search(whisperText.trim());
-        }
-      } catch { /* silent — user sees existing results or empty state */ }
-    }
-  }, [search]);
+  const persistRecent = useCallback((term: string) => {
+    const t = term.trim();
+    if (!t || t.length < 2) return;
+    recentLoadedRef.current = true;
+    recentStore.items = [t, ...recentStore.items.filter(x => x.toLowerCase() !== t.toLowerCase())].slice(0, 5);
+    setRecentSearches(recentStore.items);
+    saveRecentToStorage(recentStore.items);
+  }, []);
 
-  const handleVoiceError = useCallback((msg: string) => {
-    console.warn('[search] voice error:', msg);
+  // Auto-ouverture vocale : match confiant → fiche directe (+ bannière « Ce n'est pas lui ? »).
+  const openVoiceAutoOpen = useCallback((outcome: VoiceIdentifyOutcome) => {
+    const top = outcome.autoOpen;
+    if (!top) return;
+    setPendingParfum(top);
+    setPendingVoiceAutoOpen({ parfumId: top.id, query: outcome.query, results: outcome.results });
+    // Recherche récente = le parfum trouvé, pas le transcript potentiellement
+    // écorché (« dire à Casa ») récupéré phonétiquement.
+    const recent = [top.marque, top.nom].filter(Boolean).join(' ');
+    persistRecent(recent || outcome.query);
+    hapticsSuccess();
+    router.push(`/catalog/${top.id}`);
+  }, [persistRecent, router]);
+
+  const handleVoiceResult = useCallback(async (result: VoiceResult) => {
+    const transcript = result.text?.trim() ?? '';
+    const requestId = ++voiceRequestIdRef.current;
+    setVoiceSearching(true);
+    try {
+      if (transcript) {
+        setVoiceError(null);
+        const outcome = await identifyFromVoice(transcript, { isAuthenticated, alternatives: result.alternatives });
+        if (requestId !== voiceRequestIdRef.current) return;
+
+        // Seconde chance gatée sur la QUALITÉ du match (pas le nombre de
+        // résultats) : un transcript écorché renvoie presque toujours « quelque
+        // chose » en trgm — c'est la confiance qui décide de re-transcrire.
+        let best = outcome;
+        if (voiceNeedsSecondChance(outcome) && result.audioUri && isAuthenticated) {
+          const base64 = await readVoiceAudioBase64(result.audioUri);
+          if (requestId !== voiceRequestIdRef.current) return;
+          if (base64) {
+            try {
+              const whisperText = (await transcribeVoice(base64, mimeFromAudioUri(result.audioUri))).trim();
+              if (requestId !== voiceRequestIdRef.current) return;
+              if (whisperText && whisperText.toLowerCase() !== transcript.toLowerCase()) {
+                const retry = await identifyFromVoice(whisperText, { isAuthenticated });
+                if (requestId !== voiceRequestIdRef.current) return;
+                best = pickBetterVoiceOutcome(outcome, retry);
+              }
+            } catch (e: unknown) {
+              // Échec de la re-transcription → repli sur le premier passage.
+              if (__DEV__) console.warn('[voice] second chance failed:', (e as Error)?.message ?? String(e));
+            }
+          }
+        }
+
+        if (best.results.length > 0) {
+          if (best.autoOpen) { openVoiceAutoOpen(best); return; }
+          setSearchText(best.query);
+          setFamilyResults(null);
+          inject(best.results);
+          return;
+        }
+
+        setSearchText(best.query);
+        setFamilyResults(null);
+        inject([]);
+      } else if (result.audioBase64) {
+        // Pas de transcript on-device → Whisper d'abord (voie historique).
+        const whisperText = (await transcribeVoice(result.audioBase64, mimeFromAudioUri(result.audioUri ?? ''))).trim();
+        if (requestId !== voiceRequestIdRef.current) return;
+        if (whisperText) {
+          const outcome = await identifyFromVoice(whisperText, { isAuthenticated });
+          if (requestId !== voiceRequestIdRef.current) return;
+          if (outcome.autoOpen) { openVoiceAutoOpen(outcome); return; }
+          setSearchText(outcome.query);
+          setFamilyResults(null);
+          inject(outcome.results);
+        }
+      }
+    } catch (err: unknown) {
+      if (requestId !== voiceRequestIdRef.current) return;
+      setVoiceError((err as Error)?.message || 'La recherche vocale a échoué.');
+    } finally {
+      // Reset inconditionnel : si l'utilisateur tape pendant le pipeline, le
+      // requestId change et le reset conditionnel ne tournerait jamais →
+      // voiceSearching resterait true à vie (micro désactivé). Aucun nouveau
+      // pipeline voix ne peut démarrer tant que voiceSearching est true.
+      setVoiceSearching(false);
+    }
+  }, [isAuthenticated, inject, openVoiceAutoOpen]);
+
+  const handleVoiceError = useCallback((msg: string, code?: VoiceErrorCode) => {
+    setVoiceError(msg || 'Erreur de reconnaissance vocale.');
+    setVoiceErrorCode(code ?? null);
   }, []);
 
   const voiceSearch = useVoiceSearch(handleVoiceResult, handleVoiceError);
+  const micPrimer = usePermissionPrimer('mic');
 
   const voiceState: VoiceState = voiceSearch.state;
+
+  // Retour de la bannière « Ce n'est pas lui ? » (fiche → ici) : restaurer les
+  // résultats vocaux dans la grille au focus.
+  useFocusEffect(
+    useCallback(() => {
+      const pending = consumePendingVoiceResults();
+      if (pending && pending.results.length > 0) {
+        setVoiceError(null);
+        setFamilyResults(null);
+        setSearchText(pending.query);
+        inject(pending.results);
+      }
+    }, [inject]),
+  );
 
   useEffect(() => {
     if (voiceState === 'listening') {
@@ -214,8 +325,11 @@ export default function SearchScreen() {
   }, [initialQuery, familyDef]);
 
   const handleTextChange = useCallback((t: string) => {
+    voiceRequestIdRef.current++;
     setSearchText(t);
     setFamilyResults(null);
+    setVoiceError(null);
+    setVoiceErrorCode(null);
     if (voiceState !== 'idle') voiceSearch.cancel();
     t.trim().length >= 2 ? search(t) : clear();
   }, [search, clear, voiceState, voiceSearch]);
@@ -227,19 +341,34 @@ export default function SearchScreen() {
     }
     if (voiceState === 'listening' || voiceState === 'processing') {
       voiceSearch.stop();
-    } else {
-      clear();
-      voiceSearch.start();
+      return;
     }
-  }, [isOnline, voiceState, voiceSearch, clear, handleVoiceError]);
+    if (micPrimer.needsPrimer) {
+      micPrimer.open();
+      return;
+    }
+    voiceRequestIdRef.current++;
+    setVoiceError(null);
+    setVoiceErrorCode(null);
+    clear();
+    voiceSearch.start();
+  }, [isOnline, voiceState, voiceSearch, clear, handleVoiceError, micPrimer]);
 
-  const persistRecent = useCallback((term: string) => {
-    const t = term.trim();
-    if (!t || t.length < 2) return;
-    recentLoadedRef.current = true;
-    recentStore.items = [t, ...recentStore.items.filter(x => x.toLowerCase() !== t.toLowerCase())].slice(0, 5);
-    setRecentSearches(recentStore.items);
-    saveRecentToStorage(recentStore.items);
+  const handleMicPrimerAccept = useCallback(() => {
+    micPrimer.accept();
+    voiceRequestIdRef.current++;
+    setVoiceError(null);
+    setVoiceErrorCode(null);
+    clear();
+    voiceSearch.start();
+  }, [micPrimer, clear, voiceSearch]);
+
+  const handleMicPrimerDecline = useCallback(() => {
+    micPrimer.decline();
+  }, [micPrimer]);
+
+  const handleOpenSystemSettings = useCallback(() => {
+    Linking.openSettings().catch(() => {});
   }, []);
 
   const handleResultPress = useCallback((item: Parfum) => {
@@ -334,16 +463,33 @@ export default function SearchScreen() {
             onPress={handleVoiceToggle}
             hitSlop={8}
             style={s.micBtn}
-            disabled={voiceState === 'processing'}
+            disabled={voiceState === 'processing' || voiceSearching}
           >
-            <Ionicons
-              name={voiceState === 'listening' ? 'mic' : 'mic-outline'}
-              size={18}
-              color={voiceState === 'listening' ? theme.colors.primary : theme.colors.textMuted}
-            />
+            {voiceSearching ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : (
+              <Ionicons
+                name={voiceState === 'listening' ? 'mic' : 'mic-outline'}
+                size={18}
+                color={voiceState === 'listening' ? theme.colors.primary : theme.colors.textMuted}
+              />
+            )}
           </Pressable>
           {searchText.length > 0 && (
-            <Pressable onPress={() => { setSearchText(''); setFamilyResults(null); clear(); }} hitSlop={8}>
+            <Pressable
+              onPress={() => {
+                // Invalide le pipeline voix en cours (sinon il peut aboutir
+                // après le clear et ré-injecter texte + résultats).
+                voiceRequestIdRef.current++;
+                if (voiceState !== 'idle') voiceSearch.cancel();
+                setSearchText('');
+                setFamilyResults(null);
+                setVoiceError(null);
+                clear();
+              }}
+              hitSlop={8}
+              accessibilityLabel="Effacer la recherche"
+            >
               <Ionicons name="close-circle" size={18} color={theme.colors.textMuted} />
             </Pressable>
           )}
@@ -500,11 +646,16 @@ export default function SearchScreen() {
                 maxToRenderPerBatch={10}
               />
             </>
-          ) : error && !inFamilyMode ? (
+          ) : (error || voiceError) && !inFamilyMode ? (
             <View style={s.errorContainer}>
               <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.primary} style={{ marginBottom: 12 }} />
-              <Text style={s.errorTitle}>Impossible de rechercher</Text>
-              <Text style={s.errorDesc}>{error}</Text>
+              <Text style={s.errorTitle}>{voiceErrorCode === 'mic-denied-permanent' ? 'Micro désactivé' : 'Impossible de rechercher'}</Text>
+              <Text style={s.errorDesc}>{error ?? voiceError}</Text>
+              {voiceErrorCode === 'mic-denied-permanent' ? (
+                <Pressable style={s.errorSettingsBtn} onPress={handleOpenSystemSettings} accessibilityRole="button" accessibilityLabel="Ouvrir les réglages">
+                  <Text style={s.errorSettingsBtnText}>Ouvrir les réglages</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : !isSearching && (inFamilyMode || searchText.length >= 2) ? (
             <View style={s.empty}>
@@ -515,6 +666,13 @@ export default function SearchScreen() {
           ) : null}
         </>
       )}
+
+      <PermissionPrimer
+        visible={micPrimer.visible}
+        copy={PERMISSION_PRIMERS.mic}
+        onAccept={handleMicPrimerAccept}
+        onDecline={handleMicPrimerDecline}
+      />
     </SafeAreaView>
   );
 }
@@ -729,6 +887,21 @@ function getStyles(t: Theme) {
       textAlign: 'center',
       lineHeight: 20,
       marginTop: 8,
+    },
+    errorSettingsBtn: {
+      marginTop: 16,
+      borderWidth: 1.5,
+      borderColor: t.colors.primary,
+      borderRadius: t.radius.base,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    errorSettingsBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      color: t.colors.primary,
     },
     emptyTitle: {
       fontFamily: 'PlayfairDisplay_600SemiBold',

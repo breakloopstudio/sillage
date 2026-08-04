@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, Modal, ScrollView, KeyboardAvoidingView } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -98,7 +98,7 @@ export default function SaveSheet({
         <Animated.View style={[s.backdrop, backdropStyle]}>
           <Pressable style={s.backdropTouch} onPress={requestClose} />
         </Animated.View>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.kav}>
+        <KeyboardAvoidingView behavior="padding" style={s.kav}>
           <Animated.View style={[s.sheet, { paddingBottom: insets.bottom + 16 }, sheetStyle]}>
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <View style={s.handle} />

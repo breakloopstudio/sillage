@@ -38,7 +38,6 @@ import RunnerPickups from './RunnerPickups';
 import RunnerSpeedLines from './RunnerSpeedLines';
 import RunnerParticles from './RunnerParticles';
 import RunnerHud from './RunnerHud';
-import RunnerCombo from './RunnerCombo';
 import { useRunnerSounds } from './runner-sounds';
 import {
   getMissionTiers, saveMissionTiers, evaluateMissionTiers, nextObjective,
@@ -52,17 +51,13 @@ import {
   DOUBLE_JUMP_VELOCITY,
   PALETTES,
   PICKUP_DEFS,
-  RUNNER_PHASES,
   PX_PER_METER,
-  DUCK_DURATION,
   MAX_LIVES,
 } from './runner-types';
 
 interface Props {
   onClose: () => void;
 }
-
-const MILESTONES = [500, 1000, 2000, 3000];
 
 // Mapping des notes collectées (clés pickups) vers les noms de notes du catalogue (EN),
 // pour suggérer un vrai parfum dont l'accord ressemble à la course.
@@ -113,7 +108,7 @@ function getStyles(topInset: number, bottomInset: number) {
       left: 12,
       flexDirection: 'row' as const,
       gap: 6,
-      zIndex: 100,
+      zIndex: 300,
     },
     topBtn: {
       width: 36,
@@ -126,6 +121,7 @@ function getStyles(topInset: number, bottomInset: number) {
       ...StyleSheet.absoluteFill,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
+      zIndex: 200,
     },
     title: {
       fontFamily: 'PlayfairDisplay_700Bold',
@@ -176,6 +172,7 @@ function getStyles(topInset: number, bottomInset: number) {
       alignItems: 'center' as const,
       backgroundColor: 'rgba(11,7,18,0.75)',
       paddingBottom: bottomInset + 24,
+      zIndex: 200,
     },
     goTitle: {
       fontFamily: 'PlayfairDisplay_700Bold',
@@ -409,31 +406,6 @@ function getStyles(topInset: number, bottomInset: number) {
       fontSize: 14,
       color: '#D4A960',
     },
-    phaseBanner: {
-      position: 'absolute' as const,
-      top: topInset + 104,
-      alignSelf: 'center' as const,
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 6,
-      backgroundColor: 'rgba(21,16,30,0.85)',
-      borderWidth: 1,
-      borderColor: 'rgba(212,169,96,0.4)',
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      borderRadius: 20,
-      zIndex: 45,
-    },
-    phaseBannerEmoji: {
-      fontSize: 13,
-    },
-    phaseBannerText: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 12,
-      color: '#D4A960',
-      letterSpacing: 1,
-      textTransform: 'uppercase' as const,
-    },
     goFlash: {
       fontFamily: 'PlayfairDisplay_700Bold',
       fontSize: 64,
@@ -449,13 +421,6 @@ interface PopupEntry {
   text: string;
   combo: number;
 }
-
-const MILESTONE_LABELS: Record<number, string> = {
-  500: 'Nez confirmé',
-  1000: 'Expert olfactif',
-  2000: 'Maître parfumeur',
-  3000: 'Légende',
-};
 
 function FloatingPopup({ entry, onDone, reduceMotion }: { entry: PopupEntry; onDone: (id: number) => void; reduceMotion: boolean }) {
   const opacity = useSharedValue(1);
@@ -553,7 +518,6 @@ export default function RunnerGame({ onClose }: Props) {
     speedLineOffset, palettePhase,
     frameCallback, resetGame,
     lastCollectedPickup,
-    airCombo,
     popupTrigger,
     popupBonus,
     popupCombo,
@@ -572,7 +536,6 @@ export default function RunnerGame({ onClose }: Props) {
     crackTrigger,
     lastTapTime,
     bufferJumpTrigger,
-    duckUntil,
     feverGauge,
     feverUntil,
     feverStartTrigger,
@@ -611,9 +574,6 @@ export default function RunnerGame({ onClose }: Props) {
   const [popups, setPopups] = useState<PopupEntry[]>([]);
   const popupIdRef = useRef(0);
 
-  const [milestone, setMilestone] = useState('');
-  const milestoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const [unlockedKeys, setUnlockedKeys] = useState<string[]>(['default']);
   const [selectedKey, setSelectedKeyState] = useState<string>('default');
   const skin = useMemo(() => SKINS.find(sk => sk.key === selectedKey) ?? SKINS[0], [selectedKey]);
@@ -627,8 +587,6 @@ export default function RunnerGame({ onClose }: Props) {
   const [showGo, setShowGo] = useState(false);
   const [finalStats, setFinalStats] = useState({ distance: 0, maxCombo: 0, nearMiss: 0 });
   const [newSkinLabels, setNewSkinLabels] = useState<string[]>([]);
-  const [phaseBanner, setPhaseBanner] = useState<{ label: string; emoji: string } | null>(null);
-  const phaseBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [freshTiers, setFreshTiers] = useState<FreshTier[]>([]);
   const [nextObj, setNextObj] = useState<NextObjective | null>(null);
 
@@ -763,14 +721,6 @@ export default function RunnerGame({ onClose }: Props) {
     },
   );
 
-  const handleMilestone = useCallback((label: string) => {
-    setMilestone(label);
-    if (milestoneTimer.current) clearTimeout(milestoneTimer.current);
-    milestoneTimer.current = setTimeout(() => setMilestone(''), 2000);
-  }, []);
-
-  const lastMilestoneShared = useSharedValue(0);
-
   useAnimatedReaction(
     () => score.value,
     () => {
@@ -778,12 +728,6 @@ export default function RunnerGame({ onClose }: Props) {
       if (floor !== lastFloorShared.value) {
         lastFloorShared.value = floor;
         scheduleOnRN(updateScoreTarget, floor);
-        for (const m of MILESTONES) {
-          if (floor >= m && lastMilestoneShared.value < m) {
-            lastMilestoneShared.value = m;
-            scheduleOnRN(handleMilestone, MILESTONE_LABELS[m] ?? '');
-          }
-        }
       }
     },
   );
@@ -803,21 +747,10 @@ export default function RunnerGame({ onClose }: Props) {
     },
   );
 
-  const showPhaseBanner = useCallback((idx: number) => {
-    const phase = RUNNER_PHASES[idx % RUNNER_PHASES.length];
-    setPhaseBanner({ label: phase.label, emoji: phase.emoji });
-    if (phaseBannerTimer.current) clearTimeout(phaseBannerTimer.current);
-    phaseBannerTimer.current = setTimeout(() => setPhaseBanner(null), 1600);
-  }, []);
-
   useAnimatedReaction(
     () => palettePhase.value,
-    (phase, prev) => {
-      const idx = phase % PALETTES.length;
-      scheduleOnRN(setPaletteIdx, idx);
-      if (prev != null && phase !== prev && phase > 0) {
-        scheduleOnRN(showPhaseBanner, idx);
-      }
+    (phase) => {
+      scheduleOnRN(setPaletteIdx, phase % PALETTES.length);
     },
   );
 
@@ -1005,8 +938,6 @@ export default function RunnerGame({ onClose }: Props) {
     setLivesDisplay(MAX_LIVES);
     setPopups([]);
     setCountdown(-1);
-    setMilestone('');
-    lastMilestoneShared.value = 0;
     shakeX.value = 0;
     setPaletteIdx(0);
     setShowGo(false);
@@ -1016,7 +947,6 @@ export default function RunnerGame({ onClose }: Props) {
     setNextObj(null);
     setDailyJustDone(false);
     setSuggestedParfum(null);
-    setPhaseBanner(null);
     setWorldRank(null);
     shieldBreaksRef.current = 0;
   }, [resetGame, stopChase]);
@@ -1079,21 +1009,8 @@ export default function RunnerGame({ onClose }: Props) {
         }
       });
 
-    // Swipe vers le bas = glissade (« Sillage »). failOffsetX laisse passer les gestes
-    // horizontaux (swipe-back natif) ; activeOffsetY évite de confondre un tap et un swipe.
-    const pan = Gesture.Pan()
-      .activeOffsetY(12)
-      .failOffsetX([-20, 20])
-      .onStart((e) => {
-        'worklet';
-        if (e.translationY > 0 && gameState.value === 'playing' && !isJumping.value) {
-          duckUntil.value = gameTime.value + DUCK_DURATION;
-          scheduleOnRN(hapticsLight);
-        }
-      });
-
-    return Gesture.Race(tap, pan);
-  }, [playJump, gameState, isJumping, canDoubleJump, jumpVelocity, isDoubleJumping, lastTapTime, gameTime, duckUntil]);
+    return tap;
+  }, [playJump, gameState, isJumping, canDoubleJump, jumpVelocity, isDoubleJumping, lastTapTime, gameTime]);
 
   // Saut bufferisé déclenché par le loop à l'atterrissage → feedback son + haptique.
   useAnimatedReaction(
@@ -1106,14 +1023,13 @@ export default function RunnerGame({ onClose }: Props) {
     },
   );
 
-  // Mode Fièvre déclenché (jauge pleine) → son + bannière (l'haptique vient du pickup
-  // collecté, §2.6 : un seul haptique par geste).
+  // Mode Fièvre déclenché (jauge pleine) → son (l'haptique vient du pickup collecté,
+  // §2.6 : un seul haptique par geste).
   useAnimatedReaction(
     () => feverStartTrigger.value,
     (v, prev) => {
       if (prev != null && v !== prev) {
         scheduleOnRN(playRecord);
-        scheduleOnRN(handleMilestone, 'Fièvre');
       }
     },
   );
@@ -1148,46 +1064,50 @@ export default function RunnerGame({ onClose }: Props) {
           slowUntil={slowUntil}
           lives={lives}
           invulnUntil={invulnUntil}
-          duckUntil={duckUntil}
           feverUntil={feverUntil}
         />
 
         <RunnerObstacles obs={obs} groundY={dims.groundY} paletteIdx={paletteIdx} screenW={dims.width} />
         <RunnerPickups pkp={pkp} reduceMotion={reduceMotion} screenW={dims.width} />
         <RunnerParticles trigger={collectBurstTrigger} originX={dims.bottleX} bottleY={bottleY} reduceMotion={reduceMotion} />
-        <RunnerHud
-          gameTime={gameTime}
-          shieldActive={shieldActive}
-          magnetUntil={magnetUntil}
-          doubleUntil={doubleUntil}
-          slowUntil={slowUntil}
-          feverGauge={feverGauge}
-          feverUntil={feverUntil}
-          topInset={insets.top}
-        />
-        <RunnerCombo airCombo={airCombo} reduceMotion={reduceMotion} centerY={dims.groundY * 0.5} />
+        {!showStart && !showGameOver && (
+          <RunnerHud
+            gameTime={gameTime}
+            shieldActive={shieldActive}
+            magnetUntil={magnetUntil}
+            doubleUntil={doubleUntil}
+            slowUntil={slowUntil}
+            feverGauge={feverGauge}
+            feverUntil={feverUntil}
+            topInset={insets.top}
+          />
+        )}
 
-        <View style={s.scoreContainer}>
-          <Text allowFontScaling={false} style={s.scoreText}>
-            {displayScore}
-          </Text>
-          {highScore > 0 && (
-            <Text allowFontScaling={false} style={s.hiLabel}>
-              Record: {isRecord ? displayScore : highScore}
+        {!showStart && !showGameOver && (
+          <View style={s.scoreContainer}>
+            <Text allowFontScaling={false} style={s.scoreText}>
+              {displayScore}
             </Text>
-          )}
-        </View>
+            {highScore > 0 && (
+              <Text allowFontScaling={false} style={s.hiLabel}>
+                Record{' '}: {isRecord ? displayScore : highScore}
+              </Text>
+            )}
+          </View>
+        )}
 
-        <View style={s.livesRow} accessibilityLabel={`Vies : ${livesDisplay} sur 3`}>
-          {[0, 1, 2].map(i => (
-            <Ionicons
-              key={i}
-              name={i < livesDisplay ? 'flask' : 'flask-outline'}
-              size={15}
-              color={i < livesDisplay ? '#D4A960' : '#4A4358'}
-            />
-          ))}
-        </View>
+        {!showStart && !showGameOver && (
+          <View style={s.livesRow} accessibilityLabel={`Vies : ${livesDisplay} sur ${MAX_LIVES}`}>
+            {Array.from({ length: MAX_LIVES }, (_, i) => (
+              <Ionicons
+                key={i}
+                name={i < livesDisplay ? 'flask' : 'flask-outline'}
+                size={15}
+                color={i < livesDisplay ? '#D4A960' : '#4A4358'}
+              />
+            ))}
+          </View>
+        )}
 
         <View style={s.topCluster} pointerEvents="box-none">
           <Pressable
@@ -1225,21 +1145,6 @@ export default function RunnerGame({ onClose }: Props) {
           <FloatingPopup key={p.id} entry={p} onDone={handlePopupDone} reduceMotion={reduceMotion} />
         ))}
 
-        {milestone !== '' && (
-          <View style={{ position: 'absolute', top: dims.groundY * 0.45, left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
-            <Text allowFontScaling={false} style={{ fontFamily: 'PlayfairDisplay_700Bold', fontSize: 26, color: '#D4A960', textShadowColor: 'rgba(212,169,96,0.4)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 }}>
-              {milestone}
-            </Text>
-          </View>
-        )}
-
-        {phaseBanner !== null && (
-          <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(200)} style={s.phaseBanner} pointerEvents="none">
-            <Text allowFontScaling={false} style={s.phaseBannerEmoji}>{phaseBanner.emoji}</Text>
-            <Text allowFontScaling={false} style={s.phaseBannerText}>{phaseBanner.label}</Text>
-          </Animated.View>
-        )}
-
         {showStart && (
           countdown > 0 ? (
             <View style={s.startOverlay} pointerEvents="none">
@@ -1249,13 +1154,13 @@ export default function RunnerGame({ onClose }: Props) {
             </View>
           ) : (
             <Pressable
-              style={s.startOverlay}
+              style={[s.startOverlay, { backgroundColor: 'rgba(11,7,18,0.55)' }]}
               onPress={startCountdown}
               accessibilityRole="button"
               accessibilityLabel="Démarrer la partie"
             >
               <Text style={s.title}>Flacon Runner</Text>
-              <Text style={s.subtitle}>Esquive les cristaux</Text>
+              <Text style={s.subtitle}>Saute les éclats · cueille les notes</Text>
               <View style={s.skinRow}>
                 {SKINS.map(def => (
                   <SkinSwatch
@@ -1269,7 +1174,7 @@ export default function RunnerGame({ onClose }: Props) {
               </View>
               <Text style={s.tapLabel}>Tape pour jouer</Text>
               <Text style={s.hint} maxFontSizeMultiplier={1.3}>
-                Tap = saut{'\n'}Double tap = double saut{'\n'}Swipe bas = glissade{'\n'}Enchaînement aérien = combo · Jauge pleine = fièvre
+                Tape pour sauter, double tape pour t'envoler{'\n'}Notes = pouvoirs · Jauge pleine : fièvre
               </Text>
               {dailyChallenge != null && (
                 <View style={s.dailyCard}>
@@ -1299,7 +1204,7 @@ export default function RunnerGame({ onClose }: Props) {
                 <Text allowFontScaling={false} style={s.recordText}>Nouveau record</Text>
               </View>
             )}
-            <Text style={s.goHiLabel}>Record: {Math.max(highScore, displayScore)}</Text>
+            <Text style={s.goHiLabel}>Record{' '}: {Math.max(highScore, displayScore)}</Text>
             <View style={s.goStats}>
               <View style={s.goStat}>
                 <Text allowFontScaling={false} style={s.goStatNum}>{finalStats.distance}</Text>

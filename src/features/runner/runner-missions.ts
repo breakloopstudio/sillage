@@ -40,11 +40,11 @@ export interface NextObjective {
 }
 
 export const MISSIONS: Mission[] = [
-  { key: 'score', label: 'Casse', icon: 'trophy-outline', unit: 'pts', value: c => c.score, tiers: [50, 500, 3000] },
+  { key: 'score', label: 'Prestige', icon: 'trophy-outline', unit: 'pts', value: c => c.score, tiers: [50, 500, 3000] },
   { key: 'distance', label: 'Marathon', icon: 'walk-outline', unit: 'm', value: c => c.distance, tiers: [500, 1500, 5000] },
   { key: 'combo', label: 'Enchaînement', icon: 'flash-outline', unit: '×', value: c => c.maxCombo, tiers: [2, 3, 4] },
   { key: 'nearmiss', label: 'Frôleur', icon: 'speedometer-outline', unit: 'frôlés', value: c => c.nearMiss, tiers: [3, 5, 10] },
-  { key: 'shield', label: 'Intouchable', icon: 'shield-checkmark-outline', unit: 'boucliers', value: c => c.shieldBreaks, tiers: [1, 3, 6] },
+  { key: 'shield', label: 'Rempart', icon: 'shield-checkmark-outline', unit: 'impacts', value: c => c.shieldBreaks, tiers: [1, 3, 6] },
   { key: 'harvest', label: 'Récolte', icon: 'leaf-outline', unit: 'notes', value: c => c.notesCollected, tiers: [4, 8, 15] },
   { key: 'runs', label: 'Habitué', icon: 'footsteps-outline', unit: 'runs', value: c => c.totalRuns, tiers: [5, 20, 50] },
   { key: 'explorer', label: 'Explorateur', icon: 'compass-outline', unit: 'm', value: c => c.totalDistance, tiers: [5000, 20000, 50000] },

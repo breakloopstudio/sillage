@@ -13,7 +13,8 @@
  *   npm run import-fresh -- --bg                  # avec background removal (plus lent)
  *   npm run import-fresh -- --overwrite           # ré-importe même si l'id existe déjà
  *   npm run import-fresh -- --limit=50            # test sur 50 parfums
- *   npm run import-fresh -- --dry-run             # simulation sans écriture
+ *   npm run import-fresh -- --dry-run             # simulation sans écriture (ne touche pas au checkpoint)
+ *   npm run import-fresh -- --refresh             # ignore le checkpoint (re-run forcé)
  *   npm run import-fresh -- --delay=300           # délai entre téléchargements (ms)
  *
  * Idempotent + resumable (checkpoint data/migration/import-fresh-progress.json).
@@ -269,6 +270,7 @@ async function fetchExistingIds(supabase: SupabaseClient): Promise<Set<string>> 
     const { data, error } = await supabase
       .from('parfums')
       .select('id')
+      .order('id')
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`requete ids: ${error.message}`);
     const rows = data ?? [];
@@ -289,6 +291,7 @@ async function main(): Promise<void> {
   const bg = args.includes('--bg');
   const overwrite = args.includes('--overwrite');
   const dryRun = args.includes('--dry-run');
+  const refresh = args.includes('--refresh');
   const limitArg = args.find((a) => a.startsWith('--limit='));
   const limit = limitArg ? Number(limitArg.split('=')[1]) : null;
   const delayArg = args.find((a) => a.startsWith('--delay='));
@@ -347,7 +350,8 @@ async function main(): Promise<void> {
   console.log(`${entries.length} entrées clean indexées (${files.length} fichiers).`);
 
   const progress = loadProgress();
-  const doneSet = new Set(progress.done);
+  // --refresh ignore le checkpoint (reprise après un dry-run ou re-run forcé).
+  const doneSet = refresh ? new Set<string>() : new Set(progress.done);
   const existingIds = overwrite ? new Set<string>() : await fetchExistingIds(supabase);
   console.log(`${existingIds.size} parfums déjà en base.\n`);
 
@@ -393,11 +397,11 @@ async function main(): Promise<void> {
         if (dbErr) throw new Error(`upsert: ${dbErr.message}`);
       }
 
-      progress.done.push(id);
+      if (!dryRun) progress.done.push(id);
       imported++;
     } catch (e: unknown) {
       const reason = (e as Error)?.message?.slice(0, 120) ?? String(e);
-      progress.failed.push({ id, reason });
+      if (!dryRun) progress.failed.push({ id, reason });
     }
 
     if (delayMs > 0 && todo[i].entry.primaryImageUrl) {
@@ -405,7 +409,7 @@ async function main(): Promise<void> {
     }
 
     if ((i + 1) % 20 === 0 || i + 1 === todo.length) {
-      saveProgress(progress);
+      if (!dryRun) saveProgress(progress);
       const elapsed = Date.now() - t0;
       const rate = (i + 1) / (elapsed / 1000);
       const eta = (todo.length - i - 1) / Math.max(rate, 0.001);
@@ -417,7 +421,7 @@ async function main(): Promise<void> {
     }
   }
 
-  saveProgress(progress);
+  if (!dryRun) saveProgress(progress);
   const totalTime = Date.now() - t0;
   console.log('\n');
   console.log('═'.repeat(58));

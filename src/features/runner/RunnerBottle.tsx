@@ -15,7 +15,7 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from 'react-native-reanimated';
-import { BOTTLE_WIDTH, BOTTLE_HEIGHT, DUCK_SCALE, type GameStateValue } from './runner-types';
+import { BOTTLE_WIDTH, BOTTLE_HEIGHT, type GameStateValue } from './runner-types';
 
 interface Props {
   bottleX: number;
@@ -35,7 +35,6 @@ interface Props {
   slowUntil: SharedValue<number>;
   lives: SharedValue<number>;
   invulnUntil: SharedValue<number>;
-  duckUntil: SharedValue<number>;
   feverUntil: SharedValue<number>;
 }
 
@@ -57,7 +56,6 @@ function RunnerBottle({
   slowUntil,
   lives,
   invulnUntil,
-  duckUntil,
   feverUntil,
 }: Props) {
   const idleBob = useSharedValue(0);
@@ -162,16 +160,10 @@ function RunnerBottle({
     const spin = reduceMotion ? 0 : spinAngle.value;
     const invuln = gameTime.value < invulnUntil.value;
     const flicker = invuln && !reduceMotion ? 0.4 + 0.45 * Math.abs(Math.sin(gameTime.value * 28)) : 1;
-    // Glissade : le flacon s'accroupit (scaleY réduit, scaleX élargi), base compensée au sol.
-    const ducking = !isJumping.value && gameTime.value < duckUntil.value;
-    const duckScaleY = ducking ? DUCK_SCALE : 1;
-    const duckScaleX = ducking ? 1.25 : 1;
-    const duckCompensate = ducking ? (BOTTLE_HEIGHT * (1 - DUCK_SCALE)) / 2 : 0;
     return {
       transform: [
-        { translateY: duckCompensate },
-        { scaleX: Math.min(1.12, airStretch * 0.95 + 0.05) * sqX.value * duckScaleX },
-        { scaleY: Math.min(1.12, airStretch) * sqY.value * duckScaleY },
+        { scaleX: Math.min(1.12, airStretch * 0.95 + 0.05) * sqX.value },
+        { scaleY: Math.min(1.12, airStretch) * sqY.value },
         { rotate: `${spin}deg` },
       ],
       opacity: bottleOpacity.value * flicker,

@@ -12,10 +12,13 @@
  * Resumable : chaque lot traité passe image_url_2x à NULL → un re-run ne
  * sélectionne que le reste. Idempotent.
  *
+ * DESTRUCTIF : dry-run PAR DÉFAUT (comme backfill-*). Ajouter --write pour
+ * exécuter réellement la purge.
+ *
  * Usage:
- *   npm run tsx scripts/images/purge-2x.ts -- --dry-run   # simulation
- *   npm run tsx scripts/images/purge-2x.ts                # exécute
- *   npm run tsx scripts/images/purge-2x.ts -- --limit=50  # test sur 50
+ *   npm run tsx scripts/images/purge-2x.ts                    # simulation (défaut)
+ *   npm run tsx scripts/images/purge-2x.ts -- --write         # exécute
+ *   npm run tsx scripts/images/purge-2x.ts -- --write --limit=50  # test sur 50
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -24,7 +27,8 @@ import { readEnvVar, argValue, hasFlag } from '../lib/script-utils';
 const BUCKET = 'parfum-images';
 const BATCH = 200;
 
-const dryRun = hasFlag('dry-run');
+const write = hasFlag('write');
+const dryRun = !write;
 const limitArg = parseInt(argValue('limit') ?? '0', 10) || 0;
 
 const url = readEnvVar('EXPO_PUBLIC_SUPABASE_URL');
@@ -36,24 +40,28 @@ if (!url || !serviceKey) {
 const supabase: SupabaseClient = createClient(url, serviceKey);
 
 async function main() {
-  // Compte exact (head) pour le dry-run.
   const { count } = await supabase
     .from('parfums')
     .select('*', { count: 'exact', head: true })
     .not('image_url_2x', 'is', null);
   console.log(`${dryRun ? '[DRY-RUN] ' : ''}${count ?? 0} parfums avec image_url_2x à purger.`);
-  if (dryRun) return;
+  if (dryRun) {
+    console.log('[DRY-RUN] Aucune modification effectuée. Relancez avec --write pour exécuter.');
+    return;
+  }
 
   let done = 0;
   let failed = 0;
-  // Boucle paginée : chaque lot traité passe à NULL → le lot suivant remonte.
-  // Gère le plafond max_rows (1000) et rend le script resumable/idempotent.
   for (;;) {
+    if (limitArg > 0 && done >= limitArg) break;
+    const remaining = limitArg > 0 ? limitArg - done : BATCH;
+    const batchSize = Math.min(BATCH, remaining);
+
     const { data, error } = await supabase
       .from('parfums')
       .select('id')
       .not('image_url_2x', 'is', null)
-      .limit(BATCH);
+      .limit(batchSize);
     if (error) throw error;
     const ids = (data ?? []).map((r) => r.id as string);
     if (ids.length === 0) break;
@@ -62,18 +70,19 @@ async function main() {
     const rm = await supabase.storage.from(BUCKET).remove(paths);
     if (rm.error) {
       failed += ids.length;
-      console.warn(`  remove échec: ${rm.error.message}`);
+      console.warn(`  remove échec: ${rm.error.message} — base NON réinitialisée pour ce lot (re-run possible).`);
+      break;
     }
 
     const up = await supabase.from('parfums').update({ image_url_2x: null }).in('id', ids);
     if (up.error) {
       failed += ids.length;
-      console.warn(`  update échec: ${up.error.message}`);
+      console.warn(`  update échec: ${up.error.message} — objets Storage déjà supprimés.`);
+      break;
     }
 
     done += ids.length;
     console.log(`  ${done} traités`);
-    if (limitArg > 0 && done >= limitArg) break;
   }
 
   console.log(`Terminé : ${done} traités, ${failed} en échec. Stockage libéré ≈ ${(done * 74 / 1024 / 1024).toFixed(2)} GB (estimé).`);

@@ -4,7 +4,7 @@
 // (couleurs hardcodées violet/noir/doré, identiques en light et dark). Exception assumée
 // au design-guide §2 — même logique que le fond lightbox §2.3 (`#0B0712`).
 // `RUNNER_COLORS` ci-dessous est la palette de référence : les composants récents
-// (RunnerCombo, RunnerHud) l'utilisent ; les hex historiques de RunnerGame restent à migrer.
+// (RunnerHud) l'utilisent ; les hex historiques de RunnerGame restent à migrer.
 
 export interface GameDimensions {
   width: number;
@@ -16,7 +16,6 @@ export interface GameDimensions {
 export interface ObstacleDef {
   width: number;
   height: number;
-  airborne?: boolean;
   falling?: boolean;
 }
 
@@ -52,8 +51,8 @@ export const GRAVITY = 1850;
 export const JUMP_VELOCITY = -720;
 export const DOUBLE_JUMP_VELOCITY = -610;
 export const BASE_SPEED = 300;
-export const MAX_SPEED = 780;
-export const SPEED_INCREMENT_PER_POINT = 0.12;
+export const MAX_SPEED = 660;
+export const SPEED_INCREMENT_PER_POINT = 0.09;
 
 // Game-feel : jump buffer (un tap posé juste avant l'atterrissage déclenche le saut
 // au contact) + hit-stop (micro-freeze du monde à l'impact pour « sentir » le coup).
@@ -63,14 +62,8 @@ export const HIT_STOP_DURATION = 0.06;
 // Conversion px → « mètres » affichés (12 px = 1 mètre).
 export const PX_PER_METER = 12;
 
-// Glissade (« Sillage ») : swipe bas = le flacon se couche, hitbox réduite en hauteur
-// pour passer sous les cristaux volants. Deuxième dimension de jeu (sauter OU glisser).
-export const DUCK_DURATION = 0.6;
-export const DUCK_HEIGHT = 26;
-export const DUCK_SCALE = 0.55;
-
 // Mode Fièvre : une jauge se remplit (pickups + frôlés) ; pleine → invincibilité + score
-// ×2 + cristaux collectables pendant FEVER_DURATION. Pic de récompense rythmant le run.
+// ×2 + éclats collectables pendant FEVER_DURATION. Pic de récompense rythmant le run.
 export const FEVER_DURATION = 4.5;
 export const FEVER_MAX = 100;
 export const FEVER_GAIN_PICKUP = 20;
@@ -88,16 +81,8 @@ export const OBSTACLE_DEFS: ObstacleDef[] = [
   { width: 28, height: 56 },                  // 1 — éclat haut
   { width: 55, height: 28 },                  // 2 — éclat large
   { width: 33, height: 48 },                  // 3 — éclat moyen
-  { width: 34, height: 24, airborne: true },  // 4 — abeille (ondule en volant)
-  { width: 22, height: 26, falling: true },   // 5 — goutte d'essence (tombe, télégraphiée)
+  { width: 22, height: 26, falling: true },   // 4 — goutte d'essence (tombe, télégraphiée)
 ];
-
-// Abeille : centre d'ondulation au-dessus du sol + amplitude/fréquence de l'oscillation
-// verticale. Calibré pour que le flacon DEBOUT la touche et le flacon ACCROUPI passe dessous.
-export const FLYING_OBSTACLE_Y_OFFSET = 62;
-export const BEE_AMPLITUDE = 12;
-export const BEE_FREQ = 5.5;
-export const FLYING_OBSTACLE_MIN_SCORE = 300;
 
 // Goutte d'essence : hauteur de départ, délai de télégraphie (ombre au sol) avant la
 // chute, vitesse de chute. Dangereuse seulement une fois au sol (obstacle à sauter).
@@ -106,18 +91,11 @@ export const FLYING_OBSTACLE_MIN_SCORE = 300;
 export const DROP_START_HEIGHT = 240;
 export const DROP_TELEGRAPH = 0.35;
 export const DROP_FALL_SPEED = 1000;
-export const DROP_MIN_SCORE = 600;
+export const DROP_MIN_SCORE = 800;
 
 export const PICKUP_SIZE = 38;
 
 export const PALETTE_INTERVAL = 800;
-
-export const RUNNER_PHASES = [
-  { label: 'Boisée', emoji: '🌲' },
-  { label: 'Florale', emoji: '🌸' },
-  { label: 'Hespéridée', emoji: '🍋' },
-  { label: 'Ambrée', emoji: '🔥' },
-] as const;
 
 export const PALETTES = [
   { crystal: '#1D1728', crystal2: '#221930', crystal3: '#2A2238', crystal4: '#1A1420', bottle: '#6C3ED9', cap: '#D4A960' },
@@ -159,34 +137,33 @@ export function getSpawnDistance(score: number): number {
   'worklet';
   const baseMin = 300;
   const baseMax = 450;
-  const reduction = Math.min(score * 0.04, 150);
+  const reduction = Math.min(score * 0.03, 120);
   const min = baseMin - reduction;
   const max = baseMax - reduction * 1.3;
-  return Math.max(180, min + Math.random() * Math.max(40, max - min));
+  return Math.max(220, min + Math.random() * Math.max(40, max - min));
 }
 
 export function getPickupSpawnDistance(score: number): number {
   'worklet';
-  const base = 600 + Math.random() * 500;
-  return Math.max(350, base - score * 0.06);
+  const base = 500 + Math.random() * 400;
+  return Math.max(320, base - score * 0.06);
 }
 
 export function getDoubleObstacleChance(score: number): number {
   'worklet';
   if (score < 500) return 0;
-  if (score < 1000) return 0.15;
-  if (score < 1500) return 0.3;
-  if (score < 2000) return 0.45;
-  return 0.55;
+  if (score < 1000) return 0.1;
+  if (score < 1500) return 0.2;
+  if (score < 2000) return 0.28;
+  return 0.35;
 }
 
 // Répartition des types d'obstacles selon le score : éclats (0-3) majoritaires,
-// abeille (4) dès 300 pts, goutte d'essence (5) dès 600 pts.
+// goutte d'essence (4) dès DROP_MIN_SCORE pts.
 export function pickObstacleType(score: number): number {
   'worklet';
   const roll = Math.random();
-  if (score > DROP_MIN_SCORE && roll < 0.15) return 5;
-  if (score > FLYING_OBSTACLE_MIN_SCORE && roll < 0.40) return 4;
+  if (score > DROP_MIN_SCORE && roll < 0.15) return 4;
   return Math.floor(Math.random() * 4);
 }
 

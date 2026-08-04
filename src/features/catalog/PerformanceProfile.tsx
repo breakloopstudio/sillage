@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, type LayoutChangeEvent } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
@@ -7,16 +8,19 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
+  withSpring,
+  cancelAnimation,
   interpolate,
   interpolateColor,
   Extrapolation,
+  Easing,
   FadeIn,
   FadeInDown,
   useReducedMotion,
 } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight, hapticsSuccess } from '../../services/haptics';
-import { alpha } from '../../utils/alpha';
+import { tintLuminous, tintStructural } from '../../utils/alpha';
 import { buildPerformance, perfDimensionAt, type PerfDimension, type PerfDimensionKey } from '../../utils/performance-profile';
 import { type UsePerfVotes } from '../../hooks/usePerfVotes';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -173,7 +177,7 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
 
   useEffect(() => {
     emph.value = withTiming(isActive ? 1 : anyActive ? -1 : 0, { duration: reduced ? 0 : 250 });
-  }, [isActive, anyActive]);
+  }, [isActive, anyActive, reduced, emph]);
 
   const blockStyle = useAnimatedStyle(() => ({
     opacity: interpolate(emph.value, [-1, 0, 1], [0.4, 1, 1]),
@@ -185,7 +189,6 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
   }));
 
   const handleFocus = useCallback(() => onSelect(dim.key), [onSelect, dim.key]);
-  const litColor = alpha(c.perf, 0.4);
 
   return (
     <Animated.View entering={FadeIn.delay(reduced ? 0 : rank * 110).duration(reduced ? 0 : 380)}>
@@ -195,7 +198,7 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
             onPress={handleFocus}
             style={sHeadFocus}
             accessibilityRole="button"
-            accessibilityLabel={`${dim.label} : ${dim.valueLabel}${dim.hours ? ', ' + dim.hours : ''}, ${dim.ticks[dim.level - 1]}`}
+            accessibilityLabel={`${dim.label} : ${dim.valueLabel}${dim.hours ? ', ' + dim.hours : ''}, cran ${dim.level} sur ${dim.ticks.length}`}
             accessibilityState={{ selected: isActive }}
           >
             <View style={[sIcon, { backgroundColor: c.perfSoft }]}>
@@ -229,26 +232,7 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
           ) : null}
         </View>
 
-        <View style={sScale}>
-          {dim.ticks.map((tick, i) => (
-            <Crank
-              key={tick}
-              index={i}
-              lit={i < dim.level}
-              reached={i === dim.level - 1}
-              isMyVote={myVote === i + 1}
-              litColor={i === dim.level - 1 ? c.perf : litColor}
-              trackColor={c.surface2}
-              perfColor={c.perf}
-              label={tick}
-              labelLit={i < dim.level}
-              labelInk={c.perfInk}
-              labelMuted={c.textMuted}
-              reduced={reduced}
-              onFocus={handleFocus}
-            />
-          ))}
-        </View>
+        <ArrowScale dim={dim} myVote={myVote} rank={rank} reduced={reduced} onFocus={handleFocus} />
 
         {isActive ? (
           <Animated.View entering={FadeInDown.duration(reduced ? 0 : 220)} style={sEmanation}>
@@ -263,65 +247,128 @@ function DimensionRow({ dim, rank, active, userVotes, myVote, canVote, onSelect,
   );
 }
 
-interface CrankProps {
-  index: number;
-  lit: boolean;
-  reached: boolean;
-  isMyVote: boolean;
-  litColor: string;
-  trackColor: string;
-  perfColor: string;
-  label: string;
-  labelLit: boolean;
-  labelInk: string;
-  labelMuted: string;
+interface ScaleProps {
+  dim: PerfDimension;
+  myVote: number | null;
+  rank: number;
   reduced: boolean;
   onFocus: () => void;
 }
 
-function Crank({ index, lit, reached, isMyVote, litColor, trackColor, perfColor, label, labelLit, labelInk, labelMuted, reduced, onFocus }: CrankProps) {
-  const enter = useSharedValue(lit && !reduced ? 0 : 1);
+function ArrowScale({ dim, myVote, rank, reduced, onFocus }: ScaleProps) {
+  const { theme, resolvedMode } = useTheme();
+  const c = theme.colors;
+  const n = dim.ticks.length;
+  const level = Math.min(Math.max(dim.level, 1), n);
+  const target = (level - 0.5) / n;
+  const trackColor = resolvedMode === 'dark' ? c.border : c.surface2;
+
+  const progress = useSharedValue(reduced ? target : 0);
+  const width = useSharedValue(0);
+  const mounted = useRef(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (reduced) {
-      enter.value = 1;
+      progress.value = target;
       return;
     }
-    enter.value = withDelay(index * 120, withTiming(lit ? 1 : 0.0001, { duration: 380 }));
-  }, [lit, reduced]);
+    if (!mounted.current) {
+      mounted.current = true;
+      progress.value = withDelay(rank * 110 + 120, withTiming(target, { duration: 400, easing: Easing.out(Easing.cubic) }));
+    } else {
+      progress.value = withSpring(target, { damping: 22, stiffness: 280 });
+    }
+  }, [target, reduced, rank, progress]);
 
-  const segStyle = useAnimatedStyle(() => ({
-    opacity: lit ? enter.value : 1,
-    backgroundColor: lit ? litColor : trackColor,
+  useEffect(() => () => cancelAnimation(progress), [progress]);
+
+  const handleLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      width.value = e.nativeEvent.layout.width;
+      setReady(true);
+    },
+    [width],
+  );
+
+  const needleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: progress.value * width.value - 1.5 }],
   }));
 
-  const labStyle = useAnimatedStyle(() => ({
-    opacity: lit ? enter.value : 0.5,
+  const fillStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleX: Math.min(progress.value, target) }],
   }));
 
   return (
-    <Pressable
-      onPress={onFocus}
-      accessibilityRole="button"
-      accessibilityLabel={isMyVote ? `${label}, ton vote` : label}
-      style={sCrank}
-    >
-      <View style={sCrankInner}>
-        <Animated.View style={[sSeg, segStyle]} />
-        {isMyVote ? <View style={[sMyVoteDot, { backgroundColor: perfColor }]} /> : null}
-        <Animated.Text
-          allowFontScaling={false}
-          numberOfLines={1}
-          style={[
-            sCrankLabel,
-            { color: labelLit ? labelInk : labelMuted, fontFamily: reached ? 'Inter_600SemiBold' : 'Inter_400Regular' },
-            labStyle,
-          ]}
-        >
-          {label}
-        </Animated.Text>
+    <View style={sScaleWrap} onLayout={handleLayout}>
+      <View style={sScaleCols}>
+        {dim.ticks.map((tick, i) => (
+          <Pressable
+            key={tick}
+            onPress={onFocus}
+            accessibilityRole="button"
+            accessibilityLabel={myVote === i + 1 ? `${tick}, ton vote` : tick}
+            style={sCol}
+          >
+            <View style={sColInner}>
+              <View style={sSlotSpacer} />
+              <Text
+                allowFontScaling={false}
+                numberOfLines={1}
+                style={[
+                  sTickLabel,
+                  {
+                    color: i < level ? c.perfInk : c.textMuted,
+                    fontFamily: i === level - 1 ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                  },
+                ]}
+              >
+                {tick}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
       </View>
-    </Pressable>
+
+      {myVote !== null ? (
+        <View
+          pointerEvents="none"
+          style={[sMyVoteDot, { left: `${((myVote - 0.5) / n) * 100}%`, backgroundColor: c.perf }]}
+        />
+      ) : null}
+
+      {ready ? (
+        <View style={sOverlay} pointerEvents="none" accessible={false}>
+          <View style={[sRail, { backgroundColor: trackColor }]} />
+          <Animated.View style={[sFill, fillStyle]}>
+            <LinearGradient
+              colors={[tintStructural(c.perf, 'veil'), c.perf]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={sGradient}
+            />
+          </Animated.View>
+          <View style={[sArrowHead, { borderLeftColor: tintStructural(c.perf, 'dim') }]} />
+          {dim.ticks.map((tick, i) =>
+            i === level - 1 ? null : (
+              <View
+                key={tick}
+                style={[
+                  sDot,
+                  { left: `${((i + 0.5) / n) * 100}%`, backgroundColor: i < level ? c.perf : trackColor },
+                  resolvedMode === 'dark' && i >= dim.level ? theme.cardBorder : null,
+                ]}
+              />
+            ),
+          )}
+          <Animated.View style={[sNeedleGroup, needleStyle]}>
+            <View style={[sHaloOuter, { backgroundColor: tintLuminous(c.perf, 'hint', resolvedMode) }]} />
+            <View style={[sHaloInner, { backgroundColor: tintLuminous(c.perf, 'veil', resolvedMode) }]} />
+            <View style={[sNeedle, { backgroundColor: c.perf }]} />
+          </Animated.View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -384,6 +431,7 @@ const sValue = {
   marginLeft: 10,
   fontFamily: 'Inter_600SemiBold',
   fontSize: 13,
+  fontVariant: ['tabular-nums'] as import('react-native').FontVariant[],
 } as const;
 
 const sCountChip = {
@@ -401,41 +449,127 @@ const sCountText = {
   fontSize: 10,
 } as const;
 
-const sScale = {
-  flexDirection: 'row' as const,
-  gap: 4,
+const sScaleWrap = {
   marginLeft: 34,
 } as const;
 
-const sCrank = {
+const sScaleCols = {
+  flexDirection: 'row' as const,
+} as const;
+
+const sCol = {
   flex: 1,
 } as const;
 
-const sCrankInner = {
+const sColInner = {
   alignItems: 'center' as const,
-  paddingTop: 8,
   minHeight: 44,
 } as const;
 
-const sSeg = {
-  height: 8,
-  width: '100%',
-  borderRadius: 4,
+const sSlotSpacer = {
+  height: 24,
+} as const;
+
+const sTickLabel = {
+  marginTop: 6,
+  fontSize: 10,
+  textAlign: 'center' as const,
 } as const;
 
 const sMyVoteDot = {
   position: 'absolute' as const,
   top: 0,
-  alignSelf: 'center' as const,
   width: 6,
   height: 6,
   borderRadius: 3,
+  marginLeft: -3,
 } as const;
 
-const sCrankLabel = {
-  marginTop: 6,
-  fontSize: 10,
-  textAlign: 'center' as const,
+const sOverlay = {
+  position: 'absolute' as const,
+  top: 8,
+  left: 0,
+  right: 0,
+  height: 16,
+} as const;
+
+const sRail = {
+  position: 'absolute' as const,
+  top: 6,
+  left: 0,
+  right: 8,
+  height: 4,
+  borderRadius: 2,
+} as const;
+
+const sFill = {
+  position: 'absolute' as const,
+  top: 6,
+  left: 0,
+  width: '100%',
+  height: 4,
+  borderRadius: 2,
+  transformOrigin: 'left center' as const,
+  overflow: 'hidden' as const,
+} as const;
+
+const sGradient = {
+  width: '100%',
+  height: 4,
+} as const;
+
+const sArrowHead = {
+  position: 'absolute' as const,
+  right: 1,
+  top: 3,
+  width: 0,
+  height: 0,
+  borderLeftWidth: 7,
+  borderTopWidth: 5,
+  borderBottomWidth: 5,
+  borderTopColor: 'transparent',
+  borderBottomColor: 'transparent',
+} as const;
+
+const sDot = {
+  position: 'absolute' as const,
+  top: 5,
+  width: 6,
+  height: 6,
+  borderRadius: 3,
+  marginLeft: -3,
+} as const;
+
+const sNeedleGroup = {
+  position: 'absolute' as const,
+  top: 0,
+  left: 0,
+  width: 3,
+  height: 16,
+} as const;
+
+const sNeedle = {
+  width: 3,
+  height: 16,
+  borderRadius: 1.5,
+} as const;
+
+const sHaloOuter = {
+  position: 'absolute' as const,
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  left: -12.5,
+  top: -6,
+} as const;
+
+const sHaloInner = {
+  position: 'absolute' as const,
+  width: 14,
+  height: 14,
+  borderRadius: 7,
+  left: -5.5,
+  top: 1,
 } as const;
 
 const sEmanation = {

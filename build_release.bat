@@ -7,7 +7,7 @@ echo ======================================
 echo.
 echo [%time%] Demarrage Gradle...
 echo.
-C:\dev\Sillage\android\gradlew.bat -p C:\dev\Sillage\android assembleRelease
+call "%~dp0android\gradlew.bat" -p "%~dp0android" assembleRelease
 if %errorlevel%==0 (
     echo.
     echo ======================================

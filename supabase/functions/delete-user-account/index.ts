@@ -30,13 +30,9 @@ Deno.serve(async (req: Request) => {
       if (typeof m?.timestamp === 'number' && m.timestamp > lastAuth) lastAuth = m.timestamp;
     }
   }
-  if (lastAuth === 0) {
-    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (typeof payload.iat === 'number') lastAuth = payload.iat;
-    } catch { /* token déjà vérifié par auth.getUser(), décodage best-effort */ }
-  }
+  // Fail-closed : sans AMR (claims d'authentification GoTrue), on exige une
+  // réauthentification. Pas de repli sur `iat` du JWT — il est rafraîchi par
+  // la rotation silencieuse du token sans ressaisie d'identifiants.
   if (lastAuth === 0 || (Date.now() / 1000 - lastAuth) > REAUTH_WINDOW_S) {
     return jsonResponse({ error: 'REAUTH_REQUIRED' }, 400);
   }

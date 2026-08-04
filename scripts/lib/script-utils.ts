@@ -13,7 +13,15 @@ export function readEnvVar(key: string): string | undefined {
   try {
     const content = fs.readFileSync(path.resolve('.env'), 'utf8');
     const m = content.match(new RegExp(`^${key}\\s*=\\s*(.+?)\\s*$`, 'm'));
-    return m ? m[1] : undefined;
+    if (!m) return undefined;
+    let value = m[1];
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+    ) {
+      value = value.slice(1, -1);
+    }
+    return value;
   } catch {
     return undefined;
   }

@@ -64,7 +64,7 @@ npx tsc --noEmit     # 0 erreur attendu (global)
 
 ### Tests
 ```bash
-npx jest --ci         # 633 tests, 61 suites
+npx jest --ci         # 816 tests, 74 suites
 npm test              # watch mode
 npm run test:ci       # CI mode avec couverture
 npm run test:supabase # E2E backend cloud (29 checks)
@@ -91,7 +91,7 @@ expo-speech-recognition ^56 · expo-audio ~57 · expo-file-system ~57 · expo-lo
 | `EXPO_PUBLIC_USE_SUPABASE` | Flag migration (toujours `true`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Scripts d'import/migration uniquement |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | Google Sign-In iOS |
-| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | Google Sign-In Android |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Google Sign-In Android (webClientId — ID token) |
 | `SCRAPER_PROXY` | Optionnel — proxy résidentiel pour le scraping |
 
 ## Architecture actuelle
@@ -113,9 +113,9 @@ DockBar custom (verre dépoli, 3 états : expanded/compact/hidden). Accès profi
 ### Backend Supabase
 - **Projet cloud** : `zrifarygomoljwhdjcbh` (Europe)
 - **Local** : `supabase start` (Docker) · DB `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
-- **Edge Functions** (Deno) : `analyze-perfume-image`, `transcribe-voice`, `check-price-alerts`, `send-notification`, `send-weather-notifications`, `delete-user-account`, `share` (landing SSR)
+- **Edge Functions** (Deno) : `analyze-perfume-image`, `interpret-voice-query`, `transcribe-voice`, `check-price-alerts`, `send-notification`, `send-weather-notifications`, `delete-user-account`, `share` (landing SSR)
 - **Secrets** : `supabase secrets set` (OPENAI_API_KEY, CRON_SERVICE_ROLE_KEY) — jamais en dur dans config.toml
-- **Migrations** : `supabase/migrations/0001→0059`
+- **Migrations** : `supabase/migrations/0001→0060`
 
 ## Règles critiques
 
@@ -165,7 +165,7 @@ Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/imag
 | `npm run import-fresh` | Import depuis `data/clean/` : transforme + image + WebP + upsert Postgres |
 | `npm run import-supabase` | Upsert Postgres (local ou `--target=cloud`) |
 | `npm run migrate-upscale` | Upscale HD ×4 (Real-ESRGAN + CUDA) → `image_url_2x` |
-| `npx tsx scripts/images/purge-2x.ts` | Purge HD 2x Storage + reset `image_url_2x` (`-- --dry-run`, `--limit=N` ; régénérable via `migrate-upscale`) |
+| `npx tsx scripts/images/purge-2x.ts` | Purge HD 2x Storage + reset `image_url_2x` (dry-run PAR DÉFAUT ; `-- --write` pour exécuter, `--limit=N` ; régénérable via `migrate-upscale`) |
 | `npm run generate-notes` / `upload-notes` | Images de notes olfactives + upload Storage |
 
 **Flux nouveau scrape** : `clean-data` → `import-fresh --target=cloud` → `migrate-upscale`.
@@ -182,7 +182,7 @@ Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/imag
 
 | Décision | Raison |
 |---|---|
-| Zéro référence Fragella dans les données | Indépendance totale |
+| Zéro référence à un fournisseur tiers dans les données | Indépendance totale |
 | Images : 1 WebP 375×500 par parfum | Seule source dispo dans le scrape |
 | Images hébergées sur Supabase Storage (bucket `parfum-images`) | Pas de dépendance CDN externe |
 | `source` = `'seed'` | Distingue les données importées des données API live |
@@ -206,3 +206,9 @@ Scripts organisés en `scripts/fragrantica/` (pipeline catalogue), `scripts/imag
 | v9.0 | Perf catalogue cold-start : degating rendu, projections étroites, cache disque SWR + prefetch splash, boot découplé de l'auth, carousels virtualisés, index partiel top-rated (0049) |
 | v9.1 | Audit & durcissement BDD (0050→0057) : sécurité RPC (`parfum_perf` force `auth.uid()`, garde propriété shelf, `lim` plafonné), cleanup tables/index/enums morts + `possessions` hors realtime, index manquants, intégrité (`updated_at` 4 tables + CHECK `parfum_votes.value`), vue `parfum_card` (RPC catalogue allégées du tsvector/jsonb), perf serveur (`recompute_perf_strings` set-based, matviews /30min), DROP 4 colonnes mortes + scripts d'import adaptés |
 | v9.2 | Longévité sur 5 crans 1:1 Fragrantica (0058) : `_perf_cranks`/`_perf_score`/`_user_cranks`/`_perf_label`/`parfum_perf`/`cast_vote`/`recompute_perf_strings` adaptés (sillage inchangé 4 crans), CHECK `parfum_votes.value` scindé + validé, reset des votes longevity/sillage + normalisation one-shot des strings, cran 1 → `'very weak'`, parsers clients alignés (`longevityLevel` 'very weak' avant 'weak'), e2e +5 checks, 0059 grant SELECT `parfum_card` (fix RPC catalogue invoker 0054) ; étagères & polish UI : réordonnancement ↕ en vue (drag retiré, ShelfManager conservé), tokens `cardShadow`/`cardBorder`/`hairline` + wrapper ombres cartes, `gridKey` sans remount thème, ombre FAB circulaire, race « Pour vous », pop scaleX des crans retiré, script `purge-2x` |
+| v9.3 | Voix « identification » alignée sur le scan : Edge Function `interpret-voice-query` (gpt-4o-mini Structured Outputs, confiance forcée serveur) → `searchParfumFromScan` partagé, auto-ouverture fiche sur match confiant (score ≥ 62 + écart ≥ 10 + confiance LLM) + bannière « Ce n'est pas lui ? » (`VoiceUndoBanner`, retour résultats via bridge), voie déconnectée = recherche brute + auto-open match exact, seconde chance Whisper sur 0 résultat (audio persisté), `transcribe-voice` v2 (`gpt-4o-mini-transcribe`, prompt marques synchronisé + vocabulaire parfum), orchestration unifiée SearchChrome/`/search` (`identifyFromVoice`), durcissement (`onError` au rejet module, haptique auto-stop, MIME réel, erreurs spécifiques) + 35 tests voix |
+| v9.4 | Flacon Runner détente & polish : abeille + glissade retirées (un seul geste = sauter), difficulté modérée (vitesse max 660, spawn ≥ 220 px, doubles ≤ 35 % à écart 120–200 px, goutte dès 800 pts), allègements (RunnerCombo central, milestones, bannières de phase), HUD/score/vies masqués hors jeu + overlays au-dessus du HUD (zIndex 200/300), scrim accueil, copy rafraîchie (« Saute les éclats · cueille les notes », missions « Prestige »/« Rempart », daily « éclats »/« impacts ») |
+| v9.5 | Réparation reconnaissance vocale (noms propres écorchés) : `transcribe-voice` v3 (prompt instructif + 77 marques + top ~250 noms du catalogue via `scripts/voice-vocab.ts`), `interpret-voice-query` v2 (framing « transcript ASR bruité », récupération phonétique, few-shots écorchés réels, hypothèses alternatives), seconde chance gatée sur la QUALITÉ du match (`voiceNeedsSecondChance` : 0 résultat OU interprétation absente/peu confiante, hors requêtes vagues) au lieu du nombre de résultats, `pickBetterVoiceOutcome`, STT on-device enrichi (`CONTEXTUAL_STRINGS` = marques + top ~100 noms, `maxAlternatives: 4` livrées à l'interprétation), matching : alias `casamorati → Casamorati 1888` + lignées `brandsRelated` (Xerjoff ↔ Casamorati), flankers « nom (année) » ignorés en exact (`fuzzyNameBonus`), watchdog 20→35 s, échec re-transcription → repli (pas d'erreur) |
+| v9.6 | Voix round 2 (cas réels : « L'Homme Idéal Parfum » ouvrait l'EDT, « Serge Lutens Écrin de Fumée » → « serge lutins écran de », « Electimuss Imperium » → « electimus imper ») : rescoring concentration (candidat « nom + concentration » ajouté, match exact d'une fiche qui ne confirme pas la concentration rétrogradé +50→+25, détection `typeFromNom` par phrase canonique la plus longue — « Eau de Parfum » ne confirme plus « Parfum »), confiance interprétation STRICTE (nom écorché non récupéré → 'low' même marque identifiée → seconde chance, few-shot « serge lutins écran de »), vocabulaire complet : 237 marques du catalogue + top 400 noms (garde budget 7000 car. → ~210 noms retenus) dans `transcribe-voice`, marques niches (Electimuss, Orto Parisi, Ex Nihilo, BDK…) dans `interpret-voice-query`, biasing client = 237 marques ASCII + 100 noms, règle concentration fin d'énoncé dans le prompt d'interprétation |
+| v9.7 | Pipeline voix MULTILINGUE (objectif 87 langues du Play Store) : `transcribe-voice` v4 = modèle `gpt-transcribe` (recommandé OpenAI) avec vocabulaire en paramètre `keywords` dédié (237 marques + 400 noms, sanitize `<>`, fallback retry sans keywords sur 400) au lieu du prompt tronqué, `languages` = indices ISO 639-1 de l'appareil (jamais `language` singulier avec ce modèle, réponse JSON `{text, languages}`), prompt d'instruction court en anglais neutre en langue ; `interpret-voice-query` v3 = prompt système réécrit en anglais agnostique de la langue de l'énoncé (FR/EN/ES/IT/…), noms jamais traduits, 2 few-shots non-FR (« baccarat rouge five forty » → Baccarat Rouge 540, « agua de yo » → Acqua di Gio) ; client : `expo-localization` (~57.0.1) + `src/utils/device-locale.ts` (`deviceSttLang` BCP-47, `deviceVoiceLanguages` max 3), `useVoiceSearch` ne force plus `fr-FR` (repli `en-US` unique si locale non supportée par le moteur STT), `transcribeVoice` envoie les langues appareil (3ᵉ paramètre optionnel, 4 call sites inchangés) ; fallback 400 retire keywords ET languages (retry « bare ») |
+| v9.8 | Audit global & durcissement + permissions just-in-time + transparence scan : audit 8 subagents + 3 reviewers (`docs/audit-2026-08-04.md`, 0 critique, 1 élevé corrigé) → migration `0060` (`REVOKE` PUBLIC/anon sur `recompute_perf_strings`, CHECK + troncature `runner_scores.skin`, `export_user_data` v3.1.0 complète RGPD), Edge Functions durcies (cron météo paginé `.range()`+`.order()`, `delete-user-account` fail-closed sans repli `iat`, `send-notification` valide title/body/data, `check-price-alerts` POST-only), scripts sécurisés (`purge-2x` dry-run PAR DÉFAUT + `--write`, `import-fresh` checkpoint guardé `!dryRun` + `--refresh`, `readEnvVar` strip quotes, paginations `.order()`), polish client (hitSlop SearchChrome ≥ 44 px, `ScanLoading` Reduced Motion, 1 seul haptique SOTD `success`, `DockBar` via `alpha()`, `.gitignore` `.env.*`, `.env.example` complet) ; **primers de permission** : `PermissionPrimer` + `usePermissionPrimer`/`usePushPrimer` (`permission-primers.ts`, 4 clés camera/mic/location/push, popup explicatif une seule fois au moment de l'intention, flag AsyncStorage `@sillage/primer-*`) — jamais de prompt système à froid, push proposé à la 1ʳᵉ alerte prix (`AlertPriceToggle`) ou au toggle Settings, enregistrement au lancement gaté par le réglage `pushNotifs` + purge des tokens au retrait ; **transparence scan** : `scan-display.ts` (chip héros « Vérifié visuellement / Reconnu à la forme / Correspondance probable », ligne « Lu : / Hypothèse : »), `ScanClarify` guidé par `failureReason` (blur/glare/label_unreadable/bad_framing/not_a_perfume), lecture incertaine + aucun candidat ≥ 50 → saisie assistée pré-remplie ; refus micro définitif → bouton « Réglages » (`VoiceOverlay`) — 816 tests / 74 suites |

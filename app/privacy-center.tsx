@@ -9,7 +9,7 @@ import { useAuthContext } from '../src/contexts/AuthContext';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
 import { useNetwork } from '../src/hooks/useNetwork';
 import { getUserSettings, updateUserSetting } from '../src/services/user-data';
-import { requestFcmPermission, deleteFcmToken } from '../src/services/push';
+import { getPushPermissionStatus, requestFcmPermission, registerPushToken } from '../src/services/push';
 import { getAccountDataSummary, shareAccountData, deleteAllScans, deleteAllFcmTokens, deleteAllPriceAlerts, clearWeatherCoords, type AccountDataSummary } from '../src/services/account';
 
 export default function PrivacyCenterPage() {
@@ -41,10 +41,20 @@ export default function PrivacyCenterPage() {
 
   const handlePushNotifs = useCallback(async (val: boolean) => {
     setPushNotifs(val);
-    if (uid) updateUserSetting(uid, 'pushNotifs', val).catch(() => {});
-    if (val) { requestFcmPermission().catch(() => {}); } else {
-      deleteFcmToken().catch(() => {});
-      if (uid) deleteAllFcmTokens(uid).catch(() => {});
+    if (!uid) return;
+    updateUserSetting(uid, 'pushNotifs', val).catch(() => {});
+    if (val) {
+      // Action explicite dans le centre de consentement : prompt direct si la
+      // permission n'est pas encore décidée, sinon enregistrement du token.
+      const status = await getPushPermissionStatus();
+      if (status === 'granted') {
+        await registerPushToken(uid);
+      } else if (status !== 'denied') {
+        const granted = await requestFcmPermission();
+        if (granted) await registerPushToken(uid);
+      }
+    } else {
+      deleteAllFcmTokens(uid).catch(() => {});
     }
   }, [uid]);
 

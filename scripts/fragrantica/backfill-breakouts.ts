@@ -68,7 +68,7 @@ async function fetchExistingIds(supabase: SupabaseClient): Promise<Set<string>> 
   const ids = new Set<string>();
   let from = 0;
   for (;;) {
-    const { data, error } = await supabase.from('parfums').select('id').range(from, from + PAGE_SIZE - 1);
+    const { data, error } = await supabase.from('parfums').select('id').order('id').range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`lecture ids: ${error.message}`);
     const rows = data ?? [];
     for (const r of rows) ids.add(r.id as string);

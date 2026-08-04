@@ -58,6 +58,10 @@ export default function PrivacyPage() {
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
             Certaines préférences (thème, densité d'affichage, vues) et vos recherches récentes sont stockées localement sur votre appareil via AsyncStorage. Aucune donnée sensible (mot de passe, contenu de votre parfumerie) n'est conservée localement : celles-ci sont hébergées sur nos serveurs.
           </Text>
+          <Text style={s.subtitle}>2.6 Localisation (météo)</Text>
+          <Text style={s.body} maxFontSizeMultiplier={1.3}>
+            Si vous activez les suggestions météo, votre position approximative (arrondie à ~1 km) est utilisée pour afficher la météo locale et adapter les suggestions de parfums. Elle est demandée uniquement après votre accord explicite, jamais collectée à votre insu, et peut être effacée à tout moment (Paramètres → Confidentialité & données).
+          </Text>
         </View>
 
         <View style={s.section}>
@@ -146,9 +150,10 @@ export default function PrivacyPage() {
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>9. Cookies et stockage local</Text>
+          <Text style={s.sectionTitle}>9. Cookies, stockage local et liens partenaires</Text>
           <Text style={s.body} maxFontSizeMultiplier={1.3}>
-            L'application mobile Sillage n'utilise pas de cookies. Le stockage local sur l'appareil (via AsyncStorage) se limite à vos préférences (thème, densité d'affichage, vues) et à vos recherches récentes.
+            L'application mobile Sillage n'utilise pas de cookies. Le stockage local sur l'appareil (via AsyncStorage) se limite à vos préférences (thème, densité d'affichage, vues) et à vos recherches récentes.{'\n\n'}
+            Les boutons « Voir l'offre » et la section « Comparer les marchands » peuvent contenir des liens d'affiliation : si vous achetez chez un marchand partenaire via l'un de ces liens, Sillage peut percevoir une commission, sans surcoût pour vous. Ces liens n'ajoutent aucun cookie de suivi dans l'application et n'influencent ni les prix affichés ni le classement des offres.
           </Text>
         </View>
 

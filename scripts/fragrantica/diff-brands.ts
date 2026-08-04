@@ -78,6 +78,7 @@ async function fetchDbParfums(supabase: SupabaseClient): Promise<Map<string, Set
     const { data, error } = await supabase
       .from('parfums')
       .select('id, marque')
+      .order('id')
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`lecture parfums : ${error.message}`);
     if (!data || data.length === 0) break;

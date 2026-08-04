@@ -1,7 +1,7 @@
 // src/features/scan/ScanScreen.tsx — Orchestrateur scan avec caméra réelle
 // Pipeline métier → useScanPipeline (testable)
 
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
@@ -21,8 +21,12 @@ import { ScanClarify } from './ScanClarify';
 import { ScanResults } from './ScanResults';
 import { ScanNoResult } from './ScanNoResult';
 import { ScanError } from './ScanError';
+import PermissionPrimer from '../../components/PermissionPrimer';
+import { usePermissionPrimer } from '../../hooks/usePermissionPrimer';
+import { PERMISSION_PRIMERS } from '../../utils/permission-primers';
 
-const MAX_IMAGE_WIDTH = 768;
+// 1280px : OCR d'étiquettes (detail high côté serveur), payload contenu par le JPEG
+const MAX_IMAGE_WIDTH = 1280;
 const IMAGE_QUALITY = 0.6;
 
 async function resizeToBase64(uri: string): Promise<string | null> {
@@ -40,6 +44,7 @@ export function ScanScreen() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const { state, dispatch } = useScanReducer();
+  const cameraPrimer = usePermissionPrimer('camera');
 
   const mountedRef = useRef(true);
   const lastBurstRef = useRef<string[] | null>(null);
@@ -79,24 +84,42 @@ export function ScanScreen() {
     cancelAnalysis();
   }, [cancelAnalysis]);
 
-  const handleOpenCamera = useCallback(async () => {
-    if (!guardOnline()) return;
+  // Demande système (après primer le cas échéant) + gestion des refus.
+  const requestCameraAndOpen = useCallback(async () => {
     if (!permission?.granted) {
       const r = await requestPermission();
       if (!r.granted) {
         if (!r.canAskAgain) {
-          Alert.alert('Permission refusée', 'Activez la caméra dans les réglages de l\'appareil.', [
+          Alert.alert('Caméra désactivée', 'Active la caméra dans les réglages de l\'appareil pour scanner un flacon.', [
             { text: 'Annuler', style: 'cancel' },
             { text: 'Réglages', onPress: () => Linking.openSettings() },
           ]);
         } else {
-          Alert.alert('Permission refusée', 'La caméra est nécessaire pour scanner un flacon.');
+          Alert.alert('Caméra nécessaire', 'La caméra sert à scanner le flacon. Tu peux réessayer quand tu veux.');
         }
         return;
       }
     }
     dispatch({ type: 'OPEN_CAMERA' });
-  }, [permission, requestPermission, dispatch, guardOnline]);
+  }, [permission, requestPermission, dispatch]);
+
+  const handleOpenCamera = useCallback(async () => {
+    if (!guardOnline()) return;
+    if (!permission?.granted && cameraPrimer.needsPrimer) {
+      cameraPrimer.open();
+      return;
+    }
+    await requestCameraAndOpen();
+  }, [permission, guardOnline, cameraPrimer, requestCameraAndOpen]);
+
+  const handleCameraPrimerAccept = useCallback(() => {
+    cameraPrimer.accept();
+    void requestCameraAndOpen();
+  }, [cameraPrimer, requestCameraAndOpen]);
+
+  const handleCameraPrimerDecline = useCallback(() => {
+    cameraPrimer.decline();
+  }, [cameraPrimer]);
 
   const handleGalleryImport = useCallback(async () => {
     if (!guardOnline()) return;
@@ -170,20 +193,43 @@ export function ScanScreen() {
 
   // ─── Rendu par état ────────────────────────────────────
 
+  let view: ReactNode;
   switch (state.kind) {
     case 'idle':
-      return <ScanIdle isOnline={isOnline} onStartScan={handleOpenCamera} onOpenSearch={handleOpenSearch} onClose={handleClose} recentScans={recentScans} onOpenRecent={handleOpenRecent} />;
+      view = <ScanIdle isOnline={isOnline} onStartScan={handleOpenCamera} onOpenSearch={handleOpenSearch} onClose={handleClose} recentScans={recentScans} onOpenRecent={handleOpenRecent} />;
+      break;
     case 'camera':
-      return <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} onImportGallery={handleGalleryImport} />;
+      view = <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} onImportGallery={handleGalleryImport} />;
+      break;
     case 'scanning':
-      return <ScanLoading onCancel={handleCancelScan} thumbnail={state.images?.[0]} />;
+      view = <ScanLoading onCancel={handleCancelScan} thumbnail={state.images?.[0]} />;
+      break;
     case 'clarify':
-      return <ScanClarify scanResult={state.scanResult} reason={state.reason} onSearch={handleClarify} onRescan={handleOpenCamera} onReset={reset} />;
+      view = <ScanClarify scanResult={state.scanResult} reason={state.reason} onSearch={handleClarify} onRescan={handleOpenCamera} onReset={reset} />;
+      break;
     case 'results':
-      return <ScanResults parfums={state.parfums} confidence={state.confidence} onOpenCatalog={handleOpenCatalog} onRescan={handleOpenCamera} />;
+      view = <ScanResults parfums={state.parfums} confidence={state.confidence} read={state.read} onOpenCatalog={handleOpenCatalog} onRescan={handleOpenCamera} />;
+      break;
     case 'no-result':
-      return <ScanNoResult marque={state.scanResult.marque} onSearchCatalog={handleSearchCatalog} onRescan={handleOpenCamera} onManual={handleManual} onReset={reset} />;
+      view = <ScanNoResult marque={state.scanResult.marque} onSearchCatalog={handleSearchCatalog} onRescan={handleOpenCamera} onManual={handleManual} onReset={reset} />;
+      break;
     case 'error':
-      return <ScanError message={state.message} onReset={reset} onRetryAnalysis={lastBurstRef.current ? handleRetryAnalysis : undefined} />;
+      view = <ScanError message={state.message} onReset={reset} onRetryAnalysis={lastBurstRef.current ? handleRetryAnalysis : undefined} />;
+      break;
   }
+
+  // Le primer est monté à la racine (pas seulement à l'état idle) : le geste
+  // « Rescanner » existe aussi dans clarify/results/no-result et doit pouvoir
+  // ouvrir le popup si la permission caméra n'a jamais été demandée.
+  return (
+    <>
+      {view}
+      <PermissionPrimer
+        visible={cameraPrimer.visible}
+        copy={PERMISSION_PRIMERS.camera}
+        onAccept={handleCameraPrimerAccept}
+        onDecline={handleCameraPrimerDecline}
+      />
+    </>
+  );
 }

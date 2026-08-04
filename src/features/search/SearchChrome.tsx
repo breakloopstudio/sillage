@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
@@ -10,12 +10,27 @@ import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { alpha } from '../../utils/alpha';
 import { textOn } from '../../utils/contrast';
-import { hapticsLight } from '../../services/haptics';
-import { searchParfumsCached } from '../../services/catalog';
-import { transcribeVoice } from '../../services/voice-search';
-import { useVoiceSearch, type VoiceResult } from '../../hooks/useVoiceSearch';
+import { hapticsLight, hapticsSuccess } from '../../services/haptics';
+import {
+  identifyFromVoice,
+  transcribeVoice,
+  readVoiceAudioBase64,
+  mimeFromAudioUri,
+  voiceNeedsSecondChance,
+  pickBetterVoiceOutcome,
+  type VoiceIdentifyOutcome,
+} from '../../services/voice-search';
+import {
+  setPendingParfum,
+  setPendingVoiceAutoOpen,
+  consumePendingVoiceResults,
+} from '../../services/catalog-bridge';
+import { useVoiceSearch, type VoiceResult, type VoiceErrorCode } from '../../hooks/useVoiceSearch';
 import { useNetwork } from '../../hooks/useNetwork';
 import { useVoicePreference } from '../../hooks/useVoicePreference';
+import { usePermissionPrimer } from '../../hooks/usePermissionPrimer';
+import { PERMISSION_PRIMERS } from '../../utils/permission-primers';
+import PermissionPrimer from '../../components/PermissionPrimer';
 import VoiceOverlay from './VoiceOverlay';
 import type { VoicePhase } from './VoiceOverlay';
 
@@ -25,7 +40,7 @@ export default function SearchChrome() {
   const s = useMemo(() => getSearchStyles(theme, insets.top), [theme, insets.top]);
   const router = useRouter();
   const { isOnline } = useNetwork();
-  const { user } = useAuthContext();
+  const { user, isAuthenticated } = useAuthContext();
 
   const [voicePhase, setVoicePhase] = useState<VoicePhase>({ type: 'listening', transcript: '' });
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -42,63 +57,133 @@ export default function SearchChrome() {
     router.push('/profile');
   }, [router]);
 
+  // Aboutissement du pipeline : auto-ouverture (match confiant) OU overlay résultats.
+  // Retourne true si un aboutissement a eu lieu (false = 0 résultat).
+  // (La session STT est déjà terminée à ce stade — deliverResult a rendu la main.)
+  const applyVoiceOutcome = useCallback((outcome: VoiceIdentifyOutcome): boolean => {
+    if (outcome.results.length === 0) return false;
+    if (outcome.autoOpen) {
+      const top = outcome.autoOpen;
+      setVoicePhase({ type: 'listening', transcript: '' });
+      setVoiceTranscript('');
+      setPendingParfum(top);
+      setPendingVoiceAutoOpen({ parfumId: top.id, query: outcome.query, results: outcome.results });
+      hapticsSuccess();
+      router.push(`/catalog/${top.id}`);
+      return true;
+    }
+    setVoicePhase({ type: 'results', results: outcome.results, query: outcome.query });
+    return true;
+  }, [router]);
+
   const handleVoiceResult = useCallback(async (result: VoiceResult) => {
-    const searchQuery = result.text?.trim() || '';
-    setVoicePhase({ type: 'searching', query: searchQuery });
+    const transcript = result.text?.trim() || '';
+    setVoicePhase({ type: 'searching', query: transcript });
     const requestId = ++voiceRequestIdRef.current;
 
     try {
-      if (result.text) {
-        setVoiceTranscript(result.text);
-        const resolvedQuery = result.text.trim();
-        const results = await searchParfumsCached(resolvedQuery);
+      if (transcript) {
+        setVoiceTranscript(transcript);
+        // Pipeline identification : interprétation structurée → searchParfumFromScan.
+        const outcome = await identifyFromVoice(transcript, { isAuthenticated, alternatives: result.alternatives });
         if (requestId !== voiceRequestIdRef.current) return;
-        if (results.length > 0) {
-          setVoicePhase({ type: 'results', results, query: resolvedQuery });
-          return;
-        }
-      }
 
-      if (result.audioBase64) {
-        const whisperText = await transcribeVoice(result.audioBase64, 'audio/wav');
-        if (requestId !== voiceRequestIdRef.current) return;
-        const resolvedQuery = whisperText.trim();
-        if (resolvedQuery) {
-          setVoiceTranscript(resolvedQuery);
-          const results = await searchParfumsCached(resolvedQuery);
+        // Seconde chance gatée sur la QUALITÉ du match (pas le nombre de
+        // résultats) : un transcript écorché renvoie presque toujours « quelque
+        // chose » en trgm — c'est la confiance qui décide de re-transcrire.
+        let best = outcome;
+        if (voiceNeedsSecondChance(outcome) && result.audioUri && isAuthenticated) {
+          const base64 = await readVoiceAudioBase64(result.audioUri);
           if (requestId !== voiceRequestIdRef.current) return;
-          if (results.length > 0) {
-            setVoicePhase({ type: 'results', results, query: resolvedQuery });
-            return;
+          if (base64) {
+            try {
+              const whisperText = (await transcribeVoice(base64, mimeFromAudioUri(result.audioUri))).trim();
+              if (requestId !== voiceRequestIdRef.current) return;
+              if (whisperText && whisperText.toLowerCase() !== transcript.toLowerCase()) {
+                setVoiceTranscript(whisperText);
+                setVoicePhase({ type: 'searching', query: whisperText });
+                const retry = await identifyFromVoice(whisperText, { isAuthenticated });
+                if (requestId !== voiceRequestIdRef.current) return;
+                best = pickBetterVoiceOutcome(outcome, retry);
+              }
+            } catch (e: unknown) {
+              // Échec de la re-transcription → repli sur le premier passage.
+              if (__DEV__) console.warn('[voice] second chance failed:', (e as Error)?.message ?? String(e));
+            }
           }
+        }
+
+        if (applyVoiceOutcome(best)) return;
+      } else if (result.audioBase64) {
+        // Pas de transcript on-device → Whisper d'abord (voie historique).
+        const whisperText = (await transcribeVoice(result.audioBase64, mimeFromAudioUri(result.audioUri ?? ''))).trim();
+        if (requestId !== voiceRequestIdRef.current) return;
+        if (whisperText) {
+          setVoiceTranscript(whisperText);
+          setVoicePhase({ type: 'searching', query: whisperText });
+          const outcome = await identifyFromVoice(whisperText, { isAuthenticated });
+          if (requestId !== voiceRequestIdRef.current) return;
+          if (applyVoiceOutcome(outcome)) return;
         }
       }
 
       if (requestId !== voiceRequestIdRef.current) return;
       setVoicePhase({ type: 'empty' });
-    } catch {
+    } catch (err: unknown) {
       if (requestId !== voiceRequestIdRef.current) return;
-      setVoicePhase({ type: 'error', message: 'La recherche a échoué. Vérifie ta connexion.' });
+      const msg = (err as Error)?.message;
+      setVoicePhase({ type: 'error', message: msg || 'La recherche a échoué. Vérifie ta connexion.' });
     }
-  }, []);
+  }, [isAuthenticated, applyVoiceOutcome]);
 
-  const handleVoiceError = useCallback((msg: string) => {
-    setVoicePhase({ type: 'error', message: msg || 'Erreur de reconnaissance vocale.' });
+  const handleVoiceError = useCallback((msg: string, code?: VoiceErrorCode) => {
+    setVoicePhase({
+      type: 'error',
+      message: msg || 'Erreur de reconnaissance vocale.',
+      showSettings: code === 'mic-denied-permanent',
+    });
   }, []);
 
   const voiceSearch = useVoiceSearch(handleVoiceResult, handleVoiceError);
   const { voiceEnabled } = useVoicePreference();
+  const micPrimer = usePermissionPrimer('mic');
+
+  const handleOpenSystemSettings = useCallback(() => {
+    voiceRequestIdRef.current++;
+    voiceSearch.cancel();
+    setVoicePhase({ type: 'listening', transcript: '' });
+    setVoiceTranscript('');
+    Linking.openSettings().catch(() => {});
+  }, [voiceSearch]);
 
   const overlayVisible = voicePhase.type !== 'listening';
   const showVoiceTranscript = voiceSearch.state === 'listening' || voiceSearch.state === 'processing';
 
+  // Retour de la bannière « Ce n'est pas lui ? » (fiche → ici) : restaurer les
+  // résultats vocaux en overlay au focus des tabs.
+  useFocusEffect(
+    useCallback(() => {
+      const pending = consumePendingVoiceResults();
+      if (pending && pending.results.length > 0) {
+        setVoiceTranscript(pending.query);
+        setVoicePhase({ type: 'results', results: pending.results, query: pending.query });
+      }
+    }, []),
+  );
+
+  // Watchdog « searching » : dépend de l'objet phase pour se ré-armer à chaque
+  // transition (incl. re-position avant re-transcription). À l'expiration, il
+  // invalide le pipeline en cours (requestId) pour qu'aucun résultat tardif ne
+  // recouvre l'erreur. 35 s : interprétation (≤12 s) + recherche + lecture
+  // audio + re-transcription (≤15 s) + seconde interprétation peuvent se chaîner.
   useEffect(() => {
     if (voicePhase.type !== 'searching') return;
     const t = setTimeout(() => {
+      voiceRequestIdRef.current++;
       setVoicePhase({ type: 'error', message: 'La recherche prend trop de temps. Réessaie.' });
-    }, 20_000);
+    }, 35_000);
     return () => clearTimeout(t);
-  }, [voicePhase.type]);
+  }, [voicePhase]);
 
   useEffect(() => {
     if (voiceSearch.state === 'listening') {
@@ -107,20 +192,38 @@ export default function SearchChrome() {
     }
   }, [voiceSearch.transcript, voiceSearch.state]);
 
+  const startVoiceSession = useCallback(() => {
+    voiceRequestIdRef.current++;
+    setVoiceTranscript('');
+    setVoicePhase({ type: 'listening', transcript: '' });
+    hapticsLight();
+    voiceSearch.start({ continuous: true });
+  }, [voiceSearch]);
+
   const handleFabPressIn = useCallback(() => {
     if (!isOnline) {
       handleVoiceError('Recherche vocale indisponible hors-ligne.');
       return;
     }
-    setVoiceTranscript('');
-    setVoicePhase({ type: 'listening', transcript: '' });
-    hapticsLight();
-    voiceSearch.start({ continuous: true });
-  }, [isOnline, voiceSearch, handleVoiceError]);
+    if (micPrimer.needsPrimer) {
+      micPrimer.open();
+      return;
+    }
+    startVoiceSession();
+  }, [isOnline, micPrimer, startVoiceSession, handleVoiceError]);
 
   const handleFabPressOut = useCallback(() => {
     voiceSearch.stop();
   }, [voiceSearch]);
+
+  const handleMicPrimerAccept = useCallback(() => {
+    micPrimer.accept();
+    startVoiceSession();
+  }, [micPrimer, startVoiceSession]);
+
+  const handleMicPrimerDecline = useCallback(() => {
+    micPrimer.decline();
+  }, [micPrimer]);
 
   const handleSearchPress = useCallback(() => {
     if (overlayVisible) return;
@@ -128,6 +231,7 @@ export default function SearchChrome() {
   }, [overlayVisible, router]);
 
   const handleVoiceResultPress = useCallback((id: string) => {
+    voiceRequestIdRef.current++;
     voiceSearch.cancel();
     setVoicePhase({ type: 'listening', transcript: '' });
     setVoiceTranscript('');
@@ -135,6 +239,7 @@ export default function SearchChrome() {
   }, [voiceSearch, router]);
 
   const handleVoiceViewAll = useCallback(() => {
+    voiceRequestIdRef.current++;
     voiceSearch.cancel();
     setVoicePhase({ type: 'listening', transcript: '' });
     setVoiceTranscript('');
@@ -142,12 +247,14 @@ export default function SearchChrome() {
   }, [voiceSearch, voiceTranscript, router]);
 
   const handleVoiceCancel = useCallback(() => {
+    voiceRequestIdRef.current++;
     voiceSearch.cancel();
     setVoicePhase({ type: 'listening', transcript: '' });
     setVoiceTranscript('');
   }, [voiceSearch]);
 
   const handleVoiceRetry = useCallback(() => {
+    voiceRequestIdRef.current++;
     setVoiceTranscript('');
     setVoicePhase({ type: 'listening', transcript: '' });
     voiceSearch.start({ continuous: true });
@@ -183,10 +290,10 @@ export default function SearchChrome() {
             )}
           </Pressable>
         </View>
-        <Pressable onPress={handleSettingsPress} style={s.settingsBtn} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres">
+        <Pressable onPress={handleSettingsPress} style={s.settingsBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres">
           <Ionicons name="settings-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
-        <Pressable onPress={handleAvatarPress} style={s.avatarBtn} accessibilityRole="button" accessibilityLabel="Ouvrir le profil">
+        <Pressable onPress={handleAvatarPress} style={s.avatarBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel="Ouvrir le profil">
           {user?.photoURL && !avatarFailed ? (
             <Image source={{ uri: user.photoURL }} style={s.avatarImg} onError={() => setAvatarFailed(true)} />
           ) : (
@@ -204,6 +311,14 @@ export default function SearchChrome() {
         onViewAll={handleVoiceViewAll}
         onCancel={handleVoiceCancel}
         onRetry={handleVoiceRetry}
+        onOpenSettings={handleOpenSystemSettings}
+      />
+
+      <PermissionPrimer
+        visible={micPrimer.visible}
+        copy={PERMISSION_PRIMERS.mic}
+        onAccept={handleMicPrimerAccept}
+        onDecline={handleMicPrimerDecline}
       />
 
       {voiceEnabled && (

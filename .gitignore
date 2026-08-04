@@ -32,7 +32,8 @@ build_log.txt
 
 # ─── Variables d'environnement (NE JAMAIS COMMITTER) ─────────────
 .env
-.env*.local
+.env.*
+!.env.example
 functions/.env
 
 # ─── Secrets Firebase/Google (NE JAMAIS COMMITTER) ───────────────
@@ -43,6 +44,7 @@ service-account.json
 # ─── IDE / Outils locaux ─────────────────────────────────────────
 .idea/
 .claude/
+.opencode/
 .od-skills/
 CLAUDE.md
 AGENTS.md

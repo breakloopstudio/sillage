@@ -11,6 +11,7 @@ import Animated, {
   withDelay,
   Easing,
   cancelAnimation,
+  useReducedMotion,
 } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 
@@ -26,6 +27,7 @@ const TEXTS = [
 function Particle({ index, t }: { index: number; t: Theme }) {
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(0.6);
+  const reduced = useReducedMotion();
 
   const { scale, duration, translateAmount, size, left } = useMemo(() => ({
     scale: 0.6 + (index * 0.07) % 0.4,
@@ -36,6 +38,10 @@ function Particle({ index, t }: { index: number; t: Theme }) {
   }), [index]);
 
   useEffect(() => {
+    if (reduced) {
+      opacity.value = 0;
+      return;
+    }
     const stagger = index * 120;
 
     translateY.value = withDelay(
@@ -81,8 +87,10 @@ function Particle({ index, t }: { index: number; t: Theme }) {
 
 function HaloRing({ t }: { t: Theme }) {
   const rotation = useSharedValue(0);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
+    if (reduced) return;
     rotation.value = withRepeat(
       withTiming(360, { duration: 3000, easing: Easing.linear }),
       -1,

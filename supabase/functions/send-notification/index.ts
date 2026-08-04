@@ -17,7 +17,22 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json(); } catch { return jsonResponse({ error: 'JSON invalide.' }, 400); }
 
   const { title, body: msg, userId, data } = body;
-  if (!title || !msg) return jsonResponse({ error: 'title et body requis.' }, 400);
+  if (typeof title !== 'string' || typeof msg !== 'string' || !title.trim() || !msg.trim()) {
+    return jsonResponse({ error: 'title et body requis.' }, 400);
+  }
+  if (title.length > 100 || msg.length > 500) {
+    return jsonResponse({ error: 'title/body trop longs.' }, 400);
+  }
+  let cleanData: Record<string, string> | undefined;
+  if (data != null) {
+    if (typeof data !== 'object' || Array.isArray(data)) {
+      return jsonResponse({ error: 'data invalide.' }, 400);
+    }
+    cleanData = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (typeof v === 'string') cleanData[k] = v;
+    }
+  }
 
   // Auth : service_role (cron) = bypass ; sinon JWT utilisateur (self ou admin)
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
@@ -67,7 +82,7 @@ Deno.serve(async (req: Request) => {
 
   if (tokens.length === 0) return jsonResponse({ success: true, sent: 0, errors: 0 });
 
-  const { successCount, deadTokens } = await sendPush(tokens, title, msg, data);
+  const { successCount, deadTokens } = await sendPush(tokens, title, msg, cleanData);
   const purged = await purgeDeadTokens(supabase, deadTokens);
 
   return jsonResponse({ success: true, sent: successCount, purged });

@@ -35,7 +35,7 @@ describe('evaluateMissionTiers', () => {
 describe('nextObjective', () => {
   it('returns the closest next tier by relative progress', () => {
     const obj = nextObjective(ctx({ score: 400 }), { score: 1 });
-    expect(obj?.label).toBe('Casse');
+    expect(obj?.label).toBe('Prestige');
     expect(obj?.target).toBe(500);
     expect(obj?.current).toBe(400);
   });

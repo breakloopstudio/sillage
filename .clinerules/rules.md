@@ -42,11 +42,11 @@ app/
 src/
 ├── services/     (19)        # supabase, catalog, user-data, user-parfum, possessions, profile, community, recap (récap hebdo 7j + streak SOTD), account, openai-vision, voice-search, weather, storage, push, haptics, theme-storage, catalog-bridge, runner (leaderboard Flacon Runner), perf-votes (votes performance : RPC parfum_perf/cast_vote)
 ├── services/impl/            # Implémentations Supabase de chaque service (catalog, user-data, user-parfum, possessions, account, push, storage, openai-vision, voice-search) + search-shared.ts (LRU/dedup/SearchError) + sql-utils.ts (toDate/today). Chaque service public = `export * from './impl/<x>.supabase'`.
-├── hooks/        (23)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference (vue Favoris/Alertes persistée), useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useWeeklyRecap (récap 7j « Ta semaine »), useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance : fetch + vote optimiste + auto-réparation au focus)
+├── hooks/        (26)        # useAuth, useCatalog, useCommunityHighlights, useDensityPreference, useNetwork, usePriceAlerts, useMyProfile, usePublicProfile, useProfileStats, useScanPipeline, useScanReducer, useScans, useUserParfum, usePossessions, useFavorisViewPreference (vue Favoris/Alertes persistée), useShelfItems (ordre+pin par étagère, temps réel), useParfumerieViewPreference (vue Collection/Étagères persistée), useSotd, useWeeklyRecap (récap 7j « Ta semaine »), useVoicePreference, useVoiceSearch, useWeather, usePerfVotes (votes performance : fetch + vote optimiste + auto-réparation au focus), usePermissionPrimer (primer caméra/micro/position just-in-time), usePushPrimer (push proposé à un moment de valeur), useStaleWhileRevalidate (cache disque SWR)
 ├── contexts/     (5)         # AuthContext, FavorisContext, UserParfumContext (source de vérité user_parfum temps réel), PriceAlertsContext (alertes prix temps réel), ShelvesContext (étagères temps réel — remplace useShelves) — ThemeContext est dans src/theme/
-├── components/   (24)        # ParfumCard (badges statut/rating/🔔 optionnels + état alerte reached/near, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie : statut + étagères + pin), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in, mode embedded), AddToShelfSheet (ajout direct à une étagère), PublishShelfGateSheet (gate profil public inline), InspireShelfSheet (copie en lot « M'inspirer »), InfoPopup (popup centrée d'information), VotePickerSheet (sélecteur de vote : options + vote courant + retirer)
+├── components/   (26)        # ParfumCard (badges statut/rating/🔔 optionnels + état alerte reached/near, hidePrice, onLongPress), Button, PriceDisplay, SectionHeader, EmptyState, OfflineBanner, AppLoader, ErrorBoundary, AlertPriceToggle, NoteDetailPopup, ActionSheet, ImageViewerPopup, FilterSheet, AuthGate, FavButton, StatuerSheet (long-press Parfumerie : statut + étagères + pin), FavoriSheet (long-press Favoris), PriceAlertSheet (alerte prix canonique), PublicProfileCard (profil public opt-in, mode embedded), AddToShelfSheet (ajout direct à une étagère), PublishShelfGateSheet (gate profil public inline), InspireShelfSheet (copie en lot « M'inspirer »), InfoPopup (popup centrée d'information), VotePickerSheet (sélecteur de vote : options + vote courant + retirer), PermissionPrimer (popup de pré-permission just-in-time, §22), VoiceUndoBanner (« Ce n'est pas lui ? » après auto-ouverture vocale, §4.18)
 ├── features/
-│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards, AccordProfile (profil d'accords : barres animées + aphorisme), PerformanceProfile (Tenue & sillage : crans animés + bouton vote 👍), SeasonProfile (Quand le porter : colonnes saisons + moment Jour/Soir + bouton vote 👍), pyramid/geometry.ts (helpers géométrie SVG pyramide)
+│   ├── catalog/              # CatalogPage, OlfactoryPyramid v7, PyramidStage, NoteCloud, DetailHero (cœur favori), CollapsingHeader, StickyBottomBar (prix + SaveButton + CTA), SaveSheet (3 chips statut + verdict + possessions), SaveButton, useSaveController (statut/verdict/rating/notes/étagères/signature), RelationSection (section « Ma relation » de la fiche unifiée), CommunityVerdicts (section « La communauté » + sheet profils), BrandCapsules, BrandSheet, CatalogRow, FamilyAmbianceCards, AccordProfile (profil d'accords : ruban de composition + rows annotées expansibles), PerformanceProfile (Tenue & sillage : jauge fléchée rail+curseur animés + bouton vote 👍), SeasonProfile (Quand le porter : colonnes saisons + moment Jour/Soir + bouton vote 👍), pyramid/geometry.ts (helpers géométrie SVG pyramide)
 │   ├── navigation/ (2)       # DockBar (custom tabBar TopTabs : 4 onglets + FAB Scan central) + NavigationChromeContext
 │   ├── runner/               # Flacon Runner v2 (pouvoirs/vies/missions/classement, cf. §17) : RunnerGame, useRunnerLoop, RunnerBottle, RunnerBackground, RunnerGround, RunnerObstacles, RunnerPickups, RunnerSpeedLines, RunnerHud, RunnerParticles, runner-sounds, runner-missions, runner-types, runner-storage
 │   ├── scan/                 # ScanScreen + sous-états (+ useScanPipeline dans hooks/)
@@ -56,12 +56,12 @@ src/
 ├── theme/        (2)         # theme.ts (Theme interface + light/dark), ThemeContext.tsx
 ├── config/       (3)         # env, index, legal (firebase.config supprimé — migration Supabase)
 ├── models/       (8)         # Parfum (+searchText, +imageUrl2x), UserParfum (+UserParfumStatus, ScentVerdict, Possession, PossessionType, Shelf (+description/isPublic), ShelfItem, SotdEntry), UserPriceAlert, MyProfile/PublicProfile/PublicCollectionItem/PublicShelf/PublicShelfItem, UserFavori, UserScan, ScanResult, index
-├── utils/        (25)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-5 longévité / 1-4 sillage + ticks), season-profile (profil saisons + occasions + moment), parfum-labels (typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration — labels canoniques + concentration fiable depuis le nom)
+├── utils/        (29)        # error-translator (translateSupabaseError), translate-note, note-descriptions, normalize, season, favori-filters, contrast, format-price, suggest, weather-codes, weather-scoring, olfactory-families, status-chips (3 chips statut), verdicts, price-alerts (suggestion cible + variation), share (URLs de partage + validation pseudo), alpha (paliers §2.5, dark ÷2), brand-color, shelf-grouping (vues système + inspireMissing), price-tier, accord-profile (buildAccords), perf-fusion (fusion Fragrantica bornée + votes users), performance-profile (crans 1-5 longévité / 1-4 sillage + ticks), season-profile (profil saisons + occasions + moment), parfum-labels (typeParfumLabel, genderLabel, communityRatingLabel, concentrationFromName, resolveConcentration — labels canoniques + concentration fiable depuis le nom), scan-match (rescoring fuzzy scan/voix : alias marques, fuzzy Levenshtein, concentration), scan-display (chip héros + ligne « Lu/Hypothèse »), permission-primers (copy + flags AsyncStorage des primers §22), device-locale (deviceSttLang BCP-47 + deviceVoiceLanguages)
 └── types/        (1)         # database.types.ts — types Database générés (`supabase gen types typescript --linked`) ; type le client Supabase + payloads d'écriture (M4)
 
 supabase/                     # Backend Supabase (versionné)
-├── migrations/   (0001→0059) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057 : sécurité RPC, cleanup tables/index/enums morts, index manquants, intégrité updated_at/CHECK, vue parfum_card, perf serveur, DROP colonnes mortes), longévité 5 crans 1:1 + reset votes perf (0058), grant SELECT parfum_card (0059)
-├── functions/                # Edge Functions Deno : analyze-perfume-image, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
+├── migrations/   (0001→0060) # extensions, types, tables (dont shelf_items position+pin, parfum_votes votes performance 0042-0044), index, RLS+publication, RPC (search_parfums, reorder_shelves (0038), public_shelf/public_shelf_items (0039), add_to_shelf/remove_from_shelf/pin_shelf_item/reorder_shelf_items (0040), cast_vote/parfum_perf (0042-0044), personalized_suggestions hotfix user_parfum (0048)…), cron pg_cron, stats, image_url_2x, backfill type_parfum (0045), audit & durcissement (0050→0057 : sécurité RPC, cleanup tables/index/enums morts, index manquants, intégrité updated_at/CHECK, vue parfum_card, perf serveur, DROP colonnes mortes), longévité 5 crans 1:1 + reset votes perf (0058), grant SELECT parfum_card (0059), durcissement post-audit (0060 : REVOKE PUBLIC/anon recompute_perf_strings, CHECK+troncature runner_scores.skin, export_user_data v3.1.0 RGPD)
+├── functions/                # Edge Functions Deno : analyze-perfume-image, interpret-voice-query, transcribe-voice, check-price-alerts, send-notification, send-weather-notifications, delete-user-account, share (landing SSR de partage) + _shared/
 ├── config.toml               # Config projet (secrets via `env(...)`, JAMAIS en dur)
 └── smoke-test.sql            # Tests SQL rejouables
 ```
@@ -122,9 +122,10 @@ supabase/                     # Backend Supabase (versionné)
 
 ## §7 — Scan
 
-- Flux : Idle → Camera → Burst (3 photos) → GPT-4o Vision (Edge Function `analyze-perfume-image`) → `searchParfumFromScan()` (wrapper scan-spécifique avec bonus nom/marque structurés) → Résultats
-- `searchParfumFromScan` score : +50 nom exact, +25 nom partiel, +15 marque exacte, +8 marque partielle (écrase le scoring catalogue pour garantir le match exact en tête)
+- Flux : Idle → Camera → 1 photo (1280px JPEG) → GPT Vision (Edge Function `analyze-perfume-image` v4 : prompt `system` transcription littérale + reconnaissance de forme + flacon principal + anti-hallucination, few-shot, Structured Outputs enrichi `isPerfume`/`failureReason`/`textRead`/`typeParfum` enum canonique, `detail:'high'` dès la tentative 1, escalade mini→4o si lecture vide/incertaine, **confiance forcée côté serveur** (`textRead:false` ou `failureReason≠none` → `confidence:'low'`), re-ranking visuel si reconnaissance de forme avec maison (photo user vs top 12 flacons catalogue de la maison par URL, candidats en `detail:'high'` + labels neutres anti-ancrage + tri `greatest(review_count, rating_count, popularity_score)`, `match_index` Structured Outputs, best-effort) → `searchParfumFromScan()` (wrapper scan-spécifique avec bonus nom/marque structurés) → Résultats
+- `searchParfumFromScan` score : +50 nom exact, +25 nom partiel (inclusion ≥3 car.), fuzzy Levenshtein dégradé +10..+40 (typos de lecture, seuil 0.55), +15 marque exacte (canonicalisée via alias YSL/MFK/JPG…), +8 marque partielle, ±12 concentration (valeurs canoniques des deux côtés) ; marque seule → `getParfumsByMarques(brandQueryForms)` (.in sur les formes de surface, alias inclus, fallback trgm forme longue) ; tri score desc → popularité desc → prix asc
 - `ScanResults` affiche les résultats dans l'ordre de pertinence (pas de tri par prix)
+- **Transparence (v9.8)** : chip héros résolue par `scan-display.ts` (`scanChip` : « Vérifié visuellement » / « Reconnu à la forme » / « Correspondance probable ») + ligne « Lu : … / Hypothèse : … » (`scanReadLine`, toujours visible en reconnaissance de forme NON vérifiée). `ScanClarify` guidé par `failureReason` (blur/glare/label_unreadable/bad_framing/not_a_perfume → hint de prise de vue ; `not_a_perfume` → « Ce n'est pas un flacon »). Lecture incertaine + aucun candidat `_scanScore ≥ 50` → clarify pré-rempli (pas de match faible affiché comme une certitude)
 - Import galerie : même pipeline, sans permission caméra
 - États : `idle | camera | scanning | results | no-result | clarify | error`
 - Reducer géré par `useScanReducer`
@@ -222,7 +223,7 @@ supabase/                     # Backend Supabase (versionné)
 ## §13 — Tests
 
 - Suite de tests automatisée : Jest 29 + `jest-expo` + mock `@supabase/supabase-js` (dans `jest-setup.js`)
-- 633 tests, 61 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
+- 816 tests, 74 suites : `npm test` (watch) / `npm run test:ci` (CI + couverture)
 - Les fichiers de test sont dans `__tests__/` (hors `src/` et `app/`)
 - Test E2E backend cloud : `npm run test:supabase` (`scripts/test-supabase-e2e.ts`, 29 checks : recherche, auth, RLS, realtime, RPC, CASCADE RGPD)
 - Tests manuels sur émulateur Android (`Pixel_7_Pro`) et device physique
@@ -233,13 +234,24 @@ supabase/                     # Backend Supabase (versionné)
 
 ## §14 — Recherche vocale
 
-- **Architecture dual-mode** : STT on-device (`expo-speech-recognition`) + fallback OpenAI Whisper-1 (Edge Function `transcribe-voice`)
-- **Trigger** : long-press 400ms sur la barre de recherche (TabPager) ou bouton micro (écran `/search`)
-- **Enregistrement parallèle** : `expo-audio` enregistre en continu pendant que le STT tourne — l'audio brut est disponible pour le fallback
+- **Architecture dual-mode** : STT on-device (`expo-speech-recognition`) + fallback transcription Edge Function `transcribe-voice` (`gpt-transcribe`, modèle recommandé OpenAI depuis la dépréciation annoncée de la famille whisper/4o-transcribe)
+- **Multilingue (v9.7)** : rien n'est forcé en FR — STT on-device dans la langue de l'appareil (`deviceSttLang`, expo-localization ; repli `en-US` unique si la locale n'est pas supportée par le moteur), transcription serveur avec `languages` = indices ISO 639-1 de l'appareil (max 3, auto-détection si absents), prompt `interpret-voice-query` en anglais agnostique de la langue de l'énoncé (FR/EN/ES/IT/…), noms de parfums jamais traduits (orthographe officielle). Le vocabulaire de biasing (marques + noms) est universel → identique pour toutes les langues
+- **Pipeline identification (v9.3)** : le transcript suit le même moteur que le scan —
+  1. Edge Function `interpret-voice-query` (gpt-4o-mini, Structured Outputs) extrait `isPerfumeRequest/marque/nom/typeParfum/alternatives/confidence` de la phrase parlée (confiance FORCÉE côté serveur : jamais « high » sans marque ni nom)
+  2. → `searchParfumFromScan` (rescoring nom exact +50 / fuzzy / alias marques / concentration ±12)
+  3. → décision : match unique confiant (`pickAutoOpen` : confiance LLM haute + `_scanScore ≥ 62` + écart ≥ 10 sur le n°2) → **auto-ouverture de la fiche** ; sinon overlay de résultats
+- **Auto-ouverture** : `setPendingParfum` + `setPendingVoiceAutoOpen` (bridge) + `router.push` + haptique succès. Sur la fiche, bannière `VoiceUndoBanner` « Ce n'est pas lui ? » (§4.18, auto-dismiss 4 s) → `setPendingVoiceResults` + `router.back()` → SearchChrome restaure l'overlay de résultats au focus (`useFocusEffect`)
+- **Voie non connectée** : pas d'interprétation LLM (auth requise) → recherche texte brute + auto-ouverture seulement sur match exact « marque + nom » (`exactQueryMatch`)
+- **Seconde chance gatée qualité (v9.5)** : gate sur la QUALITÉ du match (`voiceNeedsSecondChance`), pas le nombre de résultats — le trgm renvoie presque toujours « quelque chose » sur un transcript écorché. Seconde chance si 0 résultat OU (pas d'auto-ouverture ET interprétation absente/basse confiance, hors requête vague). L'audio persisté (`recordingOptions.persist`, `VoiceResult.audioUri`) est re-transcrit (vocabulaire étendu) puis re-identifié ; `pickBetterVoiceOutcome` garde le meilleur des deux passages (connecté uniquement)
+- **Récupération des noms propres écorchés (v9.5)** : l'ASR transcrit les noms propres inconnus en mots proches de la langue parlée (« Lira Casamorati » → « dire à Casa »). Leviers : vocabulaire en paramètre `keywords` de `gpt-transcribe` (`scripts/voice-vocab.ts` : 237 marques + top 400 noms du catalogue), prompt `interpret-voice-query` « transcript ASR bruité » + few-shots écorchés, hypothèses STT alternatives (`maxAlternatives`) envoyées à l'interprétation
+- **Confiance interprétation STRICTE (v9.6)** : 'high' seulement si la demande est complètement identifiée ; des mots prononcés non mappés (nom écorché non récupéré) → 'low' MÊME si la marque est identifiée → déclenche la seconde chance (few-shot « serge lutins écran de »)
+- **Rescoring concentration (v9.6)** : quand une concentration est prononcée, le candidat « nom + concentration » est ajouté (le flanker concentré matche en exact) et le match exact d'une fiche qui ne confirme pas la concentration (`type_parfum` NULL ou contradictoire) est rétrogradé +50→+25 — « L'Homme Idéal Parfum » ouvre le flanker Parfum, pas l'EDT de base. Détection `typeFromNom` par phrase canonique la plus longue (« Eau de Parfum » ne confirme pas « Parfum »)
+- **Trigger** : FAB micro flottant press-and-hold (tabs) ou bouton micro toggle dans le champ (`/search`)
 - **VoiceOverlay** : panneau overlay 5 phases (listening/searching/results/empty/error), intégré dans la page Catalogue
-- **Contextual strings** : 60+ marques de parfum fournies à `expo-speech-recognition` pour améliorer la précision
+- **Contextual strings** : 237 marques du catalogue + top ~100 noms de parfums (`CONTEXTUAL_STRINGS`, ASCII) fournies à `expo-speech-recognition` ; côté serveur le biasing passe par `keywords` (237 marques + 400 noms, sanitize `<>`) et le prompt est une instruction courte
+- **Quota** : kind `voice` partagé interpret + transcribe (60/jour, RPC `check_and_increment_quota`)
 - **Permission** : `NSMicrophoneUsageDescription` (iOS) + `RECORD_AUDIO` (Android) via le plugin `expo-speech-recognition`
-- **Dépendances** : `expo-speech-recognition`, `expo-audio`, `expo-file-system`
+- **Dépendances** : `expo-speech-recognition`, `expo-file-system` (l'audio est enregistré par le module STT lui-même, pas expo-audio), `expo-localization`
 
 ---
 
@@ -247,7 +259,7 @@ supabase/                     # Backend Supabase (versionné)
 
 - **API** : Open-Meteo (gratuit, sans clé, `GET /v1/forecast`)
 - **Localisation** : `expo-location` — GPS uniquement (`getLastKnownPositionAsync` rapide → `getCurrentPositionAsync` fallback), pas de fallback ville (supprimé v6.18)
-- **Cache** : 30 min en mémoire, keyé par `lat.toFixed(2),lon.toFixed(2)`, déduplication des appels parallèles
+- **Cache** : 10 min en mémoire, keyé par `lat.toFixed(2),lon.toFixed(2)`, déduplication des appels parallèles
 - **Scoring client** : `weather-scoring.ts` — 12 familles olfactives × 31 codes WMO × saisons × jour/nuit × signature × sotdCount
 - **Widget** : bannière unifiée météo + SOTD (`SOTDCard`, v6.20 — `WeatherWidget.tsx` supprimé) : segment météo (icône + température), segment SOTD (image + nom·marque + badge score)
 - **Tri météo** : option "Météo" dans la `FilterBar`, tri par `scoreWardrobeItemForWeather()` décroissant
@@ -277,33 +289,32 @@ Mini-jeu endless runner accessible depuis Settings (5 taps sur numéro de versio
 ### Architecture des fichiers
 ```
 src/features/runner/
-├── useRunnerLoop.ts      # Game loop (useFrameCallback) : physique, collisions, spawn, scoring, pouvoirs, vies, jump buffer, hit-stop, glissade, fièvre
-├── RunnerGame.tsx         # Intégration : gestes (Tap saut + Pan glissade), cycle de vie, score chase, sons, shake, missions, skins, classement, carnet, défi quotidien, suggestion parfum
-├── RunnerBottle.tsx       # Flacon joueur : squash/stretch aérien, landing spring, fissures liées aux vies, accroupi (glissade), aura fièvre
+├── useRunnerLoop.ts      # Game loop (useFrameCallback) : physique, collisions, spawn, scoring, pouvoirs, vies, jump buffer, hit-stop, fièvre
+├── RunnerGame.tsx         # Intégration : geste Tap (saut/double saut), cycle de vie, score chase, sons, shake, missions, skins, classement, carnet, défi quotidien, suggestion parfum
+├── RunnerBottle.tsx       # Flacon joueur : squash/stretch aérien, landing spring, fissures liées aux vies, aura fièvre
 ├── RunnerBackground.tsx   # Ciel/horizon gradients ancrés groundY, skyline de flacons
 ├── RunnerGround.tsx       # Piste gradient, crête lumineuse, stries 2 plans
-├── RunnerObstacles.tsx    # Pool de 8 obstacles (4 éclats de flacon + abeille ondulante + goutte d'essence qui tombe), spawn entry fade
+├── RunnerObstacles.tsx    # Pool de 8 obstacles (4 éclats de flacon + goutte d'essence qui tombe), spawn entry fade
 ├── RunnerPickups.tsx      # Pool de notes à pouvoirs (Bergamote/Santal/Ambre/Musc), spawn entry fade
 ├── RunnerSpeedLines.tsx   # Traits de vitesse horizontaux (opacité liée à la vitesse)
 ├── RunnerHud.tsx          # Chips pouvoirs actifs (barres de temps résiduel) + jauge de fièvre (UI thread)
-├── RunnerCombo.tsx        # Compteur de combo aérien « ×N » (pulse, doré à ×4, coupé en Reduced Motion)
 ├── RunnerParticles.tsx    # Burst de particules à la collecte (coupé en Reduced Motion)
 ├── runner-sounds.ts       # 5 WAV synthétisés (jump, pickup, death, record, crack) via expo-audio
 ├── runner-missions.ts     # 9 missions × 3 paliers (bronze/argent/or) persistés + prochain objectif
 ├── runner-stats.ts        # Carnet de runs : stats lifetime locales (runs, distance, notes par type, jours joués)
 ├── runner-daily.ts        # Défi quotidien « Le geste du jour » (seed déterministe par date, LCG)
-├── runner-types.ts        # Types, constantes (PICKUP_DEFS, MAX_LIVES, SLOW_FACTOR, duck/fièvre/game-feel, RUNNER_COLORS), helpers AABB
+├── runner-types.ts        # Types, constantes (PICKUP_DEFS, MAX_LIVES, SLOW_FACTOR, fièvre/game-feel, RUNNER_COLORS), helpers AABB
 └── runner-storage.ts      # High score + skins (déblocage multi-seuils) + mute persistés AsyncStorage
 ```
 
 ### Règles
 - **Zéro `setState` en boucle** — toute la logique temps réel est en SharedValues + `useAnimatedStyle`
 - **Pools fixes** — pas de mount/unmount pendant le jeu (pré-alloué en SharedValues)
-- **Collisions** : `checkAABB()` (worklet), hitbox obstacle = `width - 4`, bottle = `width-8 × height-6` (hauteur réduite en glissade)
+- **Collisions** : `checkAABB()` (worklet), hitbox obstacle = `width - 4`, bottle = `width-8 × height-6`
 - **Game-feel** : jump buffer (`JUMP_BUFFER`=120 ms), hit-stop (`HIT_STOP_DURATION`=60 ms de freeze à l'impact), premier saut doublable
-- **Glissade** : swipe bas (`Gesture.Pan` en `Race` avec le Tap) = flacon couché `DUCK_DURATION`=0,6 s, passe sous l'abeille
 - **Fièvre** : jauge remplie par pickups/frôlés → `FEVER_DURATION`=4,5 s d'invincibilité + score ×2 + obstacles collectables
-- **Obstacles thématisés parfum** : éclats de flacon brisé (sol, à sauter) · abeille ondulante (volante, `BEE_AMPLITUDE`/`BEE_FREQ`, à sauter par-dessus ou glisser dessous) · goutte d'essence (télégraphiée par une ombre au sol `DROP_TELEGRAPH`, chute `DROP_FALL_SPEED`, flaque au sol à sauter ; spawn compensé selon la vitesse pour retomber à droite du flacon)
+- **Obstacles thématisés parfum** : éclats de flacon brisé (sol, à sauter) · goutte d'essence (télégraphiée par une ombre au sol `DROP_TELEGRAPH`, chute `DROP_FALL_SPEED`, flaque au sol à sauter ; spawn compensé selon la vitesse pour retomber à droite du flacon). Un seul geste : sauter (abeille + glissade retirées en v9.4)
+- **Difficulté bornée** : vitesse 300→660 px/s, plancher de spawn 220 px, doubles ≤ 35 % à écart 120–200 px, goutte dès 800 pts
 - **Score chase** : JS-side rAF lissant les sauts de score (bonus pickups jusqu'à +800)
 - **Sons** : générés en base64 inline (zéro asset binaire), via `expo-audio` `useAudioPlayer`
 - **Persistance** : high score + skins + mute + missions + carnet + défi dans AsyncStorage, clé `@sillage/runner-*`
@@ -349,7 +360,8 @@ src/features/runner/
 
 ## §20 — Règles cross-platform
 
-- iOS : `Platform.OS === 'ios'` pour les comportements spécifiques (KeyboardAvoidingView padding)
+- **Clavier (RN ≥ 0.76 edge-to-edge)** : `KeyboardAvoidingView behavior="padding"` sur les **deux** plateformes — `adjustResize` ne redimensionne plus la fenêtre Android (fixes KAV Android 15+ dans RN 0.86). Jamais `behavior={Platform.OS === 'ios' ? 'padding' : undefined}`. Formulaires/sheets avec inputs : `keyboardShouldPersistTaps="handled"`
+- iOS : `Platform.OS === 'ios'` pour les comportements spécifiques
 - Android : `Platform.OS === 'android'` + `UIManager.setLayoutAnimationEnabledExperimental(true)`
 - SafeAreaView de `react-native-safe-area-context` (pas celui de React Native)
 - `expo-camera` pour la caméra (pas `react-native-camera`)
@@ -364,3 +376,16 @@ src/features/runner/
 - **Cron `recompute_perf_strings`** (3h15 UTC) : réécrit `parfums.longevity`/`sillage` des parfums ≥ 1 vote user → propagation aux favoris/filtres/recherche.
 - **Client** : `getParfumPerf`/`castVote` (`services/perf-votes.ts`), hook `usePerfVotes` (optimiste + refetch + auto-réparation au focus), affordances 👍 (`VotePickerSheet`), auth requise (`cast_vote` exige `auth.uid()`).
 - **Piège `this`** : ne jamais détacher `supabase.rpc` du client — `supabase.rpc.bind(supabase)` obligatoire (sinon « Cannot read property 'rest' of undefined »).
+
+---
+
+## §22 — Primers de permission just-in-time (v9.8)
+
+Aucun prompt système de permission ne part à froid. Chaque permission est précédée d'un popup explicatif (`PermissionPrimer`), affiché **une seule fois**, au moment de l'intention utilisateur.
+
+- **4 clés** (`permission-primers.ts`) : `camera` (scan), `mic` (voix), `location` (météo), `push` (alertes prix/notifications). Flag AsyncStorage `@sillage/primer-<key>` mémorise que le primer a été vu ; le prompt système part ensuite directement au geste suivant.
+- **Cycle de vie** : hook `usePermissionPrimer(key)` — `needsPrimer` (fail-closed : tant que le flag n'est pas lu, le primer est montré, jamais de prompt à froid sur un tap rapide), `open/accept/decline`. Après accept OU déclin, le flag est posé.
+- **Push à part** : `usePushPrimer(uid)` — jamais au lancement. `propose()` après un moment de valeur (1ʳᵉ alerte prix activée dans `AlertPriceToggle`, toggle Settings) ; vérifie le flag + le réglage `pushNotifs` (respect d'un retrait explicite) + le statut OS (`getPushPermissionStatus`). `accept()` = prompt système puis `registerPushToken` + réglage `pushNotifs=true`.
+- **Enregistrement au lancement** (`app/_layout.tsx`) : double gate — réglage `pushNotifs` (consentement app) ET permission OS déjà accordée (vérifiée dans `startFcmRegistration`). Consentement retiré → purge des tokens (`deleteAllFcmTokens`), la promesse du privacy-center reste vraie.
+- **Call sites** : `ScanScreen` (camera), `SearchChrome` + `/search` (mic), `collection` (location, SOTD/météo) + `settings` (push + location), `favoris` + `AlertPriceToggle` (push).
+- **Refus définitif** (micro) : `VoiceErrorCode 'mic-denied-permanent'` → l'overlay vocal affiche un bouton « Réglages » (`Linking.openSettings`) au lieu de « Réessayer ».

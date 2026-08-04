@@ -1,4 +1,4 @@
-import { buildAccords, accordColorIndex, ACCORD_GROUPS } from '../../src/utils/accord-profile';
+import { buildAccords, accordColorIndex, ACCORD_GROUPS, ribbonWidths, type AccordRow } from '../../src/utils/accord-profile';
 
 describe('accordColorIndex', () => {
   it('maps known accords to their semantic palette slot', () => {
@@ -75,6 +75,33 @@ describe('buildAccords', () => {
   it('translates the display name', () => {
     const rows = buildAccords(['Vanilla'], { Vanilla: 'dominant' });
     expect(rows[0].display).toBeTruthy();
+  });
+});
+
+describe('ribbonWidths', () => {
+  it('returns widths summing to 100', () => {
+    const rows = buildAccords(['Vanilla', 'Iris', 'Citrus'], { Vanilla: 'dominant', Iris: 'moderate', Citrus: 'soft' });
+    const widths = ribbonWidths(rows);
+    expect(widths).toHaveLength(rows.length);
+    const sum = widths.reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(100, 5);
+  });
+
+  it('preserves the intensity ordering', () => {
+    const mk = (raw: string, pct: number): AccordRow => ({ raw, display: raw, pct, label: null, colorIndex: 0 });
+    const widths = ribbonWidths([mk('B', 60), mk('C', 30), mk('A', 10)]);
+    expect(widths[0]).toBeCloseTo(60, 5);
+    expect(widths[1]).toBeCloseTo(30, 5);
+    expect(widths[2]).toBeCloseTo(10, 5);
+  });
+
+  it('falls back to equal widths when the total is zero', () => {
+    const mk = (raw: string, pct: number): AccordRow => ({ raw, display: raw, pct, label: null, colorIndex: 0 });
+    expect(ribbonWidths([mk('A', 0), mk('B', 0)])).toEqual([50, 50]);
+  });
+
+  it('returns an empty array for no rows', () => {
+    expect(ribbonWidths([])).toEqual([]);
   });
 });
 

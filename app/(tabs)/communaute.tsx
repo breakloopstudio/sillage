@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } fro
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, Share, StyleSheet, type ViewStyle, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedScrollHandler, useReducedMotion, FadeInDown, FadeIn } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../src/theme/ThemeContext';
@@ -16,6 +16,7 @@ import { useMyProfile } from '../../src/hooks/useMyProfile';
 import { useWeeklyRecap } from '../../src/hooks/useWeeklyRecap';
 import { useNetwork } from '../../src/hooks/useNetwork';
 import { getFollowedHighlights, searchProfiles, type CommunityParfum, type CommunityProfile, type CommunitySotd, type FollowedVerdict, type FollowedHave, type ProfileSearchResult } from '../../src/services/community';
+import { getUserSettings } from '../../src/services/user-data';
 import { getRunnerLeaderboard, type LeaderboardEntry } from '../../src/services/runner';
 import { getTopRatedParfums, getSeasonalParfums } from '../../src/services/catalog';
 import { setPendingParfum } from '../../src/services/catalog-bridge';
@@ -23,7 +24,7 @@ import { normalizePseudo, parfumShareUrl, profileShareUrl } from '../../src/util
 import { getWmoMeta } from '../../src/utils/weather-codes';
 import { currentSeason } from '../../src/utils/season';
 import { OLFACTORY_FAMILIES } from '../../src/utils/olfactory-families';
-import { hapticsLight } from '../../src/services/haptics';
+import { hapticsLight, hapticsSuccess } from '../../src/services/haptics';
 import ParfumCard from '../../src/components/ParfumCard';
 import SectionHeader from '../../src/components/SectionHeader';
 import SOTDPicker from '../../src/features/wardrobe/SOTDPicker';
@@ -112,7 +113,10 @@ export default function CommunautePage() {
   const { top_loved, trending, public_profiles, sotd_today, loading, error, refresh } = useCommunityHighlights();
   const { isOnline } = useNetwork();
   const { sotd, setTodaySotd } = useSotd(isAuthenticated ? uid : null);
-  const { weather, loading: weatherLoading } = useWeather(isAuthenticated && isOnline);
+  // Consentement météo (réglage « Suggestions météo ») : la météo in-app ne
+  // s'affiche qu'avec un opt-in explicite (jamais de GPS à froid).
+  const [weatherConsent, setWeatherConsent] = useState(false);
+  const { weather, loading: weatherLoading } = useWeather(isAuthenticated && isOnline && weatherConsent);
   const { items } = useUserParfumContext();
   const { profile, loading: profileLoading } = useMyProfile(isAuthenticated ? uid : null);
   const followingCount = profile?.followingCount ?? 0;
@@ -140,6 +144,15 @@ export default function CommunautePage() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; if (suggestTimer.current) clearTimeout(suggestTimer.current); };
   }, []);
+
+  // Relu au focus (les onglets TopTabs restent montés) : un retrait du
+  // consentement dans Settings/privacy-center doit être appliqué dès le retour.
+  useFocusEffect(
+    useCallback(() => {
+      if (!uid) return;
+      getUserSettings(uid).then(st => setWeatherConsent(st.weatherNotifs)).catch(() => {});
+    }, [uid]),
+  );
 
   useEffect(() => {
     if (!isAuthenticated || profileLoading || followingCount <= 0) return;
@@ -237,7 +250,7 @@ export default function CommunautePage() {
   const handleSotdSelect = useCallback((parfumId: string) => {
     if (parfumId === sotd?.parfumId) { setSotdPickerVisible(false); return; }
     const item = sotdEligible.find(i => i.parfumId === parfumId);
-    if (item) { hapticsLight(); setTodaySotd(item).catch(() => {}); }
+    if (item) { hapticsSuccess(); setTodaySotd(item).catch(() => {}); }
     setSotdPickerVisible(false);
   }, [sotd, sotdEligible, setTodaySotd]);
 

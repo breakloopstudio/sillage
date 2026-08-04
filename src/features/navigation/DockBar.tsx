@@ -19,7 +19,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { textOn } from '../../utils/contrast';
-import { tintLuminous } from '../../utils/alpha';
+import { alpha, tintLuminous } from '../../utils/alpha';
 import { hapticsLight } from '../../services/haptics';
 import { useNavigationChrome } from './NavigationChromeContext';
 
@@ -380,7 +380,7 @@ function getStyles(t: Theme) {
       borderColor: t.colors.border,
     },
     overlay: {
-      backgroundColor: t.colors.background + 'E0',
+      backgroundColor: alpha(t.colors.background, 0.88),
     },
     pill: { backgroundColor: t.colors.primarySoft },
     label: { fontFamily: 'Inter_500Medium', fontSize: 10, lineHeight: 12, color: t.colors.textMuted },

@@ -1,4 +1,4 @@
-// src/features/runner/RunnerObstacles.tsx — Pool d'obstacles (éclats de flacon, abeille, goutte)
+// src/features/runner/RunnerObstacles.tsx — Pool d'obstacles (éclats de flacon, goutte)
 
 import { memo } from 'react';
 import { View } from 'react-native';
@@ -22,7 +22,7 @@ function entryOpacity(active: boolean, xVal: number, screenW: number) {
   return Math.min(1, Math.max(0, (screenW - xVal) / SPAWN_ENTRY_DISTANCE));
 }
 
-// Éclat de flacon brisé (verre violet translucide, reflets) — remplace les cristaux.
+// Éclat de flacon brisé (verre violet translucide, reflets).
 function Shard({ defIndex, paletteIdx }: { defIndex: number; paletteIdx: number }) {
   const d = OBSTACLE_DEFS[defIndex] ?? OBSTACLE_DEFS[0];
   const pal = PALETTES[paletteIdx % PALETTES.length];
@@ -49,25 +49,9 @@ function Shard({ defIndex, paletteIdx }: { defIndex: number; paletteIdx: number 
   );
 }
 
-// Abeille (corps rayé + ailes) — ennemi volant qui ondule.
-function Bee({ defIndex }: { defIndex: number }) {
-  const d = OBSTACLE_DEFS[defIndex] ?? OBSTACLE_DEFS[4];
-  return (
-    <View style={{ width: d.width, height: d.height, justifyContent: 'center', alignItems: 'center' }}>
-      <View style={{ position: 'absolute', top: -3, left: 3, width: 13, height: 9, borderRadius: 6, backgroundColor: 'rgba(237,232,245,0.35)', transform: [{ rotate: '-24deg' }] }} />
-      <View style={{ position: 'absolute', top: -3, right: 3, width: 13, height: 9, borderRadius: 6, backgroundColor: 'rgba(237,232,245,0.28)', transform: [{ rotate: '24deg' }] }} />
-      <View style={{ width: d.width - 6, height: d.height - 6, borderRadius: (d.height - 6) / 2, backgroundColor: '#F5C542', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,0,0,0.35)' }}>
-        <View style={{ position: 'absolute', top: 0, bottom: 0, left: '28%', width: 3, backgroundColor: '#1A1520' }} />
-        <View style={{ position: 'absolute', top: 0, bottom: 0, left: '52%', width: 3, backgroundColor: '#1A1520' }} />
-        <View style={{ position: 'absolute', top: 0, bottom: 0, left: '76%', width: 3, backgroundColor: '#1A1520' }} />
-      </View>
-    </View>
-  );
-}
-
 // Goutte d'essence (gouttelette ambrée).
 function Drop({ defIndex }: { defIndex: number }) {
-  const d = OBSTACLE_DEFS[defIndex] ?? OBSTACLE_DEFS[5];
+  const d = OBSTACLE_DEFS[defIndex] ?? OBSTACLE_DEFS[4];
   return (
     <View style={{ width: d.width, height: d.height, justifyContent: 'flex-end', alignItems: 'center' }}>
       <View style={{ width: 6, height: 8, backgroundColor: '#E8A33A', borderTopLeftRadius: 3, borderTopRightRadius: 3 }} />
@@ -80,7 +64,7 @@ function Drop({ defIndex }: { defIndex: number }) {
 
 // Ombre de télégraphie au sol (annonce la chute de la goutte).
 function DropShadow({ defIndex }: { defIndex: number }) {
-  const d = OBSTACLE_DEFS[defIndex] ?? OBSTACLE_DEFS[5];
+  const d = OBSTACLE_DEFS[defIndex] ?? OBSTACLE_DEFS[4];
   return (
     <View style={{ width: d.width + 8, height: 7, borderRadius: 4, backgroundColor: 'rgba(232,163,58,0.35)' }} />
   );
@@ -97,20 +81,18 @@ function Slot({ slot, groundY, paletteIdx, screenW }: { slot: ObsSlot; groundY: 
   const s2 = useAnimatedStyle(() => ({ opacity: entryOpacity(a.value && t.value === 2, x.value, screenW) }));
   const s3 = useAnimatedStyle(() => ({ opacity: entryOpacity(a.value && t.value === 3, x.value, screenW) }));
   const s4 = useAnimatedStyle(() => ({ opacity: entryOpacity(a.value && t.value === 4, x.value, screenW) }));
-  const s5 = useAnimatedStyle(() => ({ opacity: entryOpacity(a.value && t.value === 5, x.value, screenW) }));
 
   return (
     <>
       <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, shadowPos]}>
-        <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s5]}><DropShadow defIndex={5} /></Animated.View>
+        <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s4]}><DropShadow defIndex={4} /></Animated.View>
       </Animated.View>
       <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, pos]}>
         <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s0]}><Shard defIndex={0} paletteIdx={paletteIdx} /></Animated.View>
         <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s1]}><Shard defIndex={1} paletteIdx={paletteIdx} /></Animated.View>
         <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s2]}><Shard defIndex={2} paletteIdx={paletteIdx} /></Animated.View>
         <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s3]}><Shard defIndex={3} paletteIdx={paletteIdx} /></Animated.View>
-        <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s4]}><Bee defIndex={4} /></Animated.View>
-        <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s5]}><Drop defIndex={5} /></Animated.View>
+        <Animated.View style={[{ position: 'absolute', left: 0, top: 0 }, s4]}><Drop defIndex={4} /></Animated.View>
       </Animated.View>
     </>
   );

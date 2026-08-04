@@ -135,10 +135,11 @@ describe('useScanPipeline', () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_NO_RESULT', scanResult }));
   });
 
-  // ── Low confidence → clarify ──────────────────────────
+  // ── Low confidence ────────────────────────────────────
 
-  it('GPT low confidence → cherche quand même et dispatch SCAN_SUCCESS (confidence low)', async () => {
+  it('GPT low confidence + candidat solide → dispatch SCAN_SUCCESS (confidence low)', async () => {
     mockAnalyze.mockResolvedValue(makeResult({ confidence: 'low' }));
+    mockSearch.mockResolvedValue([{ ...makeParfum(), _scanScore: 65 }]);
     const { dispatch, result } = setup();
     await act(async () => {
       await result.current.startAnalysis({ images: ['img1'] });
@@ -147,6 +148,43 @@ describe('useScanPipeline', () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
       type: 'SCAN_SUCCESS',
       confidence: 'low',
+    }));
+  });
+
+  it('GPT low confidence + score pile au seuil (50) → résultats affichés', async () => {
+    mockAnalyze.mockResolvedValue(makeResult({ confidence: 'low' }));
+    mockSearch.mockResolvedValue([{ ...makeParfum(), _scanScore: 50 }]);
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ images: ['img1'] });
+    });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_SUCCESS', confidence: 'low' }));
+  });
+
+  it('GPT low confidence + candidat faible → dispatch SCAN_CLARIFY low-confidence', async () => {
+    mockAnalyze.mockResolvedValue(makeResult({ confidence: 'low' }));
+    mockSearch.mockResolvedValue([{ ...makeParfum(), _scanScore: 30 }]);
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ images: ['img1'] });
+    });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SCAN_CLARIFY',
+      reason: 'low-confidence',
+    }));
+    expect(mockHapticsSuccess).not.toHaveBeenCalled();
+  });
+
+  it('GPT low confidence + 0 résultat → dispatch SCAN_CLARIFY low-confidence', async () => {
+    mockAnalyze.mockResolvedValue(makeResult({ confidence: 'low' }));
+    mockSearch.mockResolvedValue([]);
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ images: ['img1'] });
+    });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SCAN_CLARIFY',
+      reason: 'low-confidence',
     }));
   });
 
@@ -171,6 +209,56 @@ describe('useScanPipeline', () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
       type: 'SCAN_CLARIFY',
       reason: 'empty-response',
+    }));
+  });
+
+  it("image hors-sujet (isPerfume false) → dispatch SCAN_CLARIFY empty-response sans chercher", async () => {
+    mockAnalyze.mockResolvedValue(makeResult({ isPerfume: false, failureReason: 'not_a_perfume', marque: null, nom: null }));
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ images: ['img1'] });
+    });
+    expect(mockSearch).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SCAN_CLARIFY',
+      reason: 'empty-response',
+    }));
+  });
+
+  // ── Lecture brute transmise à l'écran de résultats ───
+
+  it('SCAN_SUCCESS porte la lecture IA (read) pour un scan image', async () => {
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ images: ['img1'] });
+    });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SCAN_SUCCESS',
+      read: expect.objectContaining({ marque: 'Dior', nom: 'Sauvage' }),
+    }));
+  });
+
+  it('v4 : forme + re-ranking confiant → SCAN_SUCCESS sans clarify', async () => {
+    mockAnalyze.mockResolvedValue(makeResult({ confidence: 'high', textRead: false, visualMatch: true }));
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ images: ['img1'] });
+    });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SCAN_SUCCESS',
+      confidence: 'high',
+      read: expect.objectContaining({ textRead: false, visualMatch: true }),
+    }));
+  });
+
+  it('SCAN_SUCCESS porte read=null pour une saisie clarify', async () => {
+    const { dispatch, result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ scanResult: makeResult() });
+    });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SCAN_SUCCESS',
+      read: null,
     }));
   });
 
@@ -204,6 +292,18 @@ describe('useScanPipeline', () => {
       await result.current.startAnalysis({ scanResult: makeResult() });
     });
     expect(mockSaveScan).toHaveBeenCalledWith('test-uid', expect.objectContaining({ status: 'success' }));
+  });
+
+  it('rawText persiste la lecture complète (volumeMl + confidence)', async () => {
+    const { result } = setup();
+    await act(async () => {
+      await result.current.startAnalysis({ scanResult: makeResult({ volumeMl: 75 }) });
+    });
+    const call = mockSaveScan.mock.calls[0][1] as { rawText: string };
+    expect(JSON.parse(call.rawText)).toEqual({
+      marque: 'Dior', nom: 'Sauvage', typeParfum: 'EDT', volumeMl: 75,
+      confidence: 'high', textRead: null, visualMatch: null,
+    });
   });
 
   it('saveScan appelé avec status no-result', async () => {
@@ -258,14 +358,14 @@ describe('useScanPipeline', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('ne dispatch pas après unmount', async () => {
+  it('ne dispatch pas après unmount (garde mountedRef)', async () => {
     const dispatch = jest.fn();
     const mountedRef = { current: true };
     const { result, unmount } = renderHook(() => useScanPipeline(dispatch, 'test-uid', mountedRef));
 
-    // Lance puis unmount pendant que l'analyse tourne
-    let resolve: () => void;
-    mockAnalyze.mockImplementation(() => new Promise<void>(r => { resolve = r; }));
+    // L'analyse résout un résultat VALIDE (pas de TypeError masquant la garde).
+    let resolve: (r: ScanResult) => void;
+    mockAnalyze.mockImplementation(() => new Promise<ScanResult>(r => { resolve = r; }));
 
     const p = act(() => {
       void result.current.startAnalysis({ images: ['img1'] });
@@ -273,17 +373,17 @@ describe('useScanPipeline', () => {
     });
     await p;
 
-    // Unmount avant la fin de l'analyse
+    // Unmount avant la fin de l'analyse — ScanScreen pose mountedRef.current = false.
     unmount();
+    mountedRef.current = false;
 
-    // Résoudre l'analyse (ne doit RIEN dispatcher puisqu'unmounté)
-    resolve!();
-    // Laisser le microtask exécuter le callback
+    // Résoudre l'analyse : la garde mountedRef doit bloquer tout dispatch ultérieur.
+    resolve!(makeResult());
     await new Promise(r => setTimeout(r, 0));
 
-    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_SUCCESS' }));
-    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_CLARIFY' }));
-    // START_SCAN a pu passer avant l'unmount, c'est acceptable
+    // Seul START_SCAN est passé avant l'unmount ; rien après.
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'START_SCAN' }));
   });
 
   // ── Payload invalide ──────────────────────────────────

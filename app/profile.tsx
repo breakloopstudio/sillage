@@ -1,7 +1,7 @@
 // app/profile.tsx — Page Profil (route racine, poussée depuis l'avatar du DockBar)
 
 import { useState, useMemo, useCallback, Fragment } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -105,7 +105,8 @@ export default function ProfilePage() {
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView behavior="padding" style={s.kav}>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={s.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Retour">
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
@@ -228,6 +229,7 @@ export default function ProfilePage() {
           <Text style={s.logoutText}>Déconnexion</Text>
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -235,6 +237,7 @@ export default function ProfilePage() {
 function getStyles(t: Theme) {
   return {
     container: { flex: 1, backgroundColor: t.colors.background },
+    kav: { flex: 1 },
     scroll: { paddingBottom: 40 },
     spinnerFull: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.colors.background },
     header: {

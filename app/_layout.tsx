@@ -17,6 +17,8 @@ import OfflineBanner, { OFFLINE_BANNER_BAND } from '../src/components/OfflineBan
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useNetwork } from '../src/hooks/useNetwork';
 import { createNotificationChannels, startFcmRegistration } from '../src/services/push';
+import { getUserSettings } from '../src/services/user-data';
+import { deleteAllFcmTokens } from '../src/services/account';
 import { getOrFetch } from '../src/services/impl/home-cache';
 import { getPopularParfums, getTopRatedParfums, getSeasonalParfums } from '../src/services/catalog';
 import { currentSeason } from '../src/utils/season';
@@ -50,12 +52,31 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     createNotificationChannels();
   }, []);
 
+  // Ré-enregistrement push au lancement : JAMAIS de prompt à froid.
+  // Gate double : réglage « Notifications push » (consentement app) + permission
+  // OS déjà accordée (vérifiée dans startFcmRegistration). La demande de
+  // permission part des moments de valeur (1ère alerte prix, toggle Settings).
   useEffect(() => {
     if (fcmCleanupRef.current) { fcmCleanupRef.current(); fcmCleanupRef.current = null; }
-    if (authReady && isAuthenticated && user) {
-      fcmCleanupRef.current = startFcmRegistration(user.uid);
-    }
-    return () => { if (fcmCleanupRef.current) fcmCleanupRef.current(); };
+    if (!authReady || !isAuthenticated || !user) return;
+    const uid = user.uid;
+    let cancelled = false;
+    getUserSettings(uid)
+      .then((settings) => {
+        if (cancelled) return;
+        if (settings.pushNotifs) {
+          fcmCleanupRef.current = startFcmRegistration(uid);
+        } else {
+          // Consentement retiré : purge des tokens (la promesse du
+          // privacy-center « tokens supprimés à l'arrêt » reste vraie).
+          deleteAllFcmTokens(uid).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (fcmCleanupRef.current) fcmCleanupRef.current();
+    };
   }, [authReady, isAuthenticated, user]);
 
   // Routage des notifications prix : tap (foreground/background) + démarrage à froid → fiche.

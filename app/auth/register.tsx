@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, Pressable, ActivityIndicator,
-  KeyboardAvoidingView, Platform, ScrollView, Keyboard,
+  KeyboardAvoidingView, ScrollView, Keyboard,
 } from 'react-native';
 import { Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,7 +64,7 @@ export default function RegisterPage() {
   const isLoading = loading !== null;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.bg}>
+    <KeyboardAvoidingView behavior="padding" style={s.bg}>
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"

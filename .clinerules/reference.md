@@ -31,9 +31,14 @@ export function getSeasonalParfums(season: SeasonKey, limit?: number): Promise<P
 → Voir **§7 — Algorithme de recherche** pour la spécification complète.
 
 ```ts
-export function searchParfumFromScan(opts: { marque?: string | null; nom?: string | null; alternatives?: string[]; typeParfum?: string | null }): Promise<Parfum[]>;
-// Wrapper scan-spécifique : appelle searchParfumsCached puis rescore avec bonus nom/marque
-// Bonus : +50 (nom exact), +25 (nom partiel), +15 (marque exacte), +8 (marque partielle)
+export function searchParfumFromScan(opts: { marque?: string | null; nom?: string | null; alternatives?: string[]; typeParfum?: string | null; volumeMl?: number | null }): Promise<Parfum[]>;
+// Wrapper scan-spécifique : requêtes searchParfumsCached parallèles (Promise.allSettled)
+// puis rescoring fuzzy (src/utils/scan-match.ts).
+// Bonus : +50 (nom exact), +25 (nom partiel/inclusion), fuzzy Levenshtein +10..+40 (seuil 0.55),
+// +15 (marque exacte, canonicalisée via alias), +8 (marque partielle), ±12 (concentration canonique)
+// Marque seule (aucun nom) → getParfumsByMarques(brandQueryForms) (.in sur les formes de
+// surface de la maison, alias inclus) avec fallback trgm sur la forme longue.
+// Tri : score desc → popularité desc → prix asc.
 // Les résultats de searchParfumsCached et searchParfumFromScan sont dédoublonnés par marque+nom normalisé.
 ```
 
@@ -171,7 +176,13 @@ export function setThemeMode(mode: ThemeMode): Promise<void>;
 
 ### `src/services/openai-vision.ts`
 ```ts
-// Analyse d'image via GPT-4o Vision (Edge Function `analyze-perfume-image`)
+// Analyse d'image via GPT Vision (Edge Function `analyze-perfume-image` v4)
+// v4 : `textRead` (texte imprimé lu vs flacon reconnu à la forme) + confiance forcée
+// côté serveur (forme → 'low') + `visualMatch` (re-ranking visuel : la photo user est
+// comparée au top 12 des flacons de la maison, `match_index` Structured Outputs).
+// v5 : candidats en `detail:'high'` (le 'low' moyenne les teintes de jus), labels neutres
+// anti-ancrage, tri candidats `greatest(review_count, rating_count, popularity_score)`,
+// repêchage de l'hypothèse par inclusion (noms BDD préfixés par la marque).
 export function analyzeImage(base64: string): Promise<ScanResult>;
 export function analyzeMultipleImages(imagesBase64: string[]): Promise<ScanResult>;
 ```
@@ -189,12 +200,47 @@ export function requestFcmPermission(): Promise<boolean>;
 export function deleteFcmToken(): Promise<void>;
 export function createNotificationChannels(): Promise<void>;
 export function startFcmRegistration(uid: string): () => void;
+export type PushPermissionStatus = 'granted' | 'denied' | 'undetermined' | 'unknown';
+export function getPushPermissionStatus(): Promise<PushPermissionStatus>;  // statut OS sans prompt (primers §22)
+export function registerPushToken(uid: string): Promise<void>;              // prompt accepté → token + upsert push_tokens
 ```
 
 ### `src/services/voice-search.ts`
 ```ts
-// Edge Function `transcribe-voice` (OpenAI Whisper-1) — fallback vocal
-export function transcribeVoice(audioBase64: string, mimeType: string): Promise<string>;
+// Pipeline voix « identification » — aligné sur le moteur du scan.
+// Interprétation structurée (Edge Function interpret-voice-query), transcription
+// (Edge Function transcribe-voice) et décision d'auto-ouverture.
+
+// Edge Function `transcribe-voice` (v4 : modèle `gpt-transcribe`, vocabulaire en
+// `keywords`, multilingue) — fallback vocal. `languages` = indices ISO 639-1 de
+// l'appareil (défaut `deviceVoiceLanguages()`, max 3).
+export function transcribeVoice(audioBase64: string, mimeType: string, languages?: string[]): Promise<string>;
+
+export interface VoiceInterpretation { isPerfumeRequest: boolean; marque: string | null; nom: string | null; typeParfum: string | null; alternatives: string[]; confidence: 'high' | 'low'; }
+// Edge Function `interpret-voice-query` (gpt-4o-mini, Structured Outputs) — extrait marque/nom/concentration
+// de la phrase parlée (+ hypothèses STT alternatives, prompt agnostique de la langue)
+export function interpretVoiceQuery(text: string, alternatives?: string[]): Promise<VoiceInterpretation>;
+
+export const VOICE_AUTO_OPEN_MIN_SCORE: number;  // 62 — score scan minimum pour ouvrir la fiche
+export const VOICE_AUTO_OPEN_GAP: number;        // 10 — écart minimum top/n°2
+// Décision d'auto-ouverture (voie interprétée) : confiance LLM haute + score ≥ seuil + écart suffisant
+export function pickAutoOpen(results: Array<Parfum & { _scanScore?: number }>, interpretation: VoiceInterpretation | null): Parfum | null;
+// Voie non connectée : auto-ouverture seulement si la requête est exactement « marque + nom » ou « nom »
+export function exactQueryMatch(results: Parfum[], query: string): Parfum | null;
+
+export interface VoiceIdentifyOutcome { results: Parfum[]; query: string; autoOpen: Parfum | null; interpreted: boolean; }
+// Pipeline complet : transcript → interprétation (si connecté) → searchParfumFromScan → décision.
+// Dégrade gracieusement : interprétation en échec/absente → recherche texte brute.
+export function identifyFromVoice(text: string, opts: { isAuthenticated: boolean; alternatives?: string[] }): Promise<VoiceIdentifyOutcome>;
+
+// Seconde chance gatée sur la QUALITÉ du match : 0 résultat OU (pas d'auto-ouverture
+// ET interprétation absente/peu confiante), hors requêtes vagues.
+export function voiceNeedsSecondChance(outcome: VoiceIdentifyOutcome): boolean;
+// Garde le meilleur des deux passages (auto-ouverture > score top > nombre de résultats).
+export function pickBetterVoiceOutcome(a: VoiceIdentifyOutcome, b: VoiceIdentifyOutcome): VoiceIdentifyOutcome;
+
+export function mimeFromAudioUri(uri: string): string;                      // MIME réel du fichier audio persisté
+export function readVoiceAudioBase64(uri: string): Promise<string | null>;  // lecture base64 paresseuse (seconde chance Whisper)
 ```
 
 ### `src/services/account.ts`
@@ -214,7 +260,7 @@ export function clearWeatherCoords(uid: string): Promise<void>;
 
 ### `src/services/weather.ts`
 ```ts
-// Open-Meteo API (gratuit, sans clé) + cache 30 min — GPS uniquement (pas de fallback ville, v6.18)
+// Open-Meteo API (gratuit, sans clé) + cache 10 min — GPS uniquement (pas de fallback ville, v6.18)
 export interface WeatherData { temperature: number; weatherCode: number; isDay: boolean; dailyMax: number; dailyMin: number; dailyWeatherCode: number; fetchedAt: number; }
 export function fetchWeather(lat: number, lon: number, force?: boolean): Promise<WeatherData | null>;
 ```
@@ -234,6 +280,15 @@ export function setPendingParfum(p: Parfum): void;
 export function consumePendingParfum(): Parfum | null;
 export function setPendingCatalogQuery(q: string): void;
 export function consumePendingCatalogQuery(): string | null;
+
+// Voix : auto-ouverture fiche + bannière « Ce n'est pas lui ? » (TTL 120 s)
+export interface VoiceAutoOpenPayload { parfumId: string; query: string; results: Parfum[]; createdAt: number; }
+export function setPendingVoiceAutoOpen(payload: Omit<VoiceAutoOpenPayload, 'createdAt'>): void;
+// SearchChrome/search → fiche (consommé au mount si l'id correspond)
+export function consumePendingVoiceAutoOpen(parfumId: string): VoiceAutoOpenPayload | null;
+// fiche → SearchChrome (résultats restaurés quand la bannière ramène en arrière)
+export function setPendingVoiceResults(query: string, results: Parfum[]): void;
+export function consumePendingVoiceResults(): { query: string; results: Parfum[] } | null;
 ```
 
 ### `src/services/perf-votes.ts`
@@ -443,13 +498,16 @@ export function useDensityPreference(): {
 
 ### `useVoiceSearch()` — `src/hooks/useVoiceSearch.ts`
 ```ts
-// Reconnaissance vocale on-device (expo-speech-recognition) + enregistrement audio (expo-audio)
-// Architecture dual-mode : STT local + fallback Whisper (Edge Function)
+// Reconnaissance vocale on-device (expo-speech-recognition, langue de l'appareil —
+// deviceSttLang) ; l'audio est enregistré par le module STT lui-même (persist → audioUri).
+// Architecture dual-mode : STT local + fallback transcription (Edge Function).
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'error';
-export interface VoiceResult { text?: string; audioBase64?: string; }
+export interface VoiceResult { text?: string; audioBase64?: string; audioUri?: string; alternatives?: string[]; }
+// audioUri = seconde chance (re-transcription) ; alternatives = hypothèses STT (maxAlternatives)
+export type VoiceErrorCode = 'mic-denied' | 'mic-denied-permanent';
 export function useVoiceSearch(
   onResult: (result: VoiceResult) => void,
-  onError?: (msg: string) => void,
+  onError?: (msg: string, code?: VoiceErrorCode) => void,  // code 'mic-denied-permanent' → bouton « Réglages »
 ): {
   state: VoiceState;
   transcript: string;
@@ -457,6 +515,34 @@ export function useVoiceSearch(
   stop: () => void;
   cancel: () => void;
 };
+```
+
+### `usePermissionPrimer(key)` — `src/hooks/usePermissionPrimer.ts`
+```ts
+// Cycle de vie d'un primer de permission (§22 rules) — popup explicatif avant le prompt système.
+export function usePermissionPrimer(key: PermissionPrimerKey): {
+  needsPrimer: boolean;   // fail-closed : true tant que le flag AsyncStorage n'est pas lu
+  visible: boolean;
+  open: () => void;
+  accept: () => void;     // pose le flag, puis l'appelant déclenche le prompt système
+  decline: () => void;    // pose le flag aussi (pas de re-nag)
+};
+```
+
+### `usePushPrimer(uid)` — `src/hooks/usePushPrimer.ts`
+```ts
+// Proposition des notifications push à un moment de valeur (§22 rules), jamais au lancement.
+export function usePushPrimer(uid: string | null): {
+  visible: boolean;
+  propose: () => Promise<void>;  // 1ʳᵉ alerte prix / toggle Settings : vérifie flag + réglage pushNotifs + statut OS
+  accept: () => void;            // prompt système puis registerPushToken + pushNotifs=true
+  decline: () => void;
+};
+```
+
+### `useStaleWhileRevalidate()` — `src/hooks/useStaleWhileRevalidate.ts`
+```ts
+// Cache disque SWR (v9.0) : valeur stale immédiate + revalidation réseau en arrière-plan.
 ```
 
 ### `useWeather(enabled?: boolean)` — `src/hooks/useWeather.ts`
@@ -652,11 +738,12 @@ interface PublicCollectionItem {
 
 ### `src/utils/accord-profile.ts`
 ```ts
-// Regroupement/coloration des accords olfactifs + aphorismes éditoriaux (AccordProfile)
+// Regroupement/coloration des accords olfactifs + ruban de composition (AccordProfile)
 export interface AccordRow { raw: string; display: string; pct: number; label: string | null; colorIndex: number; }
 export const ACCORD_GROUPS: { name: string; words: string[] }[];   // 8 familles sémantiques
 export function accordColorIndex(raw: string): number;
 export function buildAccords(accords: string[] | undefined, percentages: Record<string, string> | undefined): AccordRow[];
+export function ribbonWidths(rows: AccordRow[]): number[];   // parts normalisées Σ=100 (flex du ruban)
 ```
 
 > `src/utils/ownership.ts` a été supprimé (v8.0 — modèle unifié `user_parfum`).
@@ -807,6 +894,45 @@ export function buildSeasonProfile(parfum): SeasonProfileData | null;
 export function rankAndDedupe(ranking): RankedItem[];
 export function dayNightLabel(day: number, night: number): 'day' | 'night' | null;
 export const SEASON_PHRASES / DAY_NIGHT_TEXT;
+```
+
+### `src/utils/scan-match.ts`
+```ts
+// Rescoring fuzzy partagé scan + voix (searchParfumFromScan).
+export function fuzzyNameBonus(docNom: string, candidats: string[]): number;      // exact +50 / inclusion +25 / Levenshtein +10..+40 (seuil 0.55)
+export function brandCanonical(marque: string): string;                            // alias YSL/MFK/JPG/Rabanne/Bulgari… → forme canonique
+export function brandQueryForms(marque: string): string[];                         // formes de surface d'une maison (marque seule → .in)
+export function brandsRelated(marque: string): string[];                           // lignées (Xerjoff ↔ Casamorati 1888)
+export function typeFromNom(nom: string): string | null;                           // concentration par phrase canonique la plus longue
+export function concentrationMatches(typeParfum: string | null, attendu: string | null): boolean;
+```
+
+### `src/utils/scan-display.ts`
+```ts
+// Résolution pure de l'affichage des résultats de scan (testé).
+export interface ScanChip { label: string; icon: string; tone: 'deal' | 'fair'; }
+export function scanChip(confidence: 'high' | 'low' | undefined, read: ScanResult | null | undefined): ScanChip;
+// 5 combos (confiance × textRead × visualMatch) : « Vérifié visuellement » / « Reconnu à la forme » / « Correspondance probable » / …
+export interface ScanReadLine { prefix: string; text: string; }
+export function scanReadLine(read: ScanResult | null | undefined, top: Parfum | null | undefined): ScanReadLine | null;
+// Ligne « Lu : … » / « Hypothèse : … » — null si elle ne ferait que doubler le héros.
+```
+
+### `src/utils/permission-primers.ts`
+```ts
+// Primers de permission just-in-time (§22 rules) — copy + flags AsyncStorage.
+export type PermissionPrimerKey = 'camera' | 'mic' | 'location' | 'push';
+export const PERMISSION_PRIMERS: Record<PermissionPrimerKey, PermissionPrimerCopy>;  // icon/title/message/acceptLabel
+export const PRIMER_REASSURANCE: string;                                             // « Tu peux changer d'avis… »
+export function hasSeenPrimer(key: PermissionPrimerKey): Promise<boolean>;           // clé @sillage/primer-<key>
+export function markPrimerSeen(key: PermissionPrimerKey): Promise<void>;
+```
+
+### `src/utils/device-locale.ts`
+```ts
+// Langues de l'appareil pour le pipeline voix multilingue (expo-localization).
+export function deviceSttLang(): string;        // locale BCP-47 pour le STT on-device
+export function deviceVoiceLanguages(): string[];  // indices ISO 639-1 (max 3) pour gpt-transcribe
 ```
 
 ---
@@ -1122,7 +1248,7 @@ Chrome partagé rendu dans le layout des tabs (`(tabs)/_layout.tsx`). Contient l
 
 ### `VotePickerSheet` — `src/components/VotePickerSheet.tsx`
 
-Sheet sélecteur de vote (§4.16 content sheet) : liste d'options avec vote courant marqué + « Retirer mon vote ». Même langage qu'ActionSheet (backdrop scrim, radius top 24, handle, BackHandler, Reduced Motion). Utilisé par `PerformanceProfile` (crans Longévité/Sillage) et `SeasonProfile` (saisons).
+Sheet sélecteur de vote (§4.16 content sheet) : liste d'options avec vote courant marqué + « Retirer mon vote ». Même langage qu'ActionSheet (backdrop scrim, radius top 24, handle, BackHandler, Reduced Motion). Utilisé par `PerformanceProfile` (jauge Longévité/Sillage) et `SeasonProfile` (saisons).
 
 ```ts
 interface VoteOption { key: string; label: string; icon?: string; color?: string }
@@ -1135,6 +1261,31 @@ interface Props {
   onPick: (key: string) => void;        // vote (puis fermeture)
   onRemove?: (() => void) | null;       // « Retirer mon vote » — affiché seulement si currentKey
   onClose: () => void;
+}
+```
+
+### `PermissionPrimer` — `src/components/PermissionPrimer.tsx`
+
+Popup de pré-permission just-in-time (§22 rules) : popup centrée d'information (icône, titre, message, réassurance, boutons Continuer / Pas maintenant) affichée AVANT le prompt système, une seule fois par permission. Piloté par `usePermissionPrimer`/`usePushPrimer`.
+
+```ts
+interface Props {
+  visible: boolean;
+  copy: PermissionPrimerCopy;           // icon/title/message/acceptLabel (permission-primers.ts)
+  onAccept: () => void;                 // pose le flag puis déclenche le prompt système
+  onDecline: () => void;                // pose le flag aussi (pas de re-nag)
+}
+```
+
+### `VoiceUndoBanner` — `src/components/VoiceUndoBanner.tsx`
+
+Bannière « Ce n'est pas lui ? » (§4.18) affichée sur la fiche détail après une auto-ouverture vocale. Auto-dismiss 4 s ; tap → `setPendingVoiceResults(query, results)` + `router.back()` → SearchChrome restaure l'overlay de résultats au focus.
+
+```ts
+interface Props {
+  visible: boolean;
+  onUndo: () => void;
+  onDismiss: () => void;
 }
 ```
 
@@ -1194,17 +1345,21 @@ Frappe utilisateur
 
 Filtre par clé `normalize(marque) + '_' + normalize(nom)`, garde le 1er (meilleur score). Appliqué côté RPC (`DISTINCT ON`) + sécurité client (sortie de `searchParfumsCached`/`searchParfumFromScan`).
 
-### `searchParfumFromScan` — Recherche optimisée scan (client, inchangé)
+### `searchParfumFromScan` — Recherche optimisée scan (client)
 
-Le scan GPT-4o Vision fournit marque + nom structurés. `searchParfumFromScan` appelle `searchParfumsCached([marque, nom])` puis rescore côté client :
+Le scan GPT Vision fournit marque + nom + alternatives structurés. `searchParfumFromScan` lance des requêtes `searchParfumsCached` **parallèles** (principale `marque + nom` + une par alternative, `Promise.allSettled` — la principale propage ses erreurs) puis rescore côté client (`src/utils/scan-match.ts`) :
 
 ```
-Bonus nom exact      = +50   (doc.nom normalisé === gptNom normalisé)
-Bonus nom partiel    = +25   (l'un contient l'autre)
-Bonus marque exacte  = +15   (doc.marque normalisée === gptMarque normalisée)
+Bonus nom exact      = +50   (doc.nom normalisé === candidat normalisé ; candidats = nom + alternatives)
+Bonus nom partiel    = +25   (l'un contient l'autre — flankers)
+Bonus nom fuzzy      = +10..+40 (similarité Levenshtein ≥ 0.55, dégradé — typos de lecture)
+Bonus marque exacte  = +15   (marques canonicalisées via alias : YSL/MFK/JPG/Rabanne/Bulgari…)
 Bonus marque partiel = +8    (l'un contient l'autre)
-→ Tri par bonus desc, tiebreaker bestPrice asc → dédup marque+nom
+Concentration        = ±12   (typeParfumLabel des deux côtés — fini les −12 sur « EDP »)
+→ Tri score desc → popularité desc → prix asc → dédup marque+nom
 ```
+
+**Cas marque seule** (aucun nom ni alternative lu) : bascule sur `getParfumsByMarques(brandQueryForms(marque))` — requête `.in` sur toutes les formes de surface de la maison (alias YSL/MFK/JPG… → formes longues catalogue, `scan-match.ts`) — avec fallback trgm sur la forme la plus longue. Le top-50 trgm sur un nom de maison seul était non pertinent.
 
 **Pourquoi** : le scan est de l'**identification** (l'utilisateur sait quel parfum il scanne) — le +50 garantit que le match de nom exact écrase les variants/flankers plus populaires.
 

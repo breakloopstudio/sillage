@@ -30,6 +30,8 @@ export interface VoiceOverlayPhaseSearching {
 export interface VoiceOverlayPhaseError {
   type: 'error';
   message: string;
+  /** Refus définitif du micro : propose un bouton vers les réglages système. */
+  showSettings?: boolean;
 }
 
 export interface VoiceOverlayPhaseResults {
@@ -56,6 +58,7 @@ interface Props {
   onViewAll: () => void;
   onCancel: () => void;
   onRetry: () => void;
+  onOpenSettings?: () => void;
 }
 
 const ANIM_CONFIG: LayoutAnimationConfig = {
@@ -77,6 +80,7 @@ export default function VoiceOverlay({
   onViewAll,
   onCancel,
   onRetry,
+  onOpenSettings,
 }: Props) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -146,9 +150,15 @@ export default function VoiceOverlay({
               <Pressable style={s.ghostBtn} onPress={onCancel} hitSlop={8}>
                 <Text style={s.ghostBtnText} allowFontScaling={false}>Annuler</Text>
               </Pressable>
-              <Pressable style={s.retryBtn} onPress={onRetry} hitSlop={8}>
-                <Text style={s.retryText} allowFontScaling={false}>Réessayer</Text>
-              </Pressable>
+              {phase.showSettings && onOpenSettings ? (
+                <Pressable style={s.retryBtn} onPress={onOpenSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Ouvrir les réglages">
+                  <Text style={s.retryText} allowFontScaling={false}>Réglages</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={s.retryBtn} onPress={onRetry} hitSlop={8}>
+                  <Text style={s.retryText} allowFontScaling={false}>Réessayer</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         )}

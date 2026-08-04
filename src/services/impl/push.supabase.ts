@@ -26,6 +26,22 @@ export async function requestFcmPermission(): Promise<boolean> {
   }
 }
 
+export type PushPermissionStatus = 'granted' | 'denied' | 'undetermined' | 'unknown';
+
+// Lecture silencieuse du statut OS (jamais de prompt) — permet à l'UI de
+// refléter le vrai état (ex. toggle Settings resté ON après un refus OS).
+export async function getPushPermissionStatus(): Promise<PushPermissionStatus> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status === 'granted') return 'granted';
+    if (status === 'denied') return 'denied';
+    return 'undetermined';
+  } catch (e) {
+    console.warn('[push] getPermissions failed:', e);
+    return 'unknown';
+  }
+}
+
 export async function getFcmToken(): Promise<string | null> {
   try {
     const projectId = getProjectId();
@@ -94,13 +110,29 @@ async function removeOldTokens(uid: string, currentToken: string): Promise<void>
   }
 }
 
+// Enregistrement one-shot du token (après octroi explicite via primer ou
+// toggle Settings) — ne demande JAMAIS la permission elle-même.
+export async function registerPushToken(uid: string): Promise<void> {
+  try {
+    const token = await getFcmToken();
+    if (!token) return;
+    await saveTokenToDB(uid, token);
+    await removeOldTokens(uid, token);
+  } catch (e: unknown) {
+    console.warn('[push] registerPushToken failed:', (e as Error)?.message ?? String(e));
+  }
+}
+
+// Ré-enregistrement au lancement : uniquement si la permission OS est DÉJÀ
+// accordée (jamais de prompt à froid). La demande part des moments de valeur
+// (1ère alerte prix, toggle Settings) via requestFcmPermission + registerPushToken.
 export function startFcmRegistration(uid: string): () => void {
   let cancelled = false;
 
   async function register(initial: boolean) {
     if (cancelled) return;
-    const granted = await requestFcmPermission();
-    if (!granted) return;
+    const status = await getPushPermissionStatus();
+    if (status !== 'granted' || cancelled) return;
     const token = await getFcmToken();
     if (!token || cancelled) return;
     await saveTokenToDB(uid, token);

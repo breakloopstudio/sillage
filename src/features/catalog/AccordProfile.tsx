@@ -1,23 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   interpolate,
-  interpolateColor,
   Extrapolation,
   FadeIn,
   FadeInDown,
-  FadeInLeft,
   useReducedMotion,
 } from 'react-native-reanimated';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import { hapticsLight } from '../../services/haptics';
-import { alpha } from '../../utils/alpha';
+import { tintLuminous } from '../../utils/alpha';
 import { getAccordDescription } from '../../utils/note-descriptions';
-import { buildAccords, type AccordRow } from '../../utils/accord-profile';
+import { buildAccords, ribbonWidths, type AccordRow } from '../../utils/accord-profile';
 
 interface Props {
   accords: string[] | undefined;
@@ -31,8 +29,13 @@ export default function AccordProfile({ accords, percentages }: Props) {
   const reduced = useReducedMotion();
 
   const rows = useMemo(() => buildAccords(accords, percentages), [accords, percentages]);
+  const widths = useMemo(() => ribbonWidths(rows), [rows]);
 
   const [active, setActive] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActive(prev => (prev !== null && !rows.some(r => r.raw === prev) ? null : prev));
+  }, [rows]);
 
   const colorOf = useCallback(
     (i: number) => c[`accord${i}`] ?? c.primary,
@@ -57,13 +60,33 @@ export default function AccordProfile({ accords, percentages }: Props) {
         </View>
       </View>
 
-      <View style={[s.list, { gap: 14 }]}>
+      <View
+        style={[sRibbon, { backgroundColor: c.surface2 }]}
+        pointerEvents="none"
+        accessible={false}
+        importantForAccessibility="no-hide-descendants"
+      >
+        {rows.map((row, i) => (
+          <RibbonSegment
+            key={row.raw}
+            raw={row.raw}
+            width={widths[i]}
+            color={colorOf(row.colorIndex)}
+            active={active}
+            rank={i}
+            reduced={reduced}
+          />
+        ))}
+      </View>
+
+      <View>
         {rows.map((row, i) => (
           <AccordRow
             key={row.raw}
             row={row}
             rank={i}
             isChar={i === 0}
+            first={i === 0}
             color={colorOf(row.colorIndex)}
             active={active}
             onSelect={handleSelect}
@@ -75,18 +98,50 @@ export default function AccordProfile({ accords, percentages }: Props) {
   );
 }
 
+interface SegmentProps {
+  raw: string;
+  width: number;
+  color: string;
+  active: string | null;
+  rank: number;
+  reduced: boolean;
+}
+
+function RibbonSegment({ raw, width, color, active, rank, reduced }: SegmentProps) {
+  const isActive = active === raw;
+  const anyActive = active !== null;
+
+  const emph = useSharedValue(isActive ? 1 : anyActive ? -1 : 0);
+
+  useEffect(() => {
+    emph.value = withTiming(isActive ? 1 : anyActive ? -1 : 0, { duration: reduced ? 0 : 250 });
+  }, [isActive, anyActive, reduced, emph]);
+
+  const segStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(emph.value, [-1, 0, 1], [0.4, 1, 1]),
+  }));
+
+  return (
+    <Animated.View
+      entering={FadeIn.delay(reduced ? 0 : rank * 70).duration(reduced ? 0 : 300)}
+      style={[sSegment, { flex: width, backgroundColor: color }, segStyle]}
+    />
+  );
+}
+
 interface RowProps {
   row: AccordRow;
   rank: number;
   isChar: boolean;
+  first: boolean;
   color: string;
   active: string | null;
   onSelect: (raw: string) => void;
   reduced: boolean;
 }
 
-function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowProps) {
-  const { theme } = useTheme();
+function AccordRow({ row, rank, isChar, first, color, active, onSelect, reduced }: RowProps) {
+  const { theme, resolvedMode } = useTheme();
   const c = theme.colors;
 
   const isActive = active === row.raw;
@@ -96,35 +151,25 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
 
   useEffect(() => {
     emph.value = withTiming(isActive ? 1 : anyActive ? -1 : 0, { duration: reduced ? 0 : 250 });
-  }, [isActive, anyActive]);
+  }, [isActive, anyActive, reduced, emph]);
 
-  const ringColor = alpha(color, 0.4);
-
-  const labelStyle = useAnimatedStyle(() => ({
-    fontSize: isChar
-      ? interpolate(emph.value, [-1, 0, 1], [18, 20, 23], Extrapolation.CLAMP)
-      : interpolate(emph.value, [-1, 0, 1], [13, 14, 16], Extrapolation.CLAMP),
-    color: isChar
-      ? interpolateColor(emph.value, [-1, 0, 1], [c.textMuted, color, color])
-      : interpolateColor(emph.value, [-1, 0, 1], [c.textMuted, c.text, color]),
+  const rowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(emph.value, [-1, 0, 1], [0.4, 1, 1]),
   }));
 
-  const fillStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(emph.value, [-1, 0, 1], [0.3, 1, 1]),
-    borderWidth: interpolate(emph.value, [0, 1], [0, 1.5], Extrapolation.CLAMP),
-    borderColor: interpolateColor(emph.value, [0, 1], ['transparent', ringColor]),
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(emph.value, [0, 1], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(emph.value, [0, 1], [1, 1.25], Extrapolation.CLAMP) }],
   }));
 
-  const qualStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(emph.value, [-1, 0, 1], [0.35, 1, 1]),
+  const chevStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(emph.value, [0, 1], [0, 180], Extrapolation.CLAMP)}deg` }],
   }));
-
-  const handlePress = useCallback(() => onSelect(row.raw), [onSelect, row.raw]);
 
   const description = getAccordDescription(row.raw);
   const hasDesc = !!description && description.trim().length > 0;
 
-  const barH = isChar ? 10 : 6;
+  const handlePress = useCallback(() => onSelect(row.raw), [onSelect, row.raw]);
 
   return (
     <Animated.View entering={FadeIn.delay(reduced ? 0 : rank * 90).duration(reduced ? 0 : 380)}>
@@ -132,36 +177,31 @@ function AccordRow({ row, rank, isChar, color, active, onSelect, reduced }: RowP
         onPress={handlePress}
         accessibilityRole="button"
         accessibilityLabel={`${row.display}, ${row.pct} %${row.label ? ', ' + row.label : ''}`}
-        accessibilityState={{ selected: isActive }}
-        style={sRow}
+        accessibilityState={{ selected: isActive, expanded: isActive && hasDesc }}
+        accessibilityHint={hasDesc ? 'Affiche ou masque la description de l’accord' : undefined}
+        style={[sRow, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }]}
       >
-        <View style={sHeaderRow}>
-          <Animated.Text
-            numberOfLines={1}
-            style={[
-              isChar ? sLabelChar : sLabelNuance,
-              labelStyle,
-            ]}
-          >
+        <Animated.View style={[sRowLine, rowStyle]}>
+          <View style={sDotWrap}>
+            <Animated.View
+              style={[sDotHalo, { backgroundColor: tintLuminous(color, 'hint', resolvedMode) }, haloStyle]}
+            />
+            <View style={[sDot, { backgroundColor: color }]} />
+          </View>
+          <Text numberOfLines={1} style={[isChar ? sLabelChar : sLabelNuance, { color: c.text }]}>
             {row.display}
-          </Animated.Text>
+          </Text>
           {row.label ? (
-            <Animated.Text allowFontScaling={false} style={[sQual, { color: isActive ? color : c.textMuted }, qualStyle]}>
+            <Text allowFontScaling={false} style={[sQual, { color: c.textMuted }]}>
               {row.label}
-            </Animated.Text>
+            </Text>
           ) : null}
-        </View>
-
-        <View style={[sTrack, { height: barH, backgroundColor: c.surface2 }]}>
-          <Animated.View
-            entering={reduced ? FadeInLeft.duration(0) : FadeInLeft.delay(rank * 90 + 120).duration(520)}
-            style={[
-              sFill,
-              { height: barH, width: `${row.pct}%`, backgroundColor: color },
-              fillStyle,
-            ]}
-          />
-        </View>
+          {hasDesc ? (
+            <Animated.View style={[sChev, chevStyle]}>
+              <Ionicons name="chevron-down-outline" size={14} color={c.textMuted} />
+            </Animated.View>
+          ) : null}
+        </Animated.View>
 
         {isActive && hasDesc ? (
           <Animated.View entering={FadeInDown.duration(reduced ? 0 : 220)} style={sEmanation}>
@@ -191,53 +231,83 @@ function getStyles(t: Theme) {
       justifyContent: 'center' as const,
     },
     title: { fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 18, color: c.text },
-    list: {},
   } as const;
 }
+
+const sRibbon = {
+  flexDirection: 'row' as const,
+  height: 16,
+  borderRadius: 8,
+  overflow: 'hidden' as const,
+  gap: 2,
+  marginBottom: 6,
+} as const;
+
+const sSegment = {
+  height: 16,
+} as const;
 
 const sRow = {
   minHeight: 44,
   justifyContent: 'center' as const,
 } as const;
 
-const sHeaderRow = {
+const sRowLine = {
   flexDirection: 'row' as const,
   alignItems: 'center' as const,
-  marginBottom: 6,
+  gap: 10,
+  paddingVertical: 10,
+} as const;
+
+const sDotWrap = {
+  width: 16,
+  height: 16,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+} as const;
+
+const sDotHalo = {
+  position: 'absolute' as const,
+  width: 16,
+  height: 16,
+  borderRadius: 8,
+} as const;
+
+const sDot = {
+  width: 8,
+  height: 8,
+  borderRadius: 4,
 } as const;
 
 const sLabelChar = {
   flex: 1,
   fontFamily: 'PlayfairDisplay_600SemiBold',
-  lineHeight: 26,
+  fontSize: 15,
+  lineHeight: 22,
 } as const;
 
 const sLabelNuance = {
   flex: 1,
   fontFamily: 'Inter_500Medium',
+  fontSize: 13,
   lineHeight: 20,
 } as const;
 
 const sQual = {
-  marginLeft: 10,
   fontFamily: 'Inter_600SemiBold',
   fontSize: 11,
 } as const;
 
-const sTrack = {
-  borderRadius: 4,
-  overflow: 'hidden' as const,
-} as const;
-
-const sFill = {
-  borderRadius: 4,
+const sChev = {
+  marginLeft: 2,
 } as const;
 
 const sEmanation = {
   flexDirection: 'row' as const,
   alignItems: 'flex-start' as const,
   gap: 8,
-  marginTop: 10,
+  paddingTop: 2,
+  paddingBottom: 10,
   paddingLeft: 2,
 } as const;
 

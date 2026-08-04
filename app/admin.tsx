@@ -70,14 +70,19 @@ export default function AdminPage() {
 
   const pickImage = useCallback(async () => {
     if (!ImagePicker) { Alert.alert('Non disponible', 'Installe expo-image-picker pour uploader des images.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets.length > 0) {
-      setSelectedUri(result.assets[0].uri);
-      setUploadMsg(null);
-      setUploadErr(false);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        setSelectedUri(result.assets[0].uri);
+        setUploadMsg(null);
+        setUploadErr(false);
+      }
+    } catch {
+      setUploadMsg("Impossible d'ouvrir la galerie.");
+      setUploadErr(true);
     }
   }, []);
 

@@ -5,7 +5,6 @@ import { View, Text, Pressable, TextInput, FlatList, useWindowDimensions, BackHa
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
-import { hapticsLight } from '../../services/haptics';
 import { scoreWardrobeItemForWeather } from '../../utils/weather-scoring';
 import type { WeatherData } from '../../services/weather';
 import type { UserParfum } from '../../models/user-parfum.interface';
@@ -87,7 +86,6 @@ export default function SOTDPicker({ visible, haveItems, currentSotdId, anchorTo
               <Pressable
                 style={s.item}
                 onPress={() => {
-                  hapticsLight();
                   onSelect(item.parfumId);
                 }}
               >

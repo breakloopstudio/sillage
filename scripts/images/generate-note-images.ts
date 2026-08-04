@@ -242,21 +242,30 @@ async function fetchUniqueNotes(): Promise<string[]> {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-  const { data, error } = await supabase
-    .from('parfums')
-    .select('notes_tete, notes_coeur, notes_fond');
-
-  if (error) throw new Error(`Supabase: ${error.message}`);
-
+  // Paginé : sans .range(), PostgREST tronque silencieusement à db-max-rows.
+  // .order('id') requis — sans ORDER BY la pagination est instable.
+  const CHUNK = 1000;
   const noteSet = new Set<string>();
-  for (const p of data ?? []) {
-    for (const arr of [p.notes_tete, p.notes_coeur, p.notes_fond]) {
-      if (!Array.isArray(arr)) continue;
-      for (const n of arr) {
-        const trimmed = (n as string).trim();
-        if (trimmed) noteSet.add(trimmed);
+  for (let from = 0; ; from += CHUNK) {
+    const { data, error } = await supabase
+      .from('parfums')
+      .select('notes_tete, notes_coeur, notes_fond')
+      .order('id')
+      .range(from, from + CHUNK - 1);
+
+    if (error) throw new Error(`Supabase: ${error.message}`);
+    if (!data || data.length === 0) break;
+
+    for (const p of data) {
+      for (const arr of [p.notes_tete, p.notes_coeur, p.notes_fond]) {
+        if (!Array.isArray(arr)) continue;
+        for (const n of arr) {
+          const trimmed = (n as string).trim();
+          if (trimmed) noteSet.add(trimmed);
+        }
       }
     }
+    if (data.length < CHUNK) break;
   }
 
   return [...noteSet].sort((a, b) => a.localeCompare(b));

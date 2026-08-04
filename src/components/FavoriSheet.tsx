@@ -16,7 +16,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '../theme/ThemeContext';
-import { hapticsLight } from '../services/haptics';
+import { hapticsLight, hapticsError } from '../services/haptics';
 import { STATUS_CHIPS, chipForStatus } from '../utils/status-chips';
 import type { UserParfumStatus } from '../models/user-parfum.interface';
 
@@ -77,7 +77,7 @@ export default function FavoriSheet({
   const handleView = useCallback(() => { hapticsLight(); onView(); }, [onView]);
   const handleAlerte = useCallback(() => { hapticsLight(); onAlerte(); }, [onAlerte]);
   const handleStatus = useCallback((st: UserParfumStatus) => { hapticsLight(); onSetStatus(st); }, [onSetStatus]);
-  const handleRemove = useCallback(() => { hapticsLight(); onRemove(); }, [onRemove]);
+  const handleRemove = useCallback(() => { hapticsError(); onRemove(); }, [onRemove]);
 
   if (!mounted) return null;
 

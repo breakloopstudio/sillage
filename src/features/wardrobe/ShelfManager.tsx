@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, Pressable, TouchableOpacity, TextInput, Alert, BackHandler } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, TextInput, Alert, BackHandler, KeyboardAvoidingView } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
@@ -292,7 +292,7 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
   if (!visible) return null;
 
   return (
-    <View style={s.backdrop}>
+    <KeyboardAvoidingView style={s.backdrop} behavior="padding">
       <Pressable style={s.backdropTouch} onPress={onClose} />
       <View style={s.modal}>
         <View style={s.header}>
@@ -311,9 +311,10 @@ export default function ShelfManager({ visible, shelves, orphanCount, editShelfI
           contentContainerStyle={s.listContent}
           style={s.list}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

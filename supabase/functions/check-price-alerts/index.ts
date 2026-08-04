@@ -11,6 +11,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
   if (!verifyCronAuth(req)) return jsonResponse({ error: 'Unauthorized.' }, 401);
   const supabase = createAdminClient();
   const now = new Date();
@@ -23,6 +24,8 @@ Deno.serve(async (req: Request) => {
     const { data, error } = await supabase
       .from('price_alerts')
       .select('user_id, parfum_id, last_price, target_price')
+      .order('user_id')
+      .order('parfum_id')
       .range(offset, offset + PAGE - 1);
     if (error) {
       console.error('[checkPriceAlerts] fetch alerts error:', error.message);
