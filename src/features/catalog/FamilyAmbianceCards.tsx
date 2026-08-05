@@ -1,8 +1,8 @@
-// src/features/catalog/FamilyAmbianceCards.tsx — Cartes d'ambiance « Explorer par famille »
+// src/features/catalog/FamilyAmbianceCards.tsx — Cartes d'ambiance « Par famille ou couleur »
 // v3 : 1 seul round-trip (RPC family_overviews), flacon détouré qui flotte sur un
 // fond teinté par famille + ombre de contact, rotation quotidienne du flacon
 // emblématique, badge icône accent, tagline sensorielle, effectif.
-// Tap → /search?family=<key>.
+// Tap famille → /search?family=<key> · Tap couleur (1ʳᵉ carte) → /wheel.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -43,22 +43,25 @@ export default function FamilyAmbianceCards({ onFamilyTap, onColorTap }: Props) 
     onFamilyTap(key);
   }, [onFamilyTap]);
 
-  if (!loaded) return null;
-
-  const cards = OLFACTORY_FAMILIES
-    .map(family => {
-      const ov = overviews[family.key];
-      const bottles = ov?.bottles ?? [];
-      const bottleUrl = bottles.length > 0 ? bottles[day % bottles.length] : null;
-      return { family, bottleUrl, count: ov?.count ?? 0 };
-    })
-    .filter(c => c.bottleUrl !== null && c.count > 0);
+  // Pas de gate réseau sur la section : la ChromaCard (statique, en tête) est
+  // rendue immédiatement ; les FamilyCard apparaissent à la résolution de
+  // family_overviews (avant : la section entière était masquée, v9.0 degating).
+  const cards = loaded
+    ? OLFACTORY_FAMILIES
+        .map(family => {
+          const ov = overviews[family.key];
+          const bottles = ov?.bottles ?? [];
+          const bottleUrl = bottles.length > 0 ? bottles[day % bottles.length] : null;
+          return { family, bottleUrl, count: ov?.count ?? 0 };
+        })
+        .filter(c => c.bottleUrl !== null && c.count > 0)
+    : [];
 
   return (
     <View style={s.container}>
       <SectionHeader
-        title={t('catalog.familiesTitle')}
-        subtitle={t('catalog.familiesSubtitle')}
+        title={t('catalog.exploreTitle')}
+        subtitle={t('catalog.exploreSubtitle')}
         style={{ paddingHorizontal: 16 }}
       />
       <ScrollView
@@ -66,6 +69,7 @@ export default function FamilyAmbianceCards({ onFamilyTap, onColorTap }: Props) 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.scrollContent}
       >
+        <ChromaCard onPress={onColorTap} />
         {cards.map(({ family, bottleUrl, count }) => (
           <FamilyCard
             key={family.key}
@@ -75,13 +79,12 @@ export default function FamilyAmbianceCards({ onFamilyTap, onColorTap }: Props) 
             onPress={() => handlePress(family.key)}
           />
         ))}
-        <ChromaCard onPress={onColorTap} />
       </ScrollView>
     </View>
   );
 }
 
-// 7ᵉ carte « Par couleur » — 100 % statique : zéro fetch, zéro SVG dans le
+// 1ʳᵉ carte « Par couleur » — 100 % statique : zéro fetch, zéro SVG dans le
 // graphe de boot (pastilles en Views pures), rendue même si family_overviews
 // échoue. Tap → route racine /wheel.
 const CHROMA_CARD_DOTS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'black'] as const;

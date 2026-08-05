@@ -63,11 +63,11 @@ describe('normalisation openai-vision (v4)', () => {
 });
 
 describe('analyzeCollectionImage (v6)', () => {
-  it('envoie le mode collection dans le body', async () => {
+  it('envoie le mode collection + les images dans le body', async () => {
     mockInvoke.mockResolvedValue({ data: { mode: 'collection', isCollection: true, estimatedCount: 1, bottles: [] }, error: null });
-    await analyzeCollectionImage('img-shelf');
+    await analyzeCollectionImage(['img-a', 'img-b']);
     expect(mockInvoke).toHaveBeenCalledWith('analyze-perfume-image', {
-      body: { imageBase64: 'img-shelf', mode: 'collection' },
+      body: { imagesBase64: ['img-a', 'img-b'], mode: 'collection' },
     });
   });
 
@@ -82,7 +82,7 @@ describe('analyzeCollectionImage (v6)', () => {
       },
       error: null,
     });
-    const r = await analyzeCollectionImage('img');
+    const r = await analyzeCollectionImage(['img']);
     expect(r.isCollection).toBe(true);
     expect(r.bottles).toHaveLength(2);
     expect(r.bottles[0]).toEqual({
@@ -105,14 +105,14 @@ describe('analyzeCollectionImage (v6)', () => {
       },
       error: null,
     });
-    const r = await analyzeCollectionImage('img');
+    const r = await analyzeCollectionImage(['img']);
     expect(r.bottles).toHaveLength(1);
     expect(r.bottles[0].marque).toBe('Dior');
   });
 
   it('data null → collection vide (routée erreur)', async () => {
     mockInvoke.mockResolvedValue({ data: null, error: null });
-    const r = await analyzeCollectionImage('img');
+    const r = await analyzeCollectionImage(['img']);
     expect(r.isCollection).toBe(false);
     expect(r.estimatedCount).toBe(0);
     expect(r.bottles).toEqual([]);
@@ -126,7 +126,7 @@ describe('analyzeCollectionImage (v6)', () => {
       },
       error: null,
     });
-    const r = await analyzeCollectionImage('img');
+    const r = await analyzeCollectionImage(['img']);
     expect(r.estimatedCount).toBe(1);
   });
 });

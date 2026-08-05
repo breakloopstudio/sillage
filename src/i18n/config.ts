@@ -7,9 +7,9 @@ export const SYSTEM_LANGUAGE = 'system';
 
 /**
  * Langues traduites de l'app. S'enrichit aux phases i18n :
- * Phase 2 → 'en', Phase 3 → 'es' | 'de' | 'it' | 'pt-BR'.
+ * Phase 2 → 'en' (fait), Phase 3 → 'es' | 'de' | 'it' | 'pt-BR'.
  */
-export const SUPPORTED_LANGUAGES = ['fr'] as const;
+export const SUPPORTED_LANGUAGES = ['fr', 'en', 'es', 'de', 'it', 'pt-BR'] as const;
 export type AppLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 export type LanguagePreference = typeof SYSTEM_LANGUAGE | AppLanguage;
@@ -17,6 +17,11 @@ export type LanguagePreference = typeof SYSTEM_LANGUAGE | AppLanguage;
 /** Choix offerts dans Settings : Système + une entrée par langue disponible. */
 export const AVAILABLE_LANGUAGES: ReadonlyArray<{ code: AppLanguage; nativeLabel: string }> = [
   { code: 'fr', nativeLabel: 'Français' },
+  { code: 'en', nativeLabel: 'English' },
+  { code: 'es', nativeLabel: 'Español' },
+  { code: 'de', nativeLabel: 'Deutsch' },
+  { code: 'it', nativeLabel: 'Italiano' },
+  { code: 'pt-BR', nativeLabel: 'Português (Brasil)' },
 ];
 
 /** Langue source : celle dans laquelle le code est écrit (`fr.json` fait foi). */
@@ -24,9 +29,9 @@ export const SOURCE_LANGUAGE: AppLanguage = 'fr';
 
 /**
  * Langue affichée quand la locale appareil n'est supportée par aucune traduction.
- * 'fr' tant que l'anglais n'est pas traduit (Phase 2) — deviendra 'en'.
+ * 'en' depuis la Phase 2 (anglais complet) — l'anglais est le repli le plus universel.
  */
-export const UNSUPPORTED_FALLBACK_LANGUAGE: AppLanguage = 'fr';
+export const UNSUPPORTED_FALLBACK_LANGUAGE: AppLanguage = 'en';
 
 export function isSupportedLanguage(v: string | null | undefined): v is AppLanguage {
   return !!v && (SUPPORTED_LANGUAGES as readonly string[]).includes(v);

@@ -114,8 +114,8 @@
   "catalog": {
     "bestDeals": "Meilleures affaires",
     "bestDealsSubtitle": "Les meilleurs rapports qualité-prix",
-    "familiesSubtitle": "Trouve ton sillage",
-    "familiesTitle": "Explorer par famille",
+    "exploreSubtitle": "Trouve ton sillage",
+    "exploreTitle": "Par famille ou couleur",
     "heroSub": "Trouve ton parfum au meilleur prix",
     "login": "Connexion",
     "loginBanner": "Connecte-toi pour des suggestions personnalisées",
@@ -154,9 +154,9 @@
     "colorCount_one": "{{formatted}} teinte",
     "colorCount_many": "{{formatted}} teintes",
     "colorCount_other": "{{formatted}} teintes",
-    "gold": {
-      "label": "Or",
-      "tagline": "L'ambre, lente et liquide"
+    "cyan": {
+      "label": "Cyan",
+      "tagline": "L'air après l'orage"
     },
     "gray": {
       "label": "Gris",
@@ -166,17 +166,31 @@
       "label": "Vert",
       "tagline": "Un jardin après la pluie"
     },
+    "indigo": {
+      "label": "Indigo",
+      "tagline": "L'encre de la nuit"
+    },
+    "lime": {
+      "label": "Citron vert",
+      "tagline": "L'éclat vert du zeste"
+    },
+    "loading": "Chargement des parfums…",
+    "magenta": {
+      "label": "Magenta",
+      "tagline": "La fleur en pleine flamme"
+    },
     "noResults": "Aucun parfum pour cette teinte.",
     "offline": "Connexion requise pour charger les parfums.",
+    "openA11y": "Affiche les parfums de cette teinte",
     "orange": {
       "label": "Orange",
-      "tagline": "Cannelle et fruits confits"
+      "tagline": "Miel, ambre et fruits confits"
     },
     "pink": {
       "label": "Rose",
       "tagline": "La tendresse en pétales"
     },
-    "prompt": "Fais glisser l'anneau ou touche une pastille pour révéler les parfums d'une teinte",
+    "prompt": "Fais glisser la roue ou touche une teinte pour ouvrir ses parfums",
     "purple": {
       "label": "Violet",
       "tagline": "Poudré comme un secret"
@@ -185,12 +199,13 @@
       "label": "Rouge",
       "tagline": "La chaleur d'une étreinte"
     },
-    "seeResults_one": "Voir le parfum",
-    "seeResults_many": "Voir les {{formatted}} parfums",
-    "seeResults_other": "Voir les {{formatted}} parfums",
+    "seeAll": "Tout voir",
+    "seeAllA11y": "Voir tous les parfums de cette teinte dans la recherche",
+    "teal": {
+      "label": "Bleu canard",
+      "tagline": "Une feuille sur l'eau"
+    },
     "title": "Par couleur",
-    "wheelA11y": "Roue chromatique",
-    "wheelHintA11y": "Fais glisser pour choisir une teinte, ou touche une pastille au centre",
     "white": {
       "label": "Blanc",
       "tagline": "La pureté du lin"
@@ -1036,12 +1051,12 @@
   },
   "runner": {
     "composition": "Ta composition : {{notes}}",
-    "dailyCombo_one": "runner.dailyCombo",
-    "dailyCombo_many": "runner.dailyCombo",
-    "dailyCombo_other": "runner.dailyCombo",
-    "dailyDistance_one": "runner.dailyDistance",
-    "dailyDistance_many": "runner.dailyDistance",
-    "dailyDistance_other": "runner.dailyDistance",
+    "dailyCombo_one": "Enchaîne {{count}} combo",
+    "dailyCombo_many": "Enchaîne {{count}} combos",
+    "dailyCombo_other": "Enchaîne {{count}} combos",
+    "dailyDistance_one": "Parcours {{count}} mètre",
+    "dailyDistance_many": "Parcours {{count}} mètres",
+    "dailyDistance_other": "Parcours {{count}} mètres",
     "dailyDoneBadge": "Geste du jour réussi",
     "dailyDoneLabel": "Réussi — reviens demain",
     "dailyNearmiss_one": "Frôle {{count}} éclat",
@@ -1143,7 +1158,7 @@
     "cameraDisabledMessage": "Active la caméra dans les réglages de l'appareil pour scanner un flacon.",
     "cameraDisabledTitle": "Caméra désactivée",
     "cameraHint": "Cadre le flacon et appuie sur le déclencheur",
-    "cameraHintCollection": "Cadre ta collection et appuie sur le déclencheur",
+    "cameraHintCollection": "Photographie une section de 3-4 flacons et appuie sur le déclencheur",
     "cameraNeededMessage": "La caméra sert à scanner le flacon. Tu peux réessayer quand tu veux.",
     "cameraNeededTitle": "Caméra nécessaire",
     "captureError": "Échec de la capture. Réessaie.",
@@ -1187,7 +1202,7 @@
     "holdStillBurst_other": "{{index}}/{{count}} — Ne bouge plus",
     "hypothesisPrefix": "Hypothèse : ",
     "idleDesc": "L'IA reconnaît le parfum et trouve\nle meilleur prix pour toi.",
-    "idleDescCollection": "L'IA reconnaît chaque flacon visible\net te propose de les ajouter.",
+    "idleDescCollection": "Prends ton étagère en photo section par section,\nl'IA reconnaît chaque flacon pour toi.",
     "idleTitle": "Cadre le flacon",
     "idleTitleCollection": "Cadre ton étagère",
     "importGalleryA11y": "Importer de la galerie",
@@ -1222,8 +1237,26 @@
     "searchBrand": "Chercher « {{marque}} »",
     "searchCatalog": "Rechercher dans le catalogue",
     "seeMoreCatalog": "Voir plus dans le catalogue",
+    "stagingAddSection": "Ajouter une section",
+    "stagingAddShort": "Ajouter",
+    "stagingAnalyze_one": "Analyser {{count}} photo",
+    "stagingAnalyze_many": "Analyser {{count}} photos",
+    "stagingAnalyze_other": "Analyser {{count}} photos",
+    "stagingDiscardConfirm": "Tout effacer",
+    "stagingDiscardMessage_one": "Ta photo de section sera effacée.",
+    "stagingDiscardMessage_many": "Tes {{count}} photos de section seront effacées.",
+    "stagingDiscardMessage_other": "Tes {{count}} photos de section seront effacées.",
+    "stagingDiscardTitle": "Repartir de zéro ?",
+    "stagingHint": "Photographie ta collection section par section — 3-4 flacons par photo, étiquettes bien visibles.",
+    "stagingRemoveA11y_one": "Retirer la photo {{index}} sur {{count}}",
+    "stagingRemoveA11y_many": "Retirer la photo {{index}} sur {{count}}",
+    "stagingRemoveA11y_other": "Retirer la photo {{index}} sur {{count}}",
+    "stagingThumbA11y_one": "Photo {{index}} sur {{count}}",
+    "stagingThumbA11y_many": "Photo {{index}} sur {{count}}",
+    "stagingThumbA11y_other": "Photo {{index}} sur {{count}}",
+    "stagingTitle": "Ma collection",
     "tip": "Astuce : cadre la marque et le nom pour un résultat optimal",
-    "tipCollection": "Astuce : lumière uniforme et étiquettes face à l'objectif",
+    "tipCollection": "Astuce : procède par sections de 3-4 flacons, étiquettes face à l'objectif",
     "viewDetail": "Voir la fiche"
   },
   "search": {
@@ -1249,6 +1282,7 @@
   "searchChrome": {
     "openProfileA11y": "Ouvrir le profil",
     "openSettingsA11y": "Ouvrir les paramètres",
+    "openWheelA11y": "Ouvrir la roue chromatique",
     "searchA11y": "Rechercher un parfum",
     "searchPlaceholder": "Rechercher un parfum…",
     "speakPlaceholder": "Parle…",

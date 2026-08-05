@@ -14,6 +14,8 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "buildNumber": "1",
       "infoPlist": {
+        "CFBundleDevelopmentRegion": "fr",
+        "CFBundleAllowMixedLocalizations": true,
         "NSCameraUsageDescription": "Autoriser Sillage à utiliser votre appareil photo pour scanner les flacons de parfum.",
         "NSPhotoLibraryUsageDescription": "Autoriser Sillage à accéder à votre photothèque pour télécharger des photos de parfum.",
         "NSMicrophoneUsageDescription": "Autoriser Sillage à utiliser le micro pour rechercher des parfums à la voix.",
@@ -53,6 +55,53 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "locales": {
+      "en": {
+        "ios": {
+          "NSCameraUsageDescription": "Allow Sillage to use your camera to scan perfume bottles.",
+          "NSPhotoLibraryUsageDescription": "Allow Sillage to access your photo library to upload perfume photos.",
+          "NSMicrophoneUsageDescription": "Allow Sillage to use the microphone to search for perfumes by voice.",
+          "NSLocationWhenInUseUsageDescription": "Sillage uses your location to show the local weather and suggest perfumes suited to the season.",
+          "NSSpeechRecognitionUsageDescription": "Allow Sillage to use speech recognition."
+        }
+      },
+      "es": {
+        "ios": {
+          "NSCameraUsageDescription": "Permite a Sillage usar la cámara para escanear frascos de perfume.",
+          "NSPhotoLibraryUsageDescription": "Permite a Sillage acceder a tu fototeca para subir fotos de perfumes.",
+          "NSMicrophoneUsageDescription": "Permite a Sillage usar el micrófono para buscar perfumes por voz.",
+          "NSLocationWhenInUseUsageDescription": "Sillage usa tu ubicación para mostrar el clima local y sugerir perfumes adecuados a la estación.",
+          "NSSpeechRecognitionUsageDescription": "Permite a Sillage usar el reconocimiento de voz."
+        }
+      },
+      "de": {
+        "ios": {
+          "NSCameraUsageDescription": "Erlaube Sillage, die Kamera zu nutzen, um Parfümflakons zu scannen.",
+          "NSPhotoLibraryUsageDescription": "Erlaube Sillage den Zugriff auf deine Fotobibliothek, um Parfümfotos hochzuladen.",
+          "NSMicrophoneUsageDescription": "Erlaube Sillage, das Mikrofon zu nutzen, um per Sprache nach Parfüms zu suchen.",
+          "NSLocationWhenInUseUsageDescription": "Sillage nutzt deinen Standort, um das lokale Wetter anzuzeigen und zur Jahreszeit passende Parfüms vorzuschlagen.",
+          "NSSpeechRecognitionUsageDescription": "Erlaube Sillage, die Spracherkennung zu nutzen."
+        }
+      },
+      "it": {
+        "ios": {
+          "NSCameraUsageDescription": "Consenti a Sillage di usare la fotocamera per scansionare i flaconi di profumo.",
+          "NSPhotoLibraryUsageDescription": "Consenti a Sillage di accedere alla tua libreria foto per caricare foto di profumi.",
+          "NSMicrophoneUsageDescription": "Consenti a Sillage di usare il microfono per cercare profumi con la voce.",
+          "NSLocationWhenInUseUsageDescription": "Sillage usa la tua posizione per mostrare il meteo locale e suggerire profumi adatti alla stagione.",
+          "NSSpeechRecognitionUsageDescription": "Consenti a Sillage di usare il riconoscimento vocale."
+        }
+      },
+      "pt-BR": {
+        "ios": {
+          "NSCameraUsageDescription": "Permita que o Sillage use a câmera para escanear frascos de perfume.",
+          "NSPhotoLibraryUsageDescription": "Permita que o Sillage acesse sua biblioteca de fotos para enviar fotos de perfumes.",
+          "NSMicrophoneUsageDescription": "Permita que o Sillage use o microfone para buscar perfumes por voz.",
+          "NSLocationWhenInUseUsageDescription": "O Sillage usa sua localização para mostrar o clima local e sugerir perfumes adequados à estação.",
+          "NSSpeechRecognitionUsageDescription": "Permita que o Sillage use o reconhecimento de voz."
+        }
+      }
     },
     "plugins": [
       "expo-router",
@@ -107,7 +156,15 @@
           "sounds": []
         }
       ],
-      "expo-localization"
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["fr", "en", "es", "de", "it", "pt-BR"],
+            "android": ["fr", "en", "es", "de", "it", "pt-BR"]
+          }
+        }
+      ]
     ],
     "extra": {
       "router": {},

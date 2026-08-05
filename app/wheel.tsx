@@ -1,21 +1,24 @@
 // app/wheel.tsx — Roue chromatique (exploration par couleur)
-// Route racine (§5) : l'anneau SVG (react-native-svg) n'est importé ICI que par
+// Route racine (§5) : le disque SVG (react-native-svg) n'est importé ICI que par
 // ce fichier — expo-router n'évalue le module qu'au premier mount de la route,
 // donc zéro coût au boot. Le SVG est monté après la transition d'ouverture
-// (anti drop de frames low-end). Sélection → fetch au commit (le dwell time
-// absorbe la latence) → /search?color= lit le même cache mémoire (rendu instantané).
+// (anti drop de frames low-end).
+// ONE-TAP : un commit sur la roue (tap teinte/pastille ou fin de drag) affiche
+// les 50 parfums de la teinte SOUS la roue (grille virtualisée, même écran) ;
+// l'action « Tout voir » pousse /search?color=<key> (cache partagé déjà chaud →
+// rendu instantané). Tap carte → fiche détail (navigation interne de ParfumCard).
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Image } from 'expo-image';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import ChromaticWheel from '../src/features/wheel/ChromaticWheel';
-import Button from '../src/components/Button';
+import ParfumCard from '../src/components/ParfumCard';
 import { useTheme, type Theme } from '../src/theme/ThemeContext';
-import { getColorByKey, chromaSwatch, type ChromaticKey } from '../src/utils/chromatic-wheel';
+import { getColorByKey, type ChromaticKey } from '../src/utils/chromatic-wheel';
 import { getParfumsByColor } from '../src/services/catalog';
 import { hapticsLight } from '../src/services/haptics';
 import { useNetwork } from '../src/hooks/useNetwork';
@@ -23,13 +26,13 @@ import { formatNumber } from '../src/utils/format-price';
 import type { Parfum } from '../src/models';
 
 export default function WheelScreen() {
-  const { theme, resolvedMode } = useTheme();
+  const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { t } = useTranslation('common');
   const router = useRouter();
   const { isOnline } = useNetwork();
 
-  // Anneau monté après la transition slide_from_bottom (display list SVG lourde
+  // Disque monté après la transition slide_from_bottom (display list SVG
   // construite hors animation — pattern vérifié audit perf).
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -37,45 +40,37 @@ export default function WheelScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  // committedKey = dernière teinte POSÉE (fetch + CTA + flacons) ;
-  // liveKey = ancre traversée pendant le geste (affichage transitoire).
-  // La distinction évite la désynchronisation preview/résultats quand un geste
-  // se termine sans commit (relâché dans le disque central).
+  // liveKey = teinte traversée pendant le geste (label sous la roue) ;
+  // committedKey = teinte posée (résultats affichés sous la roue).
   const [committedKey, setCommittedKey] = useState<ChromaticKey | null>(null);
   const [liveKey, setLiveKey] = useState<ChromaticKey | null>(null);
   const [results, setResults] = useState<Parfum[]>([]);
   const [loading, setLoading] = useState(false);
   const requestIdRef = useRef(0);
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
 
   const fetchColor = useCallback((key: ChromaticKey) => {
     const reqId = ++requestIdRef.current;
     setLoading(true);
     getParfumsByColor(key, 50)
       .then((list) => {
-        if (!mountedRef.current || reqId !== requestIdRef.current) return;
+        if (reqId !== requestIdRef.current) return;
         setResults(list);
         setLoading(false);
         const urls = list.slice(0, 12).map(p => p.imageUrl).filter((u): u is string => !!u);
         if (urls.length > 0) Image.prefetch(urls, 'memory-disk').catch(() => {});
       })
       .catch(() => {
-        if (!mountedRef.current || reqId !== requestIdRef.current) return;
+        if (reqId !== requestIdRef.current) return;
         setResults([]);
         setLoading(false);
       });
   }, []);
 
-  // Franchissement d'ancre pendant le geste : affichage live, pas de fetch.
   const handleAnchorChange = useCallback((key: ChromaticKey) => {
     setLiveKey(key);
   }, []);
 
-  // Commit (fin de geste / tap) : haptique sélection + fetch de la teinte posée.
+  // One-tap : haptique sélection + fetch + résultats sous la roue (pas de nav).
   const handleCommit = useCallback((key: ChromaticKey) => {
     hapticsLight();
     setLiveKey(null);
@@ -83,36 +78,30 @@ export default function WheelScreen() {
     fetchColor(key);
   }, [fetchColor]);
 
-  // Geste relâché hors anneau/pastille : la preview revient à la teinte posée.
   const handleGestureCancel = useCallback(() => {
     setLiveKey(null);
   }, []);
-
-  const handleSeeResults = useCallback(() => {
-    if (!committedKey || results.length === 0) return;
-    router.push(`/search?color=${committedKey}`);
-  }, [committedKey, results.length, router]);
 
   const handleBack = useCallback(() => {
     router.back();
   }, [router]);
 
-  const previewKey = liveKey ?? committedKey;
-  const previewDef = getColorByKey(previewKey ?? undefined);
-  const swatch = previewKey ? chromaSwatch(previewKey, resolvedMode) : null;
-  const showResults = committedKey !== null && liveKey === null;
-  const previewBottles = useMemo(() => results.slice(0, 3), [results]);
+  const handleSeeAll = useCallback(() => {
+    if (!committedKey) return;
+    router.push(`/search?color=${committedKey}`);
+  }, [committedKey, router]);
 
-  return (
-    <SafeAreaView edges={['top', 'bottom']} style={s.container}>
-      <View style={s.header}>
-        <Pressable onPress={handleBack} hitSlop={8} style={s.backBtn} accessibilityLabel={t('chroma.backA11y')}>
-          <Ionicons name="chevron-down" size={22} color={theme.colors.text} />
-        </Pressable>
-        <Text style={s.title}>{t('chroma.title')}</Text>
-        <View style={s.backBtn} />
-      </View>
+  const renderCard = useCallback(({ item }: { item: Parfum }) => (
+    <View style={s.cardWrap}>
+      <ParfumCard parfum={item} mode="comfortable" />
+    </View>
+  ), [s]);
 
+  const committedDef = getColorByKey(committedKey ?? undefined);
+  const liveDef = getColorByKey(liveKey ?? undefined);
+
+  const listHeader = useMemo(() => (
+    <View>
       {ready ? (
         <ChromaticWheel
           selectedKey={committedKey}
@@ -126,62 +115,74 @@ export default function WheelScreen() {
         </View>
       )}
 
-      <View style={s.preview}>
-        {previewDef && swatch ? (
+      {/* Slot à hauteur réservée (zéro layout shift) : prompt au repos,
+          label live pendant le geste. */}
+      <View style={s.liveSlot}>
+        {liveDef ? (
           <>
-            <View style={s.previewHeader}>
-              <View
-                style={[
-                  s.previewSwatch,
-                  { backgroundColor: swatch.swatch, borderColor: theme.colors.border },
-                ]}
-              />
-              <View style={s.previewTexts}>
-                <Text style={s.previewLabel}>{previewDef.label}</Text>
-                <Text style={s.previewTagline} numberOfLines={1}>{previewDef.tagline}</Text>
-              </View>
-              {showResults && loading && <ActivityIndicator color={theme.colors.primary} />}
-            </View>
-
-            {showResults && !loading && results.length > 0 && (
-              <View style={s.bottleRow}>
-                {previewBottles.map(p => (
-                  <View key={p.id} style={s.bottleWrap}>
-                    <Image
-                      source={{ uri: p.imageUrl }}
-                      style={s.bottle}
-                      contentFit="contain"
-                      transition={200}
-                    />
-                  </View>
-                ))}
-                <Text style={s.bottleMore}>
-                  {t('catalog.parfumCount', { count: results.length, formatted: formatNumber(results.length) })}
-                </Text>
-              </View>
-            )}
-
-            {showResults && !loading && results.length === 0 && (
-              <Text style={s.previewStatus} maxFontSizeMultiplier={1.3}>
-                {isOnline ? t('chroma.noResults') : t('chroma.offline')}
-              </Text>
-            )}
-
-            {showResults && results.length > 0 && (
-              <Button
-                variant="primary"
-                onPress={handleSeeResults}
-                disabled={loading}
-                icon="arrow-forward-outline"
-              >
-                {t('chroma.seeResults', { count: results.length, formatted: formatNumber(results.length) })}
-              </Button>
-            )}
+            <Text style={s.liveLabel}>{liveDef.label}</Text>
+            <Text style={s.liveTagline} numberOfLines={1}>{liveDef.tagline}</Text>
           </>
         ) : (
           <Text style={s.prompt} maxFontSizeMultiplier={1.3}>{t('chroma.prompt')}</Text>
         )}
       </View>
+
+      {committedDef && !liveDef && (
+        <View style={s.resultsHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.resultsTitle}>{committedDef.label}</Text>
+            <Text style={s.resultsMeta}>
+              {loading
+                ? t('chroma.loading')
+                : t('catalog.parfumCount', { count: results.length, formatted: formatNumber(results.length) })}
+            </Text>
+          </View>
+          {results.length > 0 && (
+            <Pressable onPress={handleSeeAll} hitSlop={8} style={s.seeAllBtn} accessibilityRole="link" accessibilityLabel={t('chroma.seeAllA11y')}>
+              <Text style={s.seeAllText}>{t('chroma.seeAll')}</Text>
+              <Ionicons name="arrow-forward" size={14} color={theme.colors.primary} />
+            </Pressable>
+          )}
+        </View>
+      )}
+    </View>
+  ), [ready, committedKey, committedDef, liveDef, loading, results.length, theme, s, t, handleAnchorChange, handleCommit, handleGestureCancel, handleSeeAll]);
+
+  const listEmpty = useMemo(() => {
+    if (loading || !committedKey || liveKey) return null;
+    return (
+      <Text style={s.emptyText} maxFontSizeMultiplier={1.3}>
+        {isOnline ? t('chroma.noResults') : t('chroma.offline')}
+      </Text>
+    );
+  }, [loading, committedKey, liveKey, isOnline, t, s]);
+
+  return (
+    <SafeAreaView edges={['top', 'bottom']} style={s.container}>
+      <View style={s.header}>
+        <Pressable onPress={handleBack} hitSlop={8} style={s.backBtn} accessibilityLabel={t('chroma.backA11y')}>
+          <Ionicons name="chevron-down" size={22} color={theme.colors.text} />
+        </Pressable>
+        <Text style={s.title}>{t('chroma.title')}</Text>
+        <View style={s.backBtn} />
+      </View>
+
+      <FlatList
+        data={results}
+        numColumns={2}
+        keyExtractor={(p) => p.id}
+        renderItem={renderCard}
+        columnWrapperStyle={results.length > 0 ? s.resultRow : undefined}
+        contentContainerStyle={s.listContent}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        windowSize={5}
+        initialNumToRender={6}
+        maxToRenderPerBatch={8}
+      />
     </SafeAreaView>
   );
 }
@@ -215,11 +216,12 @@ function getStyles(t: Theme) {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    preview: {
-      flex: 1,
-      paddingHorizontal: 24,
+    liveSlot: {
+      minHeight: 52,
+      paddingHorizontal: 32,
       paddingTop: 20,
-      gap: 16,
+      alignItems: 'center',
+      justifyContent: 'flex-start',
     },
     prompt: {
       fontFamily: 'Inter_400Regular',
@@ -228,56 +230,60 @@ function getStyles(t: Theme) {
       textAlign: 'center',
       lineHeight: 21,
     },
-    previewHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    previewSwatch: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      borderWidth: StyleSheet.hairlineWidth,
-    },
-    previewTexts: { flex: 1 },
-    previewLabel: {
+    liveLabel: {
       fontFamily: 'PlayfairDisplay_600SemiBold',
       fontSize: 18,
       color: t.colors.text,
     },
-    previewTagline: {
+    liveTagline: {
       fontFamily: 'Inter_400Regular',
       fontSize: 12,
       color: t.colors.textMuted,
       marginTop: 1,
     },
-    previewStatus: {
+    resultsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 4,
+      gap: 12,
+    },
+    resultsTitle: {
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      fontSize: 18,
+      color: t.colors.text,
+    },
+    resultsMeta: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      color: t.colors.textMuted,
+      marginTop: 1,
+      fontVariant: ['tabular-nums'] as import('react-native').FontVariant[],
+    },
+    seeAllBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    seeAllText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      color: t.colors.primary,
+    },
+    emptyText: {
       fontFamily: 'Inter_400Regular',
       fontSize: 13,
       color: t.colors.textMuted,
+      textAlign: 'center',
       lineHeight: 20,
+      paddingHorizontal: 32,
+      paddingTop: 12,
     },
-    bottleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    bottleWrap: {
-      width: 56,
-      height: 72,
-      borderRadius: t.radius.sm,
-      backgroundColor: t.colors.surface2,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.colors.border,
-      overflow: 'hidden',
-    },
-    bottle: { width: '100%', height: '100%' },
-    bottleMore: {
-      flex: 1,
-      fontFamily: 'Inter_500Medium',
-      fontSize: 12,
-      color: t.colors.textMuted,
-      fontVariant: ['tabular-nums'] as import('react-native').FontVariant[],
-    },
+    listContent: { paddingBottom: 24 },
+    resultRow: { gap: 8, marginBottom: 8, paddingHorizontal: 16 },
+    cardWrap: { flex: 1, maxWidth: '50%' },
   } as const;
 }

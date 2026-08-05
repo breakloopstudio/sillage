@@ -18,9 +18,10 @@ export async function analyzeMultipleImages(imagesBase64: string[]): Promise<Sca
   return callAnalyze({ imagesBase64 });
 }
 
-// Mode collection : une photo d'étagère → inventaire de flacons (v6).
-export async function analyzeCollectionImage(base64Image: string): Promise<CollectionScanResult> {
-  const data = await invokeAnalyze({ imageBase64: base64Image, mode: 'collection' });
+// Mode collection (v6.1) : 1 à 4 photos de sections d'une même collection →
+// inventaire de flacons vérifié visuellement côté serveur.
+export async function analyzeCollectionImage(imagesBase64: string[]): Promise<CollectionScanResult> {
+  const data = await invokeAnalyze({ imagesBase64, mode: 'collection' });
   if (data == null || typeof data !== 'object') {
     return { isCollection: false, estimatedCount: 0, bottles: [] };
   }

@@ -428,11 +428,11 @@ describe('useScanPipeline', () => {
     it('photo → analyse collection → matching par détection → COLLECTION_SCAN_SUCCESS', async () => {
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
 
       expect(dispatch).toHaveBeenCalledWith({ type: 'START_SCAN', images: ['img-shelf'], scanResult: undefined });
-      expect(mockAnalyzeCollection).toHaveBeenCalledWith('img-shelf');
+      expect(mockAnalyzeCollection).toHaveBeenCalledWith(['img-shelf']);
       expect(mockSearch).toHaveBeenCalledTimes(2);
       expect(mockHapticsSuccess).toHaveBeenCalled();
       expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
@@ -454,9 +454,20 @@ describe('useScanPipeline', () => {
     it('pas de saveScan en mode collection (1 photo ≠ N scans)', async () => {
       const { result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       expect(mockSaveScan).not.toHaveBeenCalled();
+    });
+
+    it('multi-sections : toutes les photos passent au service + START_SCAN', async () => {
+      const { dispatch, result } = setup();
+      const images = ['img-a', 'img-b', 'img-c'];
+      await act(async () => {
+        await result.current.startCollectionAnalysis({ images });
+      });
+      expect(dispatch).toHaveBeenCalledWith({ type: 'START_SCAN', images, scanResult: undefined });
+      expect(mockAnalyzeCollection).toHaveBeenCalledWith(images);
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'COLLECTION_SCAN_SUCCESS' }));
     });
 
     it('detections sans marque ni nom ne sont pas matchées', async () => {
@@ -468,7 +479,7 @@ describe('useScanPipeline', () => {
       }));
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       expect(mockSearch).toHaveBeenCalledTimes(1);
       const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
@@ -484,7 +495,7 @@ describe('useScanPipeline', () => {
       }));
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
       expect(action.matches).toHaveLength(1);
@@ -494,7 +505,7 @@ describe('useScanPipeline', () => {
       mockSearch.mockResolvedValue([{ ...makeParfum(), _scanScore: 30 }]);
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_ERROR' }));
       expect(mockHapticsError).toHaveBeenCalled();
@@ -505,7 +516,7 @@ describe('useScanPipeline', () => {
       mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({ isCollection: false, estimatedCount: 0, bottles: [] }));
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       expect(mockSearch).not.toHaveBeenCalled();
       expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_ERROR' }));
@@ -516,7 +527,7 @@ describe('useScanPipeline', () => {
       mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({ estimatedCount: 5, bottles: [] }));
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'SCAN_ERROR' }));
     });
@@ -528,7 +539,7 @@ describe('useScanPipeline', () => {
       });
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
       expect(action.matches).toHaveLength(1);
@@ -538,7 +549,7 @@ describe('useScanPipeline', () => {
       mockAnalyzeCollection.mockRejectedValue(new Error('Limite quotidienne de scans atteinte. Réessayez demain.'));
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
         type: 'SCAN_ERROR',
@@ -551,7 +562,7 @@ describe('useScanPipeline', () => {
       mockAnalyzeCollection.mockResolvedValue(makeCollectionResult({ estimatedCount: 1 }));
       const { dispatch, result } = setup();
       await act(async () => {
-        await result.current.startCollectionAnalysis({ image: 'img-shelf' });
+        await result.current.startCollectionAnalysis({ images: ['img-shelf'] });
       });
       const action = dispatch.mock.calls.map(c => c[0]).find(a => a.type === 'COLLECTION_SCAN_SUCCESS');
       expect(action.estimatedCount).toBe(2);

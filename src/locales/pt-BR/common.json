@@ -1,0 +1,1556 @@
+{
+  "accordProfile": {
+    "descHint": "Mostra ou oculta a descrição do acorde",
+    "intensity": {
+      "dominant": "Dominante",
+      "moderate": "Moderado",
+      "prominent": "Presente",
+      "soft": "Discreto",
+      "subtle": "Ao fundo"
+    },
+    "rowA11y": "{{display}}, {{pct}} %",
+    "rowA11yLabeled": "{{display}}, {{pct}} %, {{label}}",
+    "title": "Acordes principais"
+  },
+  "account": {
+    "exportDialogTitle": "Exportar meus dados",
+    "googleCancelled": "Login com Google cancelado.",
+    "reauthFailed": "Reautenticação falhou.",
+    "shareUnavailable": "Compartilhamento não disponível neste dispositivo."
+  },
+  "addToShelf": {
+    "addA11y": "Adicionar {{name}}",
+    "allAlready": "Todos os seus perfumes já estão lá",
+    "noMatch": "Nenhum perfume corresponde",
+    "searchPlaceholder": "Buscar um perfume…",
+    "subtitle": "Escolha um perfume da sua perfumaria",
+    "title": "Adicionar a {{shelfName}}"
+  },
+  "admin": {
+    "adminsOnly": "Acesso reservado a administradores.",
+    "changeImage": "Alterar imagem",
+    "chooseImage": "Escolher uma imagem",
+    "currentImage": "Imagem atual",
+    "galleryError": "Não foi possível abrir a galeria.",
+    "loginAsAdmin": "Entre como administrador.",
+    "noResults": "Sem resultados para «{{query}}»",
+    "pickerUnavailableDesc": "Instale expo-image-picker para enviar imagens.",
+    "pickerUnavailableTitle": "Não disponível",
+    "removePreview": "Remover",
+    "searchLabel": "Buscar um perfume",
+    "searchPlaceholder": "Digite pelo menos 3 caracteres…",
+    "targetParfum_one": "Perfume alvo ({{count}} resultado)",
+    "targetParfum_many": "Perfume alvo ({{count}} resultados)",
+    "targetParfum_other": "Perfume alvo ({{count}} resultados)",
+    "title": "Administração",
+    "typeToSearch": "Digite pelo menos 3 caracteres para buscar",
+    "uploadDesc": "Atribua uma foto a um perfume existente. Busque um perfume e escolha uma imagem.",
+    "uploadError": "Erro de upload.",
+    "uploadFor": "Enviar para {{marque}} – {{nom}}",
+    "uploadSubtitle": "Enviar imagem de perfume",
+    "uploadSuccess": "Imagem enviada: {{marque}} – {{nom}}"
+  },
+  "auth": {
+    "ageCertify": "Declaro ter 15 anos ou mais",
+    "ageNote": "O Sillage não se destina a menores de 15 anos.",
+    "continueWithGoogle": "Continuar com o Google",
+    "createAccount": "Criar uma conta",
+    "createAccountSubmit": "Criar minha conta",
+    "emailLabel": "Endereço de e-mail",
+    "emailPlaceholder": "seu@email.com",
+    "enterEmailFirst": "Digite primeiro seu endereço de e-mail.",
+    "forgotPassword": "Esqueceu a senha?",
+    "googleCancelled": "Login com Google cancelado.",
+    "googleError": "Erro no login com Google.",
+    "hasAccount": "Já tem uma conta?",
+    "hidePassword": "Ocultar senha",
+    "invalidEmail": "Endereço de e-mail inválido.",
+    "login": "Entrar",
+    "loginError": "Erro de login.",
+    "loginSubtitle": "Descubra o universo dos perfumes",
+    "noAccount": "Ainda não tem conta?",
+    "orByEmail": "ou por e-mail",
+    "passwordLabel": "Senha",
+    "passwordMinPlaceholder": "mínimo 6 caracteres",
+    "passwordPlaceholder": "••••••",
+    "register": "Cadastrar-se",
+    "registerError": "Erro durante o cadastro.",
+    "registerSubtitle": "Junte-se à comunidade Sillage",
+    "registerWithGoogle": "Cadastrar-se com o Google",
+    "resetEmailSent": "E-mail de redefinição enviado. Verifique sua caixa de entrada.",
+    "showPassword": "Mostrar senha"
+  },
+  "back": "Voltar",
+  "brand": {
+    "allFamilies": "Todas",
+    "allFamiliesA11y": "Todas as famílias",
+    "empty": "Nenhum perfume",
+    "emptyDesc": "Nenhum perfume do catálogo está referenciado para esta casa.",
+    "loadError": "Não foi possível carregar",
+    "loadErrorDesc": "Verifique sua conexão e tente novamente.",
+    "overline": "A casa",
+    "parfumCount_one": "{{formatted}} perfume",
+    "parfumCount_many": "{{formatted}} perfumes",
+    "parfumCount_other": "{{formatted}} perfumes",
+    "sortOptions": {
+      "new": "Novidades",
+      "pop": "Populares",
+      "priceAsc": "Preço crescente",
+      "priceDesc": "Preço decrescente"
+    }
+  },
+  "brandSheet": {
+    "empty": "Nenhuma marca encontrada",
+    "searchPlaceholder": "Buscar uma marca…",
+    "title": "Todas as marcas"
+  },
+  "cancel": "Cancelar",
+  "card": {
+    "hintDetail": "Toque para ver o detalhe do perfume",
+    "insteadOf": "em vez de {{price}}",
+    "lovedBy": "amado por {{n}} narizes",
+    "ratingOutOf": "nota {{rating}} de 5"
+  },
+  "catalog": {
+    "bestDeals": "Melhores ofertas",
+    "bestDealsSubtitle": "O melhor custo-benefício",
+    "exploreSubtitle": "Encontre seu rastro",
+    "exploreTitle": "Por família ou cor",
+    "heroSub": "Encontre seu perfume pelo melhor preço",
+    "login": "Entrar",
+    "loginBanner": "Entre para sugestões personalizadas",
+    "parfumCount_one": "{{formatted}} perfume",
+    "parfumCount_many": "{{formatted}} perfumes",
+    "parfumCount_other": "{{formatted}} perfumes",
+    "seasonalRow": "Perfeitos para {{season}}",
+    "seasonalRowSubtitle": "As fragrâncias que florescem agora",
+    "seeAll": "Ver tudo →",
+    "suggestions": {
+      "foryou": "Para você",
+      "foryouTu": "Para você",
+      "popular": "Perfumes populares",
+      "subtitle": "Sugestões com base no seu gosto",
+      "trending": "Tendências do momento"
+    },
+    "topRated": "Mais bem avaliados",
+    "topRatedSubtitle": "Aclamados pela comunidade"
+  },
+  "chroma": {
+    "backA11y": "Fechar a roda cromática",
+    "black": {
+      "label": "Preto",
+      "tagline": "Incenso, mirra e noite"
+    },
+    "blue": {
+      "label": "Azul",
+      "tagline": "A brisa do mar aberto"
+    },
+    "brown": {
+      "label": "Marrom",
+      "tagline": "Café, cacau e tabaco"
+    },
+    "cardLabel": "Por cor",
+    "cardTagline": "O humor em tons",
+    "colorCount_one": "{{formatted}} tom",
+    "colorCount_many": "{{formatted}} tons",
+    "colorCount_other": "{{formatted}} tons",
+    "cyan": {
+      "label": "Ciano",
+      "tagline": "O ar depois da tempestade"
+    },
+    "gray": {
+      "label": "Cinza",
+      "tagline": "O metal e a pedra"
+    },
+    "green": {
+      "label": "Verde",
+      "tagline": "Um jardim depois da chuva"
+    },
+    "indigo": {
+      "label": "Índigo",
+      "tagline": "A tinta da noite"
+    },
+    "lime": {
+      "label": "Verde-limão",
+      "tagline": "O brilho verde da casca"
+    },
+    "loading": "Carregando os perfumes…",
+    "magenta": {
+      "label": "Magenta",
+      "tagline": "A flor em plena chama"
+    },
+    "noResults": "Nenhum perfume para este tom.",
+    "offline": "É necessária uma conexão para carregar os perfumes.",
+    "openA11y": "Mostra os perfumes deste tom",
+    "orange": {
+      "label": "Laranja",
+      "tagline": "Mel, âmbar e frutas cristalizadas"
+    },
+    "pink": {
+      "label": "Rosa",
+      "tagline": "A ternura em pétalas"
+    },
+    "prompt": "Deslize a roda ou toque em um tom para abrir seus perfumes",
+    "purple": {
+      "label": "Roxo",
+      "tagline": "Empoado como um segredo"
+    },
+    "red": {
+      "label": "Vermelho",
+      "tagline": "O calor de um abraço"
+    },
+    "seeAll": "Ver tudo",
+    "seeAllA11y": "Ver todos os perfumes deste tom na busca",
+    "teal": {
+      "label": "Verde-azulado",
+      "tagline": "Uma folha sobre a água"
+    },
+    "title": "Por cor",
+    "white": {
+      "label": "Branco",
+      "tagline": "A pureza do linho"
+    },
+    "yellow": {
+      "label": "Amarelo",
+      "tagline": "O sol no zênite"
+    }
+  },
+  "clarify": {
+    "brandField": "Marca",
+    "brandPlaceholder": "ex.: Dior",
+    "broadSearch": "Busca ampla",
+    "findCta": "Encontrar este perfume",
+    "helpDesc": "Ela não tem total certeza da leitura. Confira e corrija se necessário:",
+    "helpTitle": "A IA precisa de uma ajuda",
+    "manualDesc": "Informe a marca e o nome do perfume para encontrá-lo no nosso catálogo.",
+    "manualTitle": "Busca manual",
+    "nameField": "Nome do perfume",
+    "namePlaceholder": "ex.: Sauvage",
+    "nothingReadDesc": "Refoto enquadrando bem o rótulo, ou digite o nome abaixo.",
+    "nothingReadTitle": "Não conseguimos ler nada",
+    "notPerfumeDesc": "A foto não parece mostrar um perfume. Confira o enquadramento, ou digite um nome abaixo.",
+    "notPerfumeTitle": "Não é um frasco",
+    "retryScan": "Tentar o scan novamente",
+    "typeField": "Tipo (opcional)",
+    "volumeField": "Volume (ml) — opcional",
+    "volumePlaceholder": "ex.: 100"
+  },
+  "close": "Fechar",
+  "collection": {
+    "authGate": "Acesse sua perfumaria.",
+    "deleteShelf": {
+      "confirm": "Excluir",
+      "message": "«{{name}}» será excluída. Os perfumes não serão apagados, apenas perderão esta prateleira.",
+      "title": "Excluir prateleira"
+    },
+    "empty": {
+      "filtered": "Nenhum perfume corresponde a esses filtros",
+      "reset": "Redefinir",
+      "view": "Nenhum perfume nesta visão"
+    },
+    "favOnlyA11y": "Meus favoritos",
+    "filtersA11y": "Filtros",
+    "locationDenied": {
+      "message": "Ative a localização nas configurações do dispositivo para mostrar o clima.",
+      "title": "Localização desativada"
+    },
+    "menu": {
+      "delete": "Excluir prateleira",
+      "edit": "Editar prateleira",
+      "makePrivate": "Tornar privada",
+      "makePublic": "Tornar pública",
+      "share": "Compartilhar prateleira"
+    },
+    "newShelf": "Nova prateleira",
+    "pills": {
+      "all": "Todos"
+    },
+    "removeChipA11y": "Remover {{label}}",
+    "searchPlaceholder": "Nome, marca ou nota…",
+    "shareCollectionA11y": "Compartilhar minha coleção",
+    "shareShelfText": "Minha prateleira «{{name}}» no Sillage",
+    "shareText": "Minha perfumaria no Sillage",
+    "shelves": {
+      "favorites": {
+        "name": "Favoritos",
+        "tagline": "Os que você ama"
+      },
+      "orphans": {
+        "aboutA11y": "Sobre Não classificados",
+        "helpMessage": "Esses frascos aguardam seu lugar. Pressione e segure um deles para guardá-lo na prateleira que preferir.",
+        "helpTitle": "Não classificados",
+        "name": "Não classificados",
+        "tagline": "Para guardar em uma prateleira"
+      },
+      "signature": {
+        "name": "Assinatura",
+        "tagline": "Seu frasco emblema"
+      }
+    },
+    "sortA11y": "Ordenar",
+    "sortOptions": {
+      "az": "A–Z",
+      "rating": "Mais bem avaliados",
+      "recent": "Recentes",
+      "za": "Z–A"
+    },
+    "statuerRemove": "Remover da minha perfumaria",
+    "title": "Minha perfumaria",
+    "titleWithCount_one": "Minha perfumaria · {{count}}",
+    "titleWithCount_many": "Minha perfumaria · {{count}}",
+    "titleWithCount_other": "Minha perfumaria · {{count}}",
+    "viewTabs": {
+      "collection": "Coleção",
+      "shelves": "Prateleiras"
+    }
+  },
+  "community": {
+    "airDuTemps": {
+      "byCommunity": "pela comunidade",
+      "byEarlyNoses": "pelos primeiros narizes",
+      "houseSelection": "A seleção da casa",
+      "subtitle": "O que se usa e se deseja",
+      "title": "O ar dos tempos"
+    },
+    "challenge": {
+      "explore": "Explorar",
+      "exploreA11y": "Explorar a família {{family}}",
+      "overline": "O gesto da semana"
+    },
+    "empty": {
+      "ctaCreate": "Criar meu perfil",
+      "ctaProfile": "Meu perfil público",
+      "following": "Siga narizes para ver a atividade deles aqui, e torne seu perfil visível para ser descoberto.",
+      "heading": "Os membros estão chegando",
+      "publicProfile": "Torne seu perfil visível para estar entre os primeiros narizes da comunidade."
+    },
+    "hero": {
+      "editorial": "O que o dia veste.",
+      "pickSotd": "Escolha seu perfume do dia",
+      "pickSotdA11y": "Escolher seu perfume do dia",
+      "sotdA11yMe": "Você: {{nom}}",
+      "sotdA11yOther": "{{pseudo}} está usando {{nom}}",
+      "title": "O perfume do dia",
+      "todayEmpty": "Os primeiros frascos do dia aparecerão aqui.",
+      "todayLabel": "Usados hoje",
+      "you": "Você",
+      "yourPerfume": "seu perfume",
+      "yourSotd": "Hoje você está usando {{nom}}",
+      "yourSotdA11y": "Seu perfume do dia: {{nom}} {{marque}}. Pressione e segure para compartilhar."
+    },
+    "loadError": "Não foi possível carregar a comunidade.",
+    "nez": {
+      "activity": "Atividade de quem você segue",
+      "collections": "Coleções para descobrir",
+      "profileA11y_one": "Perfil de {{pseudo}}, {{count}} perfume",
+      "profileA11y_many": "Perfil de {{pseudo}}, {{count}} perfumes",
+      "profileA11y_other": "Perfil de {{pseudo}}, {{count}} perfumes",
+      "profileCount_one": "{{count}} perfume",
+      "profileCount_many": "{{count}} perfumes",
+      "profileCount_other": "{{count}} perfumes",
+      "searchPlaceholder": "Buscar um nome de usuário…",
+      "subtitle": "Encontre e siga apaixonados",
+      "title": "Os narizes"
+    },
+    "recap": {
+      "daysWorn_one": "usado {{count}} dia",
+      "daysWorn_many": "usado {{count}} dias",
+      "daysWorn_other": "usado {{count}} dias",
+      "favorites_one": "{{count}} coração",
+      "favorites_many": "{{count}} corações",
+      "favorites_other": "{{count}} corações",
+      "makePublic": "Tornar público",
+      "makePublicA11y": "Torne seu perfil público para compartilhar sua semana",
+      "overline": "Sua semana",
+      "scans_one": "{{count}} frasco cruzado",
+      "scans_many": "{{count}} frascos cruzados",
+      "scans_other": "{{count}} frascos cruzados",
+      "share": "Compartilhar",
+      "shareA11y": "Compartilhar sua semana olfativa",
+      "shareText": "Minha semana olfativa — {{phrase}}.",
+      "verdicts_one": "{{count}} opinião dada",
+      "verdicts_many": "{{count}} opiniões dadas",
+      "verdicts_other": "{{count}} opiniões dadas"
+    },
+    "runner": {
+      "a11y": "Flacon Runner, {{detail}}. Jogar",
+      "loading": "Carregando…",
+      "noGameA11y": "nenhuma partida jogada",
+      "play": "Jogar",
+      "rank": "Seu ranking #{{rank}} · {{score}} pts",
+      "rankA11y": "seu ranking {{rank}}, {{score}} pontos",
+      "start": "Comece uma partida"
+    },
+    "timeline": {
+      "addedMid": " adicionou ",
+      "addedTail": " à sua perfumaria",
+      "verdictDislike": " não gosta de ",
+      "verdictLike": " gosta de ",
+      "verdictLove": " adora ",
+      "verdictMeh": " indeciso sobre "
+    },
+    "title": "Comunidade"
+  },
+  "deleteAccount": {
+    "authGate": "Entre para gerenciar a exclusão da sua conta.",
+    "confirmCheckbox": "Entendo que esta ação é definitiva e irreversível",
+    "confirmIdentity": "Confirmar minha identidade",
+    "continue": "Continuar",
+    "deleteFailed": "Falha na exclusão.",
+    "deletePermanently": "Excluir definitivamente",
+    "deleting": "Excluindo…",
+    "deletingSub": "Por favor, não saia do aplicativo",
+    "gdprBody": "Conforme o GDPR, a exclusão é imediata, completa e sem prazo de arrependimento.\n\nVocê precisará criar uma nova conta se quiser usar o aplicativo novamente com seus recursos conectados.",
+    "irreversibleHeading": "Ação irreversível",
+    "itemAccount": "Sua conta e seu método de login",
+    "itemAlerts": "Seus alertas de preço",
+    "itemFavorites": "Seus favoritos (perfumes curtidos)",
+    "itemParfumerie": "Sua perfumaria, suas prateleiras e seu perfume do dia",
+    "itemPreferences": "Suas preferências e tokens de notificação",
+    "itemScans": "O histórico dos seus scans",
+    "passwordLabel": "Senha",
+    "passwordPlaceholder": "Senha",
+    "reauthDescGoogle": "Por segurança, entre novamente com o Google antes de excluir sua conta.",
+    "reauthDescPassword": "Por segurança, digite sua senha antes de excluir sua conta.",
+    "reauthFailed": "Reautenticação falhou.",
+    "reauthTitle": "Confirme sua identidade",
+    "reconfirmGoogle": "Reconfirmar com o Google",
+    "retry": "Tentar novamente",
+    "title": "Excluir conta"
+  },
+  "density": {
+    "comfortable": "Confortável",
+    "compactPlus": "Compacto",
+    "list": "Lista"
+  },
+  "detail": {
+    "affiliateA11y": "Sobre os links de parceiros",
+    "affiliateCaption": "Link de parceiro · como funciona",
+    "affiliateCaptionPlural": "Links de parceiros · como funcionam",
+    "affiliateMessage": "Quando você compra por um link «Ver oferta», o lojista pode nos repassar uma pequena comissão, sem custo extra para você. É isso que financia o Sillage e nos mantém independentes. Preços e ranking nunca são influenciados.",
+    "affiliateTitle": "Links de parceiros",
+    "brandA11y": "Ver a casa {{marque}}",
+    "compareMerchants": "Comparar lojistas",
+    "enlargeImageA11y": "Ampliar imagem",
+    "exploreFamilyA11y": "Explorar a família {{family}}",
+    "notFound": "Perfume não encontrado.",
+    "perfumerA11y": "Ver as criações de {{name}}",
+    "samePrice": "Mesmo preço",
+    "seeOffer": "Ver oferta",
+    "shareA11y": "Compartilhar este perfume",
+    "shareText": "Descubra {{marque}} – {{nom}} no Sillage",
+    "similar": "Na mesma linha",
+    "similarSubtitle": "Mesmo rastro, outro frasco",
+    "voiceNotHim": "Não é esse?",
+    "voiceSeeOthers": "Ver os outros"
+  },
+  "empty": {
+    "alertes": {
+      "cta": "Ver meus favoritos",
+      "desc": "Ative um alerta em um favorito para ser avisado quando o preço cair.",
+      "title": "Nenhum alerta por enquanto"
+    },
+    "collection": {
+      "cta": "Explorar o catálogo",
+      "desc": "Adicione os perfumes que você possui para montar seu inventário pessoal.",
+      "title": "Sua coleção está vazia"
+    },
+    "favoris": {
+      "cta": "Explorar o catálogo",
+      "desc": "Navegue pelo catálogo e tenha seus perfumes preferidos à mão. Sem obrigação de compra, só a emoção.",
+      "title": "Seu nariz ainda não tem favoritos"
+    },
+    "historique": {
+      "cta": "Escanear um frasco",
+      "desc": "Fotografe um frasco de perfume para começar seu histórico. Cada scan te aproxima do melhor preço.",
+      "title": "Nenhum scan por enquanto"
+    },
+    "scentlist": {
+      "cta": "Explorar o catálogo",
+      "desc": "Salve os perfumes que quer experimentar e anote suas impressões após o teste. Na loja, é seu melhor aliado.",
+      "title": "Seu caderno de testes está vazio"
+    },
+    "wardrobe": {
+      "cta": "Explorar o catálogo",
+      "desc": "Adicione seus primeiros frascos para montar sua coleção pessoal.",
+      "title": "Sua perfumaria está vazia"
+    }
+  },
+  "errorBoundary": {
+    "desc": "Ocorreu um erro inesperado.\nReinicie o aplicativo.",
+    "retry": "Tentar novamente",
+    "title": "Ops"
+  },
+  "errors": {
+    "auth": {
+      "emailExists": "Este e-mail já está em uso.",
+      "emailNotConfirmed": "Confirme seu e-mail antes de entrar.",
+      "invalidCredentials": "E-mail ou senha incorretos.",
+      "network": "Problema de conexão de rede.",
+      "overRequestRateLimit": "Muitas tentativas. Tente novamente mais tarde.",
+      "reauthenticationNeeded": "Por segurança, entre novamente antes desta ação.",
+      "sessionNotFound": "Sessão expirada. Entre novamente.",
+      "userNotFound": "Nenhuma conta encontrada com este e-mail.",
+      "weakPassword": "A senha deve ter pelo menos 6 caracteres."
+    },
+    "db": {
+      "fk": "Referência não encontrada.",
+      "notFound": "Item não encontrado.",
+      "permission": "Permissão negada.",
+      "reauth": "Login necessário. Entre novamente.",
+      "unique": "Este item já existe."
+    },
+    "generic": "Ocorreu um erro. Tente novamente.",
+    "unexpected": "Ocorreu um erro inesperado."
+  },
+  "families": {
+    "ambree": {
+      "label": "Ambarada",
+      "tagline": "O calor da noite"
+    },
+    "aromatique": {
+      "label": "Aromática",
+      "tagline": "Ervas e lavanda"
+    },
+    "boisee": {
+      "label": "Amadeirada",
+      "tagline": "A floresta na pele"
+    },
+    "florale": {
+      "label": "Floral",
+      "tagline": "Um buquê no pescoço"
+    },
+    "gourmande": {
+      "label": "Gourmand",
+      "tagline": "Baunilha e caramelo"
+    },
+    "hesperidee": {
+      "label": "Cítrica",
+      "tagline": "O brilho da manhã"
+    }
+  },
+  "favorites": {
+    "alert": {
+      "a11yStateNear": "quase no seu alvo",
+      "a11yStateReached": "objetivo alcançado",
+      "a11yStateWatching": "observando",
+      "a11yTierDeal": "bom negócio",
+      "a11yTierFair": "preço justo",
+      "a11yTierOverpriced": "caro demais",
+      "checked": "verificado {{when}}",
+      "lowest": "Menor observado: {{price}}",
+      "near": "Quase no seu alvo",
+      "progressA11y": "Progresso rumo ao seu alvo: {{pct}} %",
+      "reached": "Objetivo alcançado",
+      "target": "Alvo {{price}}",
+      "watching": "Observando quedas"
+    },
+    "alertMenu": {
+      "disable": "Desativar alerta",
+      "edit": "Editar alerta",
+      "view": "Ver detalhes"
+    },
+    "alertsWithCount_one": "Alertas · {{count}}",
+    "alertsWithCount_many": "Alertas · {{count}}",
+    "alertsWithCount_other": "Alertas · {{count}}",
+    "authGate": "Encontre seus favoritos e seus alertas de preço.",
+    "emptyAlertsFiltered": "Nenhum alerta corresponde a esta visão",
+    "emptyFiltered": "Nenhum perfume corresponde a esta visão",
+    "emptyNone": "Nenhum favorito por enquanto",
+    "exploreCatalog": "Explorar o catálogo",
+    "objectifsReached_one": "{{count}} objetivo alcançado",
+    "objectifsReached_many": "{{count}} objetivos alcançados",
+    "objectifsReached_other": "{{count}} objetivos alcançados",
+    "pills": {
+      "all": "Todos",
+      "untreated": "A revisar"
+    },
+    "searchPlaceholder": "Nome, marca ou nota…",
+    "searchPlaceholderAlerts": "Nome ou marca…",
+    "suggestions": {
+      "ctaA11y": "Criar um alerta para {{nom}}",
+      "title": "Talvez valha observar"
+    },
+    "title": "Favoritos",
+    "titleWithCount_one": "Favoritos · {{count}}",
+    "titleWithCount_many": "Favoritos · {{count}}",
+    "titleWithCount_other": "Favoritos · {{count}}",
+    "viewTabs": {
+      "alerts": "Alertas",
+      "favoris": "Favoritos"
+    },
+    "watch": {
+      "a11y_one": "{{active}} alerta ativo, {{reached}} alcançados, {{savings}} de economia constatada",
+      "a11y_many": "{{active}} alertas ativos, {{reached}} alcançados, {{savings}} de economia constatada",
+      "a11y_other": "{{active}} alertas ativos, {{reached}} alcançados, {{savings}} de economia constatada",
+      "active": "Ativos",
+      "reached": "Alcançados",
+      "savings": "Economia"
+    }
+  },
+  "filters": {
+    "family": "Família",
+    "footerNone": "Nenhum resultado",
+    "footerSee_one": "Ver {{count}} resultado",
+    "footerSee_many": "Ver os {{count}} resultados",
+    "footerSee_other": "Ver os {{count}} resultados",
+    "longevity": {
+      "eternal": "Muito longa",
+      "long": "Longa",
+      "moderate": "Moderada",
+      "weak": "Curta"
+    },
+    "longevitySection": "Fixação",
+    "reset": "Redefinir",
+    "season": "Estação",
+    "sillage": {
+      "intimate": "Íntimo",
+      "moderate": "Moderado",
+      "powerful": "Potente"
+    },
+    "sillageSection": "Rastro",
+    "title": "Filtros"
+  },
+  "genders": {
+    "female": "Feminino",
+    "male": "Masculino",
+    "mixed": "Unissex"
+  },
+  "history": {
+    "addToParfumerie": "Adicionar à minha perfumaria",
+    "authDesc": "Acesse seu histórico de scans.",
+    "authTitle": "Entre",
+    "delete": "Excluir",
+    "deleteConfirm": "Excluir este scan do histórico?",
+    "login": "Entrar",
+    "noResultScan": "Scan sem resultado",
+    "searchPlaceholder": "Buscar um scan…",
+    "sortNewest": "Recentes",
+    "sortOldest": "Mais antigos",
+    "thisMonth": "Este mês",
+    "thisWeek": "Esta semana",
+    "title": "Histórico",
+    "titleWithCount_one": "Histórico · {{count}}",
+    "titleWithCount_many": "Histórico · {{count}}",
+    "titleWithCount_other": "Histórico · {{count}}",
+    "today": "Hoje",
+    "todayPrompt": "Escanear um perfume hoje?",
+    "viewDetail": "Ver detalhes",
+    "yesterday": "Ontem"
+  },
+  "imageViewer": {
+    "closeA11y": "Fechar a pré-visualização da foto"
+  },
+  "inspire": {
+    "addA11y_one": "Adicionar {{count}} perfume a «Para experimentar»",
+    "addA11y_many": "Adicionar {{count}} perfumes a «Para experimentar»",
+    "addA11y_other": "Adicionar {{count}} perfumes a «Para experimentar»",
+    "addCta_one": "Adicionar {{count}} a «Para experimentar»",
+    "addCta_many": "Adicionar {{count}} a «Para experimentar»",
+    "addCta_other": "Adicionar {{count}} a «Para experimentar»",
+    "doneText": "Você os encontrará em «Para experimentar», prontos para testar na loja.",
+    "errorFailed": "Falha ao adicionar. Tente novamente.",
+    "errorNone": "Nenhum perfume pôde ser adicionado. Tente novamente.",
+    "subtitle_one": "@{{pseudo}} · {{count}} perfume para adicionar",
+    "subtitle_many": "@{{pseudo}} · {{count}} perfumes para adicionar",
+    "subtitle_other": "@{{pseudo}} · {{count}} perfumes para adicionar",
+    "subtitleDone_one": "{{count}} perfume na sua perfumaria",
+    "subtitleDone_many": "{{count}} perfumes na sua perfumaria",
+    "subtitleDone_other": "{{count}} perfumes na sua perfumaria",
+    "title": "Inspirar-se em «{{shelfName}}»",
+    "titleDone": "Adicionado a «Para experimentar»",
+    "viewParfumerie": "Ver minha perfumaria"
+  },
+  "legal": {
+    "contactLabel": "Contato:",
+    "contactParagraph": "Para qualquer dúvida relativa ao aplicativo, entre em contato pelo endereço: {{email}}.",
+    "contactSection": "Contato",
+    "dataRegion": "Os dados são armazenados na região Europa.",
+    "directorLine": "{{director}}, representante legal de {{company}}",
+    "directorSection": "Diretor de publicação",
+    "editorIntro": "O aplicativo Sillage é editado por {{company}}.",
+    "editorSection": "Editor do aplicativo",
+    "headOffice": "Sede: {{value}}",
+    "hostingIntro": "O aplicativo é hospedado por:",
+    "hostingSection": "Hospedagem",
+    "hostPhone": "Tel.: {{phone}}",
+    "ipParagraph1": "Todo o código-fonte, o design, os textos e os elementos gráficos do aplicativo Sillage são propriedade exclusiva do editor, salvo menção em contrário.",
+    "ipParagraph2": "Qualquer reprodução, representação, modificação ou adaptação, parcial ou total, é proibida sem autorização prévia.",
+    "ipParagraph3": "O banco de dados de perfumes é constituído a partir de dados públicos e permanece propriedade de seus respectivos autores.",
+    "ipSection": "Propriedade intelectual",
+    "lastUpdate": "Última atualização: julho de 2026",
+    "legalForm": "Forma jurídica: {{value}}",
+    "rcs": "RCS: {{value}}",
+    "title": "Avisos legais"
+  },
+  "notePopup": {
+    "closeA11y": "Fechar o detalhe da nota"
+  },
+  "occasions": {
+    "day": "Dia",
+    "evening": "Noite",
+    "formal": "Formal",
+    "leisure": "Lazer",
+    "party": "Festa",
+    "romantic": "Encontro",
+    "sport": "Esporte",
+    "work": "Trabalho"
+  },
+  "offline": "Modo offline",
+  "openSettings": "Configurações",
+  "perf": {
+    "longevity": {
+      "emanations": {
+        "e1": "Um clarão de abertura, já uma lembrança.",
+        "e2": "Desvanece antes do fim da manhã — reserve para ocasiões curtas.",
+        "e3": "Acompanha você até o meio do dia e depois se apaga suavemente.",
+        "e4": "Do café da manhã ao último drinque: aguenta a distância, sem retoque.",
+        "e5": "Atravessa o dia e ainda permanece — uma segunda pele que não te abandona."
+      },
+      "hours": {
+        "h1": "< 2 h",
+        "h2": "2 – 4 h",
+        "h3": "4 – 8 h",
+        "h4": "8 – 12 h",
+        "h5": "12 h +"
+      },
+      "label": "Fixação",
+      "ticks": {
+        "t1": "Manhã",
+        "t2": "Meio-dia",
+        "t3": "Tarde",
+        "t4": "Noite",
+        "t5": "Noite +"
+      },
+      "values": {
+        "v1": "Muito curta",
+        "v2": "Curta",
+        "v3": "Moderada",
+        "v4": "Longa",
+        "v5": "Muito longa"
+      }
+    },
+    "sillage": {
+      "emanations": {
+        "e1": "Fica rente à pele: só se percebe chegando bem perto.",
+        "e2": "Revela-se na intimidade de uma conversa, sem nunca anunciar sua chegada.",
+        "e3": "Envolve você em um halo perceptível a um braço de distância.",
+        "e4": "Preenche o espaço ao redor — sente-se sua passagem antes de te ver."
+      },
+      "label": "Rastro",
+      "ticks": {
+        "t1": "Pele",
+        "t2": "Perto",
+        "t3": "Braço",
+        "t4": "Ambiente"
+      },
+      "values": {
+        "v1": "Íntimo",
+        "v2": "Moderado",
+        "v3": "Presente",
+        "v4": "Potente"
+      }
+    }
+  },
+  "perfumer": {
+    "creationCount_one": "{{count}} criação",
+    "creationCount_many": "{{count}} criações",
+    "creationCount_other": "{{count}} criações",
+    "creationsMany": "criações",
+    "loadError": "Não foi possível carregar",
+    "loadErrorDesc": "Verifique sua conexão e tente novamente.",
+    "noCreations": "Nenhuma criação",
+    "noCreationsDesc": "Nenhum perfume do catálogo é assinado por este nariz.",
+    "overline": "O nariz"
+  },
+  "priceAlert": {
+    "active": "Ativado — você será avisado",
+    "inactive": "Seja avisado quando o preço cair",
+    "label": "Alerta de preço",
+    "reached": "Objetivo alcançado",
+    "targetSet": "Alvo {{price}} — você será avisado"
+  },
+  "priceAlertSheet": {
+    "currentPrice": "Preço atual",
+    "decrease": "Diminuir",
+    "disableAlert": "Desativar alerta",
+    "dropHint": "Dispara a partir de −10 % ou −€ 5.",
+    "dropMode": "Uma queda",
+    "dropModeA11y": "Avise-me de uma queda",
+    "increase": "Aumentar",
+    "lowest": "Menor observado: {{price}}",
+    "off": "Alerta desativado",
+    "save": "Salvar",
+    "targetMode": "Abaixo de um preço",
+    "targetModeA11y": "Avise-me abaixo de um preço",
+    "targetReached": "Seu alvo já foi alcançado",
+    "willNotify": "Você será avisado"
+  },
+  "primers": {
+    "camera": {
+      "acceptLabel": "Continuar",
+      "message": "O Sillage usa a câmera para ler o frasco e identificá-lo no catálogo. A foto serve apenas para o reconhecimento.",
+      "title": "Escanear um frasco"
+    },
+    "decline": "Agora não",
+    "location": {
+      "acceptLabel": "Ativar o clima",
+      "message": "O Sillage usa sua localização para mostrar o clima local e sugerir perfumes adequados à estação.",
+      "title": "Clima local"
+    },
+    "mic": {
+      "acceptLabel": "Continuar",
+      "message": "O Sillage ouve sua voz para encontrar um perfume sem digitar. O áudio serve apenas para a busca.",
+      "title": "Busca por voz"
+    },
+    "push": {
+      "acceptLabel": "Ativar notificações",
+      "message": "Receba uma notificação quando o preço de um perfume que você segue cair. Você pode desativar as notificações a qualquer momento.",
+      "title": "Alertas de preço"
+    },
+    "reassurance": "Você pode mudar de ideia a qualquer momento em Configurações → Privacidade e dados."
+  },
+  "privacy": {
+    "lastUpdate": "Última atualização: agosto de 2026",
+    "s10Body": "O aplicativo não se destina a menores de 15 anos. Se você é responsável e acredita que uma criança nos forneceu dados pessoais, entre em contato para a exclusão.",
+    "s10Title": "10. Menores",
+    "s11Body": "Esta política pode ser alterada para refletir evoluções legais ou funcionais. Em caso de alteração substancial, os usuários serão informados no próximo uso do aplicativo.",
+    "s11Title": "11. Alterações",
+    "s1Body": "O controlador do tratamento dos dados pessoais é {{company}}, editor do aplicativo Sillage, contatável pelo endereço {{email}}. Os dados de contato completos constam nos avisos legais.",
+    "s1Title": "1. Controlador do tratamento",
+    "s21Body": "Na criação de uma conta (opcional), coletamos seu endereço de e-mail e uma senha.\n\nSe você usar o login com o Google, recebemos o nome, o endereço de e-mail e a foto de perfil associados à sua conta Google.",
+    "s21Title": "2.1 Criação de conta",
+    "s22Body": "No uso dos recursos, armazenamos:\n• Seus perfumes favoritos (corações)\n• Sua perfumaria (status, opiniões, notas pessoais, prateleiras, posses)\n• Seu perfume do dia (SOTD)\n• O histórico dos seus scans\n• Suas preferências (notificações, alertas de preço)",
+    "s22Title": "2.2 Uso do aplicativo",
+    "s23Body": "Quando você escaneia um frasco, a foto é transmitida à OpenAI (GPT-4o Vision) para identificar o perfume. Apenas a imagem do frasco é enviada — nenhum outro dado pessoal. A foto não é retida pela OpenAI após o processamento.",
+    "s23Title": "2.3 Scan de frascos",
+    "s24Body": "Se você ativar as notificações, um token de notificação (Expo Push Notifications) é armazenado para enviar alertas de preço e, se ativadas, sugestões ligadas ao clima. Você pode desativar essas notificações a qualquer momento nas configurações.",
+    "s24Title": "2.4 Notificações push",
+    "s25Body": "Certas preferências (tema, densidade de exibição, visões) e suas buscas recentes são armazenadas localmente no seu dispositivo via AsyncStorage. Nenhum dado sensível (senha, conteúdo da sua perfumaria) é mantido localmente: ficam hospedados em nossos servidores.",
+    "s25Title": "2.5 Dados locais",
+    "s26Body": "Se você ativar as sugestões de clima, sua localização aproximada (arredondada para ~1 km) é usada para mostrar o clima local e adaptar as sugestões de perfumes. Ela é solicitada apenas após seu consentimento explícito, nunca coletada sem seu conhecimento, e pode ser apagada a qualquer momento (Configurações → Privacidade e dados).",
+    "s26Title": "2.6 Localização (clima)",
+    "s2Title": "2. Dados coletados",
+    "s3Body": "Os tratamentos baseiam-se nas seguintes bases legais:\n• Consentimento: criação de conta, login com Google, scan com câmera, notificações push, sugestões de clima (localização aproximada)\n• Execução de contrato: salvamento dos seus favoritos e da sua perfumaria\n• Legítimo interesse: preferência de tema (apenas armazenamento local)",
+    "s3Title": "3. Bases legais do tratamento",
+    "s41Body": "Autenticação, banco de dados, armazenamento de imagens e funções de servidor («Edge Functions») são fornecidos pela Supabase (banco de dados PostgreSQL). Os dados da sua conta, dos seus favoritos e da sua perfumaria são hospedados na região Europa da Supabase.\n\nAs notificações push são roteadas pelo serviço Expo Push Notifications (Expo / 650 Industries, Estados Unidos).\n\nSupabase e Expo aplicam as cláusulas contratuais padrão (SCC) da Comissão Europeia para transferências de dados fora da União Europeia.",
+    "s41Title": "4.1 Hospedagem e autenticação (Supabase)",
+    "s42Body": "As fotos de frascos são transmitidas à OpenAI para análise visual. A OpenAI não recebe nenhum dado de identificação pessoal. As imagens enviadas não são usadas para treinar os modelos da OpenAI e são excluídas após o processamento.\n\nA chave de API da OpenAI é armazenada exclusivamente no servidor (Supabase Edge Functions) e nunca é exposta ao cliente.",
+    "s42Title": "4.2 OpenAI (GPT-4o Vision)",
+    "s43Body": "Os dados dos perfumes (marca, nome, notas olfativas, preço) são hospedados em nosso banco de dados PostgreSQL (Supabase). As buscas são feitas em nosso catálogo com mais de 25 000 perfumes, hospedado em nossos servidores; nenhum dado pessoal é transmitido a serviços de terceiros para essas buscas.",
+    "s43Title": "4.3 Catálogo de perfumes",
+    "s44Body": "Se você escolher o login com o Google, um token de autenticação OAuth padrão é trocado com os servidores do Google.",
+    "s44Title": "4.4 Google Sign-In",
+    "s4Title": "4. Destinatários dos dados",
+    "s5Body": "Supabase, Expo, OpenAI e Google (login com Google) são empresas americanas. Contudo, os dados principais são hospedados na região Europa da Supabase, e essas transferências são enquadradas por:\n• O Data Privacy Framework (DPF) para o Google\n• As cláusulas contratuais padrão (SCC) da Comissão Europeia\n• O armazenamento dos dados principais na região Europa da Supabase",
+    "s5Title": "5. Transferências fora da União Europeia",
+    "s6Body": "• Dados da conta: até a exclusão da conta\n• Favoritos e perfumaria: até exclusão manual ou exclusão da conta\n• Histórico de scans: até exclusão manual ou exclusão da conta\n• Fotos transmitidas à OpenAI: não retidas (processamento imediato, sem armazenamento)\n• Token de notificação (Expo Push): até desativar as notificações ou excluir a conta\n• Preferências locais: armazenadas localmente até a desinstalação do aplicativo",
+    "s6Title": "6. Prazo de conservação",
+    "s7Body": "Conforme o Regulamento Geral sobre a Proteção de Dados (GDPR), você tem os seguintes direitos:\n• Direito de acesso: obter uma cópia dos seus dados\n• Direito de retificação: corrigir dados inexatos\n• Direito ao apagamento: solicitar a exclusão dos seus dados\n• Direito à portabilidade: receber seus dados em formato estruturado\n• Direito de oposição: opor-se a certos tratamentos\n• Direito de limitação: restringir temporariamente o tratamento\n• Direito de revogar o consentimento: a qualquer momento, sem justificativa\n\nPara exercer esses direitos, você pode usar os recursos integrados ao aplicativo:\n• Configurações → Privacidade e dados → Exportar meus dados\n• Configurações → Privacidade e dados → Excluir minha conta\n\nVocê também pode nos contatar pelo endereço {{email}}.\n\nVocê também tem o direito de apresentar reclamação à CNIL (cnil.fr).",
+    "s7Title": "7. Seus direitos (GDPR)",
+    "s8Body": "Implementamos as seguintes medidas técnicas:\n• Autenticação segura via Supabase Auth\n• Regras de segurança (Row Level Security) do banco PostgreSQL restringindo o acesso aos dados de cada usuário\n• Transmissão criptografada (HTTPS) para todas as comunicações\n• Chaves de API de terceiros exclusivamente no servidor (Supabase Edge Functions)",
+    "s8Title": "8. Segurança",
+    "s9Body": "O aplicativo móvel Sillage não usa cookies. O armazenamento local no dispositivo (via AsyncStorage) limita-se às suas preferências (tema, densidade de exibição, visões) e às suas buscas recentes.\n\nOs botões «Ver oferta» e a seção «Comparar lojistas» podem conter links de afiliados: se você comprar de um lojista parceiro por um desses links, o Sillage pode receber uma comissão, sem custo extra para você. Esses links não adicionam nenhum cookie de rastreamento no aplicativo e não influenciam nem os preços exibidos nem o ranking das ofertas.",
+    "s9Title": "9. Cookies, armazenamento local e links de parceiros",
+    "title": "Política de privacidade"
+  },
+  "privacyCenter": {
+    "actionsSection": "Ações",
+    "clearHistoryMessage_one": "{{count}} scan será excluído. Esta ação é irreversível.",
+    "clearHistoryMessage_many": "{{count}} scans serão excluídos. Esta ação é irreversível.",
+    "clearHistoryMessage_other": "{{count}} scans serão excluídos. Esta ação é irreversível.",
+    "clearHistoryTitle": "Limpar o histórico?",
+    "clearScans": "Limpar o histórico de scans",
+    "clearScansDesc": "Exclui todos os scans sem excluir a conta",
+    "consentsSection": "Consentimentos",
+    "dataAlerts": "Alertas de preço",
+    "dataFavoris": "Favoritos",
+    "dataScans": "Scans",
+    "dataShelves": "Prateleiras",
+    "dataSotd": "Perfumes do dia",
+    "dataWardrobe": "Perfumaria",
+    "delete": "Excluir",
+    "deleteAccount": "Excluir minha conta",
+    "deleteAccountDesc": "Apagamento completo e irreversível",
+    "disable": "Desativar",
+    "disableAlertsMessage_one": "{{count}} alerta ativo será excluído.",
+    "disableAlertsMessage_many": "{{count}} alertas ativos serão excluídos.",
+    "disableAlertsMessage_other": "{{count}} alertas ativos serão excluídos.",
+    "disableAlertsTitle": "Desativar os alertas de preço?",
+    "exportData": "Exportar meus dados",
+    "exportDesc": "Formato JSON estruturado, legível por máquina",
+    "exportErrorDesc": "A exportação falhou.",
+    "exportErrorTitle": "Erro",
+    "exportRequiresConnection": "Conexão com a Internet necessária",
+    "historyClearedMessage_one": "{{count}} scan excluído.",
+    "historyClearedMessage_many": "{{count}} scans excluídos.",
+    "historyClearedMessage_other": "{{count}} scans excluídos.",
+    "historyClearedTitle": "Histórico limpo",
+    "infoSection": "Informações",
+    "legalNotices": "Avisos legais",
+    "location": "Localização",
+    "locationDesc": "Permite as sugestões de clima",
+    "priceAlerts": "Alertas de preço",
+    "priceAlertsDesc": "Alertas excluídos ao desativar",
+    "privacyPolicy": "Política de privacidade",
+    "pushNotifs": "Notificações push",
+    "pushNotifsDesc": "Notificações desativadas e tokens excluídos ao desativar",
+    "settings": "Configurações",
+    "storedDataSection": "Meus dados armazenados",
+    "title": "Privacidade",
+    "weatherNotifs": "Sugestões de clima",
+    "weatherNotifsDesc": "Coordenadas GPS apagadas ao desativar"
+  },
+  "profile": {
+    "authGate": "Crie uma conta para acompanhar seus favoritos, sua perfumaria e seus scans.",
+    "chooseSotd": "Escolha seu perfume do dia",
+    "exploreSection": "EXPLORAR",
+    "fallbackName": "Perfumista",
+    "logout": "Sair",
+    "navParfumerie": "Minha perfumaria",
+    "navScans": "Histórico de scans",
+    "openSettingsA11y": "Abrir configurações",
+    "publicProfileSection": "PERFIL PÚBLICO",
+    "sotdLabel": "PERFUME DO DIA",
+    "statFavoris": "FAVORITOS",
+    "statFavorisA11y": "Favoritos",
+    "statParfumerie": "PERFUMARIA",
+    "statParfumerieA11y": "Minha perfumaria",
+    "statScans": "SCANS",
+    "statScansA11y": "Histórico de scans",
+    "title": "Perfil"
+  },
+  "publicProfile": {
+    "emptyCollection": "Nenhum perfume público por enquanto.",
+    "emptyFollowList": "Ninguém por enquanto.",
+    "errorDesc": "Verifique sua conexão e tente novamente.",
+    "errorTitle": "Erro de conexão",
+    "follow": "Seguir",
+    "followerCount_one": "{{count}} seguidor",
+    "followerCount_many": "{{count}} seguidores",
+    "followerCount_other": "{{count}} seguidores",
+    "followers": "Seguidores",
+    "followersA11y_one": "{{count}} seguidor",
+    "followersA11y_many": "{{count}} seguidores",
+    "followersA11y_other": "{{count}} seguidores",
+    "following": "Seguindo",
+    "followingA11y_one": "{{count}} seguido",
+    "followingA11y_many": "{{count}} seguidos",
+    "followingA11y_other": "{{count}} seguidos",
+    "followingBtn": "Seguindo",
+    "followingCount_one": "{{count}} seguido",
+    "followingCount_many": "{{count}} seguidos",
+    "followingCount_other": "{{count}} seguidos",
+    "perfumeCount_one": "{{count}} perfume",
+    "perfumeCount_many": "{{count}} perfumes",
+    "perfumeCount_other": "{{count}} perfumes",
+    "privateDesc": "Este membro não existe ou escolheu manter sua coleção privada.",
+    "privateTitle": "Perfil privado ou não encontrado",
+    "titleFallback": "Perfil",
+    "unfollow": "Deixar de seguir"
+  },
+  "publicProfileCard": {
+    "bioLabel": "Bio (opcional)",
+    "bioPlaceholder": "Amante de amadeirados escuros…",
+    "errorPseudoFormat": "Nome de usuário: 3 a 20 caracteres (letras, números, _ ou -).",
+    "hintPseudoFormat": "3 a 20 caracteres: letras, números, _ ou -.",
+    "pseudoLabel": "Nome de usuário",
+    "pseudoTaken": "Este nome de usuário já está em uso.",
+    "publicCollection": "Coleção pública",
+    "publicCollectionDesc": "Qualquer pessoa pode ver seus perfumes (não suas notas).",
+    "save": "Salvar",
+    "saveProfileA11y": "Salvar o perfil",
+    "share": "Compartilhar",
+    "shareProfileA11y": "Compartilhar meu perfil",
+    "viewPublic": "Ver meu perfil",
+    "viewPublicA11y": "Ver meu perfil público"
+  },
+  "publicShelf": {
+    "alreadyInParfumerie": "Já está na sua perfumaria",
+    "inspireA11y_one": "Inspirar-se nesta prateleira, {{count}} perfume",
+    "inspireA11y_many": "Inspirar-se nesta prateleira, {{count}} perfumes",
+    "inspireA11y_other": "Inspirar-se nesta prateleira, {{count}} perfumes",
+    "inspireWithCount_one": "Inspirar-se nesta prateleira ({{count}})",
+    "inspireWithCount_many": "Inspirar-se nesta prateleira ({{count}})",
+    "inspireWithCount_other": "Inspirar-se nesta prateleira ({{count}})",
+    "loginToInspire": "Entre para se inspirar",
+    "loginToInspireA11y": "Entrar para se inspirar nesta prateleira",
+    "privateDesc": "Este membro não compartilhou esta prateleira, ou ela não existe mais.",
+    "privateTitle": "Prateleira privada ou não encontrada",
+    "titleFallback": "Prateleira",
+    "viewProfileA11y": "Ver o perfil de {{pseudo}}"
+  },
+  "publishGate": {
+    "profileRequired": "Perfil público necessário",
+    "publish": "Publicar prateleira",
+    "publishA11y": "Publicar prateleira {{shelfName}}",
+    "saveProfileFirstA11y": "Salve primeiro seu perfil público",
+    "subtitle": "Para compartilhar uma prateleira, seu perfil deve ser público. Escolha um nome de usuário, ative a visibilidade, salve — e publique a prateleira.",
+    "title": "Tornar «{{shelfName}}» pública"
+  },
+  "push": {
+    "channelPrice": "Alertas de preço",
+    "channelWeather": "Sugestões de clima"
+  },
+  "pyramid": {
+    "collapseAll": "Recolher tudo",
+    "context": {
+      "base": "Nota de fundo",
+      "heart": "Nota de coração",
+      "top": "Nota de saída"
+    },
+    "duration": {
+      "base": "2 h e +",
+      "heart": "15 min – 2 h",
+      "top": "0 – 15 min"
+    },
+    "expandAll": "Mostrar tudo",
+    "layer": {
+      "base": "Fundo",
+      "heart": "Coração",
+      "top": "Saída"
+    },
+    "noNotes": "Nenhuma nota de {{label}} informada",
+    "noteA11y": "Nota {{note}}",
+    "notes": "Notas",
+    "perceptible": "Perceptível: {{duration}}",
+    "stageA11y_one": "{{label}}, {{count}} nota, {{duration}}",
+    "stageA11y_many": "{{label}}, {{count}} notas, {{duration}}",
+    "stageA11y_other": "{{label}}, {{count}} notas, {{duration}}",
+    "title": "Pirâmide olfativa"
+  },
+  "reconnected": "Conexão restabelecida",
+  "relation": {
+    "manage": "Gerenciar",
+    "manageA11y": "Gerenciar minha relação",
+    "shelves": "Prateleiras",
+    "signature": "Assinatura",
+    "signatureActiveA11y": "Perfume assinatura (ativado)",
+    "signatureLimitMessage_one": "Você já tem {{count}} assinatura. Remova uma antes de adicionar outra.",
+    "signatureLimitMessage_many": "Você já tem {{count}} assinaturas. Remova uma antes de adicionar outra.",
+    "signatureLimitMessage_other": "Você já tem {{count}} assinaturas. Remova uma antes de adicionar outra.",
+    "signatureLimitTitle": "Limite alcançado",
+    "signatureSetA11y": "Definir como assinatura",
+    "sotdActiveA11y": "Usado hoje (ativado)",
+    "sotdSetA11y": "Marcar como usado hoje",
+    "title": "Minha relação",
+    "today": "Hoje",
+    "yourRating": "Sua nota"
+  },
+  "relative": {
+    "daysAgo_one": "há {{count}} d",
+    "daysAgo_many": "há {{count}} d",
+    "daysAgo_other": "há {{count}} d",
+    "hoursAgo_one": "há {{count}} h",
+    "hoursAgo_many": "há {{count}} h",
+    "hoursAgo_other": "há {{count}} h",
+    "justNow": "agora mesmo",
+    "minutesAgo_one": "há {{count}} min",
+    "minutesAgo_many": "há {{count}} min",
+    "minutesAgo_other": "há {{count}} min"
+  },
+  "runner": {
+    "composition": "Sua composição: {{notes}}",
+    "dailyCombo_one": "Encadeie {{count}} combo",
+    "dailyCombo_many": "Encadeie {{count}} combos",
+    "dailyCombo_other": "Encadeie {{count}} combos",
+    "dailyDistance_one": "Percorra {{count}} metro",
+    "dailyDistance_many": "Percorra {{count}} metros",
+    "dailyDistance_other": "Percorra {{count}} metros",
+    "dailyDoneBadge": "Gesto do dia concluído",
+    "dailyDoneLabel": "Concluído — volte amanhã",
+    "dailyNearmiss_one": "Raspe em {{count}} estilhaço",
+    "dailyNearmiss_many": "Raspe em {{count}} estilhaços",
+    "dailyNearmiss_other": "Raspe em {{count}} estilhaços",
+    "dailyNotes_one": "Colete {{count}} nota",
+    "dailyNotes_many": "Colete {{count}} notas",
+    "dailyNotes_other": "Colete {{count}} notas",
+    "dailyOverline": "O gesto do dia",
+    "dailyScore_one": "Alcance {{count}} ponto",
+    "dailyScore_many": "Alcance {{count}} pontos",
+    "dailyScore_other": "Alcance {{count}} pontos",
+    "dailyShield_one": "Absorva {{count}} impacto",
+    "dailyShield_many": "Absorva {{count}} impactos",
+    "dailyShield_other": "Absorva {{count}} impactos",
+    "gameOverTitle": "Frasco quebrado",
+    "hint": "Toque para pular, toque duas vezes para voar\nNotas = poderes · Barra cheia: febre",
+    "missionCollector": "Colecionador",
+    "missionCombo": "Combo",
+    "missionDistance": "Maratona",
+    "missionExplorer": "Explorador",
+    "missionHarvest": "Colheita",
+    "missionNearmiss": "Raspador",
+    "missionRuns": "Habitué",
+    "missionScore": "Prestígio",
+    "missionShield": "Baluarte",
+    "missionTier": "{{label}} · {{tier}}/3",
+    "newRecord": "Novo recorde",
+    "newSkinUnlocked": "Skin «{{label}}» desbloqueada",
+    "nextObjective": "Próximo: {{label}} – {{current}}/{{target}} {{unit}}",
+    "pause": "Pausar",
+    "pickupAmbre": "Âmbar",
+    "pickupBergamote": "Bergamota",
+    "pickupMusc": "Almíscar",
+    "pickupSantal": "Sândalo",
+    "quit": "Sair",
+    "record": "Recorde",
+    "recordLabel": "Recorde: {{score}}",
+    "restart": "Recomeçar",
+    "resume": "Retomar",
+    "retry": "Jogar de novo",
+    "shareMessage": "Fiz {{score}} pontos no Flacon Runner 🏃\n{{url}}",
+    "shareScore": "Compartilhar minha pontuação",
+    "skinA11y": "Skin {{label}}",
+    "skinA11yLocked": "Skin {{label}}, desbloqueie com {{threshold}} pontos",
+    "skinAmbre": "Âmbar",
+    "skinGivre": "Gelo",
+    "skinNoir": "Preto",
+    "skinViolette": "Violeta",
+    "startA11y": "Iniciar a partida",
+    "statComboMax": "combo máx.",
+    "statMeters": "metros",
+    "statNearmiss": "raspados",
+    "subtitle": "Pule os estilhaços · colete as notas",
+    "suggestedA11y": "Sua corrida lembra {{nom}} de {{marque}}. Ver detalhes.",
+    "suggestedBrand": "{{marque}} · ver detalhes",
+    "suggestedOverline": "Sua corrida tem um rastro",
+    "tapToPlay": "Toque para jogar",
+    "title": "Flacon Runner",
+    "unitNearmiss": "raspados",
+    "unitNotes": "notas",
+    "unitRuns": "corridas",
+    "unitShield": "impactos",
+    "worldRank": "Ranking mundial: #{{rank}}"
+  },
+  "save": {
+    "addPossession": "Adicionar uma posse",
+    "addPossessionA11y": "Adicionar {{label}}",
+    "detailedNotes": "Notas detalhadas",
+    "detailedNotesCta": "Notas detalhadas…",
+    "possession": {
+      "bottle": "Frasco",
+      "decant": "Decant",
+      "sample": "Amostra"
+    },
+    "remove": "Remover",
+    "status": {
+      "had": "Eu tinha",
+      "have": "Eu tenho",
+      "toTry": "Para experimentar",
+      "tried": "Testado"
+    },
+    "whereAreYou": "Em que ponto você está?",
+    "yourVerdict": "Seu veredito"
+  },
+  "saveButton": {
+    "save": "Salvar",
+    "saveA11y": "Salvar este perfume",
+    "savedA11y": "Salvo: {{label}}. Editar"
+  },
+  "scan": {
+    "analysisError": "Falha na análise da IA. Tente novamente.",
+    "analysisErrorShort": "Falha na análise da IA.",
+    "analysisFailed": "Falha na análise. Tente novamente.",
+    "analysisNeedsAuth": "Login necessário para analisar uma imagem.",
+    "analysisTimeout": "Tempo de análise esgotado. Verifique sua conexão.",
+    "analysisUnavailable": "Serviço de análise de IA indisponível.",
+    "backHome": "Voltar ao início",
+    "cameraDisabledMessage": "Ative a câmera nas configurações do dispositivo para escanear um frasco.",
+    "cameraDisabledTitle": "Câmera desativada",
+    "cameraHint": "Enquadre o frasco e pressione o obturador",
+    "cameraHintCollection": "Enquadre sua coleção e pressione o obturador",
+    "cameraNeededMessage": "A câmera serve para escanear o frasco. Você pode tentar de novo quando quiser.",
+    "cameraNeededTitle": "Câmera necessária",
+    "captureError": "Falha na captura. Tente novamente.",
+    "chipMatch": "Correspondência",
+    "chipProbable": "Correspondência provável",
+    "chipShape": "Reconhecido pela forma",
+    "chipVerified": "Verificado visualmente",
+    "closeScanA11y": "Fechar o scan",
+    "collectionAddCta_one": "Adicionar {{count}} frasco",
+    "collectionAddCta_many": "Adicionar {{count}} frascos",
+    "collectionAddCta_other": "Adicionar {{count}} frascos",
+    "collectionAlreadyOwned": "Já está na sua perfumaria",
+    "collectionCoverage_one": "{{count}} frasco identificado de ~{{estimated}}",
+    "collectionCoverage_many": "{{count}} frascos identificados de ~{{estimated}}",
+    "collectionCoverage_other": "{{count}} frascos identificados de ~{{estimated}}",
+    "collectionDone_one": "{{count}} frasco adicionado à sua perfumaria",
+    "collectionDone_many": "{{count}} frascos adicionados à sua perfumaria",
+    "collectionDone_other": "{{count}} frascos adicionados à sua perfumaria",
+    "collectionDoneTitle": "Sua coleção está crescendo",
+    "collectionErrorAdd": "Falha ao adicionar. Verifique sua conexão e tente novamente.",
+    "collectionIdentified_one": "{{count}} frasco identificado",
+    "collectionIdentified_many": "{{count}} frascos identificados",
+    "collectionIdentified_other": "{{count}} frascos identificados",
+    "collectionNoneIdentified": "Nenhum frasco pôde ser identificado. Refaça a foto com mais luz, rótulos visíveis.",
+    "collectionRescan": "Fotografar outra coleção",
+    "collectionSeeWardrobe": "Ver minha perfumaria",
+    "collectionTitle": "Sua coleção",
+    "errorNetwork": "Não foi possível conectar. Verifique sua rede.",
+    "errorOops": "Ops, um erro",
+    "errorTitle": "Erro",
+    "errorUnexpected": "Ocorreu um erro inesperado. Tente novamente.",
+    "galleryError": "Não foi possível acessar a galeria.",
+    "hintBadFraming": "O frasco está cortado ou muito pequeno no enquadramento.",
+    "hintBlur": "A foto parece embaçada. Estabilize o aparelho e refaça.",
+    "hintGlare": "Um reflexo atrapalha a leitura. Mude o ângulo e refaça.",
+    "hintLabelUnreadable": "O rótulo não está legível. Aproxime-se do frasco.",
+    "hintNotAPerfume": "Esta foto não parece mostrar um frasco de perfume.",
+    "holdStill": "Não se mexa",
+    "holdStillBurst_one": "{{index}}/{{count}} — Não se mexa",
+    "holdStillBurst_many": "{{index}}/{{count}} — Não se mexa",
+    "holdStillBurst_other": "{{index}}/{{count}} — Não se mexa",
+    "hypothesisPrefix": "Hipótese: ",
+    "idleDesc": "A IA reconhece o perfume e encontra\no melhor preço para você.",
+    "idleDescCollection": "A IA reconhece cada frasco visível\ne propõe adicioná-los.",
+    "idleTitle": "Enquadre o frasco",
+    "idleTitleCollection": "Enquadre sua prateleira",
+    "importGalleryA11y": "Importar da galeria",
+    "loadingAlmost": "Quase…",
+    "loadingDeal": "Buscando a melhor oferta…",
+    "loadingIdentifying": "Identificando…",
+    "loadingNotes": "Analisando as notas…",
+    "loadingPrices": "Comparando os preços…",
+    "manualEntry": "Digitar manualmente",
+    "modeCollection": "Minha coleção",
+    "modeSingle": "Um frasco",
+    "newScan": "Novo scan",
+    "noPhotoError": "Nenhuma foto capturada. Tente novamente.",
+    "noResultDesc": "Este perfume não está no nosso catálogo.\nRefaça a foto ou busque a marca.",
+    "noResultTitle": "Perfume não encontrado",
+    "notItRetake": "Não é esse? Refaça a foto",
+    "offlineHint": "Scan indisponível offline",
+    "offlineMessage": "O scan requer conexão com a Internet. Tente novamente quando estiver conectado.",
+    "offlineTitle": "Offline",
+    "otherMatches": "Outras correspondências",
+    "parfumFallback": "Perfume",
+    "processImageError": "Não foi possível processar esta imagem.",
+    "quotaReached": "Limite diário de scans alcançado. Tente novamente amanhã.",
+    "readPrefix": "Lido: ",
+    "recentScans": "Scans recentes",
+    "retakePhoto": "Refazer a foto",
+    "retryAnalysis": "Tentar a análise novamente",
+    "scanAnother": "Escanear outro frasco",
+    "scanCta": "Escanear um frasco",
+    "scanCtaCollection": "Fotografar minha coleção",
+    "scanFabA11y": "Escanear um perfume",
+    "searchBrand": "Buscar «{{marque}}»",
+    "searchCatalog": "Buscar no catálogo",
+    "seeMoreCatalog": "Ver mais no catálogo",
+    "stagingAddSection": "Adicionar uma seção",
+    "stagingAddShort": "Adicionar",
+    "stagingAnalyze_one": "Analisar {{count}} foto",
+    "stagingAnalyze_many": "Analisar {{count}} fotos",
+    "stagingAnalyze_other": "Analisar {{count}} fotos",
+    "stagingDiscardConfirm": "Apagar tudo",
+    "stagingDiscardMessage_one": "Sua foto de seção será apagada.",
+    "stagingDiscardMessage_many": "Suas {{count}} fotos de seção serão apagadas.",
+    "stagingDiscardMessage_other": "Suas {{count}} fotos de seção serão apagadas.",
+    "stagingDiscardTitle": "Começar do zero?",
+    "stagingHint": "Fotografe sua coleção seção por seção — 3-4 frascos por foto, rótulos bem visíveis.",
+    "stagingRemoveA11y_one": "Remover a foto {{index}} de {{count}}",
+    "stagingRemoveA11y_many": "Remover a foto {{index}} de {{count}}",
+    "stagingRemoveA11y_other": "Remover a foto {{index}} de {{count}}",
+    "stagingThumbA11y_one": "Foto {{index}} de {{count}}",
+    "stagingThumbA11y_many": "Foto {{index}} de {{count}}",
+    "stagingThumbA11y_other": "Foto {{index}} de {{count}}",
+    "stagingTitle": "Minha coleção",
+    "tip": "Dica: enquadre a marca e o nome para um resultado ótimo",
+    "tipCollection": "Dica: luz uniforme e rótulos voltados para a lente",
+    "viewDetail": "Ver detalhes"
+  },
+  "search": {
+    "brandSuggestionA11y": "{{label}}, marca",
+    "clearAll": "Limpar tudo",
+    "clearRecentA11y": "Limpar buscas recentes",
+    "clearSearchA11y": "Limpar busca",
+    "closeSearchA11y": "Fechar busca",
+    "iconicBrands": "Casas icônicas",
+    "micDisabled": "Microfone desativado",
+    "noResults": "Nenhum resultado",
+    "noResultsDesc": "Tente outra grafia ou escaneie um frasco.",
+    "placeholder": "Buscar um perfume…",
+    "recent": "Buscas recentes",
+    "searchFailed": "Não foi possível buscar",
+    "searchFailedConn": "A busca falhou. Verifique sua conexão.",
+    "searchFailedMsg": "A busca falhou.",
+    "suggestionA11y": "{{label}}, {{sub}}",
+    "voiceError": "A busca por voz falhou.",
+    "voiceErrorRecognition": "Erro de reconhecimento de voz.",
+    "voiceOffline": "Busca por voz indisponível offline."
+  },
+  "searchChrome": {
+    "openProfileA11y": "Abrir perfil",
+    "openSettingsA11y": "Abrir configurações",
+    "openWheelA11y": "Abrir a roda cromática",
+    "searchA11y": "Buscar um perfume",
+    "searchPlaceholder": "Buscar um perfume…",
+    "speakPlaceholder": "Fale…",
+    "voiceSearchA11y": "Busca por voz"
+  },
+  "seasonProfile": {
+    "colLow": "{{label}}, pouco votada",
+    "colScored": "{{label}}, {{score}} de 5",
+    "colSelected": "selecionada",
+    "momentDay": "Dia",
+    "momentNight": "Noite",
+    "myVote": "seu voto",
+    "title": "Quando usar",
+    "voteA11y": "Dar minha opinião sobre a estação",
+    "voteMomentA11y": "Votar {{label}}",
+    "voteSeasonTitle": "Sua opinião · Estação"
+  },
+  "seasons": {
+    "fall": {
+      "label": "Outono",
+      "withArticle": "o outono"
+    },
+    "spring": {
+      "label": "Primavera",
+      "withArticle": "a primavera"
+    },
+    "summer": {
+      "label": "Verão",
+      "withArticle": "o verão"
+    },
+    "winter": {
+      "label": "Inverno",
+      "withArticle": "o inverno"
+    }
+  },
+  "settings": {
+    "account": {
+      "delete": "Excluir conta",
+      "logout": "Sair"
+    },
+    "appearance": {
+      "dark": "Escuro",
+      "light": "Claro",
+      "system": "Sistema"
+    },
+    "back": "Voltar",
+    "language": {
+      "row": "Idioma do app",
+      "sheetTitle": "Idioma do app",
+      "system": "Sistema",
+      "systemWithValue": "Sistema ({{value}})"
+    },
+    "legal": {
+      "mentions": "Avisos legais",
+      "privacy": "Política de privacidade",
+      "privacyCenter": "Privacidade e dados"
+    },
+    "notifications": {
+      "deniedMessage": "Ative as notificações para o Sillage nas configurações do dispositivo.",
+      "deniedTitle": "Notificações desativadas",
+      "locationDeniedMessage": "Ative a localização nas configurações do dispositivo para receber as sugestões de clima.",
+      "locationDeniedTitle": "Localização desativada",
+      "priceAlerts": {
+        "desc": "Receber uma notificação quando o preço de um perfume cair",
+        "label": "Alertas de preço"
+      },
+      "push": {
+        "descDenied": "Desativadas nas configurações do dispositivo",
+        "descOk": "Alertas de preço e sugestões neste dispositivo",
+        "label": "Notificações push"
+      },
+      "weather": {
+        "desc": "Uma sugestão adequada ao clima, toda manhã (usa sua localização)",
+        "label": "Sugestões de clima"
+      }
+    },
+    "price": {
+      "currency": {
+        "desc": "Euro — multimoeda na V2",
+        "label": "Moeda"
+      }
+    },
+    "search": {
+      "voice": {
+        "desc": "Mostrar o microfone na parte inferior da tela para uma busca rápida por voz",
+        "label": "Atalho de voz"
+      }
+    },
+    "sections": {
+      "account": "Conta",
+      "appearance": "Aparência",
+      "language": "Idioma",
+      "legal": "Legal",
+      "notifications": "Notificações",
+      "price": "Preço",
+      "search": "Busca",
+      "support": "Apoiar"
+    },
+    "shareMessage": "Escaneio meus perfumes e comparo preços com o Sillage — descubra o app: https://sillage.app",
+    "support": {
+      "share": "Compartilhar o app",
+      "text": "Se você gosta do app, compartilhe com quem está ao seu redor. É o melhor apoio."
+    },
+    "title": "Configurações"
+  },
+  "shareSotd": "Hoje estou usando {{marque}} – {{nom}}",
+  "sheet": {
+    "inShelfA11y": "{{name}} (na prateleira)",
+    "pinInA11y": "Fixar em {{name}}",
+    "pinnedA11y": "{{name}} (fixado)",
+    "pinnedSection": "Fixado no topo de",
+    "removeFromFavorites": "Remover dos favoritos",
+    "selectedA11y": "{{label}} (selecionado)",
+    "sendToWardrobe": "Enviar para minha perfumaria",
+    "shelves": "Prateleiras",
+    "viewDetail": "Ver detalhes",
+    "yourStatus": "Seu status"
+  },
+  "shelfCard": {
+    "addA11y": "Adicionar um perfume a {{name}}",
+    "collapse": "recolher",
+    "countPart_one": "{{count}} perfume",
+    "countPart_many": "{{count}} perfumes",
+    "countPart_other": "{{count}} perfumes",
+    "emptySystem": "Nada aqui por enquanto",
+    "emptyUser": "Prateleira vazia",
+    "expand": "expandir",
+    "moveDownA11y": "Mover {{name}} para baixo",
+    "moveUpA11y": "Mover {{name}} para cima",
+    "optionsA11y": "Opções de {{name}}",
+    "publicSuffix": ", pública",
+    "sortBrand": "Casa",
+    "sortByA11y": "Ordenar por {{label}}",
+    "sortCustom": "Personalizado",
+    "sortFamily": "Família",
+    "sortName": "Nome",
+    "sortRecent": "Recentes"
+  },
+  "shelfManager": {
+    "cancelEditA11y": "Cancelar edição",
+    "color": "Cor",
+    "colorA11y": "Cor {{color}}",
+    "colorOptional": "Cor (opcional)",
+    "createShelf": "Criar prateleira",
+    "deleteA11y": "Excluir {{name}}",
+    "deleteConfirm": "Excluir",
+    "deleteMessage": "«{{name}}» será excluída. Os perfumes não serão apagados, apenas perderão esta prateleira.",
+    "deleteTitle": "Excluir prateleira",
+    "descPlaceholder": "Uma linha para descrevê-la…",
+    "descPlaceholderOptional": "Nota (opcional)",
+    "editA11y": "Editar {{name}}",
+    "hint": "Pressione e segure a alça para reorganizar",
+    "icon": "Ícone",
+    "iconOptional": "Ícone (opcional)",
+    "namePlaceholder": "Nome da prateleira",
+    "newShelf": "Nova prateleira",
+    "orphanCount_one": "{{count}} perfume sem prateleira",
+    "orphanCount_many": "{{count}} perfumes sem prateleira",
+    "orphanCount_other": "{{count}} perfumes sem prateleira",
+    "reorderA11y": "Reorganizar {{name}}",
+    "save": "Salvar",
+    "title": "Gerenciar minhas prateleiras"
+  },
+  "sort": "Ordenação",
+  "sotd": {
+    "enableWeatherA11y": "Ativar o clima local",
+    "shareHint": "Pressione e segure para compartilhar",
+    "sotdA11y": "Perfume do dia: {{nom}} {{marque}}",
+    "streakA11y_one": "usado {{count}} dia seguido",
+    "streakA11y_many": "usado {{count}} dias seguidos",
+    "streakA11y_other": "usado {{count}} dias seguidos",
+    "weather": "Clima"
+  },
+  "status": {
+    "had": "Acabou",
+    "have": "Eu tenho",
+    "to_try": "Para experimentar"
+  },
+  "tabs": {
+    "catalog": "Catálogo",
+    "community": "Comunidade",
+    "favorites": "Favoritos",
+    "perfumerie": "Perfumaria"
+  },
+  "trySheet": {
+    "addToParfumerie": "Adicionar à minha perfumaria",
+    "editSave": "Editar o teste",
+    "impressions": "Suas impressões",
+    "notesPlaceholder": "Textura, fixação real, comparação…",
+    "removeFromNotebook": "Remover do caderno",
+    "sampleHint": "Amostra",
+    "save": "Salvar o teste",
+    "verdict": "Seu veredito",
+    "yourRating": "Sua nota"
+  },
+  "verdicts": {
+    "dislike": "Não é para mim",
+    "like": "Gostei",
+    "love": "Amei",
+    "meh": "Mais ou menos"
+  },
+  "verdictsCommunity": {
+    "adoredMany_one": "Adorado por @{{a}}, @{{b}} e {{count}} outros",
+    "adoredMany_many": "Adorado por @{{a}}, @{{b}} e {{count}} outros",
+    "adoredMany_other": "Adorado por @{{a}}, @{{b}} e {{count}} outros",
+    "adoredOne": "Adorado por @{{a}}",
+    "adoredTwo": "Adorado por @{{a}} e @{{b}}",
+    "notConvincedMany_one": "Não convencidos por @{{a}}, @{{b}} e {{count}} outros",
+    "notConvincedMany_many": "Não convencidos por @{{a}}, @{{b}} e {{count}} outros",
+    "notConvincedMany_other": "Não convencidos por @{{a}}, @{{b}} e {{count}} outros",
+    "notConvincedOne": "Não convencido por @{{a}}",
+    "notConvincedTwo": "Não convencidos por @{{a}} e @{{b}}",
+    "sheetTitle": "Opiniões da comunidade",
+    "title": "A comunidade"
+  },
+  "voice": {
+    "errorNoSpeech": "Nenhuma fala detectada.",
+    "errorReadAudio": "Não foi possível ler a gravação de áudio.",
+    "errorStart": "Não foi possível iniciar o reconhecimento de voz.",
+    "errorUnknown": "Erro desconhecido.",
+    "interpretFailed": "Falha na interpretação de voz.",
+    "interpretNeedsAuth": "Login necessário para a interpretação de voz.",
+    "interpretTimeout": "Tempo de interpretação esgotado.",
+    "interpretUnavailable": "Serviço de interpretação de voz indisponível.",
+    "listening": "Ouvindo…",
+    "micDenied": "Acesso ao microfone negado. Você pode tentar de novo quando quiser.",
+    "micDisabledPermanent": "O microfone está desativado para o Sillage. Ative-o nas configurações do dispositivo.",
+    "noResults": "Nenhum resultado",
+    "noResultsDesc": "Tente outra formulação.",
+    "offlineMsg": "Busca por voz indisponível offline.",
+    "quotaReached": "Limite diário de voz alcançado. Tente novamente amanhã.",
+    "recognitionError": "Erro de reconhecimento de voz.",
+    "resultsCount_one": "{{count}} resultado",
+    "resultsCount_many": "{{count}} resultados",
+    "resultsCount_other": "{{count}} resultados",
+    "retry": "Tentar novamente",
+    "searchFailedMsg": "A busca falhou. Verifique sua conexão.",
+    "searching": "Buscando",
+    "speakNow": "Fale agora…",
+    "timeoutMsg": "A busca está demorando demais. Tente novamente.",
+    "transcribeEmpty": "Resposta vazia do serviço de transcrição.",
+    "transcribeFailed": "Falha na transcrição de voz.",
+    "transcribeNeedsAuth": "Login necessário para a transcrição de voz.",
+    "transcribeTimeout": "Tempo de transcrição esgotado.",
+    "transcribeUnavailable": "Serviço de transcrição indisponível.",
+    "viewAll_one": "Ver os {{count}} resultados",
+    "viewAll_many": "Ver os {{count}} resultados",
+    "viewAll_other": "Ver os {{count}} resultados"
+  },
+  "weather": {
+    "errorFetch": "Não foi possível obter o clima.",
+    "errorGeneric": "Erro ao obter o clima.",
+    "label": {
+      "drizzle": "Garoa",
+      "fog": "Neblina",
+      "freezingDrizzle": "Chuva congelante",
+      "heavyRain": "Chuva forte",
+      "heavySnow": "Nevasca",
+      "mainlyClear": "Limpo",
+      "overcast": "Encoberto",
+      "partlyCloudy": "Nublado",
+      "rain": "Chuva",
+      "showers": "Pancadas de chuva",
+      "snow": "Neve",
+      "sunny": "Ensolarado",
+      "thunderstorm": "Tempestade"
+    },
+    "locationDisabled": "A localização está desativada. Ative-a nas configurações do dispositivo.",
+    "noLocation": "Sem localização, o clima fica indisponível."
+  }
+}

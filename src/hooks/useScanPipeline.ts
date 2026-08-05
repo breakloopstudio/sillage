@@ -129,8 +129,8 @@ export function useScanPipeline(
 
   // ── Mode collection : inventaire multi-flacons ────────
 
-  async function runCollectionAnalysis(image: string, scanId: number) {
-    const result = await analyzeCollectionImage(image);
+  async function runCollectionAnalysis(images: string[], scanId: number) {
+    const result = await analyzeCollectionImage(images);
     if (!mountedRef.current || scanIdRef.current !== scanId) return;
 
     const detections = result.bottles.filter(isMatchableDetection).slice(0, COLLECTION_MAX_DETECTIONS);
@@ -233,18 +233,18 @@ export function useScanPipeline(
     if (scanIdRef.current === scanId) inProgressRef.current = false;
   }, [dispatch, uid, mountedRef]);
 
-  const startCollectionAnalysis = useCallback(async (payload: { image: string }) => {
+  const startCollectionAnalysis = useCallback(async (payload: { images: string[] }) => {
     if (inProgressRef.current) return;
     inProgressRef.current = true;
 
     const scanId = ++scanIdRef.current;
 
-    dispatch({ type: 'START_SCAN', images: [payload.image] });
+    dispatch({ type: 'START_SCAN', images: payload.images });
 
     const started = Date.now();
 
     try {
-      await runCollectionAnalysis(payload.image, scanId);
+      await runCollectionAnalysis(payload.images, scanId);
     } catch (e: unknown) {
       console.warn('[scan] collection analysis failed:', e);
       if (mountedRef.current && scanIdRef.current === scanId) {

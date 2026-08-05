@@ -293,7 +293,7 @@ export default function CatalogPage({ scrollY }: Props) {
         </CatalogRow>
       )}
 
-      {/* Row: Explorer par famille (ambiance cards) */}
+      {/* Row: Par famille ou couleur (ambiance cards — couleur en tête → /wheel) */}
       <FamilyAmbianceCards onFamilyTap={handleFamilyTap} onColorTap={handleColorTap} />
 
       {/* Grid controls */}

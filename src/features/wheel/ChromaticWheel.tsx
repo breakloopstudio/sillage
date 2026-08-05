@@ -1,10 +1,15 @@
-// src/features/wheel/ChromaticWheel.tsx — Roue chromatique (feature couleur)
-// Anneau spectre SVG STRICTEMENT STATIQUE (144 segments, rendu 1×, React.memo) +
-// thumb Animated.View piloté en SharedValue (Gesture.Pan worklet + atan2, UI
-// thread, pattern Runner/DockBar — zéro setState pendant le drag). Le snap vers
-// l'ancre la plus proche est résolu en worklet ; le JS n'est réveillé que sur
-// événement discret (franchissement d'ancre, commit fin de geste, tap).
-// Les 3 neutres (noir/blanc/gris) vivent au centre (pas de hue sur l'anneau).
+// src/features/wheel/ChromaticWheel.tsx — Roue chromatique v2 (disque plein)
+// Disque colorimétrique façon roue Figma : 240 wedges SVG remplis (teinte par
+// angle) + overlay RadialGradient blanc (centre désaturé → bord saturé), rendus
+// 1× et mémoïsés (zéro re-render, zéro coût par frame). 12 ancres équidistantes
+// de 30° (dots bordés de blanc) + 4 neutres en grille 2×2 au centre.
+// Geste 100 % UI thread (Pan worklet + atan2, pattern Runner/DockBar) ; JS
+// réveillé uniquement sur événements discrets (franchissement d'ancre, commit).
+// ONE-TAP : tout commit (tap dot/anneau/pastille, fin de drag) notifie le
+// parent qui navigue immédiatement vers /search?color=<key>.
+// A11y (§6.8) : 16 cibles verbalisées (12 dots + 4 pastilles), info
+// couleur-seule doublée de texte ; le conteneur ne porte pas de rôle adjustable
+// (le flux one-tap rendrait increment/decrement inutilisable).
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
@@ -14,24 +19,25 @@ import Animated, {
   useSharedValue, useAnimatedStyle, useDerivedValue, useAnimatedReaction,
   withTiming, runOnJS, interpolateColor, cancelAnimation,
 } from 'react-native-reanimated';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useTheme, type Theme } from '../../theme/ThemeContext';
 import {
-  RING_ANCHORS, CENTER_NEUTRALS, CHROMA_PALETTE_LIGHT, chromaSwatch,
-  getColorByKey, hsvToHex, type ChromaticKey,
+  RING_ANCHORS, CENTER_NEUTRALS, chromaSwatch,
+  hsvToHex, type ChromaticKey,
 } from '../../utils/chromatic-wheel';
 
 // ─── Géométrie (constantes pures, précalculées au scope module) ──────────────
 
 const SIZE = 300;
 const CENTER = SIZE / 2;
-const RING_OUTER = 140;
-const RING_WIDTH = 36;
-const RING_R = RING_OUTER - RING_WIDTH / 2;
-const CENTER_R = RING_OUTER - RING_WIDTH - 10;
+const DISC_R = 140;
+const DOT_ORBIT = DISC_R - 14;
 const THUMB = 30;
-const PAD = 46;
-const PAD_ORBIT = 44;
+const PAD = 44;
+const PAD_GAP = 8;
+const PAD_OFFSET = (PAD + PAD_GAP) / 2;
+const PAD_HIT_R = PAD / 2 + 8;
+const DEAD_R = 70;
 
 const DEG = Math.PI / 180;
 
@@ -40,52 +46,55 @@ function pointAt(deg: number, radius: number): { x: number; y: number } {
   return { x: CENTER + Math.cos(a) * radius, y: CENTER + Math.sin(a) * radius };
 }
 
-// Segments du spectre : paths + couleurs figés une fois (jamais re-rendus).
-const SEGMENTS = (() => {
+// Disque plein : wedges remplis, chevauchement +0,6° anti-coutures AA.
+const WEDGES = (() => {
   const out: { d: string; color: string }[] = [];
-  const N = 144;
+  const N = 240;
   const step = 360 / N;
   for (let i = 0; i < N; i++) {
-    const p0 = pointAt(i * step, RING_R);
-    const p1 = pointAt((i + 1) * step + 0.6, RING_R);
+    const p0 = pointAt(i * step, DISC_R);
+    const p1 = pointAt((i + 1) * step + 0.6, DISC_R);
     out.push({
-      d: `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${RING_R} ${RING_R} 0 0 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`,
-      color: hsvToHex(i * step, 0.62, 0.88),
+      d: `M ${CENTER} ${CENTER} L ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${DISC_R} ${DISC_R} 0 0 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} Z`,
+      color: hsvToHex(i * step, 0.9, 0.96),
     });
   }
   return out;
 })();
 
-// Couleurs du spectre pour interpolateColor (thumb).
+// Couleurs du spectre pour interpolateColor (thumb), accordées au disque.
 const SPECTRUM_STOPS = [0, 60, 120, 180, 240, 300, 360];
-const SPECTRUM_COLORS = SPECTRUM_STOPS.map(h => hsvToHex(h, 0.62, 0.88));
+const SPECTRUM_COLORS = SPECTRUM_STOPS.map(h => hsvToHex(h, 0.9, 0.96));
 
-// Ancres de l'anneau (hues triées) + positions des pastilles.
-// Le marron (20°) est à 5° de l'orange (25°) : pastille décalée vers l'intérieur
-// de l'anneau pour éviter la superposition visuelle.
+// Ancres de l'anneau (12 hues équidistantes) + positions des dots.
 const ANCHOR_HUES = RING_ANCHORS.map(a => a.hue ?? 0);
 const ANCHOR_KEYS = RING_ANCHORS.map(a => a.key);
 const ANCHOR_DOTS = RING_ANCHORS.map(a => ({
   key: a.key,
-  ...pointAt(a.hue ?? 0, a.key === 'brown' ? RING_R - 13 : RING_R),
-  color: CHROMA_PALETTE_LIGHT[a.key].swatch,
+  ...pointAt(a.hue ?? 0, DOT_ORBIT),
+  color: chromaSwatch(a.key, 'light').swatch,
 }));
 
-// Neutres au centre : triangle équilatéral (noir en haut, blanc en bas à droite,
-// gris en bas à gauche). ORDER = CENTER_NEUTRALS (black, white, gray).
-const PAD_ANGLES = [0, 120, 240];
-const PAD_CENTERS = CENTER_NEUTRALS.map((c, i) => pointAt(PAD_ANGLES[i % PAD_ANGLES.length], PAD_ORBIT));
+// Neutres au centre : grille 2×2 (noir HG, blanc HD, gris BG, brun BD).
+const PAD_CENTERS = [
+  { x: CENTER - PAD_OFFSET, y: CENTER - PAD_OFFSET },
+  { x: CENTER + PAD_OFFSET, y: CENTER - PAD_OFFSET },
+  { x: CENTER - PAD_OFFSET, y: CENTER + PAD_OFFSET },
+  { x: CENTER + PAD_OFFSET, y: CENTER + PAD_OFFSET },
+];
 const PAD_KEYS = CENTER_NEUTRALS.map(c => c.key);
-const PAD_HIT_R = PAD / 2 + 8;
 
 // ─── Helpers worklet-safe (module scope, primitives uniquement) ──────────────
+// Miroirs des fonctions pures testées de chromatic-wheel.ts
+// (nearestAnchorIndex / hitPadIndex) — garder en phase.
 
 function nearestAnchorIdx(deg: number): number {
   'worklet';
+  const h = ((deg % 360) + 360) % 360;
   let best = 0;
   let bestDist = 361;
   for (let i = 0; i < ANCHOR_HUES.length; i++) {
-    let d = Math.abs(deg - ANCHOR_HUES[i]);
+    let d = Math.abs(h - ANCHOR_HUES[i]);
     if (d > 180) d = 360 - d;
     if (d < bestDist) { bestDist = d; best = i; }
   }
@@ -108,21 +117,35 @@ function degFromPoint(x: number, y: number): number {
   return (Math.atan2(y - CENTER, x - CENTER) / DEG + 90 + 360) % 360;
 }
 
-// ─── Anneau SVG statique (rendu 1×, mémoïsé — jamais re-rendu) ───────────────
+// ─── Disque SVG statique (rendu 1×, mémoïsé — jamais re-rendu) ───────────────
 
-const WheelRing = memo(function WheelRing() {
+const WheelDisc = memo(function WheelDisc() {
   return (
     <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFill} pointerEvents="none">
-      {SEGMENTS.map((seg, i) => (
-        <Path key={i} d={seg.d} stroke={seg.color} strokeWidth={RING_WIDTH} fill="none" strokeLinecap="butt" />
+      <Defs>
+        {/* Désaturation centrale : centre clair → bord saturé (roue Figma).
+            stopColor opaque + stopOpacity (jamais rgba dans stopColor —
+            l'alpha de stopColor est écrasé par extractGradient). */}
+        <RadialGradient id="wheelDesat" cx="50%" cy="50%" r="50%">
+          <Stop offset={0} stopColor="#FFFFFF" stopOpacity={1} />
+          <Stop offset={0.45} stopColor="#FFFFFF" stopOpacity={0.62} />
+          <Stop offset={0.78} stopColor="#FFFFFF" stopOpacity={0.18} />
+          <Stop offset={1} stopColor="#FFFFFF" stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      {WEDGES.map((w, i) => (
+        <Path key={i} d={w.d} fill={w.color} />
       ))}
-      {/* Bordure blanche invariante sur élément coloré (esprit §2.3, spectre invariant) */}
+      <Circle cx={CENTER} cy={CENTER} r={DISC_R} fill="url(#wheelDesat)" />
+      {/* Hairline blanche invariante sur le bord (esprit §2.3) */}
+      <Circle cx={CENTER} cy={CENTER} r={DISC_R - 0.5} fill="none" stroke="#FFFFFF" strokeWidth={1} opacity={0.6} />
+      {/* Bordure blanche invariante sur élément coloré (esprit §2.3) */}
       {ANCHOR_DOTS.map(dot => (
         <Circle
           key={dot.key}
           cx={dot.x}
           cy={dot.y}
-          r={6.5}
+          r={7}
           fill={dot.color}
           stroke="#FFFFFF"
           strokeWidth={2}
@@ -136,11 +159,11 @@ const WheelRing = memo(function WheelRing() {
 
 interface Props {
   selectedKey: ChromaticKey | null;
-  /** Franchissement d'ancre pendant le geste (affichage live, pas de fetch). */
+  /** Franchissement d'ancre pendant le geste (label live, pas de fetch). */
   onAnchorChange: (key: ChromaticKey) => void;
-  /** Commit : fin de geste anneau / tap anneau / tap pastille neutre. */
+  /** One-tap : commit (tap ou fin de drag) → le parent navigue. */
   onCommit: (key: ChromaticKey) => void;
-  /** Geste relâché hors anneau/pastille (le parent restaure la preview). */
+  /** Geste relâché hors anneau/pastille (le parent restaure le prompt). */
   onGestureCancel: () => void;
 }
 
@@ -165,8 +188,8 @@ export default function ChromaticWheel({ selectedKey, onAnchorChange, onCommit, 
     const a = (normDeg.value - 90) * DEG;
     return {
       transform: [
-        { translateX: Math.cos(a) * RING_R },
-        { translateY: Math.sin(a) * RING_R },
+        { translateX: Math.cos(a) * DOT_ORBIT },
+        { translateY: Math.sin(a) * DOT_ORBIT },
       ],
       backgroundColor: interpolateColor(normDeg.value, SPECTRUM_STOPS, SPECTRUM_COLORS),
     };
@@ -188,7 +211,7 @@ export default function ChromaticWheel({ selectedKey, onAnchorChange, onCommit, 
   const commitRingIdx = useMemo(() => (idx: number) => {
     const key = ANCHOR_KEYS[idx];
     if (!key) return;
-    // Snap visuel vers l'ancre (chemin le plus court).
+    // Snap visuel vers l'ancre (chemin le plus court) pendant la transition.
     const target = ANCHOR_HUES[idx];
     const cur = angleDeg.value;
     const delta = ((target - cur + 540) % 360) - 180;
@@ -205,19 +228,6 @@ export default function ChromaticWheel({ selectedKey, onAnchorChange, onCommit, 
     cancelRef.current();
   }, []);
 
-  // A11y (§6.8) : rôle adjustable avec actions réelles — incrémenter/décrémenter
-  // parcourt les ancres de l'anneau et commite la teinte.
-  const selectedRingIdx = selectedKey ? RING_ANCHORS.findIndex(a => a.key === selectedKey) : -1;
-  const handleAccessibilityAction = useCallback((e: { nativeEvent: { actionName: string } }) => {
-    const name = e.nativeEvent.actionName;
-    if (name !== 'increment' && name !== 'decrement') return;
-    const n = RING_ANCHORS.length;
-    const base = selectedRingIdx >= 0 ? selectedRingIdx : 0;
-    const next = name === 'increment' ? (base + 1) % n : (base - 1 + n) % n;
-    commitRingIdx(next);
-  }, [selectedRingIdx, commitRingIdx]);
-  const selectedDef = selectedKey ? getColorByKey(selectedKey) : undefined;
-
   const gesture = useMemo(() => {
     const pan = Gesture.Pan()
       .minDistance(10)
@@ -228,22 +238,22 @@ export default function ChromaticWheel({ selectedKey, onAnchorChange, onCommit, 
       .onChange((e) => {
         'worklet';
         const r = Math.hypot(e.x - CENTER, e.y - CENTER);
-        if (r < CENTER_R * 0.6) return;
+        if (r < DEAD_R) return;
         angleDeg.value = degFromPoint(e.x, e.y);
       })
       .onEnd((e) => {
         'worklet';
-        // Pastilles d'abord (leur hit zone déborde du disque central).
+        // Pastilles d'abord (leur hit zone déborde du centre désaturé).
         const pad = nearestPadIdx(e.x, e.y);
         if (pad >= 0) {
           runOnJS(commitNeutralIdx)(pad);
           return;
         }
         const r = Math.hypot(e.x - CENTER, e.y - CENTER);
-        if (r >= CENTER_R * 0.6) {
+        if (r >= DEAD_R) {
           runOnJS(commitRingIdx)(nearestAnchorIdx(degFromPoint(e.x, e.y)));
         } else {
-          // Relâché dans le disque central hors pastille → geste sans commit.
+          // Relâché dans le centre hors pastille → geste sans commit.
           runOnJS(notifyCancel)();
         }
       });
@@ -251,15 +261,13 @@ export default function ChromaticWheel({ selectedKey, onAnchorChange, onCommit, 
     const tap = Gesture.Tap()
       .onEnd((e) => {
         'worklet';
-        // Pastilles d'abord : un tap sur leur hit zone ne doit jamais committer
-        // une ancre de l'anneau (chevauchement couronne r ∈ [56 ; 75]).
         const pad = nearestPadIdx(e.x, e.y);
         if (pad >= 0) {
           runOnJS(commitNeutralIdx)(pad);
           return;
         }
         const r = Math.hypot(e.x - CENTER, e.y - CENTER);
-        if (r >= CENTER_R * 0.6 && r <= RING_OUTER + 26) {
+        if (r >= DEAD_R && r <= DISC_R + 26) {
           runOnJS(commitRingIdx)(nearestAnchorIdx(degFromPoint(e.x, e.y)));
         }
       });
@@ -267,25 +275,36 @@ export default function ChromaticWheel({ selectedKey, onAnchorChange, onCommit, 
     return Gesture.Race(tap, pan);
   }, [commitRingIdx, commitNeutralIdx, notifyCancel]);
 
+  // A11y : activation au lecteur d'écran (le toucher physique passe par le geste).
+  const handleDotActivate = useCallback((idx: number) => {
+    commitRingIdx(idx);
+  }, [commitRingIdx]);
+  const handlePadActivate = useCallback((idx: number) => {
+    commitNeutralIdx(idx);
+  }, [commitNeutralIdx]);
+
   return (
     <GestureDetector gesture={gesture}>
-      <View
-        style={s.wheel}
-        accessibilityRole="adjustable"
-        accessibilityLabel={t('chroma.wheelA11y')}
-        accessibilityHint={t('chroma.wheelHintA11y')}
-        accessibilityValue={selectedDef ? { text: selectedDef.label } : undefined}
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={handleAccessibilityAction}
-      >
-        <WheelRing />
+      <View style={s.wheel}>
+        <WheelDisc />
 
-        {/* Disque central */}
-        <View style={s.centerDisc} pointerEvents="none" />
+        {/* Cibles a11y des 12 teintes (invisibles, pointerEvents none : le
+            toucher physique reste arbitré par le geste parent). */}
+        {ANCHOR_DOTS.map((dot, i) => (
+          <View
+            key={dot.key}
+            style={[s.a11yTarget, { left: dot.x - 22, top: dot.y - 22 }]}
+            pointerEvents="none"
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={RING_ANCHORS[i].label}
+            accessibilityHint={t('chroma.openA11y')}
+            accessibilityActions={[{ name: 'activate' }]}
+            onAccessibilityAction={() => handleDotActivate(i)}
+          />
+        ))}
 
-        {/* Pastilles neutres — accessibles individuellement (§6.8 : l'info
-            couleur-seule est doublée d'un label verbalisé). Le toucher physique
-            passe par le geste du parent ; onAccessibilityActivate sert les SR. */}
+        {/* Pastilles neutres (réelles, 44 px — cible native §6.2). */}
         {CENTER_NEUTRALS.map((c, i) => {
           const padCenter = PAD_CENTERS[i];
           const swatch = chromaSwatch(c.key, resolvedMode).swatch;
@@ -306,16 +325,16 @@ export default function ChromaticWheel({ selectedKey, onAnchorChange, onCommit, 
               accessible
               accessibilityRole="button"
               accessibilityLabel={c.label}
+              accessibilityHint={t('chroma.openA11y')}
               accessibilityState={{ selected: active }}
               accessibilityActions={[{ name: 'activate' }]}
-              onAccessibilityAction={() => commitNeutralIdx(i)}
+              onAccessibilityAction={() => handlePadActivate(i)}
             />
           );
         })}
 
-        {/* Thumb (par-dessus l'anneau, UI thread). Bordure blanche invariante :
-            blanc sur élément coloré, esprit §2.3 (comme le texte des boutons
-            colorés) — le spectre est invariant entre thèmes. */}
+        {/* Thumb (par-dessus le disque, UI thread). Bordure blanche invariante
+            sur élément coloré (esprit §2.3). */}
         <Animated.View style={[s.thumb, thumbStyle]} pointerEvents="none" />
       </View>
     </GestureDetector>
@@ -329,16 +348,10 @@ function getStyles(t: Theme) {
       height: SIZE,
       alignSelf: 'center',
     },
-    centerDisc: {
+    a11yTarget: {
       position: 'absolute',
-      left: CENTER - CENTER_R,
-      top: CENTER - CENTER_R,
-      width: CENTER_R * 2,
-      height: CENTER_R * 2,
-      borderRadius: CENTER_R,
-      backgroundColor: t.colors.surface,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.colors.border,
+      width: 44,
+      height: 44,
     },
     pad: {
       position: 'absolute',

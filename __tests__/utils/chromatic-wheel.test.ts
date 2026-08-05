@@ -7,18 +7,19 @@ import {
 } from '../../src/utils/chromatic-wheel';
 
 describe('chromatic-wheel', () => {
-  it('defines 12 colors: 9 ring anchors + 3 center neutrals', () => {
-    expect(CHROMATIC_WHEEL).toHaveLength(12);
-    expect(RING_ANCHORS).toHaveLength(9);
-    expect(CENTER_NEUTRALS).toHaveLength(3);
-    expect(CENTER_NEUTRALS.map(c => c.key).sort()).toEqual(['black', 'gray', 'white']);
-    expect(new Set(CHROMATIC_WHEEL.map(c => c.key)).size).toBe(12);
+  it('defines 16 colors: 12 ring anchors + 4 center neutrals', () => {
+    expect(CHROMATIC_WHEEL).toHaveLength(16);
+    expect(RING_ANCHORS).toHaveLength(12);
+    expect(CENTER_NEUTRALS).toHaveLength(4);
+    expect(CENTER_NEUTRALS.map(c => c.key)).toEqual(['black', 'white', 'gray', 'brown']);
+    expect(new Set(CHROMATIC_WHEEL.map(c => c.key)).size).toBe(16);
   });
 
-  it('ring anchors are sorted by hue and all have a hue', () => {
+  it('ring anchors are equidistant (30°) and sorted by hue', () => {
     for (const a of RING_ANCHORS) expect(typeof a.hue).toBe('number');
     const hues = RING_ANCHORS.map(a => a.hue as number);
     expect([...hues].sort((x, y) => x - y)).toEqual(hues);
+    for (let i = 0; i < hues.length; i++) expect(hues[i]).toBe(i * 30);
   });
 
   it('respects RPC guard ceilings (≤ 8 accords, ≤ 6 notes)', () => {
@@ -39,12 +40,19 @@ describe('chromatic-wheel', () => {
   it('resolves FR labels via i18next (jest-setup init fr)', () => {
     expect(getColorByKey('red')?.label).toBe('Rouge');
     expect(getColorByKey('yellow')?.label).toBe('Jaune');
+    expect(getColorByKey('lime')?.label).toBe('Citron vert');
+    expect(getColorByKey('teal')?.label).toBe('Bleu canard');
+    expect(getColorByKey('brown')?.label).toBe('Marron');
   });
 
   it('hueToAnchor snaps to the nearest ring anchor (Voronoi circulaire)', () => {
     expect(hueToAnchor(0).key).toBe('red');
+    expect(hueToAnchor(20).key).toBe('orange');
+    expect(hueToAnchor(100).key).toBe('lime');
     expect(hueToAnchor(130).key).toBe('green');
     expect(hueToAnchor(200).key).toBe('blue');
+    expect(hueToAnchor(240).key).toBe('indigo');
+    expect(hueToAnchor(300).key).toBe('magenta');
     expect(hueToAnchor(340).key).toBe('pink');
     // wrap-around : 359° est plus proche de rouge (0°) que de pink (330°)
     expect(hueToAnchor(359).key).toBe('red');
@@ -61,12 +69,12 @@ describe('chromatic-wheel', () => {
 
   it('nearestAnchorIndex matches hueToAnchor (miroir du worklet de la roue)', () => {
     const hues = RING_ANCHORS.map(a => a.hue ?? 0);
-    for (const probe of [0, 10, 22, 25, 45, 58, 100, 130, 215, 275, 330, 359, -30, 720]) {
+    for (const probe of [0, 10, 15, 20, 45, 60, 90, 100, 130, 180, 200, 240, 300, 330, 359, -30, 720]) {
       const idx = nearestAnchorIndex(hues, probe);
       expect(RING_ANCHORS[idx]).toBe(hueToAnchor(probe));
     }
-    // Tie exact à hue 10 entre red (0) et brown (20) → première ancre en hue croissante
-    expect(RING_ANCHORS[nearestAnchorIndex(hues, 10)].key).toBe('red');
+    // Tie exact à hue 15 entre red (0) et orange (30) → première ancre en hue croissante
+    expect(RING_ANCHORS[nearestAnchorIndex(hues, 15)].key).toBe('red');
   });
 
   it('hitPadIndex returns the touched pad or -1', () => {
@@ -102,7 +110,7 @@ describe('chromatic-wheel', () => {
     expect(hexToHue('invalide')).toBe(0);
   });
 
-  it('palettes cover all 12 keys in both modes with distinct swatch/soft/ink', () => {
+  it('palettes cover all 16 keys in both modes with distinct swatch/soft/ink', () => {
     const keys = CHROMATIC_WHEEL.map(c => c.key) as ChromaticKey[];
     for (const key of keys) {
       const light = CHROMA_PALETTE_LIGHT[key];

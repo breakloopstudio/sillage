@@ -13,6 +13,7 @@ import { getLanguagePreference, setLanguagePreference } from '../services/langua
 import { buildInitOptions } from './options';
 import {
   SOURCE_LANGUAGE,
+  SUPPORTED_LANGUAGES,
   SYSTEM_LANGUAGE,
   UNSUPPORTED_FALLBACK_LANGUAGE,
   isSupportedLanguage,
@@ -21,16 +22,30 @@ import {
 } from './config';
 
 /**
+ * Matche une locale appareil contre les langues supportées, dans l'ordre :
+ * 1. balise régionale exacte (ex. 'pt-BR'),
+ * 2. langue seule exacte (ex. 'fr', 'de'),
+ * 3. variante régionale d'une langue supportée (ex. locale 'pt'/'pt-PT' → 'pt-BR').
+ */
+function matchLocale(locale: { languageTag?: string | null; languageCode?: string | null }): AppLanguage | null {
+  const tag = locale.languageTag?.toLowerCase();
+  const code = locale.languageCode?.toLowerCase();
+  for (const l of SUPPORTED_LANGUAGES) if (tag && l.toLowerCase() === tag) return l;
+  for (const l of SUPPORTED_LANGUAGES) if (code && l.toLowerCase() === code) return l;
+  for (const l of SUPPORTED_LANGUAGES) if (code && l.toLowerCase().startsWith(code + '-')) return l;
+  return null;
+}
+
+/**
  * Résout la langue d'affichage : préférence explicite → locales appareil → fallback.
- * Match par languageCode (ISO 639-1) ; quand des variantes régionales seront
- * supportées (ex. 'pt-BR' vs 'pt-PT'), affiner avec languageTag/regionCode.
+ * Gère les variantes régionales (ex. 'pt-BR') via `matchLocale`.
  */
 export function resolveInitialLanguage(preference: LanguagePreference): AppLanguage {
   if (preference !== SYSTEM_LANGUAGE && isSupportedLanguage(preference)) return preference;
   try {
     for (const locale of Localization.getLocales()) {
-      const code = locale.languageCode?.toLowerCase();
-      if (isSupportedLanguage(code)) return code;
+      const match = matchLocale(locale);
+      if (match) return match;
     }
   } catch { /* locale indisponible : fallback */ }
   return UNSUPPORTED_FALLBACK_LANGUAGE;

@@ -157,7 +157,7 @@ export async function updateParfum(id: string, fragranceData: Partial<Omit<Parfu
 
 const _searchCache = new LRUCache(200);
 
-// Roue chromatique : 12 clés max — cache mémoire + dédup in-flight (partagé
+// Roue chromatique : 16 clés max — cache mémoire + dédup in-flight (partagé
 // entre /wheel et /search?color= : la sélection posée préchauffe la liste,
 // l'écran de résultats lit la même entrée sans second fetch). Pas de disque :
 // contenu rarement consommé au boot.
@@ -435,7 +435,7 @@ export async function getParfumsByFamily(values: string[], limitCount: number = 
 /** Parfums d'une couleur de la roue chromatique (RPC chroma_parfums 0061).
  *  Scoring serveur : intensité des accords (main_accords_percentage) + match
  *  des notes (search_vector) + popularité, boost saisonnier si affinité.
- *  Cache mémoire partagé wheel→search (12 clés, TTL 30 min, dédup in-flight). */
+ *  Cache mémoire partagé wheel→search (16 clés, TTL 30 min, dédup in-flight). */
 export async function getParfumsByColor(colorKey: string, limitCount: number = 50): Promise<Parfum[]> {
   const def = getColorByKey(colorKey);
   if (!def) return [];

@@ -13,9 +13,9 @@ export function buildInitOptions(lng: string): InitOptions {
     resources,
     defaultNS: DEFAULT_NS,
     lng,
-    // La langue source ne fallback jamais ; les autres langues retombent sur la
-    // source pour les clés non traduites (deviendra ['en', 'fr'] quand EN sera complet).
-    fallbackLng: { [SOURCE_LANGUAGE]: [], default: [SOURCE_LANGUAGE] },
+    // La langue source ne fallback jamais ; les autres langues retombent sur
+    // l'anglais (complet depuis la Phase 2) puis sur la source pour les clés non traduites.
+    fallbackLng: { [SOURCE_LANGUAGE]: [], default: ['en', SOURCE_LANGUAGE] },
     supportedLngs: [...SUPPORTED_LANGUAGES],
     nonExplicitSupportedLngs: true,
     interpolation: { escapeValue: false },

@@ -1,4 +1,4 @@
-# 🧴 Sillage
+﻿# 🧴 Sillage
 
 <div align="center">
 
@@ -23,8 +23,8 @@
 | 🧭 **Navigation** | 4 onglets swipeables (Catalogue · Favoris · Ma Parfumerie · Communauté) + FAB Scan central (DockBar verre dépoli), accès profil via avatar rond en haut à droite (SearchChrome) |
 | 📸 **Scan intelligent** | 1 photo (1280 px) → GPT Vision v5 (transcription littérale + reconnaissance de forme, escalade mini→4o, re-ranking visuel vs top 12 flacons de la maison, confiance forcée côté serveur) → `searchParfumFromScan` (fuzzy Levenshtein, alias marques, concentration ±12) ; transparence : chip « Vérifié visuellement / Reconnu à la forme / Correspondance probable » + ligne « Lu : / Hypothèse : », saisie assistée guidée par la raison d'échec (flou, reflet, étiquette illisible…) |
 | 🖼️ **Import galerie** | Photo existante → même pipeline IA, sans permissions supplémentaires |
-| 🗂️ **Scan de collection** | Mode « Ma collection » : une photo d'étagère → inventaire multi-flacons (Edge Function mode `collection`, confiance par flacon, re-ranking visuel), matching par détection, liste multi-select (VÉRIFIÉS cochés par défaut, déjà possédés exclus), ajout en lot statut « Je l'ai » |
-| 🎡 **Roue chromatique** | Exploration par couleur : anneau SVG de 12 teintes curatées, chaque couleur mappe vers le vocabulaire olfactif du catalogue (accords + notes + saison), résultats triés par intensité chromatique puis popularité, cache partagé avec la recherche |
+| 🗂️ **Scan de collection** | Mode « Ma collection » : capture en sections (1-4 photos de 3-4 flacons, staging avec vignettes) → inventaire multi-flacons (Edge Function mode `collection`, gpt-4o direct, prompt durci anti « plausible mais faux », vérification visuelle éliminatoire de chaque détection), matching par détection, liste multi-select (VÉRIFIÉS cochés par défaut, déjà possédés exclus), ajout en lot statut « Je l'ai » |
+| 🎡 **Roue chromatique** | Exploration par couleur : disque colorimétrique SVG (12 teintes équidistantes + 4 neutres), one-tap vers les résultats, chaque couleur mappe vers le vocabulaire olfactif du catalogue (accords + notes + saison), résultats triés par intensité chromatique puis popularité, cache partagé avec la recherche |
 | 📚 **Catalogue** | Catalogue ~25K parfums (seed Postgres), taxonomie 6 familles olfactives (cartes d'ambiance data-driven), rangées éditoriales (« Parfaits pour {saison} », « Les mieux notés »), capsules marques, grille 3 densités + persistance, recherche RPC Postgres (tsvector + pg_trgm) avec cache + prefix cache |
 | 🏛️ **Page marque** | Catalogue complet d'une maison (depuis la fiche détail, les capsules et le sheet marques) : tri cyclique (populaires · prix · nouveautés), filtre par famille olfactive (6 familles, compteurs), densité partagée |
 | 🧪 **Ma Parfumerie** | Meuble d'étagères (segmented Collection/Étagères, ShelfCard à rayons + flacons nus + tri ↕ + pin ★ + badge globe), CRUD enrichi (réordonnancement des étagères par chevrons ↕, édition inline), assignment long-press + ajout direct, visibilité publique + partage + « M'inspirer » (copie en lot). Pills statut (Tous · À sentir · Je l'ai · Fini) + filtre ♥ + badge 🔔, possessions, signature, SOTD+météo, partage collection, mode Collection (grille, statuts, filtres, ♥, densités) |
@@ -37,7 +37,7 @@
 | 🧠 **Fiche unifiée v8.1** | Fiche catalogue + section « Ma relation » (statut, verdict, note, impressions, possessions, étagères, signature, SOTD) fusionnées. DetailHero (image HD 1x, 2x réservée à la lightbox), CollapsingHeader (UI thread), barre d'action flottante, pyramide olfactive interactive, « Quand le porter » (colonnes saisons + chips occasions), signature nez, note detail popup, image viewer popup HD |
 | 🔐 **Auth optionnelle** | App utilisable sans compte, `AuthGate` partagé demande la connexion uniquement quand nécessaire |
 | 📴 **Mode hors-ligne** | Bannière réseau globale (OfflineBanner dans `_layout.tsx`), état `reconnected` 2.5s, contenu dégradé via cache disque local (SWR) |
-| 🌍 **Internationalisation** | Infrastructure i18next complète (préparation Play Store/App Store) : toutes les chaînes user-facing extraites (FR = langue source, clés typées), formatage locale-aware (prix, pourcentages, dates relatives), détection préférence → locale appareil, outillage extract/sync idempotent. Multilingue prêt (EN puis ES/DE/IT/PT-BR à venir) |
+| 🌍 **Internationalisation** | Multilingue complet (préparation Play Store/App Store) : 6 langues bundlées — FR (source) + EN, ES, DE, IT, PT-BR (parité 100 % vérifiée par `npm run i18n:check`), infrastructure i18next (clés typées, formatage locale-aware prix/pourcentages/dates relatives, détection préférence → locale appareil avec variantes régionales, fallback EN, permissions iOS localisées), outillage extract/sync idempotent + runbook `docs/i18n-runbook.md` |
 | 🌓 **Dark Mode** | 3 modes (système/clair/sombre), persistance AsyncStorage, SystemUI + NavigationBar theming, keyboardAppearance adaptatif |
 | 🎙️ **Recherche vocale** | Pipeline « identification » aligné sur le scan : STT on-device (expo-speech-recognition, langue de l'appareil) + transcription `gpt-transcribe` + interprétation structurée `interpret-voice-query` (gpt-4o-mini) → auto-ouverture de la fiche sur match confiant + bannière « Ce n'est pas lui ? », seconde chance gatée sur la qualité du match (audio persisté re-transcrit), récupération des noms propres écorchés (vocabulaire 237 marques + 400 noms, hypothèses alternatives), rescoring concentration (« L'Homme Idéal Parfum » ouvre le flanker Parfum), **multilingue** (87 langues du Play Store, noms jamais traduits), VoiceOverlay 5 phases |
 | 🔐 **Permissions just-in-time** | Primers explicatifs (`PermissionPrimer`) avant chaque prompt système — caméra, micro, position, notifications — affichés une seule fois au moment de l'intention, jamais au lancement ; push proposé à un moment de valeur (1ʳᵉ alerte prix, toggle Settings) |
@@ -58,7 +58,7 @@
 | **Backend** | Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions Deno) |
 | **IA** | GPT Vision (analyse photo, escalade gpt-4o-mini → gpt-4o), gpt-transcribe (transcription vocale multilingue), gpt-4o-mini (interprétation vocale structurée), Postgres tsvector + pg_trgm (catalogue 25K parfums) |
 | **Formulaires** | React Hook Form 7 + Zod 4 |
-| **Tests** | Jest 29 + jest-expo + Testing Library — 902 tests, 80 suites + E2E Supabase (29 checks) |
+| **Tests** | Jest 29 + jest-expo + Testing Library — 917 tests, 80 suites + E2E Supabase (29 checks) |
 
 ---
 
@@ -313,13 +313,14 @@ dénormalisés → affichage direct sans appel Postgres supplémentaire.
 - **Extraction de TOUTES les chaînes user-facing** (1 204 chaînes) : 4 onglets, fiche détail, sheets, scan/voix, wardrobe, profil, historique, auth, profils publics, étagères, perfumer, admin, pages légales, Flacon Runner (missions/défi quotidien/skins/pickups), hooks (météo/voix/auth/catalogue/scan), composants (OfflineBanner, ErrorBoundary, ParfumCard a11y, PublicProfileCard, BrandSheet, SaveButton), couche services (erreurs scan/voix/compte/recherche + canaux Android de notification), message de partage.
 - **Patterns** : getters `i18next.t` pour les tables de labels au scope module (§23) ; timeouts Edge Functions refactorés par code marker (`SCAN_TIMEOUT`/`VOICE_TIMEOUT`) pour préserver les détections d'erreur `.includes()` ; formatage locale-aware (`formatPrice`/`formatNumber`).
 - **Exceptions conservées** : noms de marques/parfums, données catalogue (notes/accords/familles), mots-clés de matching.
-- **État** : le code est 100 % prêt pour le multilingue ; seul FR est fourni pour l'instant (EN puis ES/DE/IT/PT-BR à venir). **902 tests, 80 suites**. `tsc --noEmit` : 0 erreur.
+- **Phases 2-3 (faites)** : traductions **EN + ES/DE/IT/PT-BR** bundlées (`src/locales/{lang}/common.json`, parité 100 %) ; fallback `['en', 'fr']` + `UNSUPPORTED_FALLBACK_LANGUAGE = 'en'` ; match de la locale appareil avec variantes régionales (`matchLocale` : `pt`/`pt-PT` → `pt-BR`) ; permissions iOS localisées (`app.json` `locales`) + `supportedLocales` expo-localization ; script de parité `npm run i18n:check` (`scripts/i18n-parity.mjs` : clés vides/manquantes/en trop, interpolations, valeur=clé) ; runbook opérationnel `docs/i18n-runbook.md` (scénarios, glossaire, règles de traduction, pièges).
+- **État** : app multilingue complète (6 langues). **917 tests, 80 suites**. `tsc --noEmit` : 0 erreur.
 
 ---
 
 ## v9.11 — Roue chromatique + dates relatives (04/08/2026)
 
-- **Roue chromatique** (`/wheel`, route racine) : exploration par couleur — anneau SVG (`react-native-svg`) de 12 couleurs-ancres curatées (9 teintes sur l'anneau + 3 neutres au centre), snap vers l'ancre la plus proche. Chaque couleur mappe vers le vocabulaire olfactif du catalogue (accords GIN `main_accords` + notes FTS `search_vector` + affinité saisonnière, mapping curaté client `chromatic-wheel.ts`).
+- **Roue chromatique** (`/wheel`, route racine) : exploration par couleur — disque colorimétrique SVG plein (`react-native-svg`, wedges + RadialGradient de désaturation centrale) de **16 couleurs curatées** (12 teintes équidistantes de 30° sur l'anneau + 4 neutres au centre noir/blanc/gris/brun), snap Voronoi vers l'ancre la plus proche (`hueToAnchor`). **One-tap → les 50 parfums de la teinte s'affichent SOUS la roue** (grille virtualisée, même écran) ; « Tout voir » pousse `/search?color=<key>` (cache mémoire partagé déjà chaud → rendu instantané). Chaque couleur mappe vers le vocabulaire olfactif du catalogue (accords GIN `main_accords` + notes FTS `search_vector` + affinité saisonnière, mapping curaté client `chromatic-wheel.ts` validé contre data/clean). Entrées : carte « Par couleur » en tête du carrousel « Par famille ou couleur » (Catalogue, rendue immédiatement — plus de gate réseau) + bouton palette dans SearchChrome.
 - **RPC `chroma_parfums`** : `0061` (BitmapOr sur 2 index GIN existants, scoring sur candidats uniquement, tri intensité chromatique → popularité) + `0062` (branches bornées par popularité AVANT scoring — fix timeout E2E sur notes fréquentes musc/jasmin/rose).
 - **Perf** : `getParfumsByColor` + cache mémoire + dédup in-flight PARTAGÉS entre `/wheel` et `/search?color=` (la sélection posée préchauffe la liste) ; SVG monté après la transition d'ouverture (320 ms) + prefetch des 12 premières images.
 - **Util `relative-date.ts`** : `formatRelativeShort` (« à l'instant / il y a N min / N h / N j », absolu Intl au-delà de 7 j) — utilisé par la vue Alertes de Favoris (`lastChecked`).
@@ -331,6 +332,7 @@ dénormalisés → affichage direct sans appel Postgres supplémentaire.
 - **Toggle « Un flacon / Ma collection »** sur l'idle. Une photo d'étagère → Edge Function mode `collection` (schema `bottles[]` + `estimatedCount`, confiance forcée par flacon = texte lu + marque + nom, escalade si 0 détection, re-ranking visuel PLAFONNÉ à 3 flacons en parallèle).
 - **Matching catalogue par détection** (`searchParfumFromScan`, seuil `_scanScore ≥ 50`) → état `collection-results` (`ScanCollectionResults`) : liste multi-select, VÉRIFIÉS cochés par défaut (les « Correspondance probable » à valider), flacons déjà en collection marqués et exclus, ajout en lot statut `have` (`Promise.allSettled` → écran confirmation).
 - Pas d'entrée `user_scans` par flacon (1 photo ≠ N scans). Helpers purs `collection-scan.ts` + `scanMode.ts`.
+- **Fiabilité v2 (v9.10.1)** : à ~100 px/flacon sur une photo d'étagère entière, les étiquettes sont sous le seuil d'OCR (OpenAI `detail:high` re-scale à 768 px/tuiles 512) → capture en **sections** : état `collection-staging` (`ScanCollectionStaging`) — 1-4 photos de 3-4 flacons, vignettes + retrait par photo, galerie multi-sélection, qualité JPEG 0.8. Premier passage **gpt-4o direct** (le mini produisait des détections « plausibles mais fausses ») + prompt durci (abstention dans le doute, aucune complétion de lecture partielle vers un nom connu). Vérification visuelle GÉNÉRALISÉE à toutes les détections avec marque (plafond 4 en parallèle) et ÉLIMINATOIRE (`match_index=null` → détection supprimée). Dédup serveur marque+nom + `sanitizeForPrompt` (neutralisation injection dans le prompt de vérification).
 
 ---
 
@@ -776,3 +778,4 @@ Audit complet du schéma Supabase (4 subagents : migrations/index, RPC/fonctions
 ## 📄 Licence
 
 MIT — voir [LICENSE](./LICENSE)
+

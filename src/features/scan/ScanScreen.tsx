@@ -11,7 +11,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useNetwork } from '../../hooks/useNetwork';
 import { useScans } from '../../hooks/useScans';
-import { useScanReducer } from '../../hooks/useScanReducer';
+import { useScanReducer, COLLECTION_MAX_PHOTOS } from '../../hooks/useScanReducer';
 import { useScanPipeline } from '../../hooks/useScanPipeline';
 import { setPendingCatalogQuery } from '../../services/catalog-bridge';
 import type { ScanResult } from '../../models';
@@ -21,6 +21,7 @@ import { ScanLoading } from './ScanLoading';
 import { ScanClarify } from './ScanClarify';
 import { ScanResults } from './ScanResults';
 import { ScanCollectionResults } from './ScanCollectionResults';
+import { ScanCollectionStaging } from './ScanCollectionStaging';
 import { ScanNoResult } from './ScanNoResult';
 import { ScanError } from './ScanError';
 import type { ScanMode } from './scanMode';
@@ -31,12 +32,17 @@ import { PERMISSION_PRIMERS } from '../../utils/permission-primers';
 // 1280px : OCR d'étiquettes (detail high côté serveur), payload contenu par le JPEG
 const MAX_IMAGE_WIDTH = 1280;
 const IMAGE_QUALITY = 0.6;
+// Re-compression après resize : 0.8 — re-compresser à 0.6 une image déjà compressée
+// dégrade les étiquettes ; le poids reste sous le plafond serveur (5 Mo/image).
+const REENCODE_QUALITY = 0.8;
+// Galerie en mode collection : qualité supérieure (sections de 3-4 flacons).
+const GALLERY_QUALITY_COLLECTION = 0.8;
 
 async function resizeToBase64(uri: string): Promise<string | null> {
   const result = await manipulateAsync(
     uri,
     [{ resize: { width: MAX_IMAGE_WIDTH } }],
-    { compress: IMAGE_QUALITY, base64: true, format: SaveFormat.JPEG },
+    { compress: REENCODE_QUALITY, base64: true, format: SaveFormat.JPEG },
   );
   return result.base64 ?? null;
 }
@@ -63,15 +69,17 @@ export function ScanScreen() {
   // Pipeline métier : GPT-4o → recherche → résultats → historique
   const { startAnalysis, startCollectionAnalysis, cancelAnalysis } = useScanPipeline(dispatch, user?.uid ?? null, mountedRef);
 
+  // Flacon unique → analyse immédiate ; collection → STAGING (l'utilisateur ajoute
+  // 1-4 photos de sections avant de lancer l'analyse sur l'ensemble).
   const launchAnalysis = useCallback((images: string[]) => {
-    lastBurstRef.current = images;
-    lastModeRef.current = scanMode;
     if (scanMode === 'collection') {
-      startCollectionAnalysis({ image: images[0] });
+      dispatch({ type: 'COLLECTION_ADD_PHOTOS', images });
     } else {
+      lastBurstRef.current = images;
+      lastModeRef.current = 'single';
       startAnalysis({ images });
     }
-  }, [scanMode, startAnalysis, startCollectionAnalysis]);
+  }, [scanMode, dispatch, startAnalysis]);
 
   // Scans récents réussis (vignettes sur l'idle)
   const { scans } = useScans(user?.uid ?? null);
@@ -89,6 +97,13 @@ export function ScanScreen() {
     return false;
   }, [isOnline, t]);
 
+  const handleAnalyzeStaging = useCallback((images: string[]) => {
+    if (!guardOnline()) return;
+    lastBurstRef.current = images;
+    lastModeRef.current = 'collection';
+    startCollectionAnalysis({ images });
+  }, [guardOnline, startCollectionAnalysis]);
+
   // ─── Handlers UI ──────────────────────────────────────
 
   const reset = useCallback(() => {
@@ -98,7 +113,12 @@ export function ScanScreen() {
 
   const handleCancelScan = useCallback(() => {
     cancelAnalysis();
-  }, [cancelAnalysis]);
+    // Annuler une analyse collection ramène au STAGING (les photos de sections
+    // sont coûteuses à prendre — on ne les jette pas).
+    if (lastModeRef.current === 'collection' && lastBurstRef.current && lastBurstRef.current.length > 0) {
+      dispatch({ type: 'COLLECTION_ADD_PHOTOS', images: lastBurstRef.current });
+    }
+  }, [cancelAnalysis, dispatch]);
 
   // Demande système (après primer le cas échéant) + gestion des refus.
   const requestCameraAndOpen = useCallback(async () => {
@@ -139,23 +159,28 @@ export function ScanScreen() {
 
   const handleGalleryImport = useCallback(async () => {
     if (!guardOnline()) return;
+    const collection = scanMode === 'collection';
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        quality: IMAGE_QUALITY,
+        quality: collection ? GALLERY_QUALITY_COLLECTION : IMAGE_QUALITY,
+        allowsMultipleSelection: collection,
+        selectionLimit: collection ? COLLECTION_MAX_PHOTOS : 1,
       });
-      if (result.canceled || !result.assets?.[0]?.uri) return;
-      const base64 = await resizeToBase64(result.assets[0].uri);
-      if (!base64) {
+      if (result.canceled || !result.assets?.length) return;
+      const resized = await Promise.all(result.assets.map((a) => resizeToBase64(a.uri)));
+      const images = resized
+        .filter((b): b is string => b !== null)
+        .map((b) => `data:image/jpeg;base64,${b}`);
+      if (images.length === 0) {
         Alert.alert(t('scan.errorTitle'), t('scan.processImageError'));
         return;
       }
-      const images = [`data:image/jpeg;base64,${base64}`];
       launchAnalysis(images);
     } catch {
       Alert.alert(t('scan.errorTitle'), t('scan.galleryError'));
     }
-  }, [launchAnalysis, guardOnline, t]);
+  }, [launchAnalysis, guardOnline, scanMode, t]);
 
   const handleCapture = useCallback((burstBase64: string[]) => {
     launchAnalysis(burstBase64);
@@ -173,7 +198,7 @@ export function ScanScreen() {
     const burst = lastBurstRef.current;
     if (burst && burst.length > 0) {
       if (lastModeRef.current === 'collection') {
-        startCollectionAnalysis({ image: burst[0] });
+        startCollectionAnalysis({ images: burst });
       } else {
         startAnalysis({ images: burst });
       }
@@ -181,6 +206,25 @@ export function ScanScreen() {
       reset();
     }
   }, [reset, startAnalysis, startCollectionAnalysis, guardOnline]);
+
+  // Staging collection : ajouter une section (rouvre la caméra), retirer une photo.
+  const handleAddSection = useCallback(() => {
+    void handleOpenCamera();
+  }, [handleOpenCamera]);
+
+  const handleRemovePhoto = useCallback((index: number) => {
+    dispatch({ type: 'COLLECTION_REMOVE_PHOTO', index });
+  }, [dispatch]);
+
+  // Fermer le staging avec des photos déjà prises → confirmation (le travail de
+  // prise de vue par sections est coûteux, on ne le jette pas sur un tap accidentel).
+  const handleCloseStaging = useCallback((imageCount: number) => {
+    if (imageCount === 0) { reset(); return; }
+    Alert.alert(t('scan.stagingDiscardTitle'), t('scan.stagingDiscardMessage', { count: imageCount }), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('scan.stagingDiscardConfirm'), style: 'destructive', onPress: reset },
+    ]);
+  }, [reset, t]);
 
   const handleOpenCatalog = useCallback(() => {
     setPendingCatalogQuery(state.kind === 'results' ? (state.parfums[0]?.marque ?? '') : '');
@@ -217,7 +261,10 @@ export function ScanScreen() {
       view = <ScanIdle isOnline={isOnline} onStartScan={handleOpenCamera} onOpenSearch={handleOpenSearch} onClose={handleClose} recentScans={recentScans} onOpenRecent={handleOpenRecent} mode={scanMode} onChangeMode={setScanMode} />;
       break;
     case 'camera':
-      view = <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} onImportGallery={handleGalleryImport} idleHint={scanMode === 'collection' ? t('scan.cameraHintCollection') : undefined} />;
+      view = <ScanCamera onCapture={handleCapture} onCancel={() => dispatch({ type: 'CANCEL_CAMERA' })} onImportGallery={handleGalleryImport} idleHint={scanMode === 'collection' ? t('scan.cameraHintCollection') : undefined} highQuality={scanMode === 'collection'} />;
+      break;
+    case 'collection-staging':
+      view = <ScanCollectionStaging images={state.images} onAddSection={handleAddSection} onRemovePhoto={handleRemovePhoto} onAnalyze={handleAnalyzeStaging} onClose={handleCloseStaging} />;
       break;
     case 'scanning':
       view = <ScanLoading onCancel={handleCancelScan} thumbnail={state.images?.[0]} />;

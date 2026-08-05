@@ -214,9 +214,11 @@ export function analyzeImage(base64: string): Promise<ScanResult>;
 export function analyzeMultipleImages(imagesBase64: string[]): Promise<ScanResult>;
 // v6 — mode collection : une photo d'étagère → inventaire `bottles[]` (marque/nom/
 // typeParfum/textRead par flacon) + `estimatedCount` (total vus, y c. non identifiés).
-// Confiance forcée par flacon (texte lu + marque + nom → 'high'), escalade si 0 détection,
-// re-ranking visuel PLAFONNÉ à 3 flacons (forme + marque, en parallèle). Quota 'scan' partagé.
-export function analyzeCollectionImage(base64: string): Promise<CollectionScanResult>;
+// v6.1 — fiabilité : 1-4 photos de SECTIONS (`imagesBase64[]`), premier passage gpt-4o
+// direct, prompt durci (abstention dans le doute), vérification visuelle généralisée à
+// toutes les détections avec marque et ÉLIMINATOIRE (plafond 4 en parallèle ;
+// `match_index=null` → détection supprimée). Quota 'scan' partagé.
+export function analyzeCollectionImage(imagesBase64: string[]): Promise<CollectionScanResult>;
 ```
 
 ### `src/services/storage.ts`
@@ -984,14 +986,18 @@ export function deviceVoiceLanguages(): string[];  // indices ISO 639-1 (max 3) 
 
 ### `src/utils/chromatic-wheel.ts`
 ```ts
-// Roue chromatique — 12 couleurs-ancres curatées → vocabulaire olfactif du catalogue.
-export type ChromaticKey = /* 'red' | 'orange' | … | 'black' | 'white' | 'gray' (12 clés) */;
-export const CHROMA_ANCHORS: ChromaticAnchor[];   // 9 teintes (hue) + 3 neutres (noir/blanc/gris)
-export function getColorByKey(key?: ChromaticKey): ChromaticColor | undefined;
-export function hueToAnchor(hue: number): ChromaticKey;  // snap vers l'ancre la plus proche
-export function chromaSwatch(key: ChromaticKey, mode: 'light' | 'dark'): { swatch: string; ring: string };
+// Roue chromatique v2 — 16 couleurs curatées → vocabulaire olfactif du catalogue.
+export type ChromaticKey = /* 'red' | 'orange' | … | 'black' | 'white' | 'gray' | 'brown' (16 clés) */;
+export const RING_ANCHORS: ChromaticColor[];   // 12 teintes équidistantes (30°) sur l'anneau
+export const CENTER_NEUTRALS: ChromaticColor[]; // 4 neutres au centre (noir/blanc/gris/brun)
+export function getColorByKey(key?: string): ChromaticColor | undefined;
+export function hueToAnchor(hue: number): ChromaticColor;  // snap Voronoi vers l'ancre la plus proche
+export function nearestAnchorIndex(hues: number[], deg: number): number; // miroir testé du worklet
+export function chromaSwatch(key: ChromaticKey, mode: 'light' | 'dark'): { swatch: string; soft: string; ink: string };
 // Chaque couleur définit : accords (GIN main_accords &&), notes (FTS search_vector @@),
 // affinité saisonnière. Labels/taglines résolus via i18next (`chroma.*`) à l'affichage.
+// /wheel : disque SVG plein (wedges + RadialGradient), one-tap → résultats sous la
+// roue + « Tout voir » → /search?color=<key> (cache partagé getParfumsByColor).
 ```
 
 ### `src/utils/relative-date.ts`
@@ -1232,7 +1238,7 @@ interface Props {
 }
 ```
 
-**Structure** : capsules marques → « Pour vous » (rangee) → « Meilleures affaires » (rangee) → « Explorer par famille » (ambiance cards) → « Icones intemporelles » (rangee, repliee) → grille « Tous les parfums » avec controles densite + filtre.
+**Structure** : capsules marques → « Pour vous » (rangee) → « Meilleures affaires » (rangee) → « Par famille ou couleur » (ambiance cards — carte couleur en tête → /wheel) → « Icones intemporelles » (rangee, repliee) → grille « Tous les parfums » avec controles densite + filtre.
 
 ### `FilterSheet` — `src/components/FilterSheet.tsx`
 

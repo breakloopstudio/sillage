@@ -54,6 +54,13 @@ export default function SearchChrome() {
     router.push('/settings');
   }, [router]);
 
+  // Roue chromatique : mode de recherche par couleur (feature 100 % lecture —
+  // zéro gate auth/online/permission).
+  const handleWheelPress = useCallback(() => {
+    hapticsLight();
+    router.push('/wheel');
+  }, [router]);
+
   const handleAvatarPress = useCallback(() => {
     hapticsLight();
     router.push('/profile');
@@ -292,6 +299,9 @@ export default function SearchChrome() {
             )}
           </Pressable>
         </View>
+        <Pressable onPress={handleWheelPress} style={s.wheelBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel={t('searchChrome.openWheelA11y')}>
+          <Ionicons name="color-palette-outline" size={18} color={theme.colors.textMuted} />
+        </Pressable>
         <Pressable onPress={handleSettingsPress} style={s.settingsBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }} accessibilityRole="button" accessibilityLabel={t('searchChrome.openSettingsA11y')}>
           <Ionicons name="settings-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
@@ -359,6 +369,16 @@ function getSearchStyles(t: Theme, safeTop: number) {
     },
     searchRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
     searchBarFlex: { flex: 1 },
+    wheelBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: t.colors.surface2,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.colors.border,
+    },
     settingsBtn: {
       width: 40,
       height: 40,

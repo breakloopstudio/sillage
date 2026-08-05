@@ -382,6 +382,7 @@ export default function FavorisPage() {
       tierLabel,
       stateLabel,
       progress != null ? t('favorites.alert.progressA11y', { pct: Math.round(progress * 100) }) : null,
+      chipParts.length > 0 ? chipParts.join(' · ') : null,
     ].filter(Boolean).join(', ');
     return (
       <Pressable style={s.alertCard} onPress={() => handleAlertCardPress(row)} onLongPress={() => handleAlertLongPress(row)} accessibilityRole="button" accessibilityLabel={a11y}>
@@ -395,21 +396,9 @@ export default function FavorisPage() {
         <View style={s.alertBody}>
           <Text style={s.alertBrand} numberOfLines={1}>{row.marque}</Text>
           <Text style={s.alertName} numberOfLines={2}>{row.nom}</Text>
-          <View style={s.alertPriceRow}>
-            {tier ? <View style={[s.alertPriceDot, { backgroundColor: theme.colors[tier] }]} accessible={false} /> : null}
-            {row.currentPrice != null ? <Text style={s.alertPrice} allowFontScaling={false}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
-            {row.referencePrice != null && row.referencePrice !== row.currentPrice ? <Text style={s.alertRef} allowFontScaling={false}>{formatPrice(row.referencePrice, { decimals: 0 })}</Text> : null}
-          </View>
           {progress != null ? (
             <View style={s.gaugeTrack} accessible={false}>
               {progress > 0 ? <View style={[s.gaugeFill, { width: `${Math.max(4, progress * 100)}%` }]} /> : null}
-            </View>
-          ) : null}
-          {chipParts.length > 0 ? (
-            <View style={s.alertChipRow}>
-              <View style={[s.alertVarChip, { backgroundColor: chipNeg ? theme.colors.dealSoft : theme.colors.surface2 }]}>
-                <Text style={[s.alertVarText, { color: chipNeg ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{chipParts.join(' · ')}</Text>
-              </View>
             </View>
           ) : null}
           {state === 'reached' ? (
@@ -428,6 +417,18 @@ export default function FavorisPage() {
             <Text style={s.alertCaption}>{t('favorites.alert.watching')}</Text>
           )}
           {infoParts.length > 0 ? <Text style={s.alertCaption}>{infoParts.join(' · ')}</Text> : null}
+        </View>
+        <View style={s.alertTrailing} accessible={false}>
+          <View style={s.alertPriceRow}>
+            {tier ? <View style={[s.alertPriceDot, { backgroundColor: theme.colors[tier] }]} /> : null}
+            {row.currentPrice != null ? <Text style={s.alertPriceMain} allowFontScaling={false}>{formatPrice(row.currentPrice, { decimals: 0 })}</Text> : null}
+          </View>
+          {row.referencePrice != null && row.referencePrice !== row.currentPrice ? <Text style={s.alertRef} allowFontScaling={false}>{formatPrice(row.referencePrice, { decimals: 0 })}</Text> : null}
+          {chipParts.length > 0 ? (
+            <View style={[s.alertVarChip, { backgroundColor: chipNeg ? theme.colors.dealSoft : theme.colors.surface2 }]}>
+              <Text style={[s.alertVarText, { color: chipNeg ? theme.colors.dealInk : theme.colors.textMuted }]} allowFontScaling={false}>{chipParts.join(' · ')}</Text>
+            </View>
+          ) : null}
         </View>
       </Pressable>
     );
@@ -790,7 +791,8 @@ function getStyles(t: Theme) {
     alertPriceDot: { width: 7, height: 7, borderRadius: 4 },
     alertPrice: { fontFamily: 'Inter_700Bold', fontSize: 14, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     alertRef: { fontFamily: 'Inter_400Regular', fontSize: 11, color: t.colors.textMuted, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
-    alertChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    alertTrailing: { alignItems: 'flex-end', flexShrink: 0, gap: 4 },
+    alertPriceMain: { fontFamily: 'Inter_700Bold', fontSize: 16, color: t.colors.text, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     alertVarChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
     alertVarText: { fontFamily: 'Inter_700Bold', fontSize: 10, fontVariant: ['tabular-nums'] as import('react-native').FontVariant[] },
     alertStateChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },

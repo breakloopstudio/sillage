@@ -85,7 +85,7 @@ describe('getParfumsByColor', () => {
       ],
       error: null,
     });
-    const results = await getParfumsByColor('gold');
+    const results = await getParfumsByColor('orange');
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe('p1');
   });

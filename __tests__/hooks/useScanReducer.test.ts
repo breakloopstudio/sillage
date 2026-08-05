@@ -119,6 +119,108 @@ describe('scanReducer', () => {
     });
   });
 
+  describe('COLLECTION_ADD_PHOTOS / COLLECTION_REMOVE_PHOTO (staging)', () => {
+    it('idle + 1 photo → collection-staging', () => {
+      expect(scanReducer(idle, { type: 'COLLECTION_ADD_PHOTOS', images: ['a'] })).toEqual({
+        kind: 'collection-staging', images: ['a'],
+      });
+    });
+
+    it('staging + photos → accumulation', () => {
+      const staging: ScanState = { kind: 'collection-staging', images: ['a'] };
+      expect(scanReducer(staging, { type: 'COLLECTION_ADD_PHOTOS', images: ['b', 'c'] })).toEqual({
+        kind: 'collection-staging', images: ['a', 'b', 'c'],
+      });
+    });
+
+    it('plafonné à COLLECTION_MAX_PHOTOS (4)', () => {
+      const staging: ScanState = { kind: 'collection-staging', images: ['a', 'b', 'c'] };
+      expect(scanReducer(staging, { type: 'COLLECTION_ADD_PHOTOS', images: ['d', 'e'] })).toEqual({
+        kind: 'collection-staging', images: ['a', 'b', 'c', 'd'],
+      });
+    });
+
+    it("n'accepte pas de photos depuis un autre état (results)", () => {
+      const results: ScanState = { kind: 'results', parfums };
+      expect(scanReducer(results, { type: 'COLLECTION_ADD_PHOTOS', images: ['a'] })).toEqual(results);
+    });
+
+    it('camera + photos → collection-staging (capture pendant la caméra)', () => {
+      const camera: ScanState = { kind: 'camera' };
+      expect(scanReducer(camera, { type: 'COLLECTION_ADD_PHOTOS', images: ['a'] })).toEqual({
+        kind: 'collection-staging', images: ['a'],
+      });
+    });
+
+    it('images vides → état inchangé', () => {
+      expect(scanReducer(idle, { type: 'COLLECTION_ADD_PHOTOS', images: [] })).toEqual(idle);
+    });
+
+    it('staging → OPEN_CAMERA porte les photos posées (staged)', () => {
+      const staging: ScanState = { kind: 'collection-staging', images: ['a', 'b'] };
+      expect(scanReducer(staging, { type: 'OPEN_CAMERA' })).toEqual({
+        kind: 'camera', staged: ['a', 'b'],
+      });
+    });
+
+    it('camera (staged) + capture → fusion avec les photos déjà posées', () => {
+      const camera: ScanState = { kind: 'camera', staged: ['a', 'b'] };
+      expect(scanReducer(camera, { type: 'COLLECTION_ADD_PHOTOS', images: ['c'] })).toEqual({
+        kind: 'collection-staging', images: ['a', 'b', 'c'],
+      });
+    });
+
+    it('camera (staged) + CANCEL_CAMERA → staging restauré', () => {
+      const camera: ScanState = { kind: 'camera', staged: ['a', 'b'] };
+      expect(scanReducer(camera, { type: 'CANCEL_CAMERA' })).toEqual({
+        kind: 'collection-staging', images: ['a', 'b'],
+      });
+    });
+
+    it('camera sans staged + CANCEL_CAMERA → idle', () => {
+      const camera: ScanState = { kind: 'camera' };
+      expect(scanReducer(camera, { type: 'CANCEL_CAMERA' })).toEqual({ kind: 'idle' });
+    });
+
+    it('boucle complète : staging → section → capture → staging enrichi', () => {
+      let state: ScanState = { kind: 'idle' };
+      state = scanReducer(state, { type: 'OPEN_CAMERA' });
+      state = scanReducer(state, { type: 'COLLECTION_ADD_PHOTOS', images: ['a'] });
+      expect(state).toEqual({ kind: 'collection-staging', images: ['a'] });
+      state = scanReducer(state, { type: 'OPEN_CAMERA' });           // « Ajouter une section »
+      expect(state).toEqual({ kind: 'camera', staged: ['a'] });
+      state = scanReducer(state, { type: 'COLLECTION_ADD_PHOTOS', images: ['b'] });
+      expect(state).toEqual({ kind: 'collection-staging', images: ['a', 'b'] });
+      state = scanReducer(state, { type: 'OPEN_CAMERA' });           // 3e section puis annulation
+      state = scanReducer(state, { type: 'CANCEL_CAMERA' });
+      expect(state).toEqual({ kind: 'collection-staging', images: ['a', 'b'] });
+    });
+
+    it('retire une photo par index', () => {
+      const staging: ScanState = { kind: 'collection-staging', images: ['a', 'b', 'c'] };
+      expect(scanReducer(staging, { type: 'COLLECTION_REMOVE_PHOTO', index: 1 })).toEqual({
+        kind: 'collection-staging', images: ['a', 'c'],
+      });
+    });
+
+    it('dernière photo retirée → idle', () => {
+      const staging: ScanState = { kind: 'collection-staging', images: ['a'] };
+      expect(scanReducer(staging, { type: 'COLLECTION_REMOVE_PHOTO', index: 0 })).toEqual({ kind: 'idle' });
+    });
+
+    it('staging → analyse → collection-results → reset', () => {
+      let state: ScanState = { kind: 'idle' };
+      state = scanReducer(state, { type: 'COLLECTION_ADD_PHOTOS', images: ['a', 'b'] });
+      expect(state.kind).toBe('collection-staging');
+      state = scanReducer(state, { type: 'START_SCAN', images: ['a', 'b'] });
+      expect(state.kind).toBe('scanning');
+      state = scanReducer(state, { type: 'COLLECTION_SCAN_SUCCESS', matches: [], estimatedCount: 2 });
+      expect(state.kind).toBe('collection-results');
+      state = scanReducer(state, { type: 'RESET' });
+      expect(state.kind).toBe('idle');
+    });
+  });
+
   describe('SCAN_CLARIFY', () => {
     it('transitions to clarify with scan result', () => {
       expect(

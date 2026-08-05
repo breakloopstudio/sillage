@@ -11,7 +11,7 @@ export default defineConfig({
   // (Phase 2 : 'en', Phase 3 : 'es', 'de', 'it', 'pt-BR').
   // secondaryLanguages est DÉRIVÉ de locales (toutes sauf primaryLanguage) —
   // ne pas le surcharger ici, sinon sync ne propagerait pas aux nouvelles langues.
-  locales: ['fr'],
+  locales: ['fr', 'en', 'es', 'de', 'it', 'pt-BR'],
   extract: {
     input: ['app/**/*.{ts,tsx}', 'src/**/*.{ts,tsx}'],
     ignore: ['**/*.d.ts', 'src/locales/**', 'src/types/**'],

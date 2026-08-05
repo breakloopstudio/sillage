@@ -21,6 +21,8 @@ import { hapticsLight } from '../../services/haptics';
 // payload contenu par la compression JPEG (ex-capteur 12MP → ~300-600KB base64)
 const MAX_IMAGE_WIDTH = 1280;
 const IMAGE_QUALITY = 0.6;
+// Mode collection : sections de 3-4 flacons — la qualité prime (étiquettes petites).
+const IMAGE_QUALITY_HIGH = 0.8;
 const BURST_COUNT = 1;
 
 interface Props {
@@ -28,9 +30,10 @@ interface Props {
   onCancel: () => void;
   onImportGallery?: () => void;
   idleHint?: string;
+  highQuality?: boolean;
 }
 
-export function ScanCamera({ onCapture, onCancel, onImportGallery, idleHint }: Props) {
+export function ScanCamera({ onCapture, onCancel, onImportGallery, idleHint, highQuality = false }: Props) {
   const { theme } = useTheme();
   const s = useMemo(() => getStyles(theme), [theme]);
   const { t } = useTranslation('common');
@@ -58,6 +61,7 @@ export function ScanCamera({ onCapture, onCancel, onImportGallery, idleHint }: P
   const takeBurst = async () => {
     if (!cameraRef.current || capturing) return;
     setCapturing(true);
+    const quality = highQuality ? IMAGE_QUALITY_HIGH : IMAGE_QUALITY;
     try {
       const burst: string[] = [];
 
@@ -65,14 +69,14 @@ export function ScanCamera({ onCapture, onCancel, onImportGallery, idleHint }: P
         hapticsLight();
         setCaptureIndex(i + 1);
         const photo = await cameraRef.current.takePictureAsync({
-          quality: IMAGE_QUALITY,
+          quality,
           base64: false,
         });
         if (photo?.uri) {
           const manipulated = await manipulateAsync(
             photo.uri,
             [{ resize: { width: MAX_IMAGE_WIDTH } }],
-            { compress: IMAGE_QUALITY, base64: true, format: SaveFormat.JPEG },
+            { compress: quality, base64: true, format: SaveFormat.JPEG },
           );
           if (manipulated.base64) {
             burst.push(`data:image/jpeg;base64,${manipulated.base64}`);
